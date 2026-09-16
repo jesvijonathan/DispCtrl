@@ -361,6 +361,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         Raise(nameof(DetectStatus));
         Raise(nameof(DetectStatusVisibility));
+
+        Identify();
+    }
+
+    /// <summary>
+    /// Flashes each display's number on the screen itself.
+    /// </summary>
+    /// <remarks>
+    /// Re-scanning answers "what is attached"; this answers "which physical
+    /// monitor is number two", which is the question someone actually has in
+    /// front of two identical panels.
+    /// </remarks>
+    public void Identify()
+    {
+        var displays = new List<DisplayInfo>(Displays.Count);
+        foreach (DisplayViewModel d in Displays) displays.Add(d.Info);
+
+        DisplayIdentifier.Show(displays, TimeSpan.FromSeconds(3));
     }
 
     /// <summary>Opens Windows' Cast pane — the same one Win+K raises.</summary>

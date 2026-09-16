@@ -1,5 +1,7 @@
 using Umbra.Core.Displays;
 using Windows.Win32;
+using Windows.Win32.Devices.Display;
+using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Gdi;
 using Windows.Win32.UI.ColorSystem;
 
@@ -171,37 +173,105 @@ public static class DisplayArrangement
             == DISP_CHANGE.DISP_CHANGE_SUCCESSFUL;
     }
 
-    /// <summary>Moves displays to new desktop coordinates, applied as one change.</summary>
+    /// <summary>
+    /// Moves displays to new desktop coordinates, applied as one change.
+    /// </summary>
     /// <remarks>
-    /// Used by the drag-to-arrange canvas. Positions are staged per display and
-    /// committed once, so the desktop does not reflow between each move.
+    /// Uses the CCD API rather than <c>ChangeDisplaySettingsEx</c>. The legacy
+    /// call is a compatibility shim on modern Windows and was measured
+    /// returning <c>DISP_CHANGE_FAILED</c> for <em>every</em> variation tried
+    /// on this hardware — position-only, full mode description, staged and
+    /// unstaged alike. <c>SetDisplayConfig</c> is what Display settings itself
+    /// drives, and it takes the whole layout in one call, so there is no
+    /// staging step to fail silently.
     /// </remarks>
     public static unsafe bool SetPositions(IReadOnlyDictionary<string, (int X, int Y)> positions,
                                            IReadOnlyList<DisplayInfo> all)
     {
-        bool staged = false;
+        uint pathCount, modeCount;
+        if (PInvoke.GetDisplayConfigBufferSizes(
+                QUERY_DISPLAY_CONFIG_FLAGS.QDC_ONLY_ACTIVE_PATHS,
+                &pathCount, &modeCount) != WIN32_ERROR.ERROR_SUCCESS)
+            return false;
 
-        foreach (DisplayInfo d in all)
+        var paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
+        var modes = new DISPLAYCONFIG_MODE_INFO[modeCount];
+
+        fixed (DISPLAYCONFIG_PATH_INFO* pPaths = paths)
+        fixed (DISPLAYCONFIG_MODE_INFO* pModes = modes)
         {
-            if (!positions.TryGetValue(d.Token, out (int X, int Y) p)) continue;
-
-            var dm = new DEVMODEW { dmSize = (ushort)sizeof(DEVMODEW) };
-            if (!PInvoke.EnumDisplaySettingsEx(
-                    d.GdiName, ENUM_DISPLAY_SETTINGS_MODE.ENUM_CURRENT_SETTINGS, ref dm, 0))
-                continue;
-
-            dm.Anonymous1.Anonymous2.dmPosition.x = p.X;
-            dm.Anonymous1.Anonymous2.dmPosition.y = p.Y;
-            dm.dmFields = (DEVMODE_FIELD_FLAGS)DmPosition;
-
-            PInvoke.ChangeDisplaySettingsEx(
-                d.GdiName, dm, CDS_TYPE.CDS_UPDATEREGISTRY | CDS_TYPE.CDS_NORESET, null);
-            staged = true;
+            if (PInvoke.QueryDisplayConfig(
+                    QUERY_DISPLAY_CONFIG_FLAGS.QDC_ONLY_ACTIVE_PATHS,
+                    &pathCount, pPaths, &modeCount, pModes, null) != WIN32_ERROR.ERROR_SUCCESS)
+                return false;
         }
 
-        if (!staged) return false;
+        // Map each display's device path to the position it should take.
+        bool changed = false;
 
-        return PInvoke.ChangeDisplaySettingsEx(null, null, 0, null)
-            == DISP_CHANGE.DISP_CHANGE_SUCCESSFUL;
+        for (uint i = 0; i < pathCount; i++)
+        {
+            string? devicePath = TargetDevicePath(paths[i]);
+            if (devicePath is null) continue;
+
+            DisplayInfo? display = null;
+            foreach (DisplayInfo d in all)
+            {
+                if (!string.Equals(d.Key.DevicePath, devicePath, StringComparison.OrdinalIgnoreCase)) continue;
+                display = d;
+                break;
+            }
+
+            if (display is null) continue;
+            if (!positions.TryGetValue(display.Token, out (int X, int Y) p)) continue;
+
+            uint sourceIndex = paths[i].sourceInfo.Anonymous.modeInfoIdx;
+            if (sourceIndex >= modes.Length) continue;
+            if (modes[sourceIndex].infoType != DISPLAYCONFIG_MODE_INFO_TYPE.DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE)
+                continue;
+
+            modes[sourceIndex].Anonymous.sourceMode.position.x = p.X;
+            modes[sourceIndex].Anonymous.sourceMode.position.y = p.Y;
+            changed = true;
+        }
+
+        if (!changed) return false;
+
+        // SDC_USE_SUPPLIED_DISPLAY_CONFIG: use exactly these paths and modes.
+        // SDC_ALLOW_CHANGES lets Windows reconcile anything it must;
+        // SDC_SAVE_TO_DATABASE makes the arrangement stick across replugs.
+        const uint SdcUseSupplied = 0x00000020;
+        const uint SdcApply = 0x00000080;
+        const uint SdcSaveToDatabase = 0x00000200;
+        const uint SdcAllowChanges = 0x00000400;
+
+        fixed (DISPLAYCONFIG_PATH_INFO* pPaths = paths)
+        fixed (DISPLAYCONFIG_MODE_INFO* pModes = modes)
+        {
+            var result = (WIN32_ERROR)PInvoke.SetDisplayConfig(
+                pathCount, pPaths, modeCount, pModes,
+                (SET_DISPLAY_CONFIG_FLAGS)(SdcUseSupplied | SdcApply | SdcSaveToDatabase | SdcAllowChanges));
+
+            return result == WIN32_ERROR.ERROR_SUCCESS;
+        }
     }
+
+    private static unsafe string? TargetDevicePath(DISPLAYCONFIG_PATH_INFO path)
+    {
+        var name = new DISPLAYCONFIG_TARGET_DEVICE_NAME
+        {
+            header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
+            {
+                type = DISPLAYCONFIG_DEVICE_INFO_TYPE.DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
+                size = (uint)sizeof(DISPLAYCONFIG_TARGET_DEVICE_NAME),
+                adapterId = path.targetInfo.adapterId,
+                id = path.targetInfo.id,
+            },
+        };
+
+        return PInvoke.DisplayConfigGetDeviceInfo(&name.header) == (int)WIN32_ERROR.ERROR_SUCCESS
+            ? name.monitorDevicePath.ToString()
+            : null;
+    }
+
 }

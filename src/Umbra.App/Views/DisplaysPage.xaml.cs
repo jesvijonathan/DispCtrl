@@ -30,6 +30,8 @@ public sealed partial class DisplaysPage : Page
         ArrangeSurface.Load(displays);
     }
 
+    private void OnIdentify(object sender, RoutedEventArgs e) => ViewModel.Identify();
+
     private void OnDetect(object sender, RoutedEventArgs e)
     {
         ViewModel.DetectDisplays();

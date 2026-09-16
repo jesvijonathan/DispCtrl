@@ -67,11 +67,14 @@
                Message="{x:Bind ViewModel.ArrangementStatus, Mode=OneWay}"/>
 
       <tk:SettingsCard Header="Detect displays"
-                       Description="Re-scan for monitors, including ones connected but switched off.">
+                       Description="Identify shows each display&apos;s number on the screen itself. Detect re-scans, including monitors connected but switched off.">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE71E;"/>
         </tk:SettingsCard.HeaderIcon>
-        <Button Content="Detect" Click="OnDetect"/>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Identify" Click="OnIdentify"/>
+          <Button Content="Detect" Click="OnDetect"/>
+        </StackPanel>
       </tk:SettingsCard>
 
       <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,4,0,0"
