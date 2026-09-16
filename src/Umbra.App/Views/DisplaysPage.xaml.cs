@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Umbra.App.ViewModels;
+using Umbra.Core.Displays;
 using Umbra.Display;
 using WinRT.Interop;
 
@@ -12,7 +13,28 @@ public sealed partial class DisplaysPage : Page
 
     public DisplaysPage() => InitializeComponent();
 
-    private void OnRescan(object sender, RoutedEventArgs e) => ViewModel.Refresh();
+    private void OnLoaded(object sender, RoutedEventArgs e) => LoadArrangement();
+
+    /// <summary>
+    /// Feeds the arrangement surface the current display geometry.
+    /// </summary>
+    /// <remarks>
+    /// Pushed rather than bound: the canvas draws to scale from the whole
+    /// desktop's bounding box, so it has to be rebuilt as a set rather than
+    /// tracking individual items.
+    /// </remarks>
+    private void LoadArrangement()
+    {
+        var displays = new List<DisplayInfo>(ViewModel.Displays.Count);
+        foreach (DisplayViewModel d in ViewModel.Displays) displays.Add(d.Info);
+        ArrangeSurface.Load(displays);
+    }
+
+    private void OnRescan(object sender, RoutedEventArgs e)
+    {
+        ViewModel.Refresh();
+        LoadArrangement();
+    }
 
     private void OnMakePrimary(object sender, RoutedEventArgs e)
     {

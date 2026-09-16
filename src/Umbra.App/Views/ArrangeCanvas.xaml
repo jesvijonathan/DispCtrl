@@ -1,0 +1,24 @@
+<UserControl x:Class="Umbra.App.Views.ArrangeCanvas"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <StackPanel Spacing="10">
+    <Border CornerRadius="6"
+            Height="220"
+            Background="{ThemeResource LayerFillColorDefaultBrush}"
+            BorderThickness="1"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+      <Canvas x:Name="Surface" SizeChanged="OnSurfaceSizeChanged"/>
+    </Border>
+
+    <StackPanel Orientation="Horizontal" Spacing="8">
+      <Button x:Name="ApplyButton" Content="Apply arrangement"
+              Style="{StaticResource AccentButtonStyle}"
+              IsEnabled="False" Click="OnApply"/>
+      <Button Content="Reset" Click="OnReset"/>
+      <TextBlock x:Name="Hint" VerticalAlignment="Center"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                 Text="Drag a display to move it. Edges snap to neighbours."/>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

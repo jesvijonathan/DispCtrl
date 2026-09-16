@@ -2,7 +2,9 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:tk="using:CommunityToolkit.WinUI.Controls"
-      xmlns:vm="using:Umbra.App.ViewModels">
+      xmlns:vm="using:Umbra.App.ViewModels"
+      xmlns:views="using:Umbra.App.Views"
+      Loaded="OnLoaded">
 
   <Page.Resources>
     <!-- One style for every label in the information grid, so the block reads
@@ -56,6 +58,15 @@
       <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Margin="0,4,0,0"
                Visibility="{x:Bind ViewModel.ArrangementStatusVisibility, Mode=OneWay}"
                Message="{x:Bind ViewModel.ArrangementStatus, Mode=OneWay}"/>
+
+      <tk:SettingsCard Header="Arrange displays"
+                       Description="Drag a display to match where it physically sits. Nothing changes until you apply."
+                       ContentAlignment="Vertical">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE80A;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <views:ArrangeCanvas x:Name="ArrangeSurface" Margin="0,4,0,10"/>
+      </tk:SettingsCard>
 
       <tk:SettingsExpander Header="Unison brightness"
                            Description="One control for every display, relative to the level each is already at.">

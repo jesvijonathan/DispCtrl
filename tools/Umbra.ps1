@@ -27,7 +27,9 @@ param(
     [Parameter(ParameterSetName = 'Install')][switch]$Install,
     [Parameter(ParameterSetName = 'Uninstall')][switch]$Uninstall,
     [Parameter(ParameterSetName = 'RemoveLegacy')][switch]$RemoveLegacy,
-    [Parameter(ParameterSetName = 'Status')][switch]$Status
+    [Parameter(ParameterSetName = 'Status')][switch]$Status,
+    [Parameter(ParameterSetName = 'AddShortcut')][switch]$AddShortcut,
+    [Parameter(ParameterSetName = 'RemoveShortcut')][switch]$RemoveShortcut
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,6 +40,40 @@ $TaskName    = 'Umbra.Engine'
 $LegacyTask  = 'SecondaryTaskbarAutoHide'
 $LegacyProc  = 'SecondaryTaskbarAutoHide'
 $LegacyDir   = Join-Path $env:LOCALAPPDATA 'SecondaryTaskbarAutoHide'
+$AppExe      = Join-Path $Root 'src\Umbra.App\bin\Release\net10.0-windows10.0.26100.0\win-x64\Umbra.App.exe'
+$IconPath    = Join-Path $Root 'src\Umbra.App\Assets\Umbra.ico'
+$StartMenu   = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Umbra.lnk'
+
+function Add-Shortcut {
+    if (-not (Test-Path $AppExe)) {
+        throw "Panel not built. Run: dotnet build src\Umbra.App\Umbra.App.csproj -c Release"
+    }
+    if (-not (Test-Path $IconPath)) {
+        & (Join-Path $Root 'tools\New-UmbraIcon.ps1') | Out-Null
+    }
+
+    # A .lnk is interim. The MSIX package declares its own Start entry and
+    # tile, at which point this and the shortcut it writes both go away.
+    $shell = New-Object -ComObject WScript.Shell
+    $lnk = $shell.CreateShortcut($StartMenu)
+    $lnk.TargetPath = $AppExe
+    $lnk.WorkingDirectory = Split-Path -Parent $AppExe
+    $lnk.IconLocation = "$IconPath,0"
+    $lnk.Description = 'Per-monitor display management'
+    $lnk.Save()
+
+    Write-Host "Added Start menu entry: $StartMenu"
+    Write-Host 'Search for "Umbra" in the Start menu.'
+}
+
+function Remove-Shortcut {
+    if (Test-Path $StartMenu) {
+        Remove-Item $StartMenu -Force
+        Write-Host 'Removed the Start menu entry.'
+    } else {
+        Write-Host 'No Start menu entry to remove.'
+    }
+}
 
 function Assert-Built {
     if (-not (Test-Path $Exe)) {
@@ -125,6 +161,8 @@ function Install-Umbra {
         -Trigger @($atLogon, $watchdog) -Settings $settings -Principal $principal -Force | Out-Null
     Write-Host "Registered '$TaskName' (at logon + 2-minute watchdog)."
 
+    if (Test-Path $AppExe) { Add-Shortcut }
+
     Start-ScheduledTask -TaskName $TaskName
     Start-Sleep -Seconds 2
     Show-Status
@@ -177,7 +215,9 @@ function Show-Status {
     }
 }
 
-if     ($Install)      { Install-Umbra }
-elseif ($Uninstall)    { Uninstall-Umbra }
-elseif ($RemoveLegacy) { Remove-Legacy }
-else                   { Show-Status }
+if     ($Install)        { Install-Umbra }
+elseif ($Uninstall)      { Uninstall-Umbra; Remove-Shortcut }
+elseif ($RemoveLegacy)   { Remove-Legacy }
+elseif ($AddShortcut)    { Add-Shortcut }
+elseif ($RemoveShortcut) { Remove-Shortcut }
+else                     { Show-Status }
