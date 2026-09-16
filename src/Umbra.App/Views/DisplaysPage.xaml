@@ -441,10 +441,10 @@
                   <Grid>
                     <ToggleSwitch IsOn="{x:Bind HideTaskbar, Mode=TwoWay}"
                                   Visibility="{x:Bind ToggleVisibility}"/>
-                    <TextBlock Text="See Settings › Primary taskbar"
-                               Visibility="{x:Bind PrimaryNoteVisibility}"
-                               VerticalAlignment="Center"
-                               Foreground="{ThemeResource TextFillColorDisabledBrush}"/>
+                    <!-- The primary display gets Windows' own auto-hide here,
+                         rather than a dead control and a pointer elsewhere. -->
+                    <ToggleSwitch IsOn="{x:Bind PrimaryAutoHide, Mode=TwoWay}"
+                                  Visibility="{x:Bind PrimaryNoteVisibility}"/>
                   </Grid>
                 </tk:SettingsCard>
 

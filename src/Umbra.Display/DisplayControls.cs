@@ -256,6 +256,68 @@ public static class DisplayArrangement
         }
     }
 
+    /// <summary>
+    /// Changes a display's refresh rate through the CCD API.
+    /// </summary>
+    /// <remarks>
+    /// <c>ChangeDisplaySettingsEx</c> refuses every mode change on this
+    /// hardware, so the legacy path is unusable. Here the target's desired rate
+    /// is set and its mode index invalidated, which asks Windows to find a mode
+    /// matching that rate rather than describing the timing by hand — the
+    /// pixel clock and blanking intervals are the driver's business.
+    /// </remarks>
+    public static unsafe bool SetRefreshRate(DisplayInfo display, uint hz)
+    {
+        const uint PathModeIdxInvalid = 0xffffffff;
+        const uint SdcUseSupplied = 0x00000020;
+        const uint SdcApply = 0x00000080;
+        const uint SdcSaveToDatabase = 0x00000200;
+        const uint SdcAllowChanges = 0x00000400;
+
+        uint pathCount, modeCount;
+        if (PInvoke.GetDisplayConfigBufferSizes(
+                QUERY_DISPLAY_CONFIG_FLAGS.QDC_ONLY_ACTIVE_PATHS,
+                &pathCount, &modeCount) != WIN32_ERROR.ERROR_SUCCESS)
+            return false;
+
+        var paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
+        var modes = new DISPLAYCONFIG_MODE_INFO[modeCount];
+
+        fixed (DISPLAYCONFIG_PATH_INFO* pPaths = paths)
+        fixed (DISPLAYCONFIG_MODE_INFO* pModes = modes)
+        {
+            if (PInvoke.QueryDisplayConfig(
+                    QUERY_DISPLAY_CONFIG_FLAGS.QDC_ONLY_ACTIVE_PATHS,
+                    &pathCount, pPaths, &modeCount, pModes, null) != WIN32_ERROR.ERROR_SUCCESS)
+                return false;
+        }
+
+        bool found = false;
+        for (uint i = 0; i < pathCount; i++)
+        {
+            string? devicePath = TargetDevicePath(paths[i]);
+            if (!string.Equals(devicePath, display.Key.DevicePath, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            paths[i].targetInfo.refreshRate = new DISPLAYCONFIG_RATIONAL { Numerator = hz, Denominator = 1 };
+            paths[i].targetInfo.Anonymous.modeInfoIdx = PathModeIdxInvalid;
+            found = true;
+            break;
+        }
+
+        if (!found) return false;
+
+        fixed (DISPLAYCONFIG_PATH_INFO* pPaths = paths)
+        fixed (DISPLAYCONFIG_MODE_INFO* pModes = modes)
+        {
+            var result = (WIN32_ERROR)PInvoke.SetDisplayConfig(
+                pathCount, pPaths, modeCount, pModes,
+                (SET_DISPLAY_CONFIG_FLAGS)(SdcUseSupplied | SdcApply | SdcSaveToDatabase | SdcAllowChanges));
+
+            return result == WIN32_ERROR.ERROR_SUCCESS;
+        }
+    }
+
     private static unsafe string? TargetDevicePath(DISPLAYCONFIG_PATH_INFO path)
     {
         var name = new DISPLAYCONFIG_TARGET_DEVICE_NAME

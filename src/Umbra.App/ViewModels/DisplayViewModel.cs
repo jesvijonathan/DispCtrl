@@ -304,8 +304,29 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         ? "Taskbar always shown"
         : _settings.HideTaskbar ? "Taskbar hidden" : "Taskbar shown";
 
+    /// <summary>
+    /// Windows' own auto-hide, surfaced on the primary display's own card.
+    /// </summary>
+    /// <remarks>
+    /// Umbra cannot move the primary taskbar, but Windows can — so rather than
+    /// showing a dead control and pointing at another page, the primary card
+    /// offers the switch that actually works for it. It is global underneath,
+    /// which is why it appears only here: every other display is handled by
+    /// Umbra's own parking, which overrides the sliver Explorer leaves.
+    /// </remarks>
+    public bool PrimaryAutoHide
+    {
+        get => GlobalTaskbar.IsAutoHide;
+        set
+        {
+            if (GlobalTaskbar.IsAutoHide == value) return;
+            GlobalTaskbar.SetAutoHide(value);
+            Raise();
+        }
+    }
+
     public string HideTaskbarDescription => _display.IsPrimary
-        ? "Windows does not allow this on the primary monitor — explorer restores its taskbar immediately."
+        ? "Umbra cannot move the primary taskbar — Explorer restores it immediately. This uses Windows' own auto-hide instead, which does work here but leaves a one-pixel lit strip along the edge."
         : "Parks the taskbar fully off this panel. No pixels stay lit, so nothing can burn in.";
 
     public bool HideTaskbar
@@ -533,10 +554,20 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
         _applyingMode = true;
         string device = _display.GdiName;
+        DisplayInfo info = _display;
+        bool rateOnly = target.Width == _display.Bounds.Width && target.Height == _display.Bounds.Height;
 
         _ = Task.Run(() =>
         {
-            ModeChangeResult result = DisplayModes.Apply(device, target);
+            // A rate-only change goes through the CCD API. The legacy
+            // ChangeDisplaySettingsEx refuses every mode change on this
+            // hardware, so the resolution path is best-effort while this one
+            // is known to work.
+            ModeChangeResult result = rateOnly
+                ? DisplayArrangement.SetRefreshRate(info, target.RefreshHz)
+                    ? ModeChangeResult.AppliedSeamlessly
+                    : ModeChangeResult.Failed
+                : DisplayModes.Apply(device, target);
 
             _ui.TryEnqueue(() =>
             {
