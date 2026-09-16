@@ -1,14 +1,13 @@
 using Microsoft.UI;
-using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Umbra.Core.Displays;
 using Umbra.Display;
 using Windows.Foundation;
 using Windows.Storage.Streams;
-using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Umbra.App.Views;
 
@@ -27,85 +26,87 @@ public sealed partial class ArrangeCanvas : UserControl
     {
         public required Border Element { get; init; }
         public required DisplayInfo Display { get; init; }
-
-        /// <summary>Desktop-space position, updated as the tile is dragged.</summary>
         public int X { get; set; }
         public int Y { get; set; }
+
+        public int Width => Display.Bounds.Width;
+        public int Height => Display.Bounds.Height;
     }
 
     /// <summary>
     /// How close two edges must be, <em>on screen</em>, to snap together.
     /// </summary>
     /// <remarks>
-    /// Deliberately expressed in screen pixels and converted to desktop pixels
-    /// at the current scale. A fixed desktop-space threshold is unusable: the
-    /// canvas draws a ~4800px-wide desktop into a few hundred pixels, so 60
-    /// desktop pixels is under six on screen — the drop target was effectively
-    /// pixel-perfect, which is why it never appeared to snap.
+    /// Expressed in screen pixels and converted at the current scale. A fixed
+    /// desktop-space threshold is unusable: the canvas draws a ~4800px-wide
+    /// desktop into a few hundred pixels, so even 60 desktop pixels lands under
+    /// six on screen.
     /// </remarks>
-    private const double SnapScreenPixels = 18;
-
-    private int SnapThreshold => (int)Math.Round(SnapScreenPixels / Math.Max(_scale, 0.0001));
+    private const double SnapScreenPixels = 22;
 
     private readonly List<Tile> _tiles = [];
     private IReadOnlyList<DisplayInfo> _displays = [];
 
+    /// <summary>
+    /// Positions staged by dragging, keyed by display token.
+    /// </summary>
+    /// <remarks>
+    /// Held separately from the tiles so a relayout cannot discard them. The
+    /// surface used to rebuild from <see cref="DisplayInfo.Bounds"/> on every
+    /// size change, which silently reverted a staged arrangement — and that
+    /// looked exactly like Apply doing nothing, because by then it was writing
+    /// back the original coordinates.
+    /// </remarks>
+    private readonly Dictionary<string, (int X, int Y)> _staged = [];
+
     private double _scale = 0.1;
+    private double _offsetX, _offsetY;
     private int _originX, _originY;
 
     private Tile? _dragging;
     private Point _grabOffset;
-    private bool _dirty;
 
     public ArrangeCanvas() => InitializeComponent();
+
+    private int SnapThreshold => (int)Math.Round(SnapScreenPixels / Math.Max(_scale, 0.0001));
 
     /// <summary>Rebuilds the surface for a new set of displays.</summary>
     public void Load(IReadOnlyList<DisplayInfo> displays)
     {
         _displays = displays;
-        _dirty = false;
+        _staged.Clear();
         ApplyButton.IsEnabled = false;
-        Rebuild();
+        Build();
     }
 
-    private void OnSurfaceSizeChanged(object sender, SizeChangedEventArgs e) => Rebuild();
+    /// <remarks>
+    /// A size change only re-lays-out; it never rebuilds from scratch, so a
+    /// staged arrangement survives the window being resized or maximised.
+    /// </remarks>
+    private void OnSurfaceSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_tiles.Count == 0) Build();
+        else Layout();
+    }
 
-    private void Rebuild()
+    // ---------------------------------------------------------------- build --
+
+    private void Build()
     {
         Surface.Children.Clear();
         _tiles.Clear();
 
         if (_displays.Count == 0 || Surface.ActualWidth <= 0) return;
 
-        // Bounding box of the whole desktop, so the drawing is to scale.
-        int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
         foreach (DisplayInfo d in _displays)
         {
-            minX = Math.Min(minX, d.Bounds.Left);
-            minY = Math.Min(minY, d.Bounds.Top);
-            maxX = Math.Max(maxX, d.Bounds.Right);
-            maxY = Math.Max(maxY, d.Bounds.Bottom);
-        }
-
-        _originX = minX;
-        _originY = minY;
-
-        double spanX = Math.Max(1, maxX - minX);
-        double spanY = Math.Max(1, maxY - minY);
-
-        // 0.82 leaves margin so a dragged tile is not clipped at the edge.
-        _scale = Math.Min(Surface.ActualWidth / spanX, Surface.ActualHeight / spanY) * 0.82;
-
-        double offsetX = (Surface.ActualWidth - spanX * _scale) / 2;
-        double offsetY = (Surface.ActualHeight - spanY * _scale) / 2;
-
-        for (int i = 0; i < _displays.Count; i++)
-        {
-            DisplayInfo d = _displays[i];
+            (int x, int y) = _staged.TryGetValue(d.Token, out (int X, int Y) s)
+                ? s
+                : (d.Bounds.Left, d.Bounds.Top);
 
             var label = new TextBlock
             {
-                Text = (i + 1).ToString(),
+                Text = (_tiles.Count + 1).ToString(),
                 FontSize = 22,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -115,8 +116,6 @@ public sealed partial class ArrangeCanvas : UserControl
 
             var border = new Border
             {
-                Width = Math.Max(24, d.Bounds.Width * _scale),
-                Height = Math.Max(18, d.Bounds.Height * _scale),
                 CornerRadius = new CornerRadius(4),
                 BorderThickness = new Thickness(d.IsPrimary ? 2 : 1),
                 Background = (Brush)Application.Current.Resources[
@@ -125,29 +124,59 @@ public sealed partial class ArrangeCanvas : UserControl
                 Child = label,
             };
 
-            _ = LoadTileWallpaperAsync(border, d);
-
-            var tile = new Tile { Element = border, Display = d, X = d.Bounds.Left, Y = d.Bounds.Top };
-            border.Tag = tile;
-
             border.PointerPressed += OnPointerPressed;
             border.PointerMoved += OnPointerMoved;
             border.PointerReleased += OnPointerReleased;
+            border.PointerCaptureLost += OnPointerCaptureLost;
 
-            Canvas.SetLeft(border, offsetX + (d.Bounds.Left - _originX) * _scale);
-            Canvas.SetTop(border, offsetY + (d.Bounds.Top - _originY) * _scale);
+            var tile = new Tile { Element = border, Display = d, X = x, Y = y };
+            border.Tag = tile;
+
+            _ = LoadTileWallpaperAsync(border, d);
 
             Surface.Children.Add(border);
             _tiles.Add(tile);
         }
+
+        Layout();
+    }
+
+    /// <summary>Recomputes scale and places every tile from its desktop position.</summary>
+    private void Layout()
+    {
+        if (_tiles.Count == 0 || Surface.ActualWidth <= 0 || Surface.ActualHeight <= 0) return;
+
+        // Bounding box of the staged arrangement, not the committed one, so a
+        // display dragged well clear still fits on screen.
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
+        foreach (Tile t in _tiles)
+        {
+            minX = Math.Min(minX, t.X);
+            minY = Math.Min(minY, t.Y);
+            maxX = Math.Max(maxX, t.X + t.Width);
+            maxY = Math.Max(maxY, t.Y + t.Height);
+        }
+
+        _originX = minX;
+        _originY = minY;
+
+        double spanX = Math.Max(1, maxX - minX);
+        double spanY = Math.Max(1, maxY - minY);
+
+        _scale = Math.Min(Surface.ActualWidth / spanX, Surface.ActualHeight / spanY) * 0.86;
+        _offsetX = (Surface.ActualWidth - spanX * _scale) / 2;
+        _offsetY = (Surface.ActualHeight - spanY * _scale) / 2;
+
+        foreach (Tile t in _tiles)
+        {
+            t.Element.Width = Math.Max(26, t.Width * _scale);
+            t.Element.Height = Math.Max(20, t.Height * _scale);
+            Canvas.SetLeft(t.Element, _offsetX + (t.X - _originX) * _scale);
+            Canvas.SetTop(t.Element, _offsetY + (t.Y - _originY) * _scale);
+        }
     }
 
     /// <summary>Paints a tile with the wallpaper actually on that display.</summary>
-    /// <remarks>
-    /// Reading it is a COM round trip, so it happens off the UI thread and the
-    /// tile simply stays flat-coloured until the image arrives. A tile that has
-    /// been rebuilt in the meantime is harmlessly abandoned.
-    /// </remarks>
     private static async Task LoadTileWallpaperAsync(Border border, DisplayInfo display)
     {
         try
@@ -164,15 +193,10 @@ public sealed partial class ArrangeCanvas : UserControl
                 await writer.StoreAsync();
             }
 
-            // Decoded small: these tiles are at most a couple of hundred pixels.
             var bitmap = new BitmapImage { DecodePixelWidth = 240 };
             await bitmap.SetSourceAsync(stream);
 
-            border.Background = new ImageBrush
-            {
-                ImageSource = bitmap,
-                Stretch = Stretch.UniformToFill,
-            };
+            border.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
         }
         catch (Exception)
         {
@@ -180,7 +204,7 @@ public sealed partial class ArrangeCanvas : UserControl
         }
     }
 
-    // ---------------------------------------------------------------- drag --
+    // ----------------------------------------------------------------- drag --
 
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
@@ -192,106 +216,135 @@ public sealed partial class ArrangeCanvas : UserControl
 
         border.CapturePointer(e.Pointer);
         Canvas.SetZIndex(border, 10);
-        ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.SizeAll);
+        e.Handled = true;
     }
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (_dragging is null || sender is not Border border) return;
+        if (!ReferenceEquals(border.Tag, _dragging)) return;
 
         Point p = e.GetCurrentPoint(Surface).Position;
         Canvas.SetLeft(border, p.X - _grabOffset.X);
         Canvas.SetTop(border, p.Y - _grabOffset.Y);
+        e.Handled = true;
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
     {
-        if (_dragging is null || sender is not Border border) return;
+        if (sender is Border border) Commit(border);
+        e.Handled = true;
+    }
 
-        border.ReleasePointerCapture(e.Pointer);
-        Canvas.SetZIndex(border, 0);
-        ProtectedCursor = null;
+    /// <remarks>
+    /// Capture loss is treated as a completed drag rather than a cancellation:
+    /// the pointer can be taken away by the window losing focus mid-drag, and
+    /// discarding the move then would look like the drag simply not working.
+    /// </remarks>
+    private void OnPointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border border) Commit(border);
+    }
 
-        // Convert back to desktop space, then snap.
-        double offsetX = (Surface.ActualWidth - TotalSpanX() * _scale) / 2;
-        double offsetY = (Surface.ActualHeight - TotalSpanY() * _scale) / 2;
+    private void Commit(Border border)
+    {
+        if (_dragging is null || !ReferenceEquals(border.Tag, _dragging)) return;
 
-        _dragging.X = (int)Math.Round((Canvas.GetLeft(border) - offsetX) / _scale) + _originX;
-        _dragging.Y = (int)Math.Round((Canvas.GetTop(border) - offsetY) / _scale) + _originY;
-
-        Snap(_dragging);
-
-        Canvas.SetLeft(border, offsetX + (_dragging.X - _originX) * _scale);
-        Canvas.SetTop(border, offsetY + (_dragging.Y - _originY) * _scale);
-
+        Tile tile = _dragging;
         _dragging = null;
-        _dirty = true;
+
+        Canvas.SetZIndex(border, 0);
+
+        // Screen position back into desktop coordinates.
+        tile.X = (int)Math.Round((Canvas.GetLeft(border) - _offsetX) / _scale) + _originX;
+        tile.Y = (int)Math.Round((Canvas.GetTop(border) - _offsetY) / _scale) + _originY;
+
+        Snap(tile);
+        Normalise();
+
+        foreach (Tile t in _tiles) _staged[t.Display.Token] = (t.X, t.Y);
+
+        Layout();
+
         ApplyButton.IsEnabled = true;
         Hint.Text = "Not applied yet.";
     }
 
     /// <summary>
-    /// Pulls a dragged display's edges onto its neighbours'.
+    /// Pulls a dragged display onto its neighbours' edges and centre lines.
     /// </summary>
     /// <remarks>
-    /// Windows rejects an arrangement with gaps between displays, so landing
-    /// a few pixels short would silently fail. Snapping makes the common intent
-    /// — butt this panel against that one — reachable by hand.
+    /// Windows rejects an arrangement with gaps between displays, so landing a
+    /// few pixels short would silently fail. Centre-line snapping is what makes
+    /// it behave like a grid: panels of different heights line up on their
+    /// middles, not only on their top or bottom edges.
     /// </remarks>
     private void Snap(Tile moved)
     {
-        int w = moved.Display.Bounds.Width;
-        int h = moved.Display.Bounds.Height;
+        int threshold = SnapThreshold;
 
         foreach (Tile other in _tiles)
         {
             if (ReferenceEquals(other, moved)) continue;
 
-            int ow = other.Display.Bounds.Width;
-            int oh = other.Display.Bounds.Height;
+            // Butt against a neighbour, left or right.
+            if (Math.Abs(moved.X - (other.X + other.Width)) < threshold) moved.X = other.X + other.Width;
+            else if (Math.Abs(moved.X + moved.Width - other.X) < threshold) moved.X = other.X - moved.Width;
 
-            // Horizontal: right-to-left and left-to-right.
-            if (Math.Abs(moved.X - (other.X + ow)) < SnapThreshold) moved.X = other.X + ow;
-            else if (Math.Abs(moved.X + w - other.X) < SnapThreshold) moved.X = other.X - w;
+            // Above or below.
+            if (Math.Abs(moved.Y - (other.Y + other.Height)) < threshold) moved.Y = other.Y + other.Height;
+            else if (Math.Abs(moved.Y + moved.Height - other.Y) < threshold) moved.Y = other.Y - moved.Height;
 
-            // Vertical: bottom-to-top and top-to-bottom.
-            if (Math.Abs(moved.Y - (other.Y + oh)) < SnapThreshold) moved.Y = other.Y + oh;
-            else if (Math.Abs(moved.Y + h - other.Y) < SnapThreshold) moved.Y = other.Y - h;
+            // Edge alignment.
+            if (Math.Abs(moved.Y - other.Y) < threshold) moved.Y = other.Y;
+            else if (Math.Abs(moved.Y + moved.Height - (other.Y + other.Height)) < threshold)
+                moved.Y = other.Y + other.Height - moved.Height;
 
-            // Edge alignment, so displays line up rather than sitting askew.
-            if (Math.Abs(moved.Y - other.Y) < SnapThreshold) moved.Y = other.Y;
-            if (Math.Abs(moved.X - other.X) < SnapThreshold) moved.X = other.X;
+            if (Math.Abs(moved.X - other.X) < threshold) moved.X = other.X;
+            else if (Math.Abs(moved.X + moved.Width - (other.X + other.Width)) < threshold)
+                moved.X = other.X + other.Width - moved.Width;
+
+            // Centre lines, which is what makes unequal panels line up neatly.
+            int otherCentreY = other.Y + other.Height / 2;
+            if (Math.Abs(moved.Y + moved.Height / 2 - otherCentreY) < threshold)
+                moved.Y = otherCentreY - moved.Height / 2;
+
+            int otherCentreX = other.X + other.Width / 2;
+            if (Math.Abs(moved.X + moved.Width / 2 - otherCentreX) < threshold)
+                moved.X = otherCentreX - moved.Width / 2;
         }
     }
 
-    private double TotalSpanX()
+    /// <summary>
+    /// Shifts the whole arrangement so its leftmost and topmost edges sit at zero.
+    /// </summary>
+    /// <remarks>
+    /// Windows anchors the desktop origin at the primary display and refuses a
+    /// layout whose origin has drifted. Normalising here stops Apply being
+    /// rejected for a reason that is invisible on screen.
+    /// </remarks>
+    private void Normalise()
     {
-        int min = int.MaxValue, max = int.MinValue;
-        foreach (DisplayInfo d in _displays)
+        int minX = int.MaxValue, minY = int.MaxValue;
+        foreach (Tile t in _tiles)
         {
-            min = Math.Min(min, d.Bounds.Left);
-            max = Math.Max(max, d.Bounds.Right);
+            minX = Math.Min(minX, t.X);
+            minY = Math.Min(minY, t.Y);
         }
-        return Math.Max(1, max - min);
+
+        if (minX == 0 && minY == 0) return;
+
+        foreach (Tile t in _tiles)
+        {
+            t.X -= minX;
+            t.Y -= minY;
+        }
     }
 
-    private double TotalSpanY()
-    {
-        int min = int.MaxValue, max = int.MinValue;
-        foreach (DisplayInfo d in _displays)
-        {
-            min = Math.Min(min, d.Bounds.Top);
-            max = Math.Max(max, d.Bounds.Bottom);
-        }
-        return Math.Max(1, max - min);
-    }
-
-    // --------------------------------------------------------------- apply --
+    // ---------------------------------------------------------------- apply --
 
     private async void OnApply(object sender, RoutedEventArgs e)
     {
-        if (!_dirty) return;
-
         ApplyButton.IsEnabled = false;
         Hint.Text = "Applying…";
 
@@ -303,17 +356,17 @@ public sealed partial class ArrangeCanvas : UserControl
 
         Hint.Text = ok
             ? "Arrangement applied."
-            : "Windows rejected that arrangement — displays must touch without gaps.";
+            : "Windows refused that arrangement — displays must touch without gaps.";
 
-        _dirty = false;
+        _staged.Clear();
         App.ViewModel.Refresh();
     }
 
     private void OnReset(object sender, RoutedEventArgs e)
     {
-        _dirty = false;
+        _staged.Clear();
         ApplyButton.IsEnabled = false;
-        Hint.Text = "Drag a display to move it. Edges snap to neighbours.";
-        Rebuild();
+        Hint.Text = "Drag a display to move it. Edges and centres snap.";
+        Build();
     }
 }

@@ -19,6 +19,10 @@
          the UI honest about what it depends on and leaves the door open for
          AOT later; reflection-based Binding would close it. -->
     <WinUIXamlOptimization>true</WinUIXamlOptimization>
+
+    <!-- LibraryImport's generated marshalling is unsafe code. Required for
+         SendInput, which is the only way to raise a shell flyout. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

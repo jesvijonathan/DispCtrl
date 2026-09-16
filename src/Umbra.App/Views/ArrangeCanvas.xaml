@@ -3,8 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
   <StackPanel Spacing="10">
+    <!-- MinHeight rather than Height, and stretched: a fixed height collapsed
+         the surface when the card was narrow, and left it stranded at 220px
+         when the window was maximised. -->
     <Border CornerRadius="6"
-            Height="220"
+            MinHeight="240"
+            HorizontalAlignment="Stretch"
             Background="{ThemeResource LayerFillColorDefaultBrush}"
             BorderThickness="1"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">

@@ -340,27 +340,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Raise(nameof(DetectStatusVisibility));
     }
 
-    /// <summary>Opens Windows' own wireless display flow.</summary>
+    /// <summary>Opens Windows' Cast pane — the same one Win+K raises.</summary>
     /// <remarks>
-    /// Deliberately a hand-off. Miracast pairing involves discovery, PIN entry
-    /// and driver negotiation that Windows already implements; a reimplementation
-    /// would be worse in every respect and could leave a half-paired device.
+    /// Deliberately a hand-off, and deliberately the Cast pane rather than the
+    /// Settings page: Miracast discovery, PIN entry and driver negotiation are
+    /// already implemented there, and the pane is where casting actually starts.
     /// </remarks>
-    public static void ConnectWirelessDisplay()
-    {
-        try
-        {
-            using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "ms-settings:connecteddevices",
-                UseShellExecute = true,
-            });
-        }
-        catch (Exception)
-        {
-            // The shell refused the URI; nothing useful to recover to.
-        }
-    }
+    public static void ConnectWirelessDisplay() => ShellFlyout.OpenCast();
 
     // ---------------------------------------------------------- arrangement --
 

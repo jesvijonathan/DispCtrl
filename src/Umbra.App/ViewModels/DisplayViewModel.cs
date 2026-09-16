@@ -78,6 +78,9 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(SelectedResolution));
         Raise(nameof(SelectedRefreshRate));
 
+        // Only now can a combo-box selection be attributed to the user.
+        _modesReady = true;
+
         _selectedFit = fit switch
         {
             WallpaperFit.Fit => "Fit",
@@ -388,6 +391,18 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     private string _modeStatus = string.Empty;
     private bool _applyingMode;
 
+    /// <summary>
+    /// Blocks mode changes until the real values have been read back.
+    /// </summary>
+    /// <remarks>
+    /// The same hazard as brightness, and worse in consequence. Populating the
+    /// resolution and refresh-rate lists raises selection changes through a
+    /// two-way binding, and without this gate one of those was indistinguishable
+    /// from the user picking a mode — which silently dropped an external monitor
+    /// from 120Hz to 59Hz during startup.
+    /// </remarks>
+    private bool _modesReady;
+
     public string? SelectedResolution
     {
         get => _selectedResolution;
@@ -452,7 +467,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     {
         // Suppressed while the lists are being rebuilt, so repopulating a combo
         // cannot be mistaken for the user choosing something.
-        if (_applyingMode) return;
+        if (!_modesReady || _applyingMode) return;
         if (!TryParseResolution(_selectedResolution, out uint w, out uint h)) return;
         if (_selectedRefreshRate is null) return;
         if (!uint.TryParse(_selectedRefreshRate.AsSpan(0, _selectedRefreshRate.IndexOf(' ')), out uint hz)) return;

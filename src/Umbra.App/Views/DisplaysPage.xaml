@@ -86,14 +86,23 @@
         <Button Content="Connect" Click="OnConnectWireless"/>
       </tk:SettingsCard>
 
-      <tk:SettingsCard Header="Arrange displays"
-                       Description="Drag a display to match where it physically sits. Nothing changes until you apply."
-                       ContentAlignment="Vertical">
-        <tk:SettingsCard.HeaderIcon>
-          <FontIcon Glyph="&#xE80A;"/>
-        </tk:SettingsCard.HeaderIcon>
-        <views:ArrangeCanvas x:Name="ArrangeSurface" Margin="0,4,0,10"/>
-      </tk:SettingsCard>
+      <!-- Deliberately not a SettingsCard. That control reserves a header
+           gutter and places content in its right-hand action area whatever
+           ContentAlignment says, so a wide child ends up stranded in a narrow
+           column — glaring once the window is maximised. A plain header plus a
+           full-width block is what actually spans. -->
+      <StackPanel Margin="0,4,0,0" Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="16">
+          <FontIcon Glyph="&#xE80A;" VerticalAlignment="Center"/>
+          <StackPanel>
+            <TextBlock Text="Arrange displays"/>
+            <TextBlock Text="Drag a display to match where it physically sits. Nothing changes until you apply."
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          </StackPanel>
+        </StackPanel>
+        <views:ArrangeCanvas x:Name="ArrangeSurface" Margin="0,4,0,4"/>
+      </StackPanel>
 
       <tk:SettingsExpander Header="Unison brightness"
                            Description="One control for every display, relative to the level each is already at.">
