@@ -146,7 +146,8 @@
                          aligned so the block starts at the card edge instead
                          of floating in the middle with dead space beside it. -->
                     <Grid Grid.Column="1" ColumnSpacing="16" RowSpacing="9"
-                          HorizontalAlignment="Stretch">
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Center">
                       <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>

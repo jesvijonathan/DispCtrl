@@ -7,6 +7,8 @@ using Microsoft.UI.Xaml.Media;
 using Umbra.Core.Displays;
 using Umbra.Display;
 using Windows.Foundation;
+using Windows.Storage.Streams;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Umbra.App.Views;
 
@@ -31,8 +33,19 @@ public sealed partial class ArrangeCanvas : UserControl
         public int Y { get; set; }
     }
 
-    /// <summary>How close two edges must be, in desktop pixels, to snap together.</summary>
-    private const int SnapThreshold = 60;
+    /// <summary>
+    /// How close two edges must be, <em>on screen</em>, to snap together.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately expressed in screen pixels and converted to desktop pixels
+    /// at the current scale. A fixed desktop-space threshold is unusable: the
+    /// canvas draws a ~4800px-wide desktop into a few hundred pixels, so 60
+    /// desktop pixels is under six on screen — the drop target was effectively
+    /// pixel-perfect, which is why it never appeared to snap.
+    /// </remarks>
+    private const double SnapScreenPixels = 18;
+
+    private int SnapThreshold => (int)Math.Round(SnapScreenPixels / Math.Max(_scale, 0.0001));
 
     private readonly List<Tile> _tiles = [];
     private IReadOnlyList<DisplayInfo> _displays = [];
@@ -112,6 +125,8 @@ public sealed partial class ArrangeCanvas : UserControl
                 Child = label,
             };
 
+            _ = LoadTileWallpaperAsync(border, d);
+
             var tile = new Tile { Element = border, Display = d, X = d.Bounds.Left, Y = d.Bounds.Top };
             border.Tag = tile;
 
@@ -124,6 +139,44 @@ public sealed partial class ArrangeCanvas : UserControl
 
             Surface.Children.Add(border);
             _tiles.Add(tile);
+        }
+    }
+
+    /// <summary>Paints a tile with the wallpaper actually on that display.</summary>
+    /// <remarks>
+    /// Reading it is a COM round trip, so it happens off the UI thread and the
+    /// tile simply stays flat-coloured until the image arrives. A tile that has
+    /// been rebuilt in the meantime is harmlessly abandoned.
+    /// </remarks>
+    private static async Task LoadTileWallpaperAsync(Border border, DisplayInfo display)
+    {
+        try
+        {
+            string? path = await Task.Run(() => Wallpaper.Read(display)).ConfigureAwait(true);
+            if (path is null || !File.Exists(path)) return;
+
+            byte[] bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(true);
+
+            var stream = new InMemoryRandomAccessStream();
+            using (DataWriter writer = new(stream.GetOutputStreamAt(0)))
+            {
+                writer.WriteBytes(bytes);
+                await writer.StoreAsync();
+            }
+
+            // Decoded small: these tiles are at most a couple of hundred pixels.
+            var bitmap = new BitmapImage { DecodePixelWidth = 240 };
+            await bitmap.SetSourceAsync(stream);
+
+            border.Background = new ImageBrush
+            {
+                ImageSource = bitmap,
+                Stretch = Stretch.UniformToFill,
+            };
+        }
+        catch (Exception)
+        {
+            // An unreadable wallpaper just leaves the tile flat-coloured.
         }
     }
 
