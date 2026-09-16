@@ -1,0 +1,38 @@
+// CsWin32 generates P/Invoke for exactly the names listed here, from the
+// official Win32 metadata. Keep this list tight: every entry is code generated
+// into the AOT binary.
+//
+// Display ENUMERATION lives in Umbra.Core, which both processes share. What is
+// left here is window and taskbar manipulation, which only the engine does.
+
+// ---- taskbar window manipulation ----
+FindWindowEx
+IsWindow
+GetWindowRect
+GetCursorPos
+SetWindowPos
+SET_WINDOW_POS_FLAGS
+GetForegroundWindow
+GetClassName
+SystemParametersInfo
+SYSTEM_PARAMETERS_INFO_ACTION
+SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS
+
+// ---- work-area lookup for a managed bar's monitor ----
+MonitorFromPoint
+GetMonitorInfo
+
+// ---- DPI ----
+SetProcessDpiAwarenessContext
+DPI_AWARENESS_CONTEXT
+
+// ---- console attach ----
+// The engine is a WinExe so it shows no window when autostarted; it attaches to
+// the parent console only when a CLI command is actually run from one.
+AttachConsole
+
+// ---- timer resolution ----
+// Held only while a slide is in flight; a 1ms system timer at rest would be a
+// pointless power cost on a laptop.
+timeBeginPeriod
+timeEndPeriod

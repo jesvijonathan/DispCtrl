@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <AssemblyName>Umbra.App</AssemblyName>
+    <RootNamespace>Umbra.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+
+    <!-- Unpackaged while developing. The MSIX build sets this back so the app
+         runs with package identity and can register its startup task. -->
+    <WindowsPackageType>None</WindowsPackageType>
+
+    <!-- Compiled bindings only. x:Bind resolves at compile time, which keeps
+         the UI honest about what it depends on and leaves the door open for
+         AOT later; reflection-based Binding would close it. -->
+    <WinUIXamlOptimization>true</WinUIXamlOptimization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+
+    <!-- SettingsCard / SettingsExpander: the same controls Windows 11 Settings
+         and PowerToys use. Worth the dependency — hand-rolling them is how an
+         app ends up looking almost-but-not-quite native. -->
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Umbra.Core\Umbra.Core.csproj" />
+    <ProjectReference Include="..\Umbra.Display\Umbra.Display.csproj" />
+  </ItemGroup>
+
+</Project>

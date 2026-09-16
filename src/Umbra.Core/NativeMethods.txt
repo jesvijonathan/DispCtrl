@@ -1,0 +1,34 @@
+// Display enumeration only. The engine has its own list for window and taskbar
+// manipulation; keeping them separate stops the app pulling in APIs it has no
+// business calling.
+
+// ---- monitor enumeration (GDI view) ----
+EnumDisplayMonitors
+GetMonitorInfo
+MONITORINFOEXW
+MonitorFromPoint
+EnumDisplaySettingsEx
+EnumDisplayDevices
+DISPLAY_DEVICEW
+DEVMODEW
+ENUM_DISPLAY_SETTINGS_MODE
+
+// ---- Connecting & Configuring Displays (CCD) ----
+// The only API that ties an HMONITOR to a stable, replug-surviving identity.
+GetDisplayConfigBufferSizes
+QueryDisplayConfig
+DisplayConfigGetDeviceInfo
+DISPLAYCONFIG_PATH_INFO
+DISPLAYCONFIG_MODE_INFO
+DISPLAYCONFIG_TARGET_DEVICE_NAME
+DISPLAYCONFIG_SOURCE_DEVICE_NAME
+DISPLAYCONFIG_DEVICE_INFO_TYPE
+DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY
+QUERY_DISPLAY_CONFIG_FLAGS
+
+// ---- DPI ----
+GetDpiForMonitor
+MONITOR_DPI_TYPE
+
+// ---- error codes ----
+WIN32_ERROR

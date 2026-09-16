@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# MSIX output
+packaging/out/
+*.msix
+*.msixbundle
+*.appx
+
+# Signing material must never be committed.
+*.pfx
+*.snk
