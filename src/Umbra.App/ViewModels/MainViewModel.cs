@@ -70,6 +70,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             Displays.Add(new DisplayViewModel(d, ms, i + 1, Persist));
         }
 
+        ScalePreviews();
         RefreshTopology();
         RefreshArrangement();
         RefreshEngineStatus();
@@ -83,6 +84,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public bool HasDisplays => Displays.Count > 0;
+
+    /// <summary>
+    /// Sizes every preview against the physically largest panel.
+    /// </summary>
+    /// <remarks>
+    /// Done here rather than per display because relative size is the point:
+    /// a 14-inch laptop next to a 24-inch monitor should look like one, and
+    /// neither view model can know that on its own.
+    /// </remarks>
+    private void ScalePreviews()
+    {
+        int widest = 0;
+        foreach (DisplayViewModel d in Displays)
+            widest = Math.Max(widest, d.Info.PhysicalWidthMm);
+
+        foreach (DisplayViewModel d in Displays)
+        {
+            d.PreviewScale = widest > 0 && d.Info.PhysicalWidthMm > 0
+                ? d.Info.PhysicalWidthMm / (double)widest
+                : 1.0;
+        }
+    }
 
     // ------------------------------------------------------------ topology --
 

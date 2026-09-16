@@ -194,6 +194,7 @@
                         <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                       </Grid.RowDefinitions>
 
                       <TextBlock Grid.Row="1" Grid.Column="0" Text="Active signal mode" Style="{StaticResource InfoLabel}"/>

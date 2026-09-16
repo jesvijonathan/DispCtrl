@@ -119,6 +119,8 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
         _ui.TryEnqueue(() =>
         {
+            _hdrReady = true;
+
             _vrr = vrr;
             Raise(nameof(VrrEnabled));
             Raise(nameof(VrrVisibility));
@@ -207,19 +209,70 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     // ------------------------------------------------------------- preview --
 
-    /// <summary>Width of the monitor preview, in device-independent pixels.</summary>
-    public double PreviewWidth => 190;
-
     /// <summary>
-    /// Preview height, matching this panel's real aspect ratio.
+    /// Relative size of this display's preview, 0-1 against the largest panel.
     /// </summary>
     /// <remarks>
-    /// Derived rather than fixed so a 16:10 laptop panel and a 16:9 external
-    /// are visibly different shapes — which is most of what makes a preview
-    /// worth showing at all.
+    /// Set by the owning view model once every display is known, because
+    /// "how big is this one" only means anything next to the others.
     /// </remarks>
-    public double PreviewHeight =>
-        Math.Round(PreviewWidth * _display.Bounds.Height / Math.Max(1, _display.Bounds.Width));
+    public double PreviewScale
+    {
+        get => _previewScale;
+        set
+        {
+            if (Math.Abs(_previewScale - value) < 0.001) return;
+            _previewScale = value;
+            Raise(nameof(PreviewWidth));
+            Raise(nameof(PreviewHeight));
+        }
+    }
+
+    private double _previewScale = 1.0;
+
+    private const double MaxPreviewWidth = 240;
+
+    /// <summary>
+    /// Preview width, scaled to the panel's real size rather than its resolution.
+    /// </summary>
+    /// <remarks>
+    /// Resolution is the wrong measure for a picture of a monitor: this
+    /// machine's 14-inch laptop panel has half again as many pixels as the
+    /// 24-inch display beside it, so sizing by pixels drew the small screen
+    /// larger. The physical dimensions come from the panel's own EDID.
+    /// </remarks>
+    public double PreviewWidth => Math.Round(MaxPreviewWidth * Math.Clamp(_previewScale, 0.35, 1.0));
+
+    /// <summary>
+    /// Preview height, from the panel's physical aspect ratio where known.
+    /// </summary>
+    /// <remarks>
+    /// Falls back to the pixel aspect, which is the same on any display with
+    /// square pixels — which is nearly all of them, but not a safe assumption.
+    /// </remarks>
+    public double PreviewHeight
+    {
+        get
+        {
+            double aspect = _display.HasPhysicalSize
+                ? _display.PhysicalHeightMm / (double)_display.PhysicalWidthMm
+                : _display.Bounds.Height / (double)Math.Max(1, _display.Bounds.Width);
+
+            return Math.Round(PreviewWidth * aspect);
+        }
+    }
+
+    /// <summary>Physical size, as a monitor is normally described.</summary>
+    public string ScreenSizeText => _display.HasPhysicalSize
+        ? $"{_display.DiagonalInches:0.0} inches  ({_display.PhysicalWidthMm} × {_display.PhysicalHeightMm} mm)"
+        : "Not reported by this display";
+
+    /// <summary>
+    /// Real pixel density, which is not the same thing as the scaling factor.
+    /// </summary>
+    public string PixelDensityText => _display.HasPhysicalSize
+        ? $"{_display.PhysicalPpi:0} PPI  ·  Windows renders at {_display.Scale * 100:0}%"
+        : $"Windows renders at {_display.Scale * 100:0}%";
 
     public string PreviewCaption => $"{_display.Bounds.Width} × {_display.Bounds.Height}";
 
@@ -588,6 +641,18 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     private HdrState _hdr = HdrState.Unsupported;
 
+    /// <summary>
+    /// Blocks HDR writes until the real state has been read back.
+    /// </summary>
+    /// <remarks>
+    /// Same hazard as brightness and display mode: a two-way bound
+    /// ToggleSwitch settles to a value during load, and without a gate that is
+    /// indistinguishable from the user flipping it. Turning HDR on unasked
+    /// changes how every SDR application is tone-mapped, so it is worth the
+    /// same protection.
+    /// </remarks>
+    private bool _hdrReady;
+
     public Visibility HdrVisibility => _hdr.Supported ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility NoHdrVisibility => _hdr.Supported ? Visibility.Collapsed : Visibility.Visible;
@@ -601,7 +666,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         get => _hdr.Enabled;
         set
         {
-            if (_hdr.Enabled == value || !_hdr.Supported) return;
+            if (!_hdrReady || _hdr.Enabled == value || !_hdr.Supported) return;
             _hdr = _hdr with { Enabled = value };
             Raise();
 

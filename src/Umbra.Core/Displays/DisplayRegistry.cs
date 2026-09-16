@@ -60,6 +60,7 @@ public static class DisplayRegistry
             }
 
             Edid.Identity edid = Edid.Read(t.DevicePath);
+            (int physicalW, int physicalH) = Edid.PhysicalSize(t.DevicePath);
             string name = t.FriendlyName;
             if (string.IsNullOrWhiteSpace(name))
                 name = Edid.NameFromEdid(t.DevicePath) ?? string.Empty;
@@ -76,6 +77,8 @@ public static class DisplayRegistry
                 RefreshHz = mode.dmDisplayFrequency,
                 BitsPerPixel = mode.dmBitsPerPel,
                 Dpi = EffectiveDpi(hmon),
+                PhysicalWidthMm = physicalW,
+                PhysicalHeightMm = physicalH,
                 Handle = (nint)hmon.Value,
             });
         }

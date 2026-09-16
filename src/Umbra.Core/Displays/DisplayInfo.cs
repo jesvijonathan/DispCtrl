@@ -61,6 +61,32 @@ public sealed record DisplayInfo
     public required uint RefreshHz { get; init; }
     public required uint BitsPerPixel { get; init; }
 
+    /// <summary>Physical panel width in millimetres; 0 when the EDID does not say.</summary>
+    public int PhysicalWidthMm { get; init; }
+
+    /// <summary>Physical panel height in millimetres; 0 when unknown.</summary>
+    public int PhysicalHeightMm { get; init; }
+
+    public bool HasPhysicalSize => PhysicalWidthMm > 0 && PhysicalHeightMm > 0;
+
+    /// <summary>Diagonal in inches, as a monitor is normally described.</summary>
+    public double DiagonalInches => HasPhysicalSize
+        ? Math.Sqrt((PhysicalWidthMm * (double)PhysicalWidthMm)
+                  + (PhysicalHeightMm * (double)PhysicalHeightMm)) / 25.4
+        : 0;
+
+    /// <summary>
+    /// True pixel density, as opposed to the scaling factor.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Dpi"/> is what Windows renders at; this is what the panel
+    /// physically is. They are routinely very different — a 2880x1800 laptop
+    /// panel is around 240 real PPI while Windows renders it at 192.
+    /// </remarks>
+    public double PhysicalPpi => HasPhysicalSize
+        ? Bounds.Width / (PhysicalWidthMm / 25.4)
+        : 0;
+
     /// <summary>Effective DPI; 96 is 100% scaling, 192 is 200%.</summary>
     public required uint Dpi { get; init; }
     public double Scale => Dpi / 96.0;

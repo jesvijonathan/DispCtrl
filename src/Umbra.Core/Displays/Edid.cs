@@ -81,6 +81,38 @@ public static class Edid
     }
 
     /// <summary>
+    /// The panel's physical image size in millimetres, or (0,0) if unknown.
+    /// </summary>
+    /// <remarks>
+    /// Read from the first detailed timing descriptor, which carries the size
+    /// to the millimetre, falling back to EDID bytes 21-22 which give it only
+    /// to the centimetre. This is the one place a display's <em>real</em> size
+    /// is available: resolution says nothing about it, and DPI is a scaling
+    /// preference rather than a measurement — a 14-inch laptop panel and a
+    /// 27-inch monitor can report identical values for both.
+    /// </remarks>
+    public static (int WidthMm, int HeightMm) PhysicalSize(string devicePath)
+    {
+        byte[]? e = ReadBlob(devicePath);
+        if (e is null || e.Length < 128) return (0, 0);
+
+        // First detailed timing descriptor, bytes 54-71. Bytes 12 and 13 hold
+        // the low bits of width and height; byte 14 packs the high nibbles.
+        const int dtd = 54;
+        bool isTiming = e[dtd] != 0 || e[dtd + 1] != 0;
+        if (isTiming)
+        {
+            int w = ((e[dtd + 14] & 0xF0) << 4) | e[dtd + 12];
+            int h = ((e[dtd + 14] & 0x0F) << 8) | e[dtd + 13];
+            if (w > 0 && h > 0) return (w, h);
+        }
+
+        // Basic display parameters, in centimetres.
+        int cmW = e[21], cmH = e[22];
+        return cmW > 0 && cmH > 0 ? (cmW * 10, cmH * 10) : (0, 0);
+    }
+
+    /// <summary>
     /// The panel's supported vertical refresh range, in Hz.
     /// </summary>
     /// <remarks>
