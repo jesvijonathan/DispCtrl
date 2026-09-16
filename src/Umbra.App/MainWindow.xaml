@@ -25,7 +25,10 @@
 
     <muxc:NavigationView x:Name="Nav"
                          Grid.Row="1"
-                         PaneDisplayMode="LeftCompact"
+                         PaneDisplayMode="Auto"
+                         IsPaneToggleButtonVisible="True"
+                         CompactModeThresholdWidth="0"
+                         ExpandedModeThresholdWidth="1100"
                          IsBackButtonVisible="Collapsed"
                          IsTitleBarAutoPaddingEnabled="False"
                          OpenPaneLength="220"

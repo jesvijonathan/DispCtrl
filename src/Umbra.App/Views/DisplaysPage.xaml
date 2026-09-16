@@ -251,11 +251,19 @@
                           <Image Source="{x:Bind WallpaperImage, Mode=OneWay}"
                                  Stretch="UniformToFill"
                                  Visibility="{x:Bind HasWallpaper, Mode=OneWay}"/>
-                          <TextBlock Text="{x:Bind Number}"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                                     FontSize="44" FontWeight="SemiBold"
-                                     Opacity="0.85"
-                                     Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                          <!-- A dark wallpaper left the tile looking like an
+                               empty box. A scrim plus the number keeps it
+                               legible whatever is behind it. -->
+                          <Border Background="#40000000"/>
+                          <Border Background="#B21F1F1F"
+                                  CornerRadius="8"
+                                  Width="46" Height="46"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Number}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       FontSize="24" FontWeight="SemiBold"
+                                       Foreground="White"/>
+                          </Border>
                         </Grid>
                       </Border>
 

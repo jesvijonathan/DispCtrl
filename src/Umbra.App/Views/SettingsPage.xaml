@@ -113,6 +113,11 @@
               catch the hover — which is precisely the burn-in risk Umbra's own hiding
               exists to avoid.
               <LineBreak/><LineBreak/>
+              Umbra keeps managing every other monitor itself. Where you have enabled
+              hiding on a display, Umbra parks that taskbar fully off the panel as usual
+              and overrides Windows' sliver — so this switch effectively applies to the
+              primary display only.
+              <LineBreak/><LineBreak/>
               So this is the right choice when your primary display is not the one at
               risk, and the wrong one when it is an OLED panel.
             </TextBlock>

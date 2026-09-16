@@ -1,4 +1,5 @@
 using Microsoft.UI;
+using Windows.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -61,7 +62,7 @@ public static class DisplayIdentifier
 
         // Scale with the panel so the number reads the same physical size on a
         // 14-inch laptop and a 24-inch monitor.
-        double box = Math.Min(display.Bounds.Width, display.Bounds.Height) * 0.28;
+        double box = Math.Min(display.Bounds.Width, display.Bounds.Height) * 0.22;
 
         var text = new TextBlock
         {
@@ -73,9 +74,15 @@ public static class DisplayIdentifier
             VerticalAlignment = VerticalAlignment.Center,
         };
 
+        // Windows' own identifier is a soft-cornered dark plate with a light
+        // numeral, not a flat accent block. Matching that is most of what makes
+        // it read as part of the system.
         window.Content = new Border
         {
-            Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+            Background = new SolidColorBrush(Color.FromArgb(235, 32, 32, 32)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
             Child = text,
         };
 
@@ -94,10 +101,16 @@ public static class DisplayIdentifier
 
         app.IsShownInSwitchers = false;
 
+        // Bottom-left, inset a tenth of the panel on each side. Centred put it
+        // squarely over whatever the user was looking at; a corner marker is
+        // readable without obscuring the screen it is labelling.
         int size = (int)Math.Round(box);
+        int padX = (int)Math.Round(display.Bounds.Width * 0.10);
+        int padY = (int)Math.Round(display.Bounds.Height * 0.10);
+
         app.MoveAndResize(new RectInt32(
-            display.Bounds.Left + (display.Bounds.Width - size) / 2,
-            display.Bounds.Top + (display.Bounds.Height - size) / 2,
+            display.Bounds.Left + padX,
+            display.Bounds.Bottom - padY - size,
             size,
             size));
 
