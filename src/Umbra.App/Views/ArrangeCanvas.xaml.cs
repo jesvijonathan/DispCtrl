@@ -260,8 +260,7 @@ public sealed partial class ArrangeCanvas : UserControl
         tile.Y = (int)Math.Round((Canvas.GetTop(border) - _offsetY) / _scale) + _originY;
 
         Snap(tile);
-        EnsureAdjacent(tile);
-        Normalise();
+        ApplySolver(tile);
 
         foreach (Tile t in _tiles) _staged[t.Display.Token] = (t.X, t.Y);
 
@@ -317,98 +316,31 @@ public sealed partial class ArrangeCanvas : UserControl
     }
 
     /// <summary>
-    /// Guarantees the dragged display touches another one.
+    /// Hands the arrangement to the shared solver and writes the result back.
     /// </summary>
     /// <remarks>
-    /// Windows refuses any arrangement with a gap, and refuses it at Apply time
-    /// with no indication of which display is at fault. Snapping alone only
-    /// helps within its threshold, so dropping a display in open space still
-    /// produced a layout that could never be applied. Rather than let an
-    /// invalid arrangement be built and then rejected, the display is attached
-    /// to its nearest neighbour on whichever axis it is furthest along — the
-    /// side it was dragged towards.
+    /// The rules live in <see cref="ArrangementSolver"/> rather than here so
+    /// they are pure geometry and can be tested directly, instead of only
+    /// through a pointer device. What runs is what is covered.
     /// </remarks>
-    private void EnsureAdjacent(Tile moved)
+    private void ApplySolver(Tile moved)
     {
-        if (_tiles.Count < 2 || Touches(moved)) return;
-
-        Tile? nearest = null;
-        long best = long.MaxValue;
-
-        foreach (Tile other in _tiles)
-        {
-            if (ReferenceEquals(other, moved)) continue;
-
-            long dx = (moved.X + moved.Width / 2) - (other.X + other.Width / 2);
-            long dy = (moved.Y + moved.Height / 2) - (other.Y + other.Height / 2);
-            long distance = (dx * dx) + (dy * dy);
-
-            if (distance >= best) continue;
-            best = distance;
-            nearest = other;
-        }
-
-        if (nearest is null) return;
-
-        int movedCx = moved.X + moved.Width / 2, movedCy = moved.Y + moved.Height / 2;
-        int otherCx = nearest.X + nearest.Width / 2, otherCy = nearest.Y + nearest.Height / 2;
-
-        if (Math.Abs(movedCx - otherCx) >= Math.Abs(movedCy - otherCy))
-        {
-            moved.X = movedCx >= otherCx ? nearest.X + nearest.Width : nearest.X - moved.Width;
-            // Keep a real overlap along the shared edge, not a corner touch.
-            moved.Y = Math.Clamp(moved.Y, nearest.Y - moved.Height + 1, nearest.Y + nearest.Height - 1);
-        }
-        else
-        {
-            moved.Y = movedCy >= otherCy ? nearest.Y + nearest.Height : nearest.Y - moved.Height;
-            moved.X = Math.Clamp(moved.X, nearest.X - moved.Width + 1, nearest.X + nearest.Width - 1);
-        }
-    }
-
-    /// <summary>True when this display shares an edge with another, with overlap.</summary>
-    private bool Touches(Tile t)
-    {
-        foreach (Tile other in _tiles)
-        {
-            if (ReferenceEquals(other, t)) continue;
-
-            bool xOverlap = t.X < other.X + other.Width && other.X < t.X + t.Width;
-            bool yOverlap = t.Y < other.Y + other.Height && other.Y < t.Y + t.Height;
-
-            bool edgeX = t.X == other.X + other.Width || other.X == t.X + t.Width;
-            bool edgeY = t.Y == other.Y + other.Height || other.Y == t.Y + t.Height;
-
-            if ((edgeX && yOverlap) || (edgeY && xOverlap)) return true;
-            if (xOverlap && yOverlap) return true;   // overlapping counts as touching
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Shifts the whole arrangement so its leftmost and topmost edges sit at zero.
-    /// </summary>
-    /// <remarks>
-    /// Windows anchors the desktop origin at the primary display and refuses a
-    /// layout whose origin has drifted. Normalising here stops Apply being
-    /// rejected for a reason that is invisible on screen.
-    /// </remarks>
-    private void Normalise()
-    {
-        int minX = int.MaxValue, minY = int.MaxValue;
+        var panels = new List<ArrangementSolver.Panel>(_tiles.Count);
         foreach (Tile t in _tiles)
-        {
-            minX = Math.Min(minX, t.X);
-            minY = Math.Min(minY, t.Y);
-        }
+            panels.Add(new ArrangementSolver.Panel(t.Display.Token, t.X, t.Y, t.Width, t.Height));
 
-        if (minX == 0 && minY == 0) return;
+        List<ArrangementSolver.Panel> solved =
+            ArrangementSolver.Resolve(panels, moved.Display.Token);
 
-        foreach (Tile t in _tiles)
+        foreach (ArrangementSolver.Panel p in solved)
         {
-            t.X -= minX;
-            t.Y -= minY;
+            foreach (Tile t in _tiles)
+            {
+                if (t.Display.Token != p.Token) continue;
+                t.X = p.X;
+                t.Y = p.Y;
+                break;
+            }
         }
     }
 
@@ -438,7 +370,7 @@ public sealed partial class ArrangeCanvas : UserControl
     {
         _staged.Clear();
         ApplyButton.IsEnabled = false;
-        Hint.Text = "Drag a display to move it. Edges and centres snap.";
+        Hint.Text = "Drag a display to move it. It snaps flush against its neighbour.";
         Build();
     }
 }

@@ -22,7 +22,7 @@
       <Button Content="Reset" Click="OnReset"/>
       <TextBlock x:Name="Hint" VerticalAlignment="Center"
                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                 Text="Drag a display to move it. Edges snap to neighbours."/>
+                 Text="Drag a display to move it. It snaps flush against its neighbour."/>
     </StackPanel>
   </StackPanel>
 </UserControl>
