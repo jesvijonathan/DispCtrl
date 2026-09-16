@@ -30,6 +30,15 @@ public sealed partial class DisplaysPage : Page
         ArrangeSurface.Load(displays);
     }
 
+    private void OnDetect(object sender, RoutedEventArgs e)
+    {
+        ViewModel.DetectDisplays();
+        LoadArrangement();
+    }
+
+    private void OnConnectWireless(object sender, RoutedEventArgs e) =>
+        MainViewModel.ConnectWirelessDisplay();
+
     private void OnRescan(object sender, RoutedEventArgs e)
     {
         ViewModel.Refresh();

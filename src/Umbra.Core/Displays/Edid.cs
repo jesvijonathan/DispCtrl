@@ -17,7 +17,7 @@ namespace Umbra.Core.Displays;
 /// not Native-AOT friendly, and this runs in the AOT engine.
 /// </para>
 /// </remarks>
-internal static class Edid
+public static class Edid
 {
     /// <summary>
     /// Cache keyed on device path.
@@ -78,6 +78,38 @@ internal static class Edid
         string serial = ReadDescriptorString(blob, 0xFF) ?? ReadNumericSerial(blob);
 
         return new Identity($"{mfg}-{product:X4}", serial);
+    }
+
+    /// <summary>
+    /// The panel's supported vertical refresh range, in Hz.
+    /// </summary>
+    /// <remarks>
+    /// Read from EDID descriptor 0xFD, the Monitor Range Limits block. A panel
+    /// that advertises a genuine span here is describing adaptive sync; a
+    /// fixed-rate monitor reports a span only a hertz or two wide.
+    /// </remarks>
+    public static (uint Min, uint Max) RefreshRange(string devicePath)
+    {
+        byte[]? blob = ReadBlob(devicePath);
+        if (blob is null || blob.Length < 128) return (0, 0);
+
+        for (int off = 54; off + 18 <= 128; off += 18)
+        {
+            if (blob[off] != 0 || blob[off + 1] != 0 || blob[off + 2] != 0) continue;
+            if (blob[off + 3] != 0xFD) continue;
+
+            uint min = blob[off + 5];
+            uint max = blob[off + 6];
+
+            // Byte 4 flags offsets that extend the range past 255Hz.
+            byte flags = blob[off + 4];
+            if ((flags & 0x01) != 0) max += 255;
+            if ((flags & 0x02) != 0) { min += 255; max += 255; }
+
+            return min > 0 && max >= min ? (min, max) : (0, 0);
+        }
+
+        return (0, 0);
     }
 
     /// <summary>Monitor name from EDID descriptor 0xFC, when present.</summary>

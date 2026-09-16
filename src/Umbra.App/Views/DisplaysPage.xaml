@@ -21,7 +21,14 @@
   </Page.Resources>
 
   <ScrollViewer Padding="0,0,0,32">
-    <StackPanel Padding="36,12,36,0" Spacing="0" MaxWidth="1000">
+    <!-- Stretch with no MaxWidth. The cap was the problem: a Stretch panel
+           with a MaxWidth centres itself once the window exceeds that width,
+           which is what pushed content off to one side. Pinning it Left instead
+           fixed the drift but made the panel size to its content, so cards
+           stopped filling. Filling at every width is what Windows Settings
+           does, and the side padding already keeps line length sane. -->
+      <StackPanel Padding="36,12,36,0" Spacing="0"
+                  HorizontalAlignment="Stretch">
 
       <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,20">
         <StackPanel Grid.Column="0" Spacing="4">
@@ -58,6 +65,26 @@
       <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Margin="0,4,0,0"
                Visibility="{x:Bind ViewModel.ArrangementStatusVisibility, Mode=OneWay}"
                Message="{x:Bind ViewModel.ArrangementStatus, Mode=OneWay}"/>
+
+      <tk:SettingsCard Header="Detect displays"
+                       Description="Re-scan for monitors, including ones connected but switched off.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE71E;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Detect" Click="OnDetect"/>
+      </tk:SettingsCard>
+
+      <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,4,0,0"
+               Visibility="{x:Bind ViewModel.DetectStatusVisibility, Mode=OneWay}"
+               Message="{x:Bind ViewModel.DetectStatus, Mode=OneWay}"/>
+
+      <tk:SettingsCard Header="Connect to a wireless display"
+                       Description="Opens Windows' own pairing flow — Miracast discovery and PIN entry belong there.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE7F7;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Connect" Click="OnConnectWireless"/>
+      </tk:SettingsCard>
 
       <tk:SettingsCard Header="Arrange displays"
                        Description="Drag a display to match where it physically sits. Nothing changes until you apply."
@@ -334,6 +361,25 @@
                   <ComboBox ItemsSource="{x:Bind RefreshRates}"
                             SelectedItem="{x:Bind SelectedRefreshRate, Mode=TwoWay}"
                             MinWidth="180"/>
+                </tk:SettingsCard>
+
+                <tk:SettingsCard Header="Variable refresh rate"
+                                 Description="{x:Bind VrrDescription, Mode=OneWay}"
+                                 Visibility="{x:Bind VrrVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE9D9;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <ToggleSwitch IsOn="{x:Bind VrrEnabled, Mode=TwoWay}"/>
+                </tk:SettingsCard>
+
+                <tk:SettingsCard Header="Variable refresh rate"
+                                 Description="{x:Bind VrrDescription, Mode=OneWay}"
+                                 Visibility="{x:Bind NoVrrVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE9D9;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <TextBlock Text="Not supported" VerticalAlignment="Center"
+                             Foreground="{ThemeResource TextFillColorDisabledBrush}"/>
                 </tk:SettingsCard>
 
                 <tk:SettingsCard Header="Orientation" Description="Rotating swaps the resolution automatically.">

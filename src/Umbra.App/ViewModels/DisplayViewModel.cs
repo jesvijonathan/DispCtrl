@@ -41,11 +41,61 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         _persist = persist;
         Number = number;
 
-        LoadModes();
-        LoadWallpaper();
-        LoadFit();
-        _ = LoadBrightnessAsync();
-        _ = LoadAdvancedAsync();
+        // Nothing blocking here. Everything this view model needs comes from
+        // the display driver, the monitor over DDC/CI, or COM — all of which
+        // are slow enough to stall the window visibly if done inline. Mode
+        // enumeration alone walks every mode the driver reports, which is 163
+        // on the external monitor this was built against.
+        _ = LoadEverythingAsync();
+    }
+
+    /// <summary>
+    /// Pulls every slow value in one pass, off the UI thread.
+    /// </summary>
+    /// <remarks>
+    /// Batched deliberately: these are independent reads against the same
+    /// hardware, and issuing them together rather than one view model at a
+    /// time is what keeps the window responsive while a second monitor's
+    /// DDC/CI channel takes its time answering.
+    /// </remarks>
+    private async Task LoadEverythingAsync()
+    {
+        DisplayInfo d = _display;
+
+        (List<(uint, uint)> resolutions, DisplayMode? current, string? wallpaper, WallpaperFit fit) =
+            await Task.Run(() => (
+                DisplayModes.Resolutions(d.GdiName),
+                DisplayModes.Current(d.GdiName),
+                Wallpaper.Read(d),
+                Wallpaper.ReadFit())).ConfigureAwait(true);
+
+        Resolutions.Clear();
+        foreach ((uint w, uint h) in resolutions) Resolutions.Add($"{w} × {h}");
+
+        _selectedResolution = $"{d.Bounds.Width} × {d.Bounds.Height}";
+        PopulateRefreshRates();
+        _selectedRefreshRate = $"{d.RefreshHz} Hz";
+        Raise(nameof(SelectedResolution));
+        Raise(nameof(SelectedRefreshRate));
+
+        _selectedFit = fit switch
+        {
+            WallpaperFit.Fit => "Fit",
+            WallpaperFit.Stretch => "Stretch",
+            WallpaperFit.Tile => "Tile",
+            WallpaperFit.Center => "Centre",
+            WallpaperFit.Span => "Span",
+            _ => "Fill",
+        };
+        _fitReady = true;
+        Raise(nameof(SelectedWallpaperFit));
+
+        _wallpaperPath = wallpaper;
+        Raise(nameof(WallpaperName));
+        if (_wallpaperPath is not null && File.Exists(_wallpaperPath))
+            _ = DecodeWallpaperAsync(_wallpaperPath);
+
+        await Task.WhenAll(LoadBrightnessAsync(), LoadAdvancedAsync());
     }
 
     /// <summary>
@@ -59,12 +109,19 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     {
         DisplayInfo d = _display;
 
-        (HdrState hdr, ScalingState scaling, DisplayDetail detail) = await Task.Run(
-            () => (AdvancedDisplay.ReadHdr(d), AdvancedDisplay.ReadScaling(d), DisplayDetails.Read(d)))
+        (HdrState hdr, ScalingState scaling, DisplayDetail detail, VrrState vrr) = await Task.Run(
+            () => (AdvancedDisplay.ReadHdr(d), AdvancedDisplay.ReadScaling(d),
+                   DisplayDetails.Read(d), VariableRefreshRate.Read(d)))
             .ConfigureAwait(false);
 
         _ui.TryEnqueue(() =>
         {
+            _vrr = vrr;
+            Raise(nameof(VrrEnabled));
+            Raise(nameof(VrrVisibility));
+            Raise(nameof(NoVrrVisibility));
+            Raise(nameof(VrrDescription));
+
             _detail = detail;
             foreach (string name in new[]
             {
@@ -545,6 +602,30 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
                     Raise(nameof(HdrEnabled));
                 });
             });
+        }
+    }
+
+    // ------------------------------------------------------------------ VRR --
+
+    private VrrState _vrr = VrrState.Unsupported;
+
+    public Visibility VrrVisibility => _vrr.Capable ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility NoVrrVisibility => _vrr.Capable ? Visibility.Collapsed : Visibility.Visible;
+
+    public string VrrDescription => _vrr.Capable
+        ? $"This panel advertises {_vrr.Range}. Windows applies variable refresh rate globally, not per display."
+        : "This panel does not advertise a variable refresh range.";
+
+    public bool VrrEnabled
+    {
+        get => _vrr.Enabled;
+        set
+        {
+            if (_vrr.Enabled == value) return;
+            _vrr = _vrr with { Enabled = value };
+            Raise();
+            _ = Task.Run(() => VariableRefreshRate.SetEnabled(value));
         }
     }
 

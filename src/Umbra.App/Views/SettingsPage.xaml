@@ -4,7 +4,14 @@
       xmlns:tk="using:CommunityToolkit.WinUI.Controls">
 
   <ScrollViewer Padding="0,0,0,32">
-    <StackPanel Padding="36,12,36,0" Spacing="0" MaxWidth="1000">
+    <!-- Stretch with no MaxWidth. The cap was the problem: a Stretch panel
+           with a MaxWidth centres itself once the window exceeds that width,
+           which is what pushed content off to one side. Pinning it Left instead
+           fixed the drift but made the panel size to its content, so cards
+           stopped filling. Filling at every width is what Windows Settings
+           does, and the side padding already keeps line length sane. -->
+      <StackPanel Padding="36,12,36,0" Spacing="0"
+                  HorizontalAlignment="Stretch">
 
       <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}"/>
       <TextBlock Text="Applies to every managed monitor"

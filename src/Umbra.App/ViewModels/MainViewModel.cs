@@ -304,6 +304,64 @@ public sealed class MainViewModel : INotifyPropertyChanged
         });
     }
 
+    // ------------------------------------------------------ detect / cast --
+
+    private string _detectStatus = string.Empty;
+
+    public string DetectStatus => _detectStatus;
+
+    public Visibility DetectStatusVisibility =>
+        string.IsNullOrEmpty(_detectStatus) ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>
+    /// Re-enumerates displays, including ones connected but switched off.
+    /// </summary>
+    /// <remarks>
+    /// Windows' own Detect button has no public API behind it. This does the
+    /// part that is actually useful: a full re-scan of active <em>and</em>
+    /// inactive paths, so a monitor that is plugged in but disabled shows up
+    /// rather than silently missing. Waking a monitor the driver has not
+    /// noticed at all still needs Windows' own Display settings.
+    /// </remarks>
+    public void DetectDisplays()
+    {
+        int before = Displays.Count;
+        Refresh();
+
+        List<string> inactive = DisplayRegistry.InactiveDisplays();
+
+        _detectStatus = Displays.Count != before
+            ? $"Found {Displays.Count} displays."
+            : inactive.Count > 0
+                ? $"No new active displays. {inactive.Count} connected but switched off: {string.Join(", ", inactive)}."
+                : $"No change — {Displays.Count} displays, none switched off.";
+
+        Raise(nameof(DetectStatus));
+        Raise(nameof(DetectStatusVisibility));
+    }
+
+    /// <summary>Opens Windows' own wireless display flow.</summary>
+    /// <remarks>
+    /// Deliberately a hand-off. Miracast pairing involves discovery, PIN entry
+    /// and driver negotiation that Windows already implements; a reimplementation
+    /// would be worse in every respect and could leave a half-paired device.
+    /// </remarks>
+    public static void ConnectWirelessDisplay()
+    {
+        try
+        {
+            using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "ms-settings:connecteddevices",
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception)
+        {
+            // The shell refused the URI; nothing useful to recover to.
+        }
+    }
+
     // ---------------------------------------------------------- arrangement --
 
     public ObservableCollection<string> Arrangements { get; } =
