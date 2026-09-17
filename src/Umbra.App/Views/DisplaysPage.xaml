@@ -451,6 +451,27 @@
                   </StackPanel>
                 </tk:SettingsCard>
 
+                <!-- Only where the real thing is missing. On a panel with a
+                     reachable backlight this would be strictly worse: the same
+                     light, less contrast. -->
+                <tk:SettingsCard Header="Software brightness"
+                                 Description="{x:Bind SoftwareBrightnessDescription, Mode=OneWay}"
+                                 Visibility="{x:Bind SoftwareBrightnessVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE706;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Slider Value="{x:Bind SoftwareBrightness, Mode=TwoWay}"
+                            Minimum="{x:Bind SoftwareBrightnessMinimum, Mode=OneWay}"
+                            Maximum="100" StepFrequency="1"
+                            Width="220" VerticalAlignment="Center"
+                            AutomationProperties.Name="{x:Bind SoftwareBrightnessAutomationName}"/>
+                    <TextBlock Text="{x:Bind SoftwareBrightnessText, Mode=OneWay}"
+                               VerticalAlignment="Center" MinWidth="40"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                  </StackPanel>
+                </tk:SettingsCard>
+
                 <tk:SettingsCard Header="Brightness"
                                  Description="This display does not report brightness control."
                                  Visibility="{x:Bind NoBrightnessVisibility, Mode=OneWay}">

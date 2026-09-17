@@ -461,6 +461,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             Raise(nameof(BrightnessSupported));
             Raise(nameof(BrightnessVisibility));
             Raise(nameof(NoBrightnessVisibility));
+            Raise(nameof(SoftwareBrightnessVisibility));
             Raise(nameof(BrightnessPercent));
 
             // Only now can a change be attributed to the user.
@@ -1134,6 +1135,77 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(RangeSummary));
     }
 
+    // ----------------------------------------------- software brightness --
+
+    /// <summary>
+    /// Brightness for a panel that reports no hardware control.
+    /// </summary>
+    /// <remarks>
+    /// Offered only where the real thing is unavailable. Where a panel has a
+    /// backlight Umbra can reach, dimming in software instead would be strictly
+    /// worse — same light output, less contrast — so the two are never both on
+    /// screen.
+    /// <para>
+    /// Written to settings and applied by the engine, which owns the gamma ramp
+    /// and composes this with night light. The panel writing the ramp itself is
+    /// the bug that made warmth compound until it could not be undone.
+    /// </para>
+    /// </remarks>
+    public Visibility SoftwareBrightnessVisibility =>
+        _brightnessLoaded.Task.IsCompleted && !_brightness.Supported
+            ? Visibility.Visible : Visibility.Collapsed;
+
+    public double SoftwareBrightness
+    {
+        get => _settings.SoftwareBrightness;
+        set
+        {
+            int v = Math.Clamp((int)value, NightLight.MinimumDim, 100);
+            if (_settings.SoftwareBrightness == v) return;
+
+            _settings.SoftwareBrightness = v;
+            _persist();
+            Raise();
+            Raise(nameof(SoftwareBrightnessText));
+            _deskChanged();
+        }
+    }
+
+    public string SoftwareBrightnessDescription =>
+        "This display reports no brightness control, so this dims the signal rather than the backlight. "
+        + "The panel emits the same light, and contrast falls as it goes down." + SoftwareBrightnessLimitNote;
+
+    public string SoftwareBrightnessText => _settings.SoftwareBrightness >= 100
+        ? "Full"
+        : $"{_settings.SoftwareBrightness}%";
+
+    public string SoftwareBrightnessAutomationName => $"Software brightness {Number}";
+
+    /// <summary>
+    /// How far this display can be dimmed at the warmth currently set.
+    /// </summary>
+    /// <remarks>
+    /// Warmth and dimming share one gamma ramp and Windows refuses a ramp that
+    /// strays too far from the identity, so the two compete: a warm screen has
+    /// less room left to dim. Binding the slider's floor to the measured limit
+    /// means it never offers a level that silently does nothing.
+    /// </remarks>
+    public double SoftwareBrightnessMinimum =>
+        NightLight.LowestDim(_root.NightLightStrengthFor(Token));
+
+    public string SoftwareBrightnessLimitNote
+    {
+        get
+        {
+            int floor = (int)SoftwareBrightnessMinimum;
+            if (floor <= NightLight.MinimumDim + 1) return "";
+
+            return floor >= 100
+                ? "  Night light is at full warmth, which uses up the whole gamma range — there is none left to dim with."
+                : $"  Night light is using part of the gamma range, so this stops at {floor}%.";
+        }
+    }
+
     // ------------------------------------- Windows settings for this panel --
 
     /// <summary>
@@ -1502,6 +1574,11 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// <summary>Re-reads everything night light drives on this card.</summary>
     public void RaiseNightLight()
     {
+        // Warmth moves the dimming floor, so the slider has to hear about it.
+        Raise(nameof(SoftwareBrightnessMinimum));
+        Raise(nameof(SoftwareBrightnessLimitNote));
+        Raise(nameof(SoftwareBrightnessDescription));
+
         Raise(nameof(NightLightStrength));
         Raise(nameof(NightLightStrengthText));
         Raise(nameof(WarmthRangeSummary));

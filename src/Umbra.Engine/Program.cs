@@ -336,9 +336,15 @@ internal static class Program
         // Taskbar hiding is no longer the only reason to be resident: night
         // light has a schedule, and a schedule that only runs while a taskbar
         // is also being managed is not a schedule.
-        if (managed == 0 && !settings.Global.NightLight.Enabled && settings.AppRules.Count == 0)
+        bool dimming = false;
+        foreach (MonitorSettings ms in settings.Monitors.Values)
+            if (ms.SoftwareBrightness < 100) dimming = true;
+
+        if (managed == 0 && !settings.Global.NightLight.Enabled && settings.AppRules.Count == 0 && !dimming)
         {
-            Console.Error.WriteLine("nothing to do: no taskbar is managed, night light is off, and there are no app rules.");
+            Console.Error.WriteLine(
+                "nothing to do: no taskbar is managed, night light is off, nothing is software-dimmed, "
+                + "and there are no app rules.");
             Console.Error.WriteLine("run `displays`, then `enable <n>` — or turn something on in the app.");
             return 1;
         }

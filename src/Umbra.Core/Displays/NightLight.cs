@@ -61,16 +61,78 @@ public static class NightLight
         NeutralKelvin - ((NeutralKelvin - WarmestKelvin) * Math.Clamp(strength, 0, 100) / 100.0);
 
     /// <summary>
-    /// Applies <paramref name="strength"/> percent of warmth to one display.
+    /// The dimmest a software-dimmed panel is allowed to go, as a percentage.
     /// </summary>
+    /// <remarks>
+    /// Software dimming multiplies the signal, so zero is a black screen with
+    /// no way back except by feel. A floor keeps the control recoverable —
+    /// exactly the reasoning behind never storing a zero warmth.
+    /// </remarks>
+    public const int MinimumDim = 10;
+
+    /// <summary>
+    /// The lowest any channel may fall before Windows refuses the ramp.
+    /// </summary>
+    /// <remarks>
+    /// Measured, not documented. Sweeping dim levels against warmth on this
+    /// hardware, the boundary sits where the weakest channel reaches about half
+    /// of the identity ramp: dimming alone is accepted to 50%, at 60% warmth
+    /// only to 70%, and at full warmth not at all. 0.53 reproduces every one of
+    /// those measurements with a little margin.
+    /// <para>
+    /// This is the same clamp that caps warmth at 3300K. It matters more here,
+    /// because warmth and dimming come out of the same ramp and so compete: the
+    /// warmer the screen, the less room is left to dim it.
+    /// </para>
+    /// </remarks>
+    private const double LowestChannel = 0.53;
+
+    /// <summary>
+    /// The lowest dim percentage Windows will accept at a given warmth.
+    /// </summary>
+    /// <remarks>
+    /// Asked before the slider is drawn, so the control only offers levels that
+    /// work. A refused ramp is not an error the user sees — the previous ramp
+    /// simply stays — which would read as the slider doing nothing below some
+    /// arbitrary point.
+    /// </remarks>
+    public static int LowestDim(int warmth)
+    {
+        (_, _, double blue) = Multipliers(KelvinFor(warmth));
+        if (blue <= 0) return 100;
+
+        double limit = LowestChannel / blue;
+        return (int)Math.Clamp(Math.Ceiling(limit * 100), MinimumDim, 100);
+    }
+
+    /// <summary>
+    /// Applies warmth and software dimming to one display in a single ramp.
+    /// </summary>
+    /// <remarks>
+    /// Both together, deliberately. A display has one gamma ramp; warmth and
+    /// dimming are each a scale of it, and two callers each writing "their"
+    /// ramp would simply overwrite one another — whichever ran last would win
+    /// and the other setting would vanish. Composing them here is the only
+    /// arrangement where both hold.
+    /// </remarks>
+    /// <param name="strength">Warmth, 0-100. Zero leaves the colour alone.</param>
+    /// <param name="dim">
+    /// Brightness, 10-100, for panels with no hardware control. 100 leaves the
+    /// level alone.
+    /// </param>
     /// <returns>False when the driver refused the ramp.</returns>
-    public static bool Apply(DisplayInfo display, int strength)
+    public static bool Apply(DisplayInfo display, int strength, int dim = 100)
     {
         ushort[]? baseline = Baseline(display.GdiName);
         if (baseline is null) return false;
 
         (double r, double g, double b) = Multipliers(KelvinFor(strength));
-        return Write(display.GdiName, Scaled(baseline, r, g, b));
+
+        // Clamped to what Windows will actually take, so a caller asking for
+        // more than the ramp allows gets the most it can have rather than a
+        // silent refusal that leaves the previous ramp in place.
+        double level = Math.Clamp(dim, LowestDim(strength), 100) / 100.0;
+        return Write(display.GdiName, Scaled(baseline, r * level, g * level, b * level));
     }
 
     /// <summary>
@@ -93,6 +155,15 @@ public static class NightLight
 
     /// <summary>Restores one display's neutral ramp.</summary>
     public static bool Clear(DisplayInfo display) => Clear(display.GdiName);
+
+    /// <summary>True when a display needs a ramp at all.</summary>
+    /// <remarks>
+    /// Neutral warmth and full brightness are the identity ramp, and writing
+    /// the identity is indistinguishable from leaving the display alone — but
+    /// it still costs a gamma write per tick, and it would hold a baseline
+    /// captured for no reason.
+    /// </remarks>
+    public static bool NeedsRamp(int strength, int dim) => strength > 0 || dim < 100;
 
     /// <summary>Restores every display this process has warmed.</summary>
     public static void ClearAll()
@@ -155,7 +226,12 @@ public static class NightLight
     private static bool LooksWarmed(ushort[] ramp)
     {
         double red = ramp[255];
-        if (red <= 0) return false;
+        if (red <= 0) return true;
+
+        // Dimming scales every channel equally, so a tinted ramp is not the
+        // only kind left behind: a uniformly low ramp is a dimmed one, and an
+        // abandoned dim needs clearing just as much as an abandoned warmth.
+        if (red / 65535.0 < 0.97) return true;
 
         return ramp[767] / red < PollutedBlueRatio;
     }

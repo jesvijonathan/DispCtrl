@@ -292,6 +292,31 @@ permanent damage. Better to ask than to guess.
   codes. ddcutil's position — record them, do not write them blind — is the
   same one taken here, and is the reason those codes are reported and never set.
 
+### Software dimming, and what it costs
+
+A panel that reports no brightness control can still be dimmed by scaling its
+gamma ramp. It is not the same thing as turning a backlight down — the panel
+emits as much light as before, the signal is just smaller, so contrast and
+colour depth fall with it. The UI says so rather than presenting it as the same
+control, and it is only offered where the real one is missing.
+
+It shares the ramp with night light, which forced two things:
+
+- **One writer, composing both.** Warmth and dimming are each a scale of the
+  same ramp. Two callers each writing "their" ramp would simply overwrite one
+  another, so they are applied together in a single write.
+
+- **They compete for the range.** Windows refuses a ramp too far from the
+  identity — the same clamp that caps warmth at 3300K. Measured on this
+  hardware, the boundary is where the weakest channel reaches about half of
+  identity: dimming alone is accepted to 50%, at 60% warmth only to 70%, and at
+  full warmth not at all. So the slider's floor is computed from the current
+  warmth and moves with it, and the card says why when it is not at the bottom.
+
+Without that, the feature half-works silently: a refused ramp is not an error,
+the previous one simply stays, and the slider appears to stop responding at an
+arbitrary point.
+
 ### Read DDC/CI too fast and it lies
 
 The channel gate stopped two callers colliding. It does not stop one caller

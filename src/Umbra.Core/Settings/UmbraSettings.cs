@@ -50,6 +50,16 @@ public sealed class UmbraSettings
     /// this rule drifting apart would show up as the screen not matching the
     /// slider, which is close to impossible to attribute.
     /// </remarks>
+    /// <summary>
+    /// Software brightness for one display, or 100 when it is not dimmed.
+    /// </summary>
+    /// <remarks>
+    /// Lives beside <see cref="NightLightStrengthFor"/> because the two end up
+    /// in the same gamma ramp and the engine has to resolve both together.
+    /// </remarks>
+    public int SoftwareBrightnessFor(string token) =>
+        Math.Clamp(For(token).SoftwareBrightness, 10, 100);
+
     public int NightLightStrengthFor(string token)
     {
         NightLightSettings n = Global.NightLight;
@@ -370,6 +380,22 @@ public sealed class MonitorSettings
         NightLightFloor >= 0 && NightLightCeiling > NightLightFloor;
 
     /// <summary>
+    /// Brightness for panels with no hardware control, 10-100.
+    /// </summary>
+    /// <remarks>
+    /// Done in the gamma ramp, which is not the same thing as turning the
+    /// backlight down: the panel still emits as much light, the signal is just
+    /// scaled, so contrast and colour depth suffer as it goes down. It is the
+    /// only option on a display that reports no brightness control at all, and
+    /// saying so plainly is better than pretending it is the same control.
+    /// <para>
+    /// 100 means untouched. Never below <c>NightLight.MinimumDim</c>, because a
+    /// black screen is not recoverable by looking at it.
+    /// </para>
+    /// </remarks>
+    public int SoftwareBrightness { get; set; } = 100;
+
+    /// <summary>
     /// Whether this panel is OLED, and where that was decided.
     /// </summary>
     /// <remarks>
@@ -404,6 +430,7 @@ public sealed class MonitorSettings
         NightLightFloor = fresh.NightLightFloor;
         NightLightCeiling = fresh.NightLightCeiling;
         IsOled = fresh.IsOled;
+        SoftwareBrightness = fresh.SoftwareBrightness;
         // Label is descriptive, not a setting; keeping it leaves the file readable.
     }
 }

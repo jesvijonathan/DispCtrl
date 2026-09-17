@@ -64,7 +64,12 @@ internal sealed class NightLightService : IDisposable
     {
         try
         {
+            // Only when nothing wants a ramp; otherwise the upcoming tick
+            // writes over whatever is there anyway.
             if (_settings.Global.NightLight.ActiveAt(DateTime.Now)) return;
+
+            foreach (DisplayInfo d in DisplayRegistry.Enumerate())
+                if (_settings.SoftwareBrightnessFor(d.Token) < 100) return;
 
             foreach (DisplayInfo d in DisplayRegistry.Enumerate())
             {
@@ -99,15 +104,31 @@ internal sealed class NightLightService : IDisposable
             }
 
             NightLightSettings config = settings.Global.NightLight;
+            bool warmNow = config.ActiveAt(DateTime.Now);
 
-            if (!config.ActiveAt(DateTime.Now))
+            // Warmth and software dimming share one ramp, so the decision to
+            // write or clear has to consider both. Clearing on warmth alone
+            // wiped a display's dimming every time night light went off.
+            bool anyRamp = false;
+            var wanted = new List<(DisplayInfo Display, int Warmth, int Dim)>();
+
+            foreach (DisplayInfo d in DisplayRegistry.Enumerate())
+            {
+                int warmth = warmNow ? settings.NightLightStrengthFor(d.Token) : 0;
+                int dim = settings.SoftwareBrightnessFor(d.Token);
+
+                wanted.Add((d, warmth, dim));
+                anyRamp |= NightLight.NeedsRamp(warmth, dim);
+            }
+
+            if (!anyRamp)
             {
                 if (!_warm) return;
 
                 NightLight.ClearAll();
                 _warm = false;
                 _appliedStrength = -1;
-                Log.Write("night light off");
+                Log.Write("gamma cleared");
                 return;
             }
 
@@ -117,13 +138,15 @@ internal sealed class NightLightService : IDisposable
             // Resolved per display: unison, calibration and per-monitor
             // overrides all land in one place, in Umbra.Core, so the engine and
             // the panel cannot disagree about what a slider position means.
-            foreach (DisplayInfo d in DisplayRegistry.Enumerate())
-                _ = NightLight.Apply(d, settings.NightLightStrengthFor(d.Token));
+            foreach ((DisplayInfo d, int warmth, int dim) in wanted)
+                _ = NightLight.Apply(d, warmth, dim);
 
-            int strength = Math.Clamp(config.Strength, 0, 100);
+            int strength = warmNow ? Math.Clamp(config.Strength, 0, 100) : 0;
             if (!_warm || strength != _appliedStrength)
-                Log.Write($"night light on, shared level {strength}%"
+            {
+                Log.Write($"gamma applied, warmth {strength}%"
                     + (config.Unison ? "" : " (per display)"));
+            }
 
             _warm = true;
             _appliedStrength = strength;
