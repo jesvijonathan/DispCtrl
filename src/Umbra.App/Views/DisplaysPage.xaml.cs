@@ -113,6 +113,9 @@ public sealed partial class DisplaysPage : Page
         LoadArrangement();
     }
 
+    private void OnOpenRotation(object sender, RoutedEventArgs e) =>
+        MainViewModel.OpenRotationSettings();
+
     private void OnConnectWireless(object sender, RoutedEventArgs e) =>
         MainViewModel.ConnectWirelessDisplay();
 

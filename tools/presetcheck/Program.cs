@@ -1,3 +1,4 @@
+using Umbra.Core.Displays;
 using Umbra.Core.Presets;
 using Umbra.Core.Settings;
 
@@ -121,6 +122,43 @@ Check("a disabled rule never matches", !rule.Matches("chrome"));
 
 var incomplete = new AppRule { Process = "x" };
 Check("an incomplete rule is flagged", !incomplete.IsComplete);
+
+Console.WriteLine();
+
+Console.WriteLine();
+Console.WriteLine("physical arrangement layout");
+{
+    // The real desk: a 23.8" Dell at 1920x1080 with a 14" 2880x1800 laptop
+    // panel to its right, both top-aligned.
+    var dell = new PhysicalLayout.Panel("dell", 0, 0, 1920, 1080, 527.0 / 1920, 296.0 / 1080);
+    var oled = new PhysicalLayout.Panel("oled", 1920, 0, 2880, 1800, 302.0 / 2880, 189.0 / 1800);
+
+    var laid = PhysicalLayout.Resolve([dell, oled]);
+    var d = laid.First(x => x.Token == "dell");
+    var o = laid.First(x => x.Token == "oled");
+
+    Console.WriteLine($"    dell {d.Width:0} x {d.Height:0} mm at {d.X:0},{d.Y:0}");
+    Console.WriteLine($"    oled {o.Width:0} x {o.Height:0} mm at {o.X:0},{o.Y:0}");
+
+    Check("the Dell is drawn its real 527 x 296", Math.Abs(d.Width - 527) < 1 && Math.Abs(d.Height - 296) < 1);
+    Check("the laptop is drawn its real 302 x 189", Math.Abs(o.Width - 302) < 1 && Math.Abs(o.Height - 189) < 1);
+    Check("the laptop is the narrower of the two", o.Width < d.Width);
+    Check("they touch, with no gap and no overlap", Math.Abs((d.X + d.Width) - o.X) < 0.01);
+    Check("both are top aligned, as they are in pixels", Math.Abs(d.Y - o.Y) < 0.01);
+
+    // Half way down the Dell, in pixel space, should be half way down in mm.
+    var lower = oled with { Y = 540 };
+    var offset = PhysicalLayout.Resolve([dell, lower]);
+    var lo = offset.First(x => x.Token == "oled");
+    Check("an offset neighbour keeps its proportional position",
+        Math.Abs(lo.Y - (296.0 / 2)) < 1);
+
+    // No EDID size anywhere means pixels, honestly, rather than a mixture.
+    var bare = new PhysicalLayout.Panel("bare", 0, 0, 1920, 1080, 0, 0);
+    var fallback = PhysicalLayout.Resolve([bare]);
+    Check("a display with no reported size falls back to pixels",
+        Math.Abs(fallback[0].Width - 1920) < 0.01);
+}
 
 Console.WriteLine();
 Console.WriteLine(failures == 0 ? "all checks passed" : $"{failures} FAILED");

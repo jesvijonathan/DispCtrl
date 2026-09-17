@@ -1198,7 +1198,20 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         }
 
         _reportedControls = cap.Controls.Count;
+
+        // VCP B6 is the only thing that ever says what the panel is made of,
+        // and only an external monitor can answer it.
+        foreach (VcpControl c in cap.Controls)
+        {
+            if (c.Code != 0xB6 || c.Current < 0) continue;
+
+            _panelTechnology = c.Display;
+            break;
+        }
+
         _capabilitiesRead = true;
+        Raise(nameof(PanelTechnology));
+        Raise(nameof(OledSummary));
 
         Raise(nameof(MonitorControlsVisibility));
         Raise(nameof(NoMonitorControlsVisibility));
@@ -1246,6 +1259,62 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     }
 
     public string WarmthAutomationName => $"Warmth {Number} — {_display.Label}";
+
+    // ----------------------------------------------------------- panel type --
+
+    public string OledAutomationName => $"OLED {Number}";
+
+    private string? _panelTechnology;
+
+    /// <summary>
+    /// What the panel is made of, when anything says.
+    /// </summary>
+    /// <remarks>
+    /// Only ever comes from the monitor itself, over DDC/CI. EDID has no field
+    /// for it, Windows exposes none, and a built-in panel has no DDC/CI channel
+    /// — so the honest answer for a laptop screen is that nothing reports it.
+    /// </remarks>
+    public string PanelTechnology => _panelTechnology
+        ?? (_display.IsInternal
+            ? "Not reported \u2014 built-in panels have no DDC/CI channel"
+            : "Not reported by this monitor");
+
+    /// <summary>
+    /// Whether this display is treated as OLED, and why.
+    /// </summary>
+    /// <remarks>
+    /// Everything OLED-specific hangs off this, and getting it wrong is not
+    /// symmetric: burn-in protection on an LCD is a pointless annoyance, while
+    /// its absence on an OLED is permanent damage. So it is a setting with a
+    /// sensible default rather than a guess presented as a fact.
+    /// </remarks>
+    public bool IsOled
+    {
+        get => _settings.IsOled ?? _panelTechnology?.Contains("OLED", StringComparison.OrdinalIgnoreCase) ?? false;
+        set
+        {
+            if (IsOled == value) return;
+            _settings.IsOled = value;
+            _persist();
+            Raise();
+            Raise(nameof(OledSummary));
+        }
+    }
+
+    public string OledSummary
+    {
+        get
+        {
+            if (_settings.IsOled is bool chosen)
+                return chosen ? "Set by you: treated as OLED." : "Set by you: treated as not OLED.";
+
+            if (_panelTechnology is not null)
+                return $"From the monitor: {_panelTechnology}.";
+
+            return "Nothing reports this. Set it yourself if this panel is OLED \u2014 "
+                 + "it is what the burn-in protection will key off.";
+        }
+    }
 
     /// <summary>Where this display's captured warmth limits stand.</summary>
     public string WarmthRangeSummary => _settings.HasNightLightRange

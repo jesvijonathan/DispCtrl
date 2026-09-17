@@ -78,3 +78,21 @@ MONITOR_DPI_TYPE
 MonitorFromPoint
 
 WIN32_ERROR
+
+// ---- Windows' own adaptive brightness ----
+// Not a monitor setting: Windows drives it from the ambient light sensor
+// through the active power scheme, which is why it appears nowhere in a
+// monitor's DDC/CI capabilities.
+PowerGetActiveScheme
+PowerSetActiveScheme
+PowerReadACValueIndex
+PowerReadDCValueIndex
+PowerWriteACValueIndex
+PowerWriteDCValueIndex
+LocalFree
+
+// ---- auto-rotation ----
+// Convertibles and tablets only. GetAutoRotationState says whether the machine
+// has the sensor at all, which is what keeps a dead toggle off the screen.
+GetAutoRotationState
+AR_STATE

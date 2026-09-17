@@ -199,6 +199,32 @@
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
+      <tk:SettingsCard Header="Rotate with the device"
+                       Description="{x:Bind ViewModel.AutoRotationDetail, Mode=OneWay}"
+                       Margin="0,4,0,0"
+                       Visibility="{x:Bind ViewModel.AutoRotationVisibility, Mode=OneWay}">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE7AD;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Open Settings" Click="OnOpenRotation"
+                AutomationProperties.Name="OpenRotationSettings"/>
+      </tk:SettingsCard>
+
+      <!-- Not per-monitor, and not a monitor setting: Windows drives it from
+           the ambient light sensor through the power scheme. It sits here
+           because this is where brightness lives, and because looking for it
+           among a monitor's own controls is the one place it will never be. -->
+      <tk:SettingsCard Header="Adaptive brightness"
+                       Description="{x:Bind ViewModel.AdaptiveBrightnessDetail, Mode=OneWay}"
+                       Margin="0,4,0,0"
+                       Visibility="{x:Bind ViewModel.AdaptiveBrightnessVisibility, Mode=OneWay}">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE706;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.AdaptiveBrightnessOn, Mode=TwoWay}"
+                      AutomationProperties.Name="AdaptiveBrightnessToggle"/>
+      </tk:SettingsCard>
+
       <tk:SettingsExpander Header="Night light"
                            Description="Warmer colours on every display at once, to cut blue light in the evening."
                            Margin="0,4,0,0">
@@ -353,8 +379,11 @@
                       <TextBlock Grid.Row="8" Grid.Column="0" Text="Pixel clock" Style="{StaticResource InfoLabel}"/>
                       <TextBlock Grid.Row="8" Grid.Column="1" Text="{x:Bind PixelClock, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
 
-                      <TextBlock Grid.Row="9" Grid.Column="0" Text="Identity" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="9" Grid.Column="1" Text="{x:Bind Token}"
+                      <TextBlock Grid.Row="9" Grid.Column="0" Text="Panel technology" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="9" Grid.Column="1" Text="{x:Bind PanelTechnology, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="10" Grid.Column="0" Text="Identity" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="10" Grid.Column="1" Text="{x:Bind Token}"
                                  Style="{StaticResource InfoValue}"
                                  FontFamily="Consolas"
                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -468,6 +497,15 @@
                           Minimum="5" Maximum="100" StepFrequency="1"
                           Width="220" VerticalAlignment="Center"
                           AutomationProperties.Name="{x:Bind WarmthAutomationName}"/>
+                </tk:SettingsCard>
+
+                <tk:SettingsCard Header="OLED panel"
+                                 Description="{x:Bind OledSummary, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7F4;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <ToggleSwitch IsOn="{x:Bind IsOled, Mode=TwoWay}"
+                                AutomationProperties.Name="{x:Bind OledAutomationName}"/>
                 </tk:SettingsCard>
 
                 <tk:SettingsCard Header="HDR" Description="{x:Bind HdrDescription, Mode=OneWay}"
@@ -742,17 +780,24 @@
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                    AutomationProperties.Name="PresetStatus"/>
 
+        <!-- Nothing to do, nothing on screen. Buttons that are always there
+             stop meaning anything, and applying a preset the desk already
+             matches would blank the screen for a mode change that changes
+             nothing. -->
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Button Content="Apply" Click="OnPresetApply"
-                  Visibility="{x:Bind ViewModel.Presets.ExistingVisibility, Mode=OneWay}"
-                  AutomationProperties.Name="StickyPresetApply"/>
           <Button Content="Discard" Click="OnPresetDiscard"
-                  Visibility="{x:Bind ViewModel.Presets.DirtyVisibility, Mode=OneWay}"
+                  ToolTipService.ToolTip="Put the displays back to this preset"
+                  Visibility="{x:Bind ViewModel.Presets.ActionVisibility, Mode=OneWay}"
                   AutomationProperties.Name="StickyPresetDiscard"/>
-          <Button Content="{x:Bind ViewModel.Presets.SaveButtonText, Mode=OneWay}"
+          <Button Content="Save" Click="OnPresetSave"
                   Style="{StaticResource AccentButtonStyle}"
-                  Click="OnPresetSave"
+                  ToolTipService.ToolTip="Update this preset to match the displays"
+                  Visibility="{x:Bind ViewModel.Presets.ActionVisibility, Mode=OneWay}"
                   AutomationProperties.Name="StickyPresetSave"/>
+          <Button Content="Create" Click="OnPresetSave"
+                  Style="{StaticResource AccentButtonStyle}"
+                  Visibility="{x:Bind ViewModel.Presets.CreatingVisibility, Mode=OneWay}"
+                  AutomationProperties.Name="StickyPresetCreate"/>
         </StackPanel>
       </Grid>
     </Border>

@@ -62,8 +62,25 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
         }
     }
 
-    /// <summary>Whether Umbra will offer to change this control. See the allow list.</summary>
-    public bool Settable => Kind != VcpKind.Information && Settables.Contains(Code);
+    /// <summary>Whether Umbra will offer to change this control.</summary>
+    /// <remarks>
+    /// Two conditions, and the second matters as much as the first. A discrete
+    /// control is only offered when the monitor's current reading is one of the
+    /// values it listed — because a panel that cannot say which of its own
+    /// settings it is on is not implementing the code, and writing one of the
+    /// listed values would be acting on an assumption the hardware has just
+    /// contradicted.
+    /// <para>
+    /// This Dell is the case in point: it advertises 0x66, the ambient light
+    /// sensor, listing 0x0F and 0x02 — then answers 0xA1, which is neither, and
+    /// never changes. The code is in its capabilities string and is not a
+    /// working control.
+    /// </para>
+    /// </remarks>
+    public bool Settable =>
+        Kind != VcpKind.Information
+        && Settables.Contains(Code)
+        && (Kind == VcpKind.Continuous || CurrentOption is not null);
 
     /// <summary>
     /// The codes Umbra is willing to write.
@@ -76,8 +93,8 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     /// are reported, never written.
     /// </remarks>
     private static readonly HashSet<byte> Settables =
-        [0x0C, 0x10, 0x12, 0x14, 0x16, 0x18, 0x1A, 0x60, 0x62, 0x6C, 0x6E, 0x70,
-         0x87, 0x8D, 0xCA, 0xCC, 0xD6];
+        [0x0C, 0x10, 0x12, 0x14, 0x16, 0x18, 0x1A, 0x60, 0x62, 0x66, 0x6C, 0x6E, 0x70,
+         0x72, 0x87, 0x8D, 0xCA, 0xCC, 0xD6, 0xDC];
 
     /// <summary>A human reading of the current value.</summary>
     public string Display
@@ -195,6 +212,8 @@ public static class MonitorCapabilities
         [0x1A] = ("Blue gain", VcpKind.Continuous),
         [0x1E] = ("Auto setup", VcpKind.Information),
         [0x52] = ("Active control", VcpKind.Information),
+        [0x66] = ("Ambient light sensor", VcpKind.Discrete),
+        [0x72] = ("Gamma", VcpKind.Continuous),
         [0x60] = ("Input source", VcpKind.Discrete),
         [0x62] = ("Speaker volume", VcpKind.Continuous),
         [0x6C] = ("Red black level", VcpKind.Continuous),
@@ -214,6 +233,7 @@ public static class MonitorCapabilities
         [0xCA] = ("OSD and power button lock", VcpKind.Discrete),
         [0xCC] = ("OSD language", VcpKind.Discrete),
         [0xD6] = ("Power mode", VcpKind.Discrete),
+        [0xDC] = ("Picture mode", VcpKind.Discrete),
         [0xDF] = ("MCCS version", VcpKind.Information),
     };
 
@@ -249,6 +269,25 @@ public static class MonitorCapabilities
         {
             [0x01] = "Mute", [0x02] = "Unmute",
         },
+        [0x66] = new()
+        {
+            [0x01] = "Off", [0x02] = "On",
+        },
+
+        // MCCS calls this "display application"; every monitor OSD calls it
+        // picture or preset mode, so that is what it is called here. The
+        // "with ALS" variants are the monitor's own ambient light handling.
+        [0xDC] = new()
+        {
+            [0x00] = "Standard", [0x01] = "Productivity", [0x02] = "Mixed",
+            [0x03] = "Movie", [0x04] = "User", [0x05] = "Games", [0x06] = "Sports",
+            [0x07] = "Professional",
+            [0x08] = "Standard, auto brightness", [0x09] = "Productivity, auto brightness",
+            [0x0A] = "Mixed, auto brightness", [0x0B] = "Movie, auto brightness",
+            [0x0C] = "User, auto brightness", [0x0D] = "Games, auto brightness",
+            [0x0E] = "Sports, auto brightness", [0x0F] = "Professional, auto brightness",
+        },
+
         [0xCC] = new()
         {
             [0x01] = "Chinese (traditional)", [0x02] = "English", [0x03] = "French",
@@ -465,10 +504,23 @@ public static class MonitorCapabilities
                     foreach (string token in vcp[(i + 1)..close]
                                  .Split(' ', StringSplitOptions.RemoveEmptyEntries))
                     {
-                        if (byte.TryParse(token, System.Globalization.NumberStyles.HexNumber,
-                                null, out byte value))
+                        // A token is normally one two-digit value, but monitors
+                        // run them together: this Dell writes 66(0F02) meaning
+                        // 0F and 02. Parsing the token whole overflows a byte
+                        // and the values were dropped silently, which made a
+                        // control the monitor does have look like one it does
+                        // not. Even-length tokens are split into pairs.
+                        for (int at = 0; at + 1 < token.Length || at < token.Length; at += 2)
                         {
-                            values.Add(new VcpValue(value, NameFor(code, value)));
+                            int take = Math.Min(2, token.Length - at);
+                            if (take <= 0) break;
+
+                            if (byte.TryParse(token.AsSpan(at, take),
+                                    System.Globalization.NumberStyles.HexNumber,
+                                    null, out byte value))
+                            {
+                                values.Add(new VcpValue(value, NameFor(code, value)));
+                            }
                         }
                     }
 

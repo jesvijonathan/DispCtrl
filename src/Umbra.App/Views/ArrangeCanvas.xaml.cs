@@ -64,14 +64,35 @@ public sealed partial class ArrangeCanvas : UserControl
 
     private double _scale = 0.1;
     private double _offsetX, _offsetY;
-    private int _originX, _originY;
 
     private Tile? _dragging;
     private Point _grabOffset;
 
     public ArrangeCanvas() => InitializeComponent();
 
-    private int SnapThreshold => (int)Math.Round(SnapScreenPixels / Math.Max(_scale, 0.0001));
+    /// <summary>
+    /// The snap distance in desktop pixels, for the display being dragged.
+    /// </summary>
+    /// <remarks>
+    /// The diagram is drawn in millimetres now, so the conversion runs screen
+    /// pixels to millimetres to desktop pixels. Skipping the middle step made
+    /// the threshold wrong by the panel's own density — several times too small
+    /// on a dense laptop panel, which is exactly where snapping matters most.
+    /// </remarks>
+    private int SnapThreshold
+    {
+        get
+        {
+            double millimetres = SnapScreenPixels / Math.Max(_scale, 0.0001);
+
+            DisplayInfo? d = _dragging?.Display;
+            double perPx = d is { HasPhysicalSize: true }
+                ? d.PhysicalWidthMm / (double)d.Bounds.Width
+                : 1;
+
+            return (int)Math.Round(millimetres / Math.Max(perPx, 0.0001));
+        }
+    }
 
     /// <summary>Rebuilds the surface for a new set of displays.</summary>
     public void Load(IReadOnlyList<DisplayInfo> displays)
@@ -161,48 +182,65 @@ public sealed partial class ArrangeCanvas : UserControl
         Layout();
     }
 
-    /// <summary>Recomputes scale and places every tile from its desktop position.</summary>
+    /// <summary>
+    /// Where each tile sits in the diagram, in millimetres.
+    /// </summary>
+    /// <remarks>
+    /// Recomputed whenever the arrangement changes, and consulted by both the
+    /// layout and the drag maths so the two cannot disagree about where a tile
+    /// is.
+    /// </remarks>
+    private readonly Dictionary<string, PhysicalLayout.Placed> _placed = [];
+
+    /// <summary>Recomputes scale and places every tile at its physical size.</summary>
+    /// <remarks>
+    /// Drawn in millimetres rather than pixels: a 14-inch panel at 2880x1800 has
+    /// more pixels than a 24-inch monitor, and drawing by pixel count makes the
+    /// laptop the bigger of the two on a diagram whose entire job is to show
+    /// where things physically are.
+    /// </remarks>
     private void Layout()
     {
         if (_tiles.Count == 0 || Surface.ActualWidth <= 0 || Surface.ActualHeight <= 0) return;
 
-        // Bounding box of the staged arrangement, not the committed one, so a
-        // display dragged well clear still fits on screen.
-        int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
+        var panels = new List<PhysicalLayout.Panel>(_tiles.Count);
         foreach (Tile t in _tiles)
         {
-            minX = Math.Min(minX, t.X);
-            minY = Math.Min(minY, t.Y);
-            maxX = Math.Max(maxX, t.X + t.Width);
-            maxY = Math.Max(maxY, t.Y + t.Height);
+            DisplayInfo d = t.Display;
+
+            double mmX = d.HasPhysicalSize ? d.PhysicalWidthMm / (double)d.Bounds.Width : 0;
+            double mmY = d.HasPhysicalSize ? d.PhysicalHeightMm / (double)d.Bounds.Height : 0;
+
+            panels.Add(new PhysicalLayout.Panel(d.Token, t.X, t.Y, t.Width, t.Height, mmX, mmY));
         }
 
-        _originX = minX;
-        _originY = minY;
+        _placed.Clear();
+        foreach (PhysicalLayout.Placed p in PhysicalLayout.Resolve(panels)) _placed[p.Token] = p;
+
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+
+        foreach (PhysicalLayout.Placed p in _placed.Values)
+        {
+            minX = Math.Min(minX, p.X);
+            minY = Math.Min(minY, p.Y);
+            maxX = Math.Max(maxX, p.X + p.Width);
+            maxY = Math.Max(maxY, p.Y + p.Height);
+        }
 
         double spanX = Math.Max(1, maxX - minX);
         double spanY = Math.Max(1, maxY - minY);
 
         _scale = Math.Min(Surface.ActualWidth / spanX, Surface.ActualHeight / spanY) * 0.86;
-        _offsetX = (Surface.ActualWidth - spanX * _scale) / 2;
-        _offsetY = (Surface.ActualHeight - spanY * _scale) / 2;
+        _offsetX = (Surface.ActualWidth - (spanX * _scale)) / 2;
+        _offsetY = (Surface.ActualHeight - (spanY * _scale)) / 2;
+        _originMmX = minX;
+        _originMmY = minY;
 
-        foreach (Tile t in _tiles)
-        {
-            double w = Math.Max(26, t.Width * _scale);
-            double h = Math.Max(20, t.Height * _scale);
-
-            t.Element.Width = w;
-            t.Element.Height = h;
-
-            // The numeral grows with its plate, as Windows' does. A fixed size
-            // swamps a small tile and looks lost on a large one.
-            t.Label.FontSize = Math.Clamp(Math.Min(w, h) * 0.3, 13, 44);
-
-            Canvas.SetLeft(t.Element, _offsetX + (t.X - _originX) * _scale);
-            Canvas.SetTop(t.Element, _offsetY + (t.Y - _originY) * _scale);
-        }
+        PlaceTiles();
     }
+
+    private double _originMmX, _originMmY;
 
     /// <summary>Paints a tile with the wallpaper actually on that display.</summary>
     /// <remarks>
@@ -271,23 +309,46 @@ public sealed partial class ArrangeCanvas : UserControl
 
         Point p = e.GetCurrentPoint(Surface).Position;
 
-        _dragging.X = (int)Math.Round((p.X - _grabOffset.X - _offsetX) / _scale) + _originX;
-        _dragging.Y = (int)Math.Round((p.Y - _grabOffset.Y - _offsetY) / _scale) + _originY;
+        // Screen position back to millimetres, then millimetres back to desktop
+        // pixels through this display's own density. Going straight to pixels
+        // would move the tile at the wrong rate now that the diagram is drawn
+        // physically — a dense panel would crawl under the cursor.
+        double mmX = ((p.X - _grabOffset.X - _offsetX) / _scale) + _originMmX;
+        double mmY = ((p.Y - _grabOffset.Y - _offsetY) / _scale) + _originMmY;
+
+        DisplayInfo moved = _dragging.Display;
+        double perPxX = moved.HasPhysicalSize ? moved.PhysicalWidthMm / (double)moved.Bounds.Width : 1;
+        double perPxY = moved.HasPhysicalSize ? moved.PhysicalHeightMm / (double)moved.Bounds.Height : 1;
+
+        _dragging.X = (int)Math.Round(mmX / Math.Max(perPxX, 0.0001));
+        _dragging.Y = (int)Math.Round(mmY / Math.Max(perPxY, 0.0001));
 
         Snap(_dragging);
         ApplySolver(_dragging);
-        PlaceTiles();
+        Layout();
 
         e.Handled = true;
     }
 
-    /// <summary>Positions every tile from its desktop coordinates, without rescaling.</summary>
+    /// <summary>Positions and sizes every tile from the millimetre map.</summary>
     private void PlaceTiles()
     {
         foreach (Tile t in _tiles)
         {
-            Canvas.SetLeft(t.Element, _offsetX + (t.X - _originX) * _scale);
-            Canvas.SetTop(t.Element, _offsetY + (t.Y - _originY) * _scale);
+            if (!_placed.TryGetValue(t.Display.Token, out PhysicalLayout.Placed p)) continue;
+
+            double w = Math.Max(26, p.Width * _scale);
+            double h = Math.Max(20, p.Height * _scale);
+
+            t.Element.Width = w;
+            t.Element.Height = h;
+
+            // The numeral grows with its plate, as Windows' does. A fixed size
+            // swamps a small tile and looks lost on a large one.
+            t.Label.FontSize = Math.Clamp(Math.Min(w, h) * 0.3, 13, 44);
+
+            Canvas.SetLeft(t.Element, _offsetX + ((p.X - _originMmX) * _scale));
+            Canvas.SetTop(t.Element, _offsetY + ((p.Y - _originMmY) * _scale));
         }
     }
 

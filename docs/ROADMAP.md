@@ -242,6 +242,56 @@ The file stays on the machine. It is the raw material for supporting hardware
 this has never seen, and sending one should be something the user chooses,
 not something that quietly already happened.
 
+### Drawing the arrangement at real sizes
+
+Windows draws its arrangement diagram in raw pixels, which makes a 14-inch
+2880x1800 laptop panel look wider than the 24-inch monitor beside it. The
+diagram's whole job is to show where things physically are, so Umbra draws it in
+millimetres from the EDID.
+
+The first attempt rescaled the coordinate space piecewise, interval by interval,
+and got it wrong: where two panels of different density share a y interval, one
+measurement has to win, and the laptop came out nearly twice its real height.
+There is no mapping of a shared coordinate space that is right for both, because
+a pixel is a different real size on each panel.
+
+What works is to take only the *relationships* from pixel space. Sizes come
+from the EDID and nothing else; each display is hung off a neighbour it touches,
+on the side it touches, offset along that edge by the same fraction as in
+pixels. Every panel is then its true size and still meets its neighbour, which
+is what two monitors of different heights do on a real desk. The drag maths and
+the snap threshold both convert through the dragged display's own density —
+skipping that made a dense panel crawl under the cursor.
+
+Covered in `tools/presetcheck`: true sizes, flushness, top alignment,
+proportional offset, and the fall back to pixels when any display reports no
+physical size.
+
+### What nothing reports: panel technology
+
+There is no reliable way to ask whether a panel is OLED. EDID has no field for
+it. Windows exposes none. An external monitor can answer VCP B6 over DDC/CI —
+the Dell says LCD (TFT) — but a built-in panel has no DDC/CI channel at all,
+which is exactly the case that matters, because built-in OLEDs are what burn in.
+
+So panel technology is reported where the monitor says, and OLED is a per-
+monitor setting defaulting to what B6 said. Getting it wrong is not symmetric:
+burn-in protection on an LCD is a pointless annoyance, its absence on an OLED is
+permanent damage. Better to ask than to guess.
+
+### Prior art worth knowing about
+
+- **ddcutil** carries the most complete public VCP feature table there is
+  (`src/vcp/vcp_feature_codes.c`), and its *user defined features* mechanism is
+  the design worth copying for per-model quirks: a file named
+  `<mfg>-<model>-<product>.mccs` naming the codes and values a particular model
+  implements. That is the shape a "known models" store here should take.
+- **linuxhw/EDID** is ~175,000 real EDIDs organised by vendor and model, which
+  is the reference for anything to do with parsing or recognising panels.
+- There is no comprehensive public database of *manufacturer-specific* VCP
+  codes. ddcutil's position — record them, do not write them blind — is the
+  same one taken here, and is the reason those codes are reported and never set.
+
 ### One monitor, one DDC/CI conversation
 
 A monitor has a single DDC/CI channel and will not serve two conversations at

@@ -163,6 +163,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         Raise(nameof(Creating));
         Raise(nameof(CreatingVisibility));
         Raise(nameof(ExistingVisibility));
+        Raise(nameof(ActionVisibility));
         Raise(nameof(SaveButtonText));
         RefreshDrift();
         RaiseScope();
@@ -178,6 +179,18 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     /// <summary>Apply and Discard mean nothing until there is a preset to act on.</summary>
     public Visibility ExistingVisibility =>
         !Creating && Current is not null ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Whether the bar has anything worth offering to do.
+    /// </summary>
+    /// <remarks>
+    /// Buttons that are always there stop meaning anything. Save is only honest
+    /// once something has drifted, and applying a preset the desk already
+    /// matches would blank the screen for a mode change that changes nothing.
+    /// So when everything matches, the bar says so and offers nothing.
+    /// </remarks>
+    public Visibility ActionVisibility =>
+        !Creating && Current is not null && IsDirty ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Name for the preset being created.</summary>
     public string NewName
@@ -239,6 +252,8 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             Raise(nameof(Creating));
             Raise(nameof(CreatingVisibility));
             Raise(nameof(ExistingVisibility));
+        Raise(nameof(ActionVisibility));
+            Raise(nameof(ActionVisibility));
             Raise(nameof(SaveButtonText));
         }
     }
@@ -355,6 +370,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     private void RaiseDrift()
     {
+        Raise(nameof(ActionVisibility));
         Raise(nameof(Status));
         Raise(nameof(ShortStatus));
         Raise(nameof(Differences));

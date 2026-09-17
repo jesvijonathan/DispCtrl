@@ -369,6 +369,24 @@ public sealed class MonitorSettings
     public bool HasNightLightRange =>
         NightLightFloor >= 0 && NightLightCeiling > NightLightFloor;
 
+    /// <summary>
+    /// Whether this panel is OLED, and where that was decided.
+    /// </summary>
+    /// <remarks>
+    /// A setting rather than a fact, because nothing reliable reports it. EDID
+    /// has no field for panel technology; an external monitor may say so over
+    /// DDC/CI, but a built-in panel has no DDC/CI channel at all — which is
+    /// exactly the case that matters, since built-in OLEDs are what burn in.
+    /// <para>
+    /// Null means "not decided": Umbra will use whatever the monitor said, and
+    /// the user can override it. Everything OLED-specific hangs off this, so it
+    /// is better to ask than to guess wrong in either direction — burn-in
+    /// protection on an LCD is a pointless annoyance, and its absence on an
+    /// OLED is permanent damage.
+    /// </para>
+    /// </remarks>
+    public bool? IsOled { get; set; }
+
     [JsonIgnore]
     public bool ManagesTaskbar => HideTaskbar;
 
@@ -385,6 +403,7 @@ public sealed class MonitorSettings
         NightLightStrength = fresh.NightLightStrength;
         NightLightFloor = fresh.NightLightFloor;
         NightLightCeiling = fresh.NightLightCeiling;
+        IsOled = fresh.IsOled;
         // Label is descriptive, not a setting; keeping it leaves the file readable.
     }
 }

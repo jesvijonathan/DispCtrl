@@ -116,6 +116,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         ScalePreviews();
+        LoadAdaptiveBrightness();
+        LoadAutoRotation();
         RefreshTopology();
         RefreshArrangement();
         RefreshEngineStatus();
@@ -336,6 +338,137 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public Visibility UnisonVisibility =>
         _settings.Global.UnisonBrightness ? Visibility.Visible : Visibility.Collapsed;
+
+    // --------------------------------------------------- adaptive brightness --
+
+    private AdaptiveBrightnessState _adaptive = AdaptiveBrightnessState.Unsupported;
+
+    /// <summary>
+    /// Windows' own auto-brightness.
+    /// </summary>
+    /// <remarks>
+    /// Sits beside unison brightness rather than under a display, because it is
+    /// neither per-monitor nor a monitor setting at all: Windows drives it from
+    /// the ambient light sensor through the active power scheme. That is
+    /// exactly why looking for it among a monitor's own DDC/CI controls never
+    /// finds it.
+    /// </remarks>
+    public bool AdaptiveBrightnessOn
+    {
+        get => _adaptive.Enabled;
+        set
+        {
+            if (_adaptive.Enabled == value) return;
+
+            _ = Task.Run(() =>
+            {
+                AdaptiveBrightness.Write(value);
+                AdaptiveBrightnessState after = AdaptiveBrightness.Read();
+
+                // Read back rather than assumed: the power manager can refuse,
+                // and a toggle that moves without the setting moving is worse
+                // than one that does not move at all.
+                _dispatcher.TryEnqueue(() =>
+                {
+                    _adaptive = after;
+                    Raise(nameof(AdaptiveBrightnessOn));
+                    Raise(nameof(AdaptiveBrightnessDetail));
+                });
+            });
+        }
+    }
+
+    public Visibility AdaptiveBrightnessVisibility =>
+        _adaptive.Supported ? Visibility.Visible : Visibility.Collapsed;
+
+    public string AdaptiveBrightnessDetail
+    {
+        get
+        {
+            if (!_adaptive.Supported)
+                return "This machine's power plan does not offer it.";
+
+            string state = (_adaptive.PluggedIn, _adaptive.OnBattery) switch
+            {
+                (true, true) => "On, plugged in and on battery",
+                (true, false) => "On when plugged in, off on battery",
+                (false, true) => "On when on battery, off when plugged in",
+                _ => "Off",
+            };
+
+            return $"{state}. Windows drives this from the ambient light sensor, so it is a power "
+                 + "setting rather than anything the monitor knows about \u2014 which is why it is not "
+                 + "among a monitor's own controls.";
+        }
+    }
+
+    private void LoadAdaptiveBrightness()
+    {
+        _ = Task.Run(() =>
+        {
+            AdaptiveBrightnessState state = AdaptiveBrightness.Read();
+
+            _dispatcher.TryEnqueue(() =>
+            {
+                _adaptive = state;
+                Raise(nameof(AdaptiveBrightnessOn));
+                Raise(nameof(AdaptiveBrightnessVisibility));
+                Raise(nameof(AdaptiveBrightnessDetail));
+            });
+        });
+    }
+
+    // ------------------------------------------------------- auto-rotation --
+
+    private AutoRotationState _rotation = AutoRotationState.Unsupported("");
+
+    public Visibility AutoRotationVisibility =>
+        _rotation.Supported ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Whether the screen follows the device, and why not when it does not.
+    /// </summary>
+    /// <remarks>
+    /// Read-only on purpose. <c>GetAutoRotationState</c> is documented and
+    /// public; changing the setting is not, and the only route is the registry
+    /// value Settings writes under HKLM, which would mean asking for elevation
+    /// for one toggle. The same bargain as colour profiles: report accurately,
+    /// hand off for the change.
+    /// </remarks>
+    public string AutoRotationDetail => _rotation.Supported
+        ? $"{_rotation.Reason} Changing it needs administrator rights, so Umbra hands off to Settings."
+        : _rotation.Reason;
+
+    private void LoadAutoRotation()
+    {
+        _ = Task.Run(() =>
+        {
+            AutoRotationState state = AutoRotation.Read();
+
+            _dispatcher.TryEnqueue(() =>
+            {
+                _rotation = state;
+                Raise(nameof(AutoRotationVisibility));
+                Raise(nameof(AutoRotationDetail));
+            });
+        });
+    }
+
+    public static void OpenRotationSettings()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "ms-settings:screenrotation",
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception)
+        {
+            // Settings refusing to open is not worth failing over.
+        }
+    }
 
     // --------------------------------------------------------------- report --
 
