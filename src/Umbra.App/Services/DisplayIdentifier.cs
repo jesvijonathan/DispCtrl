@@ -57,15 +57,20 @@ public static class DisplayIdentifier
     }
 
     /// <summary>
-    /// Plate side, in device-independent pixels.
+    /// Plate side, in real inches on the glass.
     /// </summary>
     /// <remarks>
-    /// Deliberately a DIP measurement rather than a fraction of the pixel
-    /// count. Two panels at the same physical size but different resolutions
-    /// are the same number of DIPs across, so one constant is the same
-    /// apparent size on both — which is the whole job of an identify marker
-    /// shown on several screens at once.
+    /// Physical, not pixels and not DIPs. Pixels are hopeless across panels of
+    /// different density. DIPs are no better here: Windows renders this laptop
+    /// at 192 DPI while the panel is physically 242 PPI, so a DIP is a
+    /// different real size on each screen and the same constant still comes
+    /// out visibly smaller on one than the other. Driving it from the EDID's
+    /// millimetres is the only way both markers are genuinely the same size
+    /// when you look from one screen to the other.
     /// </remarks>
+    private const double PlateInches = 1.55;
+
+    /// <summary>Fallback plate side, in DIPs, when the EDID gives no size.</summary>
     private const double PlateDip = 148;
 
     /// <summary>Numeral height as a fraction of the plate.</summary>
@@ -88,8 +93,13 @@ public static class DisplayIdentifier
 
         string caption = number.ToString();
 
+        // Real pixel density, not the scaling factor — see PlateInches.
+        double wanted = display.PhysicalPpi > 0
+            ? PlateInches * display.PhysicalPpi / scale
+            : PlateDip;
+
         double sideDip = Math.Min(
-            PlateDip,
+            wanted,
             Math.Min(display.Bounds.Width, display.Bounds.Height) / scale * MaxShareOfPanel);
 
         // Grow with the digit count instead of cramming "10" into the width of
@@ -142,11 +152,18 @@ public static class DisplayIdentifier
         int padX = (int)Math.Round(display.Bounds.Width * 0.10);
         int padY = (int)Math.Round(display.Bounds.Height * 0.10);
 
-        app.MoveAndResize(new RectInt32(
+        // Move first, then size. MoveAndResize in one call is the trap: a new
+        // window is born on the primary display, so moving it to a panel at a
+        // different scale raises a DPI change, and Windows rescales the window
+        // by that ratio *after* applying the size. Asking for 375px on a 200%
+        // panel got 750. Moving first lets the DPI change happen while the
+        // window is still the wrong size, and the resize afterwards is taken
+        // literally.
+        app.Move(new PointInt32(
             display.Bounds.Left + padX,
-            display.Bounds.Bottom - padY - height,
-            width,
-            height));
+            display.Bounds.Bottom - padY - height));
+
+        app.Resize(new SizeInt32(width, height));
 
         window.Activate();
         return window;

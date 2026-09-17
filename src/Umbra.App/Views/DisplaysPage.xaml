@@ -113,8 +113,24 @@
           <FontIcon Glyph="&#xE706;"/>
         </tk:SettingsExpander.HeaderIcon>
 
-        <ToggleSwitch IsOn="{x:Bind ViewModel.UnisonBrightness, Mode=TwoWay}"
-                      AutomationProperties.Name="UnisonBrightnessToggle"/>
+        <!-- The slider sits on the header row, not only inside the expander.
+             It is the control that gets reached for daily; making it cost an
+             expand every time is the difference between a feature you use and
+             one you remember exists. -->
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Slider Value="{x:Bind ViewModel.UnisonLevel, Mode=TwoWay}"
+                  Minimum="{x:Bind ViewModel.UnisonMinimum, Mode=OneWay}"
+                  Maximum="100" StepFrequency="1"
+                  Width="200" VerticalAlignment="Center"
+                  Visibility="{x:Bind ViewModel.UnisonVisibility, Mode=OneWay}"
+                  AutomationProperties.Name="UnisonLevelSliderInline"/>
+          <TextBlock Text="{x:Bind ViewModel.UnisonPercentText, Mode=OneWay}"
+                     VerticalAlignment="Center" MinWidth="40"
+                     Visibility="{x:Bind ViewModel.UnisonVisibility, Mode=OneWay}"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          <ToggleSwitch IsOn="{x:Bind ViewModel.UnisonBrightness, Mode=TwoWay}"
+                        AutomationProperties.Name="UnisonBrightnessToggle"/>
+        </StackPanel>
 
         <tk:SettingsExpander.Items>
           <tk:SettingsCard Header="Level"
@@ -177,15 +193,94 @@
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
+      <tk:SettingsExpander Header="Night light"
+                           Description="Warmer colours on every display at once, to cut blue light in the evening."
+                           Margin="0,4,0,0">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE706;"/>
+        </tk:SettingsExpander.HeaderIcon>
+
+        <!-- Same shape as unison above: the control you reach for daily sits on
+             the header row, and the rest is behind the expander. -->
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Slider Value="{x:Bind ViewModel.NightLightStrength, Mode=TwoWay}"
+                  Minimum="0" Maximum="100" StepFrequency="1"
+                  Width="200" VerticalAlignment="Center"
+                  Visibility="{x:Bind ViewModel.NightLightVisibility, Mode=OneWay}"
+                  AutomationProperties.Name="NightLightStrengthSliderInline"/>
+          <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightEnabled, Mode=TwoWay}"
+                        AutomationProperties.Name="NightLightToggle"/>
+        </StackPanel>
+
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Strength"
+                           Description="How far towards warm. The top of the slider is as warm as Windows will accept a gamma change; past that it refuses the ramp outright."
+                           Visibility="{x:Bind ViewModel.NightLightVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <Slider Value="{x:Bind ViewModel.NightLightStrength, Mode=TwoWay}"
+                      Minimum="0" Maximum="100" StepFrequency="1"
+                      Width="240" VerticalAlignment="Center"
+                      AutomationProperties.Name="NightLightStrengthSlider"/>
+              <TextBlock Text="{x:Bind ViewModel.NightLightStrengthText, Mode=OneWay}"
+                         VerticalAlignment="Center" MinWidth="96"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Schedule"
+                           Description="Leave off to keep the warmth on until you switch it off."
+                           Visibility="{x:Bind ViewModel.NightLightVisibility, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE823;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightScheduled, Mode=TwoWay}"
+                          AutomationProperties.Name="NightLightScheduleToggle"/>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Hours"
+                           Description="A window that runs past midnight is normal and handled."
+                           Visibility="{x:Bind ViewModel.NightLightScheduleVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <TimePicker Time="{x:Bind ViewModel.NightLightFrom, Mode=TwoWay}"
+                          ClockIdentifier="24HourClock"
+                          AutomationProperties.Name="NightLightFrom"/>
+              <TextBlock Text="to" VerticalAlignment="Center"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <TimePicker Time="{x:Bind ViewModel.NightLightTo, Mode=TwoWay}"
+                          ClockIdentifier="24HourClock"
+                          AutomationProperties.Name="NightLightTo"/>
+            </StackPanel>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Right now"
+                           Description="{x:Bind ViewModel.NightLightStatus, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE9E9;"/>
+            </tk:SettingsCard.HeaderIcon>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
       <TextBlock Text="Each display"
                  Style="{StaticResource BodyStrongTextBlockStyle}"
                  Margin="0,28,0,8"/>
 
-      <ItemsRepeater ItemsSource="{x:Bind ViewModel.Displays, Mode=OneWay}">
-        <ItemsRepeater.Layout>
-          <StackLayout Spacing="4"/>
-        </ItemsRepeater.Layout>
-        <ItemsRepeater.ItemTemplate>
+      <!-- Deliberately ItemsControl, not ItemsRepeater. ItemsRepeater
+           virtualises: expanding a card near the bottom grew the extent, which
+           scrolled the card out of the realisation window, which recycled the
+           element and collapsed it, which shrank the extent again — a visible
+           open/close flicker that fed itself. There are two or three displays
+           here; there is nothing to virtualise, and realising them all also
+           means the hardware reads start immediately instead of when a card
+           first scrolls into view. -->
+      <ItemsControl ItemsSource="{x:Bind ViewModel.Displays, Mode=OneWay}"
+                    HorizontalContentAlignment="Stretch">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Spacing="4"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:DisplayViewModel">
 
             <tk:SettingsExpander Header="{x:Bind Name}" Description="{x:Bind Details}">
@@ -285,18 +380,16 @@
                                  Stretch="UniformToFill"
                                  Visibility="{x:Bind HasWallpaper, Mode=OneWay}"/>
                           <!-- A dark wallpaper left the tile looking like an
-                               empty box. A scrim plus the number keeps it
-                               legible whatever is behind it. -->
-                          <Border Background="#40000000"/>
-                          <Border Background="#B21F1F1F"
-                                  CornerRadius="8"
-                                  Width="46" Height="46"
-                                  HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="{x:Bind Number}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       FontSize="24" FontWeight="SemiBold"
-                                       Foreground="White"/>
-                          </Border>
+                               empty box; the scrim keeps the number legible
+                               whatever is behind it. The number itself sits
+                               straight on the panel with no chip, which is how
+                               Windows draws it — the chip was the detail that
+                               made this read as an imitation of the real one. -->
+                          <Border Background="#59000000"/>
+                          <TextBlock Text="{x:Bind Number}"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                                     FontSize="34" FontWeight="SemiBold"
+                                     Foreground="White"/>
                         </Grid>
                       </Border>
 
@@ -512,8 +605,8 @@
             </tk:SettingsExpander>
 
           </DataTemplate>
-        </ItemsRepeater.ItemTemplate>
-      </ItemsRepeater>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
 
     </StackPanel>
   </ScrollViewer>

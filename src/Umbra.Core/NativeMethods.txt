@@ -30,5 +30,14 @@ QUERY_DISPLAY_CONFIG_FLAGS
 GetDpiForMonitor
 MONITOR_DPI_TYPE
 
+// ---- night light (per-display gamma ramps) ----
+// Windows exposes no API for its own night light, so warmth is applied the way
+// every third-party tool does it: by rewriting the display's gamma ramp. It is
+// per-device, immediate, and undone by restoring the ramp that was there.
+CreateDC
+DeleteDC
+SetDeviceGammaRamp
+GetDeviceGammaRamp
+
 // ---- error codes ----
 WIN32_ERROR

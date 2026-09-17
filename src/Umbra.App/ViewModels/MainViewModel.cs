@@ -242,6 +242,153 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Visibility UnisonVisibility =>
         _settings.Global.UnisonBrightness ? Visibility.Visible : Visibility.Collapsed;
 
+    // ------------------------------------------------------------ night light --
+
+    private NightLightSettings Night => _settings.Global.NightLight;
+
+    /// <summary>
+    /// Warms every display together.
+    /// </summary>
+    /// <remarks>
+    /// The engine owns the schedule, because a schedule that only runs while
+    /// the panel is open is not one. The panel writes the setting and applies
+    /// the same warmth immediately, so the slider responds while you are
+    /// looking at it rather than up to a tick later.
+    /// </remarks>
+    public bool NightLightEnabled
+    {
+        get => Night.Enabled;
+        set
+        {
+            if (Night.Enabled == value) return;
+            Night.Enabled = value;
+            Persist();
+            Raise();
+            RaiseNightLight();
+            ApplyNightLightPreview();
+        }
+    }
+
+    public double NightLightStrength
+    {
+        get => Night.Strength;
+        set
+        {
+            int v = Math.Clamp((int)value, 0, 100);
+            if (Night.Strength == v) return;
+            Night.Strength = v;
+            Persist();
+            Raise();
+            RaiseNightLight();
+            ApplyNightLightPreview();
+        }
+    }
+
+    public bool NightLightScheduled
+    {
+        get => Night.Scheduled;
+        set
+        {
+            if (Night.Scheduled == value) return;
+            Night.Scheduled = value;
+            Persist();
+            Raise();
+            RaiseNightLight();
+            ApplyNightLightPreview();
+        }
+    }
+
+    public TimeSpan NightLightFrom
+    {
+        get => TimeSpan.FromMinutes(Night.FromMinutes);
+        set
+        {
+            int v = (int)value.TotalMinutes;
+            if (Night.FromMinutes == v) return;
+            Night.FromMinutes = v;
+            Persist();
+            Raise();
+            RaiseNightLight();
+            ApplyNightLightPreview();
+        }
+    }
+
+    public TimeSpan NightLightTo
+    {
+        get => TimeSpan.FromMinutes(Night.ToMinutes);
+        set
+        {
+            int v = (int)value.TotalMinutes;
+            if (Night.ToMinutes == v) return;
+            Night.ToMinutes = v;
+            Persist();
+            Raise();
+            RaiseNightLight();
+            ApplyNightLightPreview();
+        }
+    }
+
+    public Visibility NightLightVisibility =>
+        Night.Enabled ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility NightLightScheduleVisibility =>
+        Night.Enabled && Night.Scheduled ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Warmth as a colour temperature, which is how it is normally described.</summary>
+    public string NightLightStrengthText => $"{Night.Strength}%  ·  {NightLight.KelvinFor(Night.Strength):0}K";
+
+    /// <summary>Whether the warmth is in force right now, and why or why not.</summary>
+    public string NightLightStatus
+    {
+        get
+        {
+            if (!Night.Enabled) return "Off. Displays show their own colour.";
+
+            // The engine applies it; saying so beats a screen that stays cold
+            // with the toggle sitting on.
+            if (!EngineRunning)
+                return "The engine is not running, so nothing is being applied. Start it on the Engine page.";
+
+            if (!Night.Scheduled) return "On now, and staying on until you switch it off.";
+
+            string from = Clock(Night.FromMinutes);
+            string to = Clock(Night.ToMinutes);
+
+            return Night.ActiveAt(DateTime.Now)
+                ? $"On now — inside the {from} to {to} window."
+                : $"Waiting. Comes on at {from}, off at {to}.";
+        }
+    }
+
+    private static string Clock(int minutes) =>
+        $"{((minutes / 60) % 24):00}:{(minutes % 60):00}";
+
+    /// <summary>
+    /// The panel deliberately does not touch the gamma ramp.
+    /// </summary>
+    /// <remarks>
+    /// It did, as a live preview, and that was a bug rather than a feature. A
+    /// display has exactly one gamma ramp and no way to say who set it, so two
+    /// processes writing it means whichever reads second captures the other's
+    /// warmth as the display's own baseline — and restores to that. Switching
+    /// night light off then left the screens permanently tinted, a little
+    /// further every cycle.
+    /// <para>
+    /// So the engine owns the ramp outright. The panel writes the setting, the
+    /// engine's watcher picks it up within about a tenth of a second, and the
+    /// screen changes while the slider is still under the cursor.
+    /// </para>
+    /// </remarks>
+    private void ApplyNightLightPreview() => RefreshEngineStatus();
+
+    private void RaiseNightLight()
+    {
+        Raise(nameof(NightLightVisibility));
+        Raise(nameof(NightLightScheduleVisibility));
+        Raise(nameof(NightLightStrengthText));
+        Raise(nameof(NightLightStatus));
+    }
+
     // ----------------------------------------------- calibrated unison range --
 
     /// <summary>Which limit the calibration walkthrough is currently asking for.</summary>
@@ -333,6 +480,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _settings.Global.UnisonLevel = 100;
             Persist();
             Raise(nameof(UnisonLevel));
+            Raise(nameof(UnisonPercentText));
         }
         else
         {
@@ -394,6 +542,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </summary>
     public double UnisonMinimum => _settings.Global.UnisonCalibrated ? 0 : 10;
 
+    public string UnisonPercentText => $"{_settings.Global.UnisonLevel}%";
+
     public string UnisonLevelDescription => _settings.Global.UnisonCalibrated
         ? "Where each display sits between its own captured limits. 0% is your dimmest setting, not black."
         : "A multiplier on each display's own baseline, not an absolute brightness — so panels with different peak output stay in proportion.";
@@ -423,6 +573,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _settings.Global.UnisonLevel = v;
             Persist();
             Raise();
+            Raise(nameof(UnisonPercentText));
 
             _ = ApplyUnisonAsync(v / 100.0);
         }

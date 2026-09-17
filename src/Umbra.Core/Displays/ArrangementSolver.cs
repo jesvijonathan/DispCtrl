@@ -16,7 +16,7 @@ namespace Umbra.Core.Displays;
 public static class ArrangementSolver
 {
     /// <summary>One display's rectangle in desktop coordinates.</summary>
-    public readonly record struct Panel(string Token, int X, int Y, int Width, int Height)
+    public readonly record struct Panel(string Token, int X, int Y, int Width, int Height, bool IsPrimary = false)
     {
         public int Right => X + Width;
         public int Bottom => Y + Height;
@@ -176,27 +176,48 @@ public static class ArrangementSolver
     }
 
     /// <summary>
-    /// Shifts the arrangement so its leftmost and topmost edges sit at zero.
+    /// Shifts the arrangement so the primary display's top-left sits at (0,0).
     /// </summary>
     /// <remarks>
-    /// Windows anchors the desktop origin at the primary display and refuses a
-    /// layout whose origin has drifted.
+    /// The desktop origin <em>is</em> the primary display's top-left corner, so
+    /// every other display's position is expressed relative to it — negative
+    /// coordinates are normal and correct for anything above or to the left.
+    /// <para>
+    /// Anchoring on the bounding box instead is the bug this replaced: dragging
+    /// a secondary display up or left pushed the primary off (0,0), and Windows
+    /// rejected the whole arrangement without saying why. It read as Apply
+    /// silently doing nothing.
+    /// </para>
     /// </remarks>
     private static List<Panel> Normalise(List<Panel> panels)
     {
         if (panels.Count == 0) return panels;
 
-        int minX = int.MaxValue, minY = int.MaxValue;
-        foreach (Panel p in panels)
+        int index = panels.FindIndex(p => p.IsPrimary);
+
+        // No panel claims to be primary — fall back to the bounding box, which
+        // at least keeps the layout in positive space.
+        int anchorX, anchorY;
+        if (index >= 0)
         {
-            minX = Math.Min(minX, p.X);
-            minY = Math.Min(minY, p.Y);
+            anchorX = panels[index].X;
+            anchorY = panels[index].Y;
+        }
+        else
+        {
+            anchorX = int.MaxValue;
+            anchorY = int.MaxValue;
+            foreach (Panel p in panels)
+            {
+                anchorX = Math.Min(anchorX, p.X);
+                anchorY = Math.Min(anchorY, p.Y);
+            }
         }
 
-        if (minX == 0 && minY == 0) return panels;
+        if (anchorX == 0 && anchorY == 0) return panels;
 
         for (int i = 0; i < panels.Count; i++)
-            panels[i] = panels[i] with { X = panels[i].X - minX, Y = panels[i].Y - minY };
+            panels[i] = panels[i] with { X = panels[i].X - anchorX, Y = panels[i].Y - anchorY };
 
         return panels;
     }

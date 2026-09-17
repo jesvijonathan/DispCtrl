@@ -104,6 +104,9 @@ public sealed class GlobalSettings
     /// </remarks>
     public bool UnisonCalibrated { get; set; }
 
+    /// <summary>Warmth applied to every display together.</summary>
+    public NightLightSettings NightLight { get; set; } = new();
+
     /// <summary>
     /// Restores the shipped defaults, leaving per-monitor settings alone.
     /// </summary>
@@ -123,7 +126,61 @@ public sealed class GlobalSettings
         UnisonBrightness = fresh.UnisonBrightness;
         UnisonLevel = fresh.UnisonLevel;
         UnisonCalibrated = fresh.UnisonCalibrated;
+        NightLight = new NightLightSettings();
     }
+}
+
+/// <summary>
+/// Warmth applied across every display at once.
+/// </summary>
+/// <remarks>
+/// Global rather than per-monitor on purpose. The complaint night light
+/// answers is that the desk is too blue at night, and warming one screen while
+/// the other stays cold is worse than warming neither — the mismatch is more
+/// noticeable than the blue was.
+/// </remarks>
+public sealed class NightLightSettings
+{
+    /// <summary>Warm the displays, subject to <see cref="Scheduled"/>.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>How warm, 0-100. See <c>NightLight.KelvinFor</c> for the range.</summary>
+    public int Strength { get; set; } = 45;
+
+    /// <summary>Only warm between <see cref="FromMinutes"/> and <see cref="ToMinutes"/>.</summary>
+    public bool Scheduled { get; set; }
+
+    /// <summary>Start of the warm period, in minutes past local midnight.</summary>
+    public int FromMinutes { get; set; } = 20 * 60;
+
+    /// <summary>End of the warm period, in minutes past local midnight.</summary>
+    public int ToMinutes { get; set; } = 7 * 60;
+
+    /// <summary>
+    /// True when the warm period is in force at <paramref name="now"/>.
+    /// </summary>
+    /// <remarks>
+    /// Handles the normal case of a window that crosses midnight, which is what
+    /// nearly every night-light schedule does. Equal endpoints mean a window of
+    /// no length, not one of a full day.
+    /// </remarks>
+    public bool ActiveAt(DateTime now)
+    {
+        if (!Enabled) return false;
+        if (!Scheduled) return true;
+
+        int from = Normalise(FromMinutes);
+        int to = Normalise(ToMinutes);
+        if (from == to) return false;
+
+        int minute = (now.Hour * 60) + now.Minute;
+
+        return from < to
+            ? minute >= from && minute < to
+            : minute >= from || minute < to;
+    }
+
+    private static int Normalise(int minutes) => ((minutes % 1440) + 1440) % 1440;
 }
 
 /// <summary>Everything Umbra can do to one monitor.</summary>

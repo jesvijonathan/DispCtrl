@@ -1,5 +1,6 @@
 using Umbra.Core.Displays;
 using Umbra.Core.Settings;
+using Umbra.Engine.Color;
 using Umbra.Engine.Taskbar;
 using Windows.Win32;
 using Windows.Win32.UI.HiDpi;
@@ -97,7 +98,7 @@ internal static class Program
     /// catch the moment between delete and rename.
     /// </para>
     /// </remarks>
-    private static FileSystemWatcher WatchSettings(TaskbarManager manager)
+    private static FileSystemWatcher WatchSettings(TaskbarManager manager, NightLightService nightLight)
     {
         Directory.CreateDirectory(SettingsStore.Directory);
 
@@ -105,7 +106,11 @@ internal static class Program
         {
             try
             {
-                manager.ApplySettings(SettingsStore.Load());
+                // Loaded once and handed to both, so the two cannot end up
+                // acting on different versions of the same save.
+                UmbraSettings reloaded = SettingsStore.Load();
+                manager.ApplySettings(reloaded);
+                nightLight.Update(reloaded);
             }
             catch (Exception ex)
             {
@@ -324,10 +329,13 @@ internal static class Program
         foreach (MonitorSettings ms in settings.Monitors.Values)
             if (ms.HideTaskbar) managed++;
 
-        if (managed == 0)
+        // Taskbar hiding is no longer the only reason to be resident: night
+        // light has a schedule, and a schedule that only runs while a taskbar
+        // is also being managed is not a schedule.
+        if (managed == 0 && !settings.Global.NightLight.Enabled)
         {
-            Console.Error.WriteLine("no monitor is configured for taskbar hiding.");
-            Console.Error.WriteLine("run `displays`, then `enable <n>`.");
+            Console.Error.WriteLine("nothing to do: no monitor is set to hide its taskbar, and night light is off.");
+            Console.Error.WriteLine("run `displays`, then `enable <n>` — or turn on night light in the app.");
             return 1;
         }
 
@@ -372,7 +380,11 @@ internal static class Program
 
         try
         {
-            using FileSystemWatcher watcher = WatchSettings(manager);
+            // Disposed before the manager unwinds, so the displays are back to
+            // their own colour even if the taskbar restore then throws.
+            using var nightLight = new NightLightService(settings);
+            using FileSystemWatcher watcher = WatchSettings(manager, nightLight);
+
             manager.Run(cts.Token);
             return 0;
         }

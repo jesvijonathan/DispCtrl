@@ -89,6 +89,40 @@ display was not touched between the two capture steps, which is a mistake far
 more often than an intention, and it would pin the panel at one brightness for
 every slider position. Such a display falls back to the multiplier.
 
+### Night light: gamma ramps, and who owns them
+
+Windows' own night light has no public API — it lives in an undocumented
+CloudStore blob whose shape changes between builds. Warmth is applied instead
+by rewriting each display's gamma ramp, which is what every third-party tool
+does: per-display, instant, unelevated, undone by restoring the previous ramp.
+
+Two limits found by measurement rather than documentation:
+
+- **GDI clamps how far a ramp may stray from the identity.** On this machine
+  3280K is accepted and 3050K refused, on both panels. Unlocking the rest means
+  writing `GdiIcmGammaRange` under HKLM, which needs elevation and is not
+  something a Store app should do to a shared machine. So the slider spans
+  6500K-3300K, which is the range that actually works. A control whose top
+  third silently does nothing is worse than a shorter one.
+
+- **A display has one gamma ramp and no way to say who set it.** The panel
+  originally applied warmth as a live preview while the engine also applied it.
+  Whichever read second captured the other's warmth as the display's *baseline*
+  and restored to that, so switching night light off left the screens tinted,
+  a little further every cycle. The engine now owns the ramp outright; the panel
+  only writes settings, and the engine's watcher picks them up in ~120ms, which
+  is fast enough to feel live under the cursor.
+
+Two guards follow from the second point: a baseline whose blue peak sits more
+than 10% under its red is rejected as somebody else's warmth rather than
+adopted, and the engine sweeps for abandoned warm ramps at startup — a ramp
+outlives the process that set it, so an engine that was killed rather than
+stopped would otherwise leave the displays warm with no control admitting to it.
+
+Verified end to end: unscheduled on, schedule excluding now, schedule including
+now, off, and engine stop each land both panels exactly where expected, with a
+clean return to 100/100/100 every time. Kill-then-restart recovers too.
+
 ### Known open issue
 
 The current watcher exited with code 1 on 09/14 and nothing restarted it; root

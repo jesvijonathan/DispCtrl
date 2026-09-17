@@ -187,12 +187,27 @@ public static class DisplayArrangement
     /// </remarks>
     public static unsafe bool SetPositions(IReadOnlyDictionary<string, (int X, int Y)> positions,
                                            IReadOnlyList<DisplayInfo> all)
+        => SetPositions(positions, all, out _);
+
+    /// <param name="error">
+    /// What Windows said when it refused. Worth surfacing: SetDisplayConfig
+    /// rejects a whole arrangement with one code and no indication of which
+    /// display is at fault, so without it a failure is indistinguishable from
+    /// the call never having been made.
+    /// </param>
+    public static unsafe bool SetPositions(IReadOnlyDictionary<string, (int X, int Y)> positions,
+                                           IReadOnlyList<DisplayInfo> all,
+                                           out string? error)
     {
+        error = null;
         uint pathCount, modeCount;
         if (PInvoke.GetDisplayConfigBufferSizes(
                 QUERY_DISPLAY_CONFIG_FLAGS.QDC_ONLY_ACTIVE_PATHS,
                 &pathCount, &modeCount) != WIN32_ERROR.ERROR_SUCCESS)
+        {
+            error = "could not read the current display configuration";
             return false;
+        }
 
         var paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
         var modes = new DISPLAYCONFIG_MODE_INFO[modeCount];
@@ -203,7 +218,10 @@ public static class DisplayArrangement
             if (PInvoke.QueryDisplayConfig(
                     QUERY_DISPLAY_CONFIG_FLAGS.QDC_ONLY_ACTIVE_PATHS,
                     &pathCount, pPaths, &modeCount, pModes, null) != WIN32_ERROR.ERROR_SUCCESS)
+            {
+                error = "could not read the current display configuration";
                 return false;
+            }
         }
 
         // Map each display's device path to the position it should take.
@@ -235,7 +253,11 @@ public static class DisplayArrangement
             changed = true;
         }
 
-        if (!changed) return false;
+        if (!changed)
+        {
+            error = "none of the displays on screen matched the live configuration";
+            return false;
+        }
 
         // SDC_USE_SUPPLIED_DISPLAY_CONFIG: use exactly these paths and modes.
         // SDC_ALLOW_CHANGES lets Windows reconcile anything it must;
@@ -252,7 +274,22 @@ public static class DisplayArrangement
                 pathCount, pPaths, modeCount, pModes,
                 (SET_DISPLAY_CONFIG_FLAGS)(SdcUseSupplied | SdcApply | SdcSaveToDatabase | SdcAllowChanges));
 
-            return result == WIN32_ERROR.ERROR_SUCCESS;
+            if (result == WIN32_ERROR.ERROR_SUCCESS) return true;
+
+            error = result switch
+            {
+                WIN32_ERROR.ERROR_INVALID_PARAMETER =>
+                    "Windows rejected the arrangement as invalid — a display is not flush against its neighbours",
+                WIN32_ERROR.ERROR_NOT_SUPPORTED =>
+                    "the graphics driver does not support setting this arrangement",
+                WIN32_ERROR.ERROR_ACCESS_DENIED =>
+                    "another process is already changing the display configuration",
+                WIN32_ERROR.ERROR_GEN_FAILURE =>
+                    "the graphics driver failed the request",
+                _ => $"Windows returned error {(int)result}",
+            };
+
+            return false;
         }
     }
 

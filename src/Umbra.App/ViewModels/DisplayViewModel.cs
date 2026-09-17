@@ -62,6 +62,15 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     {
         DisplayInfo d = _display;
 
+        // Started first and awaited last. The information table is the first
+        // thing an expanded card shows, and it has no dependency on the
+        // wallpaper — but it used to queue behind it, and IDesktopWallpaper is
+        // an out-of-process COM server whose first activation costs hundreds of
+        // milliseconds. That wait was the whole reason the table sat full of
+        // em-dashes after launch.
+        Task advanced = LoadAdvancedAsync();
+        Task brightness = LoadBrightnessAsync();
+
         (List<(uint, uint)> resolutions, DisplayMode? current, string? wallpaper, WallpaperFit fit) =
             await Task.Run(() => (
                 DisplayModes.Resolutions(d.GdiName),
@@ -98,7 +107,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         if (_wallpaperPath is not null && File.Exists(_wallpaperPath))
             _ = DecodeWallpaperAsync(_wallpaperPath);
 
-        await Task.WhenAll(LoadBrightnessAsync(), LoadAdvancedAsync());
+        await Task.WhenAll(advanced, brightness);
     }
 
     /// <summary>

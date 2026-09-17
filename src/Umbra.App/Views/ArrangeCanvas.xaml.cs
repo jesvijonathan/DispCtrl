@@ -3,11 +3,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Umbra.Core.Displays;
 using Umbra.Display;
 using Windows.Foundation;
-using Windows.Storage.Streams;
 
 namespace Umbra.App.Views;
 
@@ -25,6 +23,7 @@ public sealed partial class ArrangeCanvas : UserControl
     private sealed class Tile
     {
         public required Border Element { get; init; }
+        public required TextBlock Label { get; init; }
         public required DisplayInfo Display { get; init; }
         public int X { get; set; }
         public int Y { get; set; }
@@ -104,20 +103,28 @@ public sealed partial class ArrangeCanvas : UserControl
                 ? s
                 : (d.Bounds.Left, d.Bounds.Top);
 
+            // Windows draws a plain light numeral straight on the panel, with
+            // no chip behind it. The chip was the thing that made this read as
+            // someone's approximation of the real control.
             var label = new TextBlock
             {
                 Text = (_tiles.Count + 1).ToString(),
-                FontSize = 22,
+                FontSize = 28,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new SolidColorBrush(Colors.White),
             };
 
+            // Flat plates, as Windows draws them: a solid fill, accent on the
+            // primary, and nothing else. The wallpaper that used to fill these
+            // made every tile a different brightness, which buried the one
+            // thing the diagram is for — where each panel sits relative to the
+            // others.
             var border = new Border
             {
-                CornerRadius = new CornerRadius(4),
-                BorderThickness = new Thickness(d.IsPrimary ? 2 : 1),
+                CornerRadius = new CornerRadius(8),
+                BorderThickness = new Thickness(d.IsPrimary ? 0 : 1),
                 Background = (Brush)Application.Current.Resources[
                     d.IsPrimary ? "AccentFillColorDefaultBrush" : "ControlAltFillColorSecondaryBrush"],
                 BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
@@ -129,10 +136,8 @@ public sealed partial class ArrangeCanvas : UserControl
             border.PointerReleased += OnPointerReleased;
             border.PointerCaptureLost += OnPointerCaptureLost;
 
-            var tile = new Tile { Element = border, Display = d, X = x, Y = y };
+            var tile = new Tile { Element = border, Label = label, Display = d, X = x, Y = y };
             border.Tag = tile;
-
-            _ = LoadTileWallpaperAsync(border, d);
 
             Surface.Children.Add(border);
             _tiles.Add(tile);
@@ -169,38 +174,18 @@ public sealed partial class ArrangeCanvas : UserControl
 
         foreach (Tile t in _tiles)
         {
-            t.Element.Width = Math.Max(26, t.Width * _scale);
-            t.Element.Height = Math.Max(20, t.Height * _scale);
+            double w = Math.Max(26, t.Width * _scale);
+            double h = Math.Max(20, t.Height * _scale);
+
+            t.Element.Width = w;
+            t.Element.Height = h;
+
+            // The numeral grows with its plate, as Windows' does. A fixed size
+            // swamps a small tile and looks lost on a large one.
+            t.Label.FontSize = Math.Clamp(Math.Min(w, h) * 0.3, 13, 44);
+
             Canvas.SetLeft(t.Element, _offsetX + (t.X - _originX) * _scale);
             Canvas.SetTop(t.Element, _offsetY + (t.Y - _originY) * _scale);
-        }
-    }
-
-    /// <summary>Paints a tile with the wallpaper actually on that display.</summary>
-    private static async Task LoadTileWallpaperAsync(Border border, DisplayInfo display)
-    {
-        try
-        {
-            string? path = await Task.Run(() => Wallpaper.Read(display)).ConfigureAwait(true);
-            if (path is null || !File.Exists(path)) return;
-
-            byte[] bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(true);
-
-            var stream = new InMemoryRandomAccessStream();
-            using (DataWriter writer = new(stream.GetOutputStreamAt(0)))
-            {
-                writer.WriteBytes(bytes);
-                await writer.StoreAsync();
-            }
-
-            var bitmap = new BitmapImage { DecodePixelWidth = 240 };
-            await bitmap.SetSourceAsync(stream);
-
-            border.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
-        }
-        catch (Exception)
-        {
-            // An unreadable wallpaper just leaves the tile flat-coloured.
         }
     }
 
@@ -349,7 +334,8 @@ public sealed partial class ArrangeCanvas : UserControl
     {
         var panels = new List<ArrangementSolver.Panel>(_tiles.Count);
         foreach (Tile t in _tiles)
-            panels.Add(new ArrangementSolver.Panel(t.Display.Token, t.X, t.Y, t.Width, t.Height));
+            panels.Add(new ArrangementSolver.Panel(
+                t.Display.Token, t.X, t.Y, t.Width, t.Height, t.Display.IsPrimary));
 
         List<ArrangementSolver.Panel> solved =
             ArrangementSolver.Resolve(panels, moved.Display.Token);
@@ -377,12 +363,17 @@ public sealed partial class ArrangeCanvas : UserControl
         foreach (Tile t in _tiles) positions[t.Display.Token] = (t.X, t.Y);
 
         var all = new List<DisplayInfo>(_displays);
-        bool ok = await Task.Run(() => DisplayArrangement.SetPositions(positions, all));
 
-        Hint.Text = ok
-            ? "Arrangement applied."
-            : "Windows refused that arrangement. Try moving the display so it sits "
-              + "squarely against its neighbour rather than overlapping a corner.";
+        (bool ok, string? why) = await Task.Run(() =>
+        {
+            bool r = DisplayArrangement.SetPositions(positions, all, out string? e);
+            return (r, e);
+        });
+
+        // Saying what Windows objected to, rather than guessing at it. The old
+        // message blamed a corner overlap every time, which was wrong whenever
+        // the real cause was something else.
+        Hint.Text = ok ? "Arrangement applied." : $"Not applied — {why}.";
 
         _staged.Clear();
         App.ViewModel.Refresh();
