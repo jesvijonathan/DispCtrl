@@ -48,11 +48,11 @@ public sealed partial class PresetsPage : Page
         }
     }
 
-    private void OnSave(object sender, RoutedEventArgs e) => Say(ViewModel.Save());
+    private async void OnSave(object sender, RoutedEventArgs e) => Say(await ViewModel.SaveAsync());
 
-    private void OnSaveAs(object sender, RoutedEventArgs e)
+    private async void OnSaveAs(object sender, RoutedEventArgs e)
     {
-        string message = ViewModel.SaveAs(NewName.Text);
+        string message = await ViewModel.SaveAsAsync(NewName.Text);
         Say(message, message.StartsWith("Saved", StringComparison.Ordinal));
 
         if (message.StartsWith("Saved", StringComparison.Ordinal)) NewName.Text = "";

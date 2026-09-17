@@ -59,6 +59,15 @@ public sealed record DisplayInfo
     public required DisplayRect WorkArea { get; init; }
 
     public required uint RefreshHz { get; init; }
+
+    /// <summary>
+    /// How the desktop is rotated on this panel: 0, 90, 180 or 270.
+    /// </summary>
+    /// <remarks>
+    /// Read from the mode rather than inferred from the aspect ratio, which
+    /// cannot tell a rotated 16:9 panel from a native portrait one.
+    /// </remarks>
+    public int OrientationDegrees { get; init; }
     public required uint BitsPerPixel { get; init; }
 
     /// <summary>Physical panel width in millimetres; 0 when the EDID does not say.</summary>

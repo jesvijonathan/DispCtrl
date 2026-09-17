@@ -95,6 +95,9 @@ public static class PresetDiff
 
             if (want.ScalePercent > 0 && have.ScalePercent > 0 && want.ScalePercent != have.ScalePercent)
                 diffs.Add($"{name}: {have.ScalePercent}% scaling, preset has {want.ScalePercent}%");
+
+            if (want.OrientationDegrees != have.OrientationDegrees)
+                diffs.Add($"{name}: rotated {have.OrientationDegrees}°, preset has {want.OrientationDegrees}°");
         }
 
         if (scope.Hdr && want.Hdr != have.Hdr)

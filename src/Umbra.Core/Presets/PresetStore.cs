@@ -70,6 +70,21 @@ public static class PresetStore
 
     public static string PathFor(string name) => Path.Combine(Directory, FileName(name));
 
+    /// <summary>
+    /// True when a preset would land on a file that already exists.
+    /// </summary>
+    /// <remarks>
+    /// Asked in terms of the file, not the name. Two different names can
+    /// sanitise to one file — "Work/Home" and "Work_Home" both become
+    /// <c>Work_Home.json</c> — so a caller that only compares display names
+    /// will happily overwrite a preset it did not mean to touch.
+    /// </remarks>
+    public static bool Exists(string name) => File.Exists(PathFor(name));
+
+    /// <summary>True when two names resolve to the same file on disk.</summary>
+    public static bool SameFile(string a, string b) =>
+        string.Equals(FileName(a), FileName(b), StringComparison.OrdinalIgnoreCase);
+
     public static void Save(Preset preset)
     {
         System.IO.Directory.CreateDirectory(Directory);
@@ -93,6 +108,12 @@ public static class PresetStore
         if (File.Exists(path)) File.Delete(path);
     }
 
+    /// <remarks>
+    /// The delete is skipped when both names resolve to the same file, which is
+    /// not a hypothetical: anything differing only in characters the filesystem
+    /// rejects — or in trailing whitespace — sanitises to one stem. Deleting
+    /// unconditionally destroyed the file that had just been written.
+    /// </remarks>
     public static void Rename(string from, string to)
     {
         Preset? p = Read(PathFor(from));
@@ -100,7 +121,8 @@ public static class PresetStore
 
         p.Name = to;
         Save(p);
-        Delete(from);
+
+        if (!SameFile(from, to)) Delete(from);
     }
 
     /// <summary>Copies a preset out to a path the user chose.</summary>
@@ -124,7 +146,11 @@ public static class PresetStore
         if (p is null) return null;
 
         string name = p.Name;
-        for (int i = 2; File.Exists(PathFor(name)); i++) name = $"{p.Name} ({i})";
+
+        // Bounded: a pathological name that always sanitises to the same stem
+        // would otherwise spin here forever.
+        for (int i = 2; Exists(name) && i < 1000; i++) name = $"{p.Name} ({i})";
+        if (Exists(name)) return null;
 
         p.Name = name;
         Save(p);

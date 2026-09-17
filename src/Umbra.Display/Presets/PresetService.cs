@@ -74,6 +74,7 @@ public static class PresetService
                 Height = (uint)d.Bounds.Height,
                 RefreshHz = d.RefreshHz,
                 ScalePercent = scaling.Supported ? scaling.Current : 0,
+                OrientationDegrees = d.OrientationDegrees,
                 Hdr = hdr.Enabled,
                 Brightness = brightness.Supported ? (int)brightness.Current : -1,
                 NightLightStrength = ms.NightLightStrength,
@@ -173,12 +174,10 @@ public static class PresetService
             notes.Add($"Windows refused the {topology} topology.");
         }
 
-        var positions = new Dictionary<string, (int X, int Y)>(matched.Count);
-        foreach ((DisplayInfo d, PresetMonitor m) in matched) positions[d.Token] = (m.X, m.Y);
-
-        if (!DisplayArrangement.SetPositions(positions, displays, out string? why))
-            notes.Add($"Arrangement not applied — {why}.");
-
+        // Primary first, then positions. The desktop origin *is* the primary
+        // display's top-left, so promoting a display re-bases every other
+        // display's coordinates — positions written before it came out shifted
+        // by exactly the offset between the old primary and the new one.
         foreach ((DisplayInfo d, PresetMonitor m) in matched)
         {
             if (!m.Primary || d.IsPrimary) continue;
@@ -186,6 +185,12 @@ public static class PresetService
             if (!DisplayArrangement.SetPrimary(d, displays))
                 notes.Add($"Could not make {d.Label} the main display.");
         }
+
+        var positions = new Dictionary<string, (int X, int Y)>(matched.Count);
+        foreach ((DisplayInfo d, PresetMonitor m) in matched) positions[d.Token] = (m.X, m.Y);
+
+        if (!DisplayArrangement.SetPositions(positions, displays, out string? why))
+            notes.Add($"Arrangement not applied — {why}.");
     }
 
     private static void ApplyModes(List<(DisplayInfo Display, PresetMonitor State)> matched, List<string> notes)
@@ -212,6 +217,15 @@ public static class PresetService
             {
                 if (!DisplayArrangement.SetRefreshRate(d, m.RefreshHz))
                     notes.Add($"{d.Label}: {m.RefreshHz} Hz was refused.");
+            }
+
+            // Orientation was captured but never written, so a rotated display
+            // silently came back the wrong way up. The scope text promised it.
+            if (m.OrientationDegrees != d.OrientationDegrees)
+            {
+                var wanted = (ScreenOrientation)((m.OrientationDegrees / 90) % 4);
+                if (!DisplayArrangement.SetOrientation(d, wanted))
+                    notes.Add($"{d.Label}: could not rotate to {m.OrientationDegrees} degrees.");
             }
 
             if (m.ScalePercent <= 0) continue;

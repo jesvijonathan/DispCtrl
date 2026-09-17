@@ -304,6 +304,42 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Visibility UnisonVisibility =>
         _settings.Global.UnisonBrightness ? Visibility.Visible : Visibility.Collapsed;
 
+    // --------------------------------------------------------------- report --
+
+    private string _reportStatus =
+        "Everything Umbra can read about every attached display, in one text file.";
+
+    public string ReportStatus
+    {
+        get => _reportStatus;
+        private set { _reportStatus = value; Raise(); }
+    }
+
+    /// <summary>Writes the display report and says where it went.</summary>
+    /// <remarks>
+    /// Off the UI thread: the report enumerates every mode and asks each
+    /// external monitor over DDC/CI what it supports, which is seconds of
+    /// blocking calls on a busy desk.
+    /// </remarks>
+    public async Task WriteReportAsync()
+    {
+        ReportStatus = "Reading every display\u2026";
+
+        List<DisplayInfo> displays = CurrentDisplays();
+
+        try
+        {
+            string path = await Task.Run(() => DisplayReport.Write(displays));
+            ReportStatus = $"Written to {path}";
+        }
+        catch (Exception ex)
+        {
+            ReportStatus = $"Could not write the report: {ex.Message}";
+        }
+    }
+
+    public static string ReportPath => DisplayReport.Path_;
+
     // ------------------------------------------------------------ night light --
 
     /// <summary>The lowest warmth worth storing. See <see cref="NightLightStrength"/>.</summary>

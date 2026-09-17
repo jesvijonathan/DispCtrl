@@ -1,5 +1,6 @@
 using Umbra.Core.Displays;
 using Umbra.Core.Settings;
+using Umbra.Display;
 using Umbra.Engine.Color;
 using Umbra.Engine.Presets;
 using Umbra.Engine.Taskbar;
@@ -385,6 +386,19 @@ internal static class Program
         {
             // Disposed before the manager unwinds, so the displays are back to
             // their own colour even if the taskbar restore then throws.
+            // A snapshot of what is attached, written once at start. The awkward
+            // display problems are all "what did the hardware say it could do at
+            // the time", and by the time that is worth asking, the moment has
+            // gone. Failure here must not stop the engine — it is a diagnostic.
+            try
+            {
+                Log.Write($"display report -> {DisplayReport.Write(DisplayRegistry.Enumerate())}");
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"display report failed: {ex.Message}");
+            }
+
             using var nightLight = new NightLightService(settings);
 
             // Persisting from the engine is new with app rules: applying a

@@ -44,6 +44,19 @@ internal sealed class AppRuleService : IDisposable
     private static readonly TimeSpan Dwell = TimeSpan.FromSeconds(2);
 
     private readonly Lock _gate = new();
+
+    /// <summary>
+    /// Held for the whole of an apply, which the settings gate is not.
+    /// </summary>
+    /// <remarks>
+    /// Applying a preset can take seconds — a topology change blocks while the
+    /// display stack reconfigures — and it mutates the settings object as it
+    /// goes. Two overlapping applies would interleave those writes; holding
+    /// <see cref="_gate"/> instead would stall every settings reload for the
+    /// duration.
+    /// </remarks>
+    private readonly Lock _applyGate = new();
+
     private readonly Timer _timer;
 
     private UmbraSettings _settings;
@@ -195,12 +208,16 @@ internal sealed class AppRuleService : IDisposable
             return;
         }
 
-        List<DisplayInfo> displays = DisplayRegistry.Enumerate();
-        PresetResult result = PresetService.Apply(preset, displays, settings);
+        PresetResult result;
+        lock (_applyGate)
+        {
+            List<DisplayInfo> displays = DisplayRegistry.Enumerate();
+            result = PresetService.Apply(preset, displays, settings);
 
-        // Applying writes into settings as well as to the hardware, so it has
-        // to be persisted or the next reload would undo half of it.
-        _persist(settings);
+            // Applying writes into settings as well as to the hardware, so it
+            // has to be persisted or the next reload would undo half of it.
+            _persist(settings);
+        }
 
         Log.Write($"applied preset '{name}' — {why}");
         foreach (string note in result.Notes) Log.Write($"  {note}");

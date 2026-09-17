@@ -44,7 +44,20 @@ public sealed partial class DisplaysPage : Page
         }
     }
 
-    private void OnPresetSave(object sender, RoutedEventArgs e) => ViewModel.Presets.SaveOrCreate();
+    private async void OnPresetSave(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+
+        button.IsEnabled = false;
+        try
+        {
+            await ViewModel.Presets.SaveOrCreateAsync();
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
 
     /// <summary>
     /// Feeds the arrangement surface the current display geometry.
@@ -59,6 +72,37 @@ public sealed partial class DisplaysPage : Page
         var displays = new List<DisplayInfo>(ViewModel.Displays.Count);
         foreach (DisplayViewModel d in ViewModel.Displays) displays.Add(d.Info);
         ArrangeSurface.Load(displays);
+    }
+
+    private async void OnWriteReport(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+
+        button.IsEnabled = false;
+        try
+        {
+            await ViewModel.WriteReportAsync();
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
+
+    /// <remarks>
+    /// Written on demand if it is not there yet, so Open never dead-ends on a
+    /// missing file.
+    /// </remarks>
+    private async void OnOpenReport(object sender, RoutedEventArgs e)
+    {
+        if (!File.Exists(MainViewModel.ReportPath)) await ViewModel.WriteReportAsync();
+        if (!File.Exists(MainViewModel.ReportPath)) return;
+
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = MainViewModel.ReportPath,
+            UseShellExecute = true,
+        });
     }
 
     private void OnIdentify(object sender, RoutedEventArgs e) => ViewModel.Identify();

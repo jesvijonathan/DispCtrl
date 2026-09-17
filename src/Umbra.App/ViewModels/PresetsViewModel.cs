@@ -139,7 +139,15 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         _presets.AddRange(PresetStore.Load());
 
         Names.Clear();
-        foreach (Preset p in _presets) Names.Add(p.Name);
+        foreach (Preset p in _presets)
+        {
+            // A preset file literally named after the sentinel would otherwise
+            // be impossible to select, because picking it would read as "start
+            // a new one". Only reachable by creating the file by hand.
+            if (p.Name == NewEntry) continue;
+            Names.Add(p.Name);
+        }
+
         Names.Add(NewEntry);
 
         if (_selected is not null && !Names.Contains(_selected)) _selected = null;
@@ -250,27 +258,74 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     // --------------------------------------------------------------- drift --
 
+    private bool _checking;
+    private bool _checkAgain;
+
+    /// <summary>Re-compares the desk against the selected preset.</summary>
+    public void RefreshDrift() => _ = RefreshDriftAsync();
+
     /// <summary>
-    /// Re-compares the desk against the selected preset.
+    /// Re-compares the desk against the selected preset, off the UI thread.
     /// </summary>
     /// <remarks>
-    /// Capture is a hardware read per display — DDC/CI included — so this is
-    /// called when the page is shown and after an action, never on a timer.
+    /// A capture is a hardware read per display: DDC/CI for an external
+    /// monitor's brightness, and IDesktopWallpaper for its wallpaper. Both are
+    /// tens to hundreds of milliseconds, and running them inline froze the
+    /// window every time the bar re-checked itself.
+    /// <para>
+    /// Overlapping runs are collapsed rather than queued. The debounce can fire
+    /// again while a slow DDC/CI read is still outstanding, and stacking those
+    /// would leave the monitor answering a backlog long after the user stopped.
+    /// </para>
     /// </remarks>
-    public void RefreshDrift()
+    public async Task RefreshDriftAsync()
+    {
+        if (_checking)
+        {
+            _checkAgain = true;
+            return;
+        }
+
+        _checking = true;
+        try
+        {
+            do
+            {
+                _checkAgain = false;
+                await CheckOnceAsync().ConfigureAwait(true);
+            }
+            while (_checkAgain);
+        }
+        finally
+        {
+            _checking = false;
+        }
+    }
+
+    private async Task CheckOnceAsync()
     {
         Preset? saved = Current;
         if (saved is null)
         {
             _differences = [];
-            _status = "No preset selected.";
+            _status = Creating ? "Name it, then Create." : "No preset selected.";
             RaiseDrift();
             return;
         }
 
+        UmbraSettings settings = _settings;
+        IReadOnlyList<DisplayInfo> displays = _displays();
+
         try
         {
-            Preset live = PresetService.Capture(saved.Name, _displays(), _settings);
+            Preset live = await Task.Run(
+                () => PresetService.Capture(saved.Name, displays, settings)).ConfigureAwait(true);
+
+            // The selection can change while a slow capture is in flight, and
+            // reporting the old preset's drift against the new one would be
+            // worse than reporting nothing.
+            if (!ReferenceEquals(Current, saved)) return;
+
             _differences = PresetDiff.Describe(saved, live);
         }
         catch (Exception ex)
@@ -331,11 +386,16 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Overwrites the selected preset with the desk as it is now.</summary>
-    public string Save()
+    /// <remarks>
+    /// Async for the same reason the drift check is: capturing reads every
+    /// display's hardware, and a Save button that freezes the window for half a
+    /// second reads as the app having hung.
+    /// </remarks>
+    public async Task<string> SaveAsync()
     {
         if (Current is not Preset preset) return "No preset selected.";
 
-        Preset fresh = PresetService.Capture(preset.Name, _displays(), _settings);
+        Preset fresh = await CaptureAsync(preset.Name).ConfigureAwait(true);
 
         // Scope and description belong to the preset, not to the desk, so they
         // survive a re-capture rather than being reset by it.
@@ -357,26 +417,39 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     /// "remember the desk as it is" — and which one happens is already decided
     /// by what the picker is showing.
     /// </remarks>
-    public string SaveOrCreate()
+    public async Task<string> SaveOrCreateAsync()
     {
-        if (!Creating) return Save();
+        if (!Creating) return await SaveAsync().ConfigureAwait(true);
 
-        string message = SaveAs(NewName);
+        string message = await SaveAsAsync(NewName).ConfigureAwait(true);
         if (message.StartsWith("Saved", StringComparison.Ordinal)) NewName = "";
 
         return message;
     }
 
+    private Task<Preset> CaptureAsync(string name)
+    {
+        UmbraSettings settings = _settings;
+        IReadOnlyList<DisplayInfo> displays = _displays();
+
+        return Task.Run(() => PresetService.Capture(name, displays, settings));
+    }
+
     /// <summary>Captures the desk under a new name.</summary>
-    public string SaveAs(string name)
+    public async Task<string> SaveAsAsync(string name)
     {
         name = name.Trim();
         if (name.Length == 0) return "Give the preset a name first.";
 
-        if (Names.Contains(name))
+        if (name == NewEntry) return "That name is reserved. Pick another.";
+
+        // Checked against the file, not the display name: two names can
+        // sanitise to one file, and comparing names alone would silently
+        // overwrite a preset the user never mentioned.
+        if (Names.Contains(name) || PresetStore.Exists(name))
             return $"“{name}” already exists — pick another name, or use Save to overwrite it.";
 
-        PresetStore.Save(PresetService.Capture(name, _displays(), _settings));
+        PresetStore.Save(await CaptureAsync(name).ConfigureAwait(true));
         Reload();
         Selected = name;
 
@@ -393,7 +466,15 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         name = name.Trim();
         if (name.Length == 0) return "Give the preset a name first.";
         if (name == preset.Name) return "That is already its name.";
-        if (Names.Contains(name)) return $"“{name}” already exists.";
+        if (name == NewEntry) return "That name is reserved. Pick another.";
+
+        // Same file, different spelling: renaming onto it is a no-op the store
+        // handles safely, but any *other* existing file must not be clobbered.
+        if (!PresetStore.SameFile(preset.Name, name)
+            && (Names.Contains(name) || PresetStore.Exists(name)))
+        {
+            return $"“{name}” already exists.";
+        }
 
         PresetStore.Rename(preset.Name, name);
         Reload();

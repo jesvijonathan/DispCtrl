@@ -36,6 +36,9 @@ public static class DisplayRegistry
 
             int left = mode.Anonymous1.Anonymous2.dmPosition.x;
             int top = mode.Anonymous1.Anonymous2.dmPosition.y;
+
+            // DMDO_DEFAULT/90/180/270 are 0..3, so a quarter turn each.
+            int rotation = (int)mode.Anonymous1.Anonymous2.dmDisplayOrientation * 90;
             var bounds = new DisplayRect(
                 left, top,
                 left + (int)mode.dmPelsWidth,
@@ -67,6 +70,7 @@ public static class DisplayRegistry
 
             result.Add(new DisplayInfo
             {
+                OrientationDegrees = rotation,
                 Key = new DisplayKey(t.DevicePath, edid.Model, edid.Serial),
                 GdiName = t.GdiName,
                 FriendlyName = name,

@@ -87,6 +87,19 @@
                Visibility="{x:Bind ViewModel.DetectStatusVisibility, Mode=OneWay}"
                Message="{x:Bind ViewModel.DetectStatus, Mode=OneWay}"/>
 
+      <tk:SettingsCard Header="Display report"
+                       Description="{x:Bind ViewModel.ReportStatus, Mode=OneWay}">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE9F9;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Write report" Click="OnWriteReport"
+                  AutomationProperties.Name="WriteDisplayReport"/>
+          <Button Content="Open" Click="OnOpenReport"
+                  AutomationProperties.Name="OpenDisplayReport"/>
+        </StackPanel>
+      </tk:SettingsCard>
+
       <tk:SettingsCard Header="Connect to a wireless display"
                        Description="Opens Windows' own pairing flow — Miracast discovery and PIN entry belong there.">
         <tk:SettingsCard.HeaderIcon>
@@ -189,25 +202,20 @@
           <FontIcon Glyph="&#xE706;"/>
         </tk:SettingsExpander.HeaderIcon>
 
-        <!-- Same shape as unison above: the control you reach for daily sits on
-             the header row, and the rest is behind the expander. -->
-        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-          <Slider Value="{x:Bind ViewModel.NightLightStrength, Mode=TwoWay}"
-                  Minimum="5" Maximum="100" StepFrequency="1"
-                  Width="200" VerticalAlignment="Center"
-                  Visibility="{x:Bind ViewModel.NightLightVisibility, Mode=OneWay}"
-                  AutomationProperties.Name="NightLightStrengthSliderInline"/>
-          <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightEnabled, Mode=TwoWay}"
-                        AutomationProperties.Name="NightLightToggle"/>
-        </StackPanel>
+        <!-- Just the switch out here, unlike unison above. Night light is set
+             once and left; the strength belongs inside with the rest of its
+             settings rather than taking a second copy of itself onto the
+             header row. -->
+        <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightEnabled, Mode=TwoWay}"
+                      AutomationProperties.Name="NightLightToggle"/>
 
         <tk:SettingsExpander.Items>
           <tk:SettingsCard Header="Strength"
                            Description="How far towards warm. The top of the slider is as warm as Windows will accept a gamma change; past that it refuses the ramp outright."
-                           Visibility="{x:Bind ViewModel.NightLightVisibility, Mode=OneWay}">
+                           Visibility="{x:Bind ViewModel.NightLightSharedVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
               <Slider Value="{x:Bind ViewModel.NightLightStrength, Mode=TwoWay}"
-                      Minimum="0" Maximum="100" StepFrequency="1"
+                      Minimum="5" Maximum="100" StepFrequency="1"
                       Width="240" VerticalAlignment="Center"
                       AutomationProperties.Name="NightLightStrengthSlider"/>
               <TextBlock Text="{x:Bind ViewModel.NightLightStrengthText, Mode=OneWay}"
@@ -453,7 +461,7 @@
                     <FontIcon Glyph="&#xE706;"/>
                   </tk:SettingsCard.HeaderIcon>
                   <Slider Value="{x:Bind NightLightStrength, Mode=TwoWay}"
-                          Minimum="0" Maximum="100" StepFrequency="1"
+                          Minimum="5" Maximum="100" StepFrequency="1"
                           Width="220" VerticalAlignment="Center"
                           AutomationProperties.Name="{x:Bind WarmthAutomationName}"/>
                 </tk:SettingsCard>
