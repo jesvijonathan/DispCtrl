@@ -33,6 +33,14 @@
         </StackPanel>
       </tk:SettingsCard>
 
+      <!-- The detail the docked bar deliberately leaves out. It lives here
+           because a list of differences is something you read, not something
+           you glance at on the way past. -->
+      <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Margin="0,4,0,0"
+               Visibility="{x:Bind ViewModel.DirtyVisibility, Mode=OneWay}"
+               Title="What has changed since this preset was saved"
+               Message="{x:Bind ViewModel.Differences, Mode=OneWay}"/>
+
       <StackPanel Visibility="{x:Bind ViewModel.PresetVisibility, Mode=OneWay}">
 
         <tk:SettingsExpander Header="Current preset"

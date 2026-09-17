@@ -79,7 +79,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             // legible even though nothing matches on it.
             ms.Label = d.Label;
 
-            Displays.Add(new DisplayViewModel(d, ms, _settings, i + 1, Persist, () => PerDisplayWarmth));
+            Displays.Add(new DisplayViewModel(d, ms, _settings, i + 1, Persist, () => PerDisplayWarmth, ScheduleDriftCheck));
         }
 
         ScalePreviews();
@@ -157,7 +157,47 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Writes settings out. The engine watches this file, so a toggle takes
     /// effect without restarting or otherwise signalling it.
     /// </summary>
-    private void Persist() => SettingsStore.Save(_settings);
+    private void Persist()
+    {
+        SettingsStore.Save(_settings);
+
+        // Settings-driven changes count as desk changes too — night light and
+        // taskbar hiding live here rather than in the hardware.
+        ScheduleDriftCheck();
+    }
+
+    /// <summary>
+    /// How long the desk must sit still before the preset drift is re-checked.
+    /// </summary>
+    /// <remarks>
+    /// A drift check reads every display's hardware, DDC/CI included, so it
+    /// cannot run per change — dragging a brightness slider raises a change per
+    /// pixel. Debounced instead: the check runs once the user has stopped, and
+    /// the banner catches up a moment later rather than fighting the drag.
+    /// </remarks>
+    private static readonly TimeSpan DriftSettle = TimeSpan.FromMilliseconds(1200);
+
+    private DispatcherQueueTimer? _driftTimer;
+
+    public void ScheduleDriftCheck()
+    {
+        DispatcherQueue? ui = DispatcherQueue.GetForCurrentThread();
+        if (ui is null) return;
+
+        _driftTimer ??= ui.CreateTimer();
+        _driftTimer.Interval = DriftSettle;
+        _driftTimer.IsRepeating = false;
+
+        // Re-hooked each time rather than once: the timer is created lazily, and
+        // a handler added per schedule would fire once per change after the
+        // first, which is exactly the storm the debounce exists to prevent.
+        _driftTimer.Stop();
+        _driftTimer.Tick -= OnDriftTick;
+        _driftTimer.Tick += OnDriftTick;
+        _driftTimer.Start();
+    }
+
+    private void OnDriftTick(DispatcherQueueTimer sender, object args) => Presets.RefreshDrift();
 
     // --------------------------------------------------------------- engine --
 

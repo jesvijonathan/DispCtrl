@@ -13,7 +13,38 @@ public sealed partial class DisplaysPage : Page
 
     public DisplaysPage() => InitializeComponent();
 
-    private void OnLoaded(object sender, RoutedEventArgs e) => LoadArrangement();
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        LoadArrangement();
+        ViewModel.Presets.RefreshDrift();
+    }
+
+    private async void OnPresetApply(object sender, RoutedEventArgs e) => await RunPreset(sender);
+
+    private async void OnPresetDiscard(object sender, RoutedEventArgs e) => await RunPreset(sender);
+
+    /// <remarks>
+    /// Apply and Discard are the same operation — Discard means "put the desk
+    /// back to the preset", which is exactly what applying it does. Two buttons
+    /// because the two intentions read differently when something has drifted.
+    /// </remarks>
+    private static async Task RunPreset(object sender)
+    {
+        if (sender is not Button button) return;
+
+        // Applying can mean a topology change, which blocks for seconds.
+        button.IsEnabled = false;
+        try
+        {
+            await App.ViewModel.Presets.ApplyAsync();
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
+
+    private void OnPresetSave(object sender, RoutedEventArgs e) => ViewModel.Presets.SaveOrCreate();
 
     /// <summary>
     /// Feeds the arrangement surface the current display geometry.

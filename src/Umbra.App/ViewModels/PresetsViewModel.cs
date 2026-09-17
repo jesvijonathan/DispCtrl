@@ -111,6 +111,18 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         Reload();
     }
 
+    /// <summary>
+    /// The last entry in the picker, which starts a new preset rather than
+    /// selecting one.
+    /// </summary>
+    /// <remarks>
+    /// A command living in the data list is a small impurity, and it buys the
+    /// thing that matters: creating a preset is reachable from the same control
+    /// that switches between them, so the bar never needs a second name box
+    /// sitting empty next to it.
+    /// </remarks>
+    public const string NewEntry = "New preset\u2026";
+
     public ObservableCollection<string> Names { get; } = [];
     public ObservableCollection<AppRuleViewModel> Rules { get; } = [];
 
@@ -128,9 +140,10 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
         Names.Clear();
         foreach (Preset p in _presets) Names.Add(p.Name);
+        Names.Add(NewEntry);
 
         if (_selected is not null && !Names.Contains(_selected)) _selected = null;
-        _selected ??= Names.Count > 0 ? Names[0] : null;
+        _selected ??= _presets.Count > 0 ? _presets[0].Name : NewEntry;
 
         Rules.Clear();
         foreach (AppRule r in _settings.AppRules) Rules.Add(new AppRuleViewModel(r, _persist));
@@ -139,14 +152,70 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         Raise(nameof(HasPresets));
         Raise(nameof(EmptyVisibility));
         Raise(nameof(PresetVisibility));
+        Raise(nameof(Creating));
+        Raise(nameof(CreatingVisibility));
+        Raise(nameof(ExistingVisibility));
+        Raise(nameof(SaveButtonText));
         RefreshDrift();
         RaiseScope();
     }
 
-    public bool HasPresets => Names.Count > 0;
+    public bool HasPresets => _presets.Count > 0;
+
+    /// <summary>True while the picker is on <see cref="NewEntry"/>.</summary>
+    public bool Creating => _selected == NewEntry;
+
+    public Visibility CreatingVisibility => Creating ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Apply and Discard mean nothing until there is a preset to act on.</summary>
+    public Visibility ExistingVisibility =>
+        !Creating && Current is not null ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Name for the preset being created.</summary>
+    public string NewName
+    {
+        get => _newName;
+        set
+        {
+            if (_newName == value) return;
+            _newName = value;
+            Raise();
+            Raise(nameof(SaveButtonText));
+        }
+    }
+
+    private string _newName = "";
+
+    public string SaveButtonText => Creating ? "Create" : "Save";
+
+    /// <summary>
+    /// The one-line state for the docked bar.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not the list of differences. In a bar it would be four
+    /// lines of detail nobody reads in passing, and it would make the bar tall
+    /// enough to be furniture. What belongs here is whether there is anything
+    /// to save; <see cref="Differences"/> spells it out on the Presets page,
+    /// where there is room to read it.
+    /// </remarks>
+    public string ShortStatus
+    {
+        get
+        {
+            if (Creating) return "Name it, then Create.";
+            if (Current is null) return "No preset selected.";
+
+            return IsDirty ? "Unsaved changes" : "Saved";
+        }
+    }
 
     public Visibility EmptyVisibility => HasPresets ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility PresetVisibility => HasPresets ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Always shown. With no presets saved, the bar is how the first one gets
+    /// made — hiding it until one exists would hide the only way to start.
+    /// </summary>
+    public Visibility PresetVisibility => Visibility.Visible;
 
     public string? Selected
     {
@@ -159,6 +228,10 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             RefreshDrift();
             RaiseScope();
             Raise(nameof(Details));
+            Raise(nameof(Creating));
+            Raise(nameof(CreatingVisibility));
+            Raise(nameof(ExistingVisibility));
+            Raise(nameof(SaveButtonText));
         }
     }
 
@@ -166,6 +239,8 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     {
         get
         {
+            if (_selected is null || _selected == NewEntry) return null;
+
             foreach (Preset p in _presets)
                 if (p.Name == _selected) return p;
 
@@ -226,6 +301,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     private void RaiseDrift()
     {
         Raise(nameof(Status));
+        Raise(nameof(ShortStatus));
         Raise(nameof(Differences));
         Raise(nameof(IsDirty));
         Raise(nameof(DirtyVisibility));
@@ -271,6 +347,24 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         Selected = fresh.Name;
 
         return $"Saved “{fresh.Name}”.";
+    }
+
+    /// <summary>
+    /// Saves over the selected preset, or creates the new one being named.
+    /// </summary>
+    /// <remarks>
+    /// One button for both, because from the bar they are the same intention —
+    /// "remember the desk as it is" — and which one happens is already decided
+    /// by what the picker is showing.
+    /// </remarks>
+    public string SaveOrCreate()
+    {
+        if (!Creating) return Save();
+
+        string message = SaveAs(NewName);
+        if (message.StartsWith("Saved", StringComparison.Ordinal)) NewName = "";
+
+        return message;
     }
 
     /// <summary>Captures the desk under a new name.</summary>

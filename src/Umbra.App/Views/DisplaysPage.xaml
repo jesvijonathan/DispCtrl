@@ -20,7 +20,13 @@
     </Style>
   </Page.Resources>
 
-  <ScrollViewer Padding="0,0,0,32">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+  <ScrollViewer Grid.Row="0" Padding="0,0,0,32">
     <!-- Stretch with no MaxWidth. The cap was the problem: a Stretch panel
            with a MaxWidth centres itself once the window exceeds that width,
            which is what pushed content off to one side. Pinning it Left instead
@@ -605,4 +611,62 @@
 
     </StackPanel>
   </ScrollViewer>
+
+    <!-- Docked, not scrolled. A "you have unsaved changes, save or discard"
+         prompt that scrolls off the top is one the user stops seeing exactly
+         when it starts mattering, so it stays pinned to the bottom while the
+         settings above it move. It drives the same view model as the Presets
+         page, so the two cannot disagree. -->
+    <Border Grid.Row="1"
+            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+            BorderThickness="0,1,0,0"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            Padding="36,10,36,10">
+      <Grid ColumnSpacing="12">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <FontIcon Glyph="&#xE8FD;" FontSize="16" VerticalAlignment="Center"/>
+
+          <!-- The picker's last entry starts a new preset, so creating one is
+               reachable from the same control that switches between them. -->
+          <ComboBox ItemsSource="{x:Bind ViewModel.Presets.Names}"
+                    SelectedItem="{x:Bind ViewModel.Presets.Selected, Mode=TwoWay}"
+                    MinWidth="170"
+                    AutomationProperties.Name="StickyPresetPicker"/>
+
+          <TextBox Text="{x:Bind ViewModel.Presets.NewName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   PlaceholderText="Name" MinWidth="170"
+                   Visibility="{x:Bind ViewModel.Presets.CreatingVisibility, Mode=OneWay}"
+                   AutomationProperties.Name="StickyPresetName"/>
+        </StackPanel>
+
+        <!-- Whether there is anything to save, and nothing more. The list of
+             differences belongs on the Presets page, where there is room. -->
+        <TextBlock Grid.Column="1"
+                   Text="{x:Bind ViewModel.Presets.ShortStatus, Mode=OneWay}"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   AutomationProperties.Name="PresetStatus"/>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Content="Apply" Click="OnPresetApply"
+                  Visibility="{x:Bind ViewModel.Presets.ExistingVisibility, Mode=OneWay}"
+                  AutomationProperties.Name="StickyPresetApply"/>
+          <Button Content="Discard" Click="OnPresetDiscard"
+                  Visibility="{x:Bind ViewModel.Presets.DirtyVisibility, Mode=OneWay}"
+                  AutomationProperties.Name="StickyPresetDiscard"/>
+          <Button Content="{x:Bind ViewModel.Presets.SaveButtonText, Mode=OneWay}"
+                  Style="{StaticResource AccentButtonStyle}"
+                  Click="OnPresetSave"
+                  AutomationProperties.Name="StickyPresetSave"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
 </Page>

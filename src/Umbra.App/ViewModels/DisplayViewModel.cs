@@ -33,6 +33,19 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     private readonly Func<bool> _perDisplayWarmth;
 
     private readonly Action _persist;
+
+    /// <summary>
+    /// Raised when the user changes something a preset captures.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="_persist"/> because most of what a preset
+    /// captures never reaches the settings file: brightness, resolution,
+    /// refresh rate, scaling and HDR live in the hardware. Hooking drift
+    /// detection onto persistence therefore missed every one of them, and the
+    /// preset bar sat claiming everything matched while the screen visibly did
+    /// not.
+    /// </remarks>
+    private readonly Action _deskChanged;
     private readonly DispatcherQueue _ui = DispatcherQueue.GetForCurrentThread();
 
     /// <summary>
@@ -47,13 +60,14 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     private CancellationTokenSource? _brightnessWrite;
 
     public DisplayViewModel(DisplayInfo display, MonitorSettings settings, UmbraSettings root,
-                            int number, Action persist, Func<bool> perDisplayWarmth)
+                            int number, Action persist, Func<bool> perDisplayWarmth, Action deskChanged)
     {
         _display = display;
         _settings = settings;
         _root = root;
         _persist = persist;
         _perDisplayWarmth = perDisplayWarmth;
+        _deskChanged = deskChanged;
         Number = number;
 
         // Nothing blocking here. Everything this view model needs comes from
@@ -414,6 +428,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
             if (!_brightnessReady || !_brightness.Supported) return;
             QueueBrightnessWrite(value);
+            _deskChanged();
         }
     }
 
@@ -567,6 +582,8 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         if (_selectedRefreshRate is null) return;
         if (!uint.TryParse(_selectedRefreshRate.AsSpan(0, _selectedRefreshRate.IndexOf(' ')), out uint hz)) return;
 
+        _deskChanged();
+
         var target = new DisplayMode(w, h, hz, 32);
         if (target.Width == _display.Bounds.Width
             && target.Height == _display.Bounds.Height
@@ -676,6 +693,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             var target = (ScreenOrientation)Orientations.IndexOf(value);
             DisplayInfo d = _display;
             _ = Task.Run(() => DisplayArrangement.SetOrientation(d, target));
+            _deskChanged();
         }
     }
 
@@ -721,6 +739,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             if (!_hdrReady || _hdr.Enabled == value || !_hdr.Supported) return;
             _hdr = _hdr with { Enabled = value };
             Raise();
+            _deskChanged();
 
             DisplayInfo d = _display;
             _ = Task.Run(() =>
@@ -787,6 +806,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
             DisplayInfo d = _display;
             _ = Task.Run(() => AdvancedDisplay.WriteScaling(d, percent));
+            _deskChanged();
         }
     }
 
@@ -1103,6 +1123,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             if (_settings.NightLightStrength == v) return;
             _settings.NightLightStrength = v;
             _persist();
+            _deskChanged();
             Raise();
             Raise(nameof(NightLightStrengthText));
         }
