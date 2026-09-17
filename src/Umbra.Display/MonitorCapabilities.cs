@@ -316,7 +316,7 @@ public static class MonitorCapabilities
     // ------------------------------------------------------------ reading --
 
     private static unsafe string? ReadString(DisplayInfo display) =>
-        WithPhysicalMonitor<string?>(display, handle =>
+        DdcChannel.With<string?>(display, handle =>
         {
             // The raw overloads, which take the HANDLE directly and report
             // success as a non-zero int rather than a bool.
@@ -345,7 +345,7 @@ public static class MonitorCapabilities
 
     private static unsafe void ReadCurrentValues(DisplayInfo display, IReadOnlyList<VcpControl> controls)
     {
-        _ = WithPhysicalMonitor<bool>(display, handle =>
+        _ = DdcChannel.With<bool>(display, handle =>
         {
             foreach (VcpControl c in controls)
             {
@@ -364,34 +364,6 @@ public static class MonitorCapabilities
 
             return true;
         }, false);
-    }
-
-    private static unsafe T WithPhysicalMonitor<T>(DisplayInfo display, Func<HANDLE, T> work, T fallback)
-    {
-        var hmon = new HMONITOR((void*)display.Handle);
-        if (hmon.IsNull) return fallback;
-
-        if (!PInvoke.GetNumberOfPhysicalMonitorsFromHMONITOR(hmon, out uint count) || count == 0)
-            return fallback;
-
-        var monitors = new PHYSICAL_MONITOR[count];
-        if (!PInvoke.GetPhysicalMonitorsFromHMONITOR(hmon, monitors)) return fallback;
-
-        try
-        {
-            return work(monitors[0].hPhysicalMonitor);
-        }
-        catch (Exception)
-        {
-            return fallback;
-        }
-        finally
-        {
-            // Leaking the handle holds the DDC/CI channel open, after which the
-            // monitor refuses later requests.
-            foreach (PHYSICAL_MONITOR m in monitors)
-                PInvoke.DestroyPhysicalMonitor(m.hPhysicalMonitor);
-        }
     }
 
     // ------------------------------------------------------------ parsing --
@@ -537,5 +509,5 @@ public static class MonitorCapabilities
     /// feature gets triggered by accident.
     /// </remarks>
     public static bool Write(DisplayInfo display, byte code, uint value) =>
-        WithPhysicalMonitor(display, handle => PInvoke.SetVCPFeature(handle, code, value) != 0, false);
+        DdcChannel.With(display, handle => PInvoke.SetVCPFeature(handle, code, value) != 0, false);
 }

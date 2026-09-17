@@ -667,6 +667,14 @@
                   </ItemsControl>
                 </tk:SettingsCard>
 
+                <tk:SettingsCard Header="Also reported"
+                                 Description="{x:Bind UnofferedSummary, Mode=OneWay}"
+                                 Visibility="{x:Bind UnofferedVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE946;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                </tk:SettingsCard>
+
                 <tk:SettingsCard Header="Reset this display"
                                  Description="Returns Umbra's own settings to their defaults. Resolution, refresh rate, HDR and scale belong to Windows and are left alone.">
                   <tk:SettingsCard.HeaderIcon>

@@ -1122,13 +1122,42 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     public string MonitorControlsSummary => _capabilitiesRead
         ? (MonitorControls.Count > 0
-            ? $"{MonitorControls.Count} control(s) this panel reports over DDC/CI"
+            ? $"{MonitorControls.Count} of {_reportedControls} controls this panel reports over DDC/CI"
             : _display.IsInternal
                 ? "A built-in panel has no DDC/CI channel."
                 : "This monitor answered no capabilities string.")
-        : "Asking the monitor what it supports\u2026";
+        : "Asking the monitor what it supports…";
+
+    /// <summary>
+    /// The controls the panel reported that are not offered here.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than hidden. A monitor reports a great deal Umbra will not
+    /// write — read-only facts like firmware level, and manufacturer-specific
+    /// codes whose meaning is undocumented — and silently dropping them would
+    /// make the list look like everything the panel has. Saying how many there
+    /// are, and where to read them, is what turns an unrecognised control into
+    /// something that can be looked into rather than something nobody knew was
+    /// there.
+    /// </remarks>
+    public string UnofferedSummary
+    {
+        get
+        {
+            int rest = _reportedControls - MonitorControls.Count;
+            if (!_capabilitiesRead || rest <= 0) return "";
+
+            return $"{rest} more are reported but not offered: read-only facts, and codes specific to "
+                 + "this manufacturer that Umbra will not write blind. All of them, with their current "
+                 + "values, are in the display report.";
+        }
+    }
+
+    public Visibility UnofferedVisibility =>
+        UnofferedSummary.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     private bool _capabilitiesRead;
+    private int _reportedControls;
 
     /// <summary>
     /// Asks the monitor what it supports, once.
@@ -1168,10 +1197,14 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             MonitorControls.Add(new MonitorControlViewModel(d, c));
         }
 
+        _reportedControls = cap.Controls.Count;
         _capabilitiesRead = true;
+
         Raise(nameof(MonitorControlsVisibility));
         Raise(nameof(NoMonitorControlsVisibility));
         Raise(nameof(MonitorControlsSummary));
+        Raise(nameof(UnofferedSummary));
+        Raise(nameof(UnofferedVisibility));
     }
 
     // --------------------------------------------------------- night light --

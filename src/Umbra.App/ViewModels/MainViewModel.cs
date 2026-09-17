@@ -53,8 +53,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Raise(nameof(Logging));
     }
 
+    /// <summary>
+    /// The layout as it was when the display list was last built.
+    /// </summary>
+    /// <remarks>
+    /// Compared against on a timer so a monitor plugged in or unplugged while
+    /// the window is open is picked up on its own. Everything on the Displays
+    /// page is discovered from the hardware — the modes offered, the scaling
+    /// steps, and the monitor's own DDC/CI controls — so a stale list is not
+    /// merely out of date, it offers settings for a panel that is no longer
+    /// there.
+    /// </remarks>
+    private string _layoutSignature = "";
+
+    /// <summary>
+    /// Rebuilds the display list if, and only if, the layout actually changed.
+    /// </summary>
+    /// <remarks>
+    /// The check is one <c>EnumDisplayMonitors</c> sweep of data the kernel
+    /// already has — no CCD query, no registry, no DDC/CI — so it is cheap
+    /// enough to run every couple of seconds. The rebuild behind it is not:
+    /// it re-reads every monitor's capabilities over DDC/CI, which is seconds
+    /// per panel. Hence the gate.
+    /// </remarks>
+    public void RefreshIfDisplaysChanged()
+    {
+        string now = DisplayRegistry.CheapSignature();
+        if (now == _layoutSignature) return;
+
+        _layoutSignature = now;
+        Refresh();
+    }
+
     public void Refresh()
     {
+        _layoutSignature = DisplayRegistry.CheapSignature();
         _settings = SettingsStore.Load();
         Displays.Clear();
 

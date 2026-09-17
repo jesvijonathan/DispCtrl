@@ -10,7 +10,7 @@ namespace Umbra.App;
 public sealed partial class MainWindow : Window
 {
     /// <summary>
-    /// How often the engine's state is re-read.
+    /// How often the engine's state and the display layout are re-read.
     /// </summary>
     /// <remarks>
     /// Polled rather than subscribed because the engine is a separate process
@@ -35,7 +35,16 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumWidth = 640;
 
         _statusTimer = new DispatcherTimer { Interval = StatusPollInterval };
-        _statusTimer.Tick += (_, _) => App.ViewModel.RefreshEngineStatus();
+        _statusTimer.Tick += (_, _) =>
+        {
+            App.ViewModel.RefreshEngineStatus();
+
+            // A monitor plugged in or unplugged while the window is open should
+            // appear or disappear on its own, without reaching for Rescan. The
+            // check is one cheap enumeration; the rebuild behind it only runs
+            // when the layout genuinely changed.
+            App.ViewModel.RefreshIfDisplaysChanged();
+        };
         _statusTimer.Start();
 
         // Nothing on screen means nothing worth polling for.

@@ -242,6 +242,28 @@ The file stays on the machine. It is the raw material for supporting hardware
 this has never seen, and sending one should be something the user chooses,
 not something that quietly already happened.
 
+### One monitor, one DDC/CI conversation
+
+A monitor has a single DDC/CI channel and will not serve two conversations at
+once. Two callers opening it together do not queue: the monitor answers one and
+fails the other.
+
+That is not theoretical — it was shipped and caught within the hour. Reading a
+monitor's capabilities in parallel with reading its brightness, both reasonable
+on their own, made the Dell report no brightness control *and* no capabilities
+string, which reads exactly like a monitor that has stopped answering. It took a
+direct probe outside the app, showing the channel perfectly healthy, to tell the
+two apart.
+
+Every DDC/CI call now goes through `DdcChannel`, which gates per device path —
+one gate per monitor rather than one globally, because two monitors have two
+independent channels and serialising across them would double a sweep for no
+reason. The gate is patient (20s) on purpose: the thing most likely to be
+holding it is a full capabilities sweep, and giving up early would put back the
+failure it exists to prevent.
+
+Worth remembering when adding anything else that talks to a monitor.
+
 ### Preset defects found in review
 
 Six, of which four could lose data or mislead:

@@ -113,7 +113,7 @@ public static class Brightness
 
     private static unsafe BrightnessRange ReadDdc(DisplayInfo display)
     {
-        return WithPhysicalMonitor(display, handle =>
+        return DdcChannel.With(display, handle =>
         {
             uint min = 0, cur = 0, max = 0;
             // Returns a BOOL as int; zero means the monitor does not implement
@@ -125,37 +125,6 @@ public static class Brightness
     }
 
     private static bool WriteDdc(DisplayInfo display, uint value) =>
-        WithPhysicalMonitor(display, handle => PInvoke.SetMonitorBrightness(handle, value) != 0, false);
+        DdcChannel.With(display, handle => PInvoke.SetMonitorBrightness(handle, value) != 0, false);
 
-    /// <summary>
-    /// Opens the physical monitor behind an HMONITOR, runs <paramref name="work"/>,
-    /// and always closes it again.
-    /// </summary>
-    /// <remarks>
-    /// The handle must be destroyed explicitly. Leaking it holds the DDC/CI
-    /// channel open, and the monitor then refuses later requests.
-    /// </remarks>
-    private static unsafe T WithPhysicalMonitor<T>(DisplayInfo display, Func<HANDLE, T> work, T fallback)
-    {
-        var hmon = new HMONITOR((void*)display.Handle);
-        if (hmon.IsNull) return fallback;
-
-        uint count = 0;
-        if (!PInvoke.GetNumberOfPhysicalMonitorsFromHMONITOR(hmon, out count) || count == 0)
-            return fallback;
-
-        var monitors = new PHYSICAL_MONITOR[count];
-        if (!PInvoke.GetPhysicalMonitorsFromHMONITOR(hmon, monitors))
-            return fallback;
-
-        try
-        {
-            return work(monitors[0].hPhysicalMonitor);
-        }
-        finally
-        {
-            foreach (PHYSICAL_MONITOR m in monitors)
-                PInvoke.DestroyPhysicalMonitor(m.hPhysicalMonitor);
-        }
-    }
 }
