@@ -188,6 +188,61 @@ Foreground activation cannot be driven from a background script — Windows
 refuses the focus steal — so the test matches on whatever genuinely holds the
 foreground rather than trying to create it.
 
+### The display report
+
+`%LOCALAPPDATA%\Umbra\displays.log`, written by the engine at start and by the
+Displays page on demand. Per display: identity and device path, connector,
+geometry, true pixel density from the EDID against the DPI Windows renders at,
+current mode, signal detail, every mode the driver reports grouped by
+resolution, and what Umbra can actually drive — brightness and over which
+backend, HDR, the scaling steps offered, the variable refresh range, colour
+profile, whether gamma control works, wallpaper, and whether the taskbar can be
+hidden there.
+
+Written whole each time rather than appended: this is a snapshot of what is
+attached now, and a growing file would bury the current answer under every
+previous one. The point is that nearly every awkward display problem is a
+question about what the hardware said it could do at the time, and by the time
+it is worth asking, the moment has gone.
+
+### Preset defects found in review
+
+Six, of which four could lose data or mislead:
+
+- **`Rename` deleted the file it had just written.** A rename between two names
+  that sanitise to one stem — anything differing only in characters the
+  filesystem rejects, or in trailing whitespace — wrote the new file and then
+  deleted it by the old name, which resolved to the same path. The preset was
+  simply gone.
+
+- **Save could overwrite a preset nobody mentioned.** The guard compared
+  display names, but two names can resolve to one file. It now asks the
+  filesystem.
+
+- **Primary was set after positions.** The desktop origin *is* the primary
+  display's top-left, so promoting a display re-bases every other coordinate —
+  positions written first came out shifted by the offset between the old
+  primary and the new one. Primary now goes first.
+
+- **Orientation was captured and never applied.** The field existed, the scope
+  text promised it, capture always wrote zero and apply ignored it, so a
+  rotated display came back the wrong way up. `DisplayInfo` now carries the
+  orientation from the mode, and it is captured, applied and diffed.
+
+The other two are responsiveness rather than correctness: the drift check and
+Save both ran a capture — a DDC/CI read per external monitor plus a wallpaper
+COM call — on the UI thread, which froze the window every time the bar
+re-checked itself. Both are off-thread now, with overlapping drift checks
+collapsed rather than queued so a debounce cannot stack a backlog against a
+slow monitor. In the engine, preset applies are serialised under their own lock
+rather than the settings lock, so a topology change cannot stall settings
+reloads for the seconds it takes.
+
+`tools/presetcheck` covers the awkward cases directly — colliding names, rename
+onto the same file, import never overwriting, scope honoured by the diff,
+brightness tolerance, absent displays, schedules crossing midnight, and app
+rule matching. 24 checks.
+
 ### Known open issue
 
 The current watcher exited with code 1 on 09/14 and nothing restarted it; root
