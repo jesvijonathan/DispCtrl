@@ -289,10 +289,11 @@ display report, identify overlays, hotplug re-discovery.
 
 Outstanding, roughly in the order last discussed:
 
-1. **Reference display for ambient brightness** — watch the display whose
-   brightness moves on its own and drive the others in unison from it. Note this
-   machine has no ambient light sensor, so the following mechanism can be tested
-   but not against real ambient light.
+See `docs/FEATURES.md` for the full candidate list with effort and risk. The
+short version, in recommended order:
+
+1. **Brightness fallback**, high-level to VCP `0x10` — smallest change, more
+   monitors supported.
 2. **Presets capturing everything** — identity, serial, remaining read-only
    state; apply replaces wholesale.
 3. **Persistent known-monitor cache** — survive restarts, keyed on model+serial.
@@ -305,6 +306,28 @@ Outstanding, roughly in the order last discussed:
 7. **Remember window positions** across replug.
 8. MSIX packaging; Native AOT (blocked, see above); widgets; taskbar
    translucency.
+
+## Reference implementations
+
+Cloned outside the repo at `../refs/` (not tracked, re-clone with
+`git clone --depth 1`). Read before designing anything in their territory —
+`docs/FEATURES.md` lists what was taken from each and why.
+
+| Repo | Language | Worth reading for |
+|---|---|---|
+| `twinkle-tray` | Electron | ambient light (per-monitor lux ranges, and a **simulated sensor** so it is testable), CLI shape, schedules, idle dimming |
+| `Monitorian` | C#/WPF | closest domain; high-level/low-level brightness fallback, per-monitor ranges, per-device quirk handling |
+| `MonitorControl-mac` | Swift | **shade overlay dimming** (no gamma clamp, does not fight other gamma users) and combined hardware+software brightness |
+| `ColorControl` | C#/WinForms | GPU-level colour, service plus separate elevation service |
+
+Two ideas from these are worth knowing even before implementing them:
+
+- **A shade overlay dims further than gamma can.** Umbra's software dimming is
+  capped at ~50% by Windows' gamma clamp; a click-through translucent window has
+  no such limit. MonitorControl keeps both and picks per display.
+- **Ambient light is not "one monitor's sensor drives the others".** It is one
+  lux reading plus a per-monitor lux-to-brightness range. That framing makes a
+  monitor without a sensor the normal case rather than a special one.
 
 ## Prior art worth knowing
 
