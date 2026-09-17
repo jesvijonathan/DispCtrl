@@ -99,6 +99,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         // em-dashes after launch.
         Task advanced = LoadAdvancedAsync();
         Task brightness = LoadBrightnessAsync();
+        Task monitorControls = LoadMonitorControlsAsync();
 
         (List<(uint, uint)> resolutions, DisplayMode? current, string? wallpaper, WallpaperFit fit) =
             await Task.Run(() => (
@@ -136,7 +137,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         if (_wallpaperPath is not null && File.Exists(_wallpaperPath))
             _ = DecodeWallpaperAsync(_wallpaperPath);
 
-        await Task.WhenAll(advanced, brightness);
+        await Task.WhenAll(advanced, brightness, monitorControls);
     }
 
     /// <summary>
@@ -1098,6 +1099,79 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(BrightnessCeiling));
         Raise(nameof(HasBrightnessRange));
         Raise(nameof(RangeSummary));
+    }
+
+    // ----------------------------------------------- the monitor's own controls --
+
+    /// <summary>
+    /// Controls the panel itself reports, discovered rather than assumed.
+    /// </summary>
+    /// <remarks>
+    /// Populated from the monitor's MCCS capabilities string, so the list is
+    /// exactly what this panel has — contrast, colour presets, RGB gains,
+    /// sharpness, which input it is showing, its OSD language. None of it is
+    /// reachable anywhere in Windows.
+    /// </remarks>
+    public ObservableCollection<MonitorControlViewModel> MonitorControls { get; } = [];
+
+    public Visibility MonitorControlsVisibility =>
+        MonitorControls.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility NoMonitorControlsVisibility =>
+        _capabilitiesRead && MonitorControls.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public string MonitorControlsSummary => _capabilitiesRead
+        ? (MonitorControls.Count > 0
+            ? $"{MonitorControls.Count} control(s) this panel reports over DDC/CI"
+            : _display.IsInternal
+                ? "A built-in panel has no DDC/CI channel."
+                : "This monitor answered no capabilities string.")
+        : "Asking the monitor what it supports\u2026";
+
+    private bool _capabilitiesRead;
+
+    /// <summary>
+    /// Asks the monitor what it supports, once.
+    /// </summary>
+    /// <remarks>
+    /// Slow even by DDC/CI standards — the capabilities string is several round
+    /// trips and every control read is another — so it happens once per rescan,
+    /// off the UI thread, and never on a timer.
+    /// </remarks>
+    private async Task LoadMonitorControlsAsync()
+    {
+        DisplayInfo d = _display;
+
+        MonitorCapability cap;
+        try
+        {
+            cap = await Task.Run(() => MonitorCapabilities.Read(d)).ConfigureAwait(true);
+        }
+        catch (Exception)
+        {
+            cap = MonitorCapability.None;
+        }
+
+        MonitorControls.Clear();
+
+        foreach (VcpControl c in cap.Controls)
+        {
+            // Settable only. A manufacturer-specific code's meaning is
+            // undocumented and model-specific; it belongs in the report, not
+            // behind a slider somebody might drag.
+            if (!c.Settable) continue;
+
+            // Brightness already has its own card, driven through the same
+            // code, and two controls for one value would fight each other.
+            if (c.Code == 0x10) continue;
+
+            MonitorControls.Add(new MonitorControlViewModel(d, c));
+        }
+
+        _capabilitiesRead = true;
+        Raise(nameof(MonitorControlsVisibility));
+        Raise(nameof(NoMonitorControlsVisibility));
+        Raise(nameof(MonitorControlsSummary));
     }
 
     // --------------------------------------------------------- night light --

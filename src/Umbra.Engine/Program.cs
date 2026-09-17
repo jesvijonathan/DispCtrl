@@ -389,15 +389,24 @@ internal static class Program
             // A snapshot of what is attached, written once at start. The awkward
             // display problems are all "what did the hardware say it could do at
             // the time", and by the time that is worth asking, the moment has
-            // gone. Failure here must not stop the engine — it is a diagnostic.
-            try
+            // gone.
+            //
+            // Deliberately not awaited. The report asks every external monitor
+            // for its capabilities string over DDC/CI, which is seconds of
+            // blocking round trips — done inline at logon, that is seconds
+            // before the taskbar starts being managed, which is the one thing
+            // the engine exists for. A diagnostic must never delay the job.
+            _ = Task.Run(() =>
             {
-                Log.Write($"display report -> {DisplayReport.Write(DisplayRegistry.Enumerate())}");
-            }
-            catch (Exception ex)
-            {
-                Log.Write($"display report failed: {ex.Message}");
-            }
+                try
+                {
+                    Log.Write($"display report -> {DisplayReport.Write(DisplayRegistry.Enumerate())}");
+                }
+                catch (Exception ex)
+                {
+                    Log.Write($"display report failed: {ex.Message}");
+                }
+            });
 
             using var nightLight = new NightLightService(settings);
 

@@ -111,6 +111,76 @@ public static class DisplayReport
         DescribeSignal(sb, d);
         DescribeModes(sb, d);
         DescribeControls(sb, d);
+        DescribeMonitorControls(sb, d);
+    }
+
+    /// <summary>
+    /// What the monitor itself says it can be told to do.
+    /// </summary>
+    /// <remarks>
+    /// The point of the whole report. Everything above is what Windows knows
+    /// about the display; this is what the panel knows about itself, and it is
+    /// routinely far more — contrast, colour presets, RGB gains, sharpness,
+    /// which input it is showing, its own OSD language, its power state. None
+    /// of it appears anywhere in Windows.
+    /// <para>
+    /// Manufacturer-specific codes are recorded and never written. Their
+    /// meaning is undocumented and differs between models, so the report is the
+    /// place to notice them, not the place to start experimenting.
+    /// </para>
+    /// </remarks>
+    private static void DescribeMonitorControls(StringBuilder sb, DisplayInfo d)
+    {
+        Section(sb, "What the monitor reports over DDC/CI");
+
+        if (d.IsInternal)
+        {
+            sb.AppendLine("    A built-in panel has no DDC/CI channel.");
+            return;
+        }
+
+        MonitorCapability cap;
+        try
+        {
+            cap = MonitorCapabilities.Read(d);
+        }
+        catch (Exception ex)
+        {
+            sb.AppendLine($"    Read failed: {ex.Message}");
+            return;
+        }
+
+        if (!cap.Supported)
+        {
+            sb.AppendLine("    This monitor answered no capabilities string.");
+            return;
+        }
+
+        Line(sb, "Model (per the monitor)", cap.Model ?? "(not given)");
+        Line(sb, "Panel type", cap.Type ?? "(not given)");
+        Line(sb, "MCCS version", cap.MccsVersion ?? "(not given)");
+        Line(sb, "Commands accepted", cap.Commands.Count > 0 ? string.Join(" ", cap.Commands) : "(none listed)");
+        Line(sb, "Controls reported", cap.Controls.Count.ToString());
+
+        int settable = 0;
+        foreach (VcpControl c in cap.Controls) if (c.Settable) settable++;
+        Line(sb, "Umbra will offer", $"{settable} of them");
+
+        sb.AppendLine();
+        sb.AppendLine("    code  set  control                                    now");
+        sb.AppendLine("    ----  ---  -----------------------------------------  ---------------------------");
+
+        foreach (VcpControl c in cap.Controls)
+        {
+            sb.AppendLine($"    {c.Hex}  {(c.Settable ? "yes" : "   ")}  {c.Name,-41}  {c.Display}");
+
+            if (c.Values.Count > 0)
+                sb.AppendLine($"                 choices: {string.Join(", ", c.Values)}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("    Capabilities string, verbatim:");
+        sb.AppendLine($"    {cap.Raw}");
     }
 
     private static void DescribeSignal(StringBuilder sb, DisplayInfo d)

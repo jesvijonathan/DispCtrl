@@ -14,6 +14,13 @@ SetMonitorContrast
 GetVCPFeatureAndVCPFeatureReply
 SetVCPFeature
 
+// The monitor's own list of what it supports. Every DDC/CI monitor publishes
+// an MCCS capabilities string naming each VCP code it implements, and for the
+// discrete ones, which values it will accept. It is the only way to find out
+// what a particular panel can actually be told to do.
+GetCapabilitiesStringLength
+CapabilitiesRequestAndCapabilitiesReply
+
 // ---- mode changes ----
 ChangeDisplaySettingsEx
 EnumDisplaySettingsEx

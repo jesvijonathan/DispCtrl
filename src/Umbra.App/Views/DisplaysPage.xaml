@@ -87,6 +87,10 @@
                Visibility="{x:Bind ViewModel.DetectStatusVisibility, Mode=OneWay}"
                Message="{x:Bind ViewModel.DetectStatus, Mode=OneWay}"/>
 
+      <!-- Says plainly where the file goes and that it stays there. The report
+           is the raw material for supporting hardware Umbra has never seen, and
+           sending one should be a thing the user chooses to do, not something
+           that quietly already happened. -->
       <tk:SettingsCard Header="Display report"
                        Description="{x:Bind ViewModel.ReportStatus, Mode=OneWay}">
         <tk:SettingsCard.HeaderIcon>
@@ -593,6 +597,74 @@
                   </tk:SettingsCard.HeaderIcon>
                   <ToggleSwitch IsOn="{x:Bind ReclaimWorkArea, Mode=TwoWay}"
                                 IsEnabled="{x:Bind CanHideTaskbar}"/>
+                </tk:SettingsCard>
+
+                <!-- Discovered, not assumed: the list comes from the panel's
+                     own capabilities string, so it is exactly what this monitor
+                     has, and most of it is reachable nowhere in Windows.
+
+                     Deliberately a SettingsCard and not a nested
+                     SettingsExpander. SettingsExpander.Items accepts only
+                     card-like children, and an expander inside one does not
+                     fail to render — it takes the process down when the item is
+                     realised. That has now cost this project two crashes. -->
+                <tk:SettingsCard ContentAlignment="Vertical"
+                                 HorizontalContentAlignment="Stretch"
+                                 Header="The monitor's own controls"
+                                 Description="{x:Bind MonitorControlsSummary, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE9E9;"/>
+                  </tk:SettingsCard.HeaderIcon>
+
+                  <ItemsControl ItemsSource="{x:Bind MonitorControls}"
+                                HorizontalContentAlignment="Stretch"
+                                Margin="0,4,0,8"
+                                Visibility="{x:Bind MonitorControlsVisibility, Mode=OneWay}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Spacing="2"/>
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:MonitorControlViewModel">
+                        <Grid ColumnSpacing="16" Padding="0,6,0,6">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                          </Grid.ColumnDefinitions>
+
+                          <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Name}"/>
+                            <TextBlock Text="{x:Bind Description}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                          </StackPanel>
+
+                          <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                      Spacing="12" VerticalAlignment="Center">
+                            <Slider Value="{x:Bind Value, Mode=TwoWay}"
+                                    Minimum="0" Maximum="{x:Bind Maximum}" StepFrequency="1"
+                                    Width="200" VerticalAlignment="Center"
+                                    Visibility="{x:Bind SliderVisibility}"
+                                    AutomationProperties.Name="{x:Bind Code}"/>
+                            <TextBlock Text="{x:Bind ValueText, Mode=OneWay}"
+                                       VerticalAlignment="Center" MinWidth="32"
+                                       Visibility="{x:Bind SliderVisibility}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <ComboBox ItemsSource="{x:Bind Options}"
+                                      SelectedItem="{x:Bind Selected, Mode=TwoWay}"
+                                      MinWidth="200"
+                                      Visibility="{x:Bind ChoiceVisibility}"
+                                      AutomationProperties.Name="{x:Bind Code}"/>
+                            <TextBlock Text="{x:Bind ReadOnlyText}"
+                                       VerticalAlignment="Center"
+                                       Visibility="{x:Bind ReadOnlyVisibility}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                          </StackPanel>
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
                 </tk:SettingsCard>
 
                 <tk:SettingsCard Header="Reset this display"

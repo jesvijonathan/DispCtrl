@@ -307,7 +307,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     // --------------------------------------------------------------- report --
 
     private string _reportStatus =
-        "Everything Umbra can read about every attached display, in one text file.";
+        "Everything each display reports about itself, including the controls only the monitor "
+        + "knows about. Written to a text file on this PC; nothing is sent anywhere.";
 
     public string ReportStatus
     {

@@ -205,6 +205,43 @@ previous one. The point is that nearly every awkward display problem is a
 question about what the hardware said it could do at the time, and by the time
 it is worth asking, the moment has gone.
 
+### What the monitor knows about itself
+
+The report's real job is capability discovery, not diagnostics. Everything
+Windows exposes about a display is a fraction of what the panel itself will
+tell you: every DDC/CI monitor publishes an MCCS capabilities string naming the
+VCP codes it implements and, for the discrete ones, the values it accepts.
+
+Measured on the U2424H: 37 controls, of which 11 are worth offering — contrast,
+colour preset (sRGB through 10000 K plus two user slots), red/green/blue gain,
+sharpness, input source, OSD lock, OSD language, power mode. None of that is
+reachable anywhere in Windows. The panel also reports its own firmware level,
+controller type, sub-pixel layout and panel technology.
+
+Three things this forced:
+
+- **Discovery, not a fixed list.** The controls Umbra offers are built from
+  what the panel reported, so it never shows a control the monitor in front of
+  you does not have — and does show the ones it does.
+
+- **An allow list for writing.** A capabilities string includes
+  manufacturer-specific codes whose meaning is undocumented and differs between
+  models. They are reported and never written; writing one to find out what it
+  does is how a panel ends up in a state its own OSD cannot undo.
+
+- **The low byte is the value.** A VCP reply is 16 bits and for a discrete
+  control only the low byte carries meaning. This Dell answers 0x1111 for
+  "input is HDMI 1"; matching the whole word finds nothing and the control
+  reads as being on a setting it does not have.
+
+The sweep is slow — 37 round trips is about 30 seconds — so the engine runs it
+on a background task. Done inline it delayed taskbar management by that much at
+logon, which is the one thing the engine exists for.
+
+The file stays on the machine. It is the raw material for supporting hardware
+this has never seen, and sending one should be something the user chooses,
+not something that quietly already happened.
+
 ### Preset defects found in review
 
 Six, of which four could lose data or mislead:
