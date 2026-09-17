@@ -170,6 +170,31 @@ Console.WriteLine("the monitor's own settings in a preset");
 }
 
 Console.WriteLine();
+Console.WriteLine("gamma limits follow the clamp");
+{
+    // The floors are computed from the clamp, so they must move together and
+    // never invert. Whichever state this machine is in, both must hold.
+    bool full = NightLight.FullRange;
+    Console.WriteLine($"    clamp lifted on this machine: {full}");
+
+    int neutralFloor = NightLight.LowestDim(0);
+    int warmFloor = NightLight.LowestDim(100);
+
+    Check("dimming is limited less at neutral than at full warmth", neutralFloor <= warmFloor);
+    Check("every floor is a usable percentage",
+        neutralFloor is >= 1 and <= 100 && warmFloor is >= 1 and <= 100);
+
+    double neutralK = NightLight.KelvinFor(0);
+    double warmestK = NightLight.KelvinFor(100);
+    Check("warmth runs from 6500K downwards", Math.Abs(neutralK - 6500) < 1 && warmestK < neutralK);
+    Check("full warmth matches what the machine allows",
+        Math.Abs(warmestK - NightLight.WarmestAvailableKelvin) < 1);
+
+    Check("lifting the clamp would lower the floor, not raise it",
+        full ? neutralFloor < 53 : neutralFloor >= 53);
+}
+
+Console.WriteLine();
 Console.WriteLine("physical arrangement layout");
 {
     // The real desk: a 23.8" Dell at 1920x1080 with a 14" 2880x1800 laptop

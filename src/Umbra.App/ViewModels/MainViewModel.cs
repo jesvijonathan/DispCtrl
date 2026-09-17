@@ -337,6 +337,50 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Visibility UnisonVisibility =>
         _settings.Global.UnisonBrightness ? Visibility.Visible : Visibility.Collapsed;
 
+    // ----------------------------------------------------- gamma range --
+
+    /// <summary>
+    /// Whether Windows will accept a full-range gamma ramp on this machine.
+    /// </summary>
+    /// <remarks>
+    /// Offered rather than assumed. It is one machine-wide registry value that
+    /// affects every application setting a gamma ramp, so it is the user's
+    /// decision — but without it warmth stops at 3300K and software dimming at
+    /// 50%, and the two compete for what is left.
+    /// <para>
+    /// A translucent overlay window per display would avoid the registry, and
+    /// was rejected: DWM composites it every frame, it appears in screen
+    /// recordings, and it has to be fought with full-screen exclusive apps. One
+    /// elevated write costs nothing afterwards.
+    /// </para>
+    /// </remarks>
+    public bool GammaRangeUnlocked => NightLight.FullRange;
+
+    public string GammaRangeDetail => NightLight.FullRange
+        ? "Unlocked. Night light reaches 1900K and software dimming goes down to near-black."
+        : "Windows limits how far a gamma ramp may stray, which caps night light at "
+          + "3300K and software dimming at 50% — and the two share that range, so warmth "
+          + "eats into dimming. Lifting the limit is one machine-wide registry value; it "
+          + "needs administrator rights once, and affects any app that sets a gamma ramp.";
+
+    public string GammaRangeButtonText => NightLight.FullRange ? "Restore the limit" : "Lift the limit";
+
+    /// <summary>Asks for elevation, then re-reads what the machine now allows.</summary>
+    public async Task ToggleGammaRangeAsync()
+    {
+        bool unlock = !NightLight.FullRange;
+
+        await Task.Run(() => GammaRange.Write(unlock));
+        NightLight.Recheck();
+
+        Raise(nameof(GammaRangeUnlocked));
+        Raise(nameof(GammaRangeDetail));
+        Raise(nameof(GammaRangeButtonText));
+
+        // Every dimming floor moves with it.
+        foreach (DisplayViewModel d in Displays) d.RaiseNightLight();
+    }
+
     // --------------------------------------------------------------- report --
 
     private string _reportStatus =

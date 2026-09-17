@@ -253,6 +253,16 @@
             </StackPanel>
           </tk:SettingsCard>
 
+          <tk:SettingsCard Header="Gamma range"
+                           Description="{x:Bind ViewModel.GammaRangeDetail, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7B3;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <Button Content="{x:Bind ViewModel.GammaRangeButtonText, Mode=OneWay}"
+                    Click="OnToggleGammaRange"
+                    AutomationProperties.Name="ToggleGammaRange"/>
+          </tk:SettingsCard>
+
           <tk:SettingsCard Header="Right now"
                            Description="{x:Bind ViewModel.NightLightStatus, Mode=OneWay}">
             <tk:SettingsCard.HeaderIcon>

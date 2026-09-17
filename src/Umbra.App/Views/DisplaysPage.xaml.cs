@@ -169,6 +169,21 @@ public sealed partial class DisplaysPage : Page
         await ViewModel.CaptureLimitsAsync();
     }
 
+    private async void OnToggleGammaRange(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+
+        button.IsEnabled = false;
+        try
+        {
+            await ViewModel.ToggleGammaRangeAsync();
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
+
     private void OnCaptureWarmth(object sender, RoutedEventArgs e) =>
         ViewModel.CaptureWarmthLimits();
 

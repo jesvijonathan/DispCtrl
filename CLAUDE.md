@@ -167,9 +167,15 @@ Every one of these was a real bug. Do not reintroduce them.
   meant whichever read second captured the other's warmth as the display's
   *baseline*, so switching night light off left the screen permanently tinted, a
   little further every cycle.
-- **Windows refuses ramps too far from identity.** Warmth therefore stops at
-  3300K, not because that is warm enough. Measured boundary: the weakest channel
-  may fall to about **0.53** of identity.
+- **Windows refuses ramps too far from identity.** Measured boundary: the
+  weakest channel may fall to about **0.53** of identity, which caps warmth at
+  3300K and dimming at 50%. **`GammaRange`** lifts it — one elevated write of
+  `GdiIcmGammaRange` — after which the limits become 1900K and near-black.
+  `NightLight.KelvinFor` and `LowestDim` read the clamp state, so every limit
+  follows automatically; call `NightLight.Recheck()` after changing it.
+  A translucent overlay per display was considered instead and rejected: DWM
+  composites it every frame, it shows up in screen recordings, and it fights
+  full-screen exclusive apps. One registry value costs nothing at runtime.
 - **Warmth and software dimming share the ramp and compete.** Dimming alone
   reaches 50%; at 60% warmth only 70%; at full warmth not at all. Compose both in
   one write and compute the dim floor from the current warmth.
@@ -292,8 +298,10 @@ Outstanding, roughly in the order last discussed:
 See `docs/FEATURES.md` for the full candidate list with effort and risk. The
 short version, in recommended order:
 
-1. **Brightness fallback**, high-level to VCP `0x10` — smallest change, more
-   monitors supported.
+1. ~~Brightness fallback, high-level to VCP `0x10`~~ — **done**.
+2. ~~Lift the gamma clamp~~ — **done**, `GammaRange`.
+3. **Combined brightness** — one slider spanning hardware above a switching
+   point and software dimming below it.
 2. **Presets capturing everything** — identity, serial, remaining read-only
    state; apply replaces wholesale.
 3. **Persistent known-monitor cache** — survive restarts, keyed on model+serial.

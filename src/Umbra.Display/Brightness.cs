@@ -111,20 +111,53 @@ public static class Brightness
 
     // ----------------------------------------------------------- DDC/CI --
 
+    /// <summary>VCP 10h, the brightness code the high-level API wraps.</summary>
+    private const byte LuminanceCode = 0x10;
+
+    /// <summary>
+    /// Reads brightness, falling back to the raw VCP code.
+    /// </summary>
+    /// <remarks>
+    /// <c>GetMonitorBrightness</c> is a convenience wrapper around VCP 10h, and
+    /// on some monitors the wrapper fails where the code itself answers
+    /// perfectly well — the high-level call is stricter about the reply than it
+    /// needs to be. Monitorian has carried this fallback for years for the same
+    /// reason. Without it those panels report no brightness control at all, and
+    /// the only thing on offer is software dimming, which is strictly worse.
+    /// <para>
+    /// Both attempts share one channel open. Opening it twice would double the
+    /// cost on exactly the monitors that are already being awkward.
+    /// </para>
+    /// </remarks>
     private static unsafe BrightnessRange ReadDdc(DisplayInfo display)
     {
         return DdcChannel.With(display, handle =>
         {
             uint min = 0, cur = 0, max = 0;
-            // Returns a BOOL as int; zero means the monitor does not implement
-            // the brightness VCP code, which is common on older panels.
-            return PInvoke.GetMonitorBrightness(handle, &min, &cur, &max) != 0
-                ? new BrightnessRange(min, cur, max, true)
-                : BrightnessRange.Unsupported;
+
+            // Returns a BOOL as int; zero means the wrapper would not answer.
+            if (PInvoke.GetMonitorBrightness(handle, &min, &cur, &max) != 0)
+                return new BrightnessRange(min, cur, max, true);
+
+            uint raw = 0, rawMax = 0;
+            MC_VCP_CODE_TYPE type = default;
+
+            if (PInvoke.GetVCPFeatureAndVCPFeatureReply(handle, LuminanceCode, &type, &raw, &rawMax) == 0)
+                return BrightnessRange.Unsupported;
+
+            // A maximum of zero is a monitor claiming a code it does not
+            // implement — treating that as a usable range would give a slider
+            // that can only ever be at one end.
+            if (rawMax == 0) return BrightnessRange.Unsupported;
+
+            return new BrightnessRange(0, raw & 0xFF, rawMax & 0xFF, true);
         }, BrightnessRange.Unsupported);
     }
 
-    private static bool WriteDdc(DisplayInfo display, uint value) =>
-        DdcChannel.With(display, handle => PInvoke.SetMonitorBrightness(handle, value) != 0, false);
+    private static unsafe bool WriteDdc(DisplayInfo display, uint value) =>
+        DdcChannel.With(display, handle =>
+            PInvoke.SetMonitorBrightness(handle, value) != 0
+            || PInvoke.SetVCPFeature(handle, LuminanceCode, value) != 0,
+            false);
 
 }

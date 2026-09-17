@@ -41,6 +41,16 @@ public static class NightLight
     private const double WarmestKelvin = 3300;
 
     /// <summary>
+    /// Colour temperature at full warmth once the clamp is lifted.
+    /// </summary>
+    /// <remarks>
+    /// 1900K is about as warm as a gamma ramp can usefully go — below it the
+    /// blue channel is so compressed that banding is worse than the warmth is
+    /// worth. Reachable only with <see cref="GammaRange"/> unlocked.
+    /// </remarks>
+    private const double WarmestUnlockedKelvin = 1900;
+
+    /// <summary>
     /// The ramp each warmed display had before Umbra touched it.
     /// </summary>
     /// <remarks>
@@ -57,8 +67,11 @@ public static class NightLight
     private static readonly Dictionary<string, ushort[]> Baselines = [];
 
     /// <summary>Returns the colour temperature a warmth percentage maps to.</summary>
-    public static double KelvinFor(int strength) =>
-        NeutralKelvin - ((NeutralKelvin - WarmestKelvin) * Math.Clamp(strength, 0, 100) / 100.0);
+    public static double KelvinFor(int strength)
+    {
+        double warmest = IsUnlocked ? WarmestUnlockedKelvin : WarmestKelvin;
+        return NeutralKelvin - ((NeutralKelvin - warmest) * Math.Clamp(strength, 0, 100) / 100.0);
+    }
 
     /// <summary>
     /// The dimmest a software-dimmed panel is allowed to go, as a percentage.
@@ -69,6 +82,14 @@ public static class NightLight
     /// exactly the reasoning behind never storing a zero warmth.
     /// </remarks>
     public const int MinimumDim = 10;
+
+    /// <summary>
+    /// How warm this machine can currently go, for the UI to say so.
+    /// </summary>
+    public static double WarmestAvailableKelvin => IsUnlocked ? WarmestUnlockedKelvin : WarmestKelvin;
+
+    /// <summary>True when the gamma clamp has been lifted on this machine.</summary>
+    public static bool FullRange => IsUnlocked;
 
     /// <summary>
     /// The lowest any channel may fall before Windows refuses the ramp.
@@ -87,6 +108,27 @@ public static class NightLight
     /// </remarks>
     private const double LowestChannel = 0.53;
 
+    /// <summary>The floor once the clamp is lifted. Not zero: black is not recoverable.</summary>
+    private const double LowestUnlockedChannel = 0.08;
+
+    /// <summary>
+    /// Whether the clamp has been lifted, cached for the life of the process.
+    /// </summary>
+    /// <remarks>
+    /// A registry read per gamma write would be wasteful — the engine writes a
+    /// ramp every 20 seconds — and the value cannot change without an elevated
+    /// prompt, which only happens through this app. <see cref="Recheck"/> is
+    /// called straight after that prompt.
+    /// </remarks>
+    private static bool? _unlocked;
+
+    private static bool IsUnlocked => _unlocked ??= GammaRange.Read().Unlocked;
+
+    /// <summary>Re-reads the clamp state, after it has been changed.</summary>
+    public static void Recheck() => _unlocked = null;
+
+    private static double Ceiling => IsUnlocked ? LowestUnlockedChannel : LowestChannel;
+
     /// <summary>
     /// The lowest dim percentage Windows will accept at a given warmth.
     /// </summary>
@@ -101,7 +143,8 @@ public static class NightLight
         (_, _, double blue) = Multipliers(KelvinFor(warmth));
         if (blue <= 0) return 100;
 
-        double limit = LowestChannel / blue;
+
+        double limit = Ceiling / blue;
         return (int)Math.Clamp(Math.Ceiling(limit * 100), MinimumDim, 100);
     }
 
