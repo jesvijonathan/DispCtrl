@@ -66,6 +66,29 @@ Hard-won in the previous session; do not regress any of these.
    only during the slide. Force `HWND_TOPMOST` only on the frame it starts
    appearing; re-asserting every frame churns z-order for nothing.
 
+### Brightness: why unison has two modes
+
+The multiplier came first, and it is only honest near the level it was
+captured at. Halving an OLED already sitting at 30% takes it somewhere
+unusable; halving an external at 90% is still bright. Worse, a baseline of
+zero can never be scaled back up — the bug that made unison look like it only
+drove the built-in panel.
+
+The calibrated range answers that. Both limits are asked for once, by looking
+at the panels side by side and deciding how dim and how bright each should go,
+because there is nothing readable off the hardware that stands in for that
+judgement. The slider then interpolates per display, so 0% and 100% mean the
+same thing on panels whose numbers are nothing alike.
+
+Measured on this machine: internal 30-90, external 20-70. Slider at 0/50/100%
+landed them at 30/20, 60/45, 90/70; the internal figure confirmed through WMI
+independently of the app.
+
+Equal limits are rejected rather than accepted as a fixed level — it means the
+display was not touched between the two capture steps, which is a mistake far
+more often than an intention, and it would pin the panel at one brightness for
+every slider position. Such a display falls back to the multiplier.
+
 ### Known open issue
 
 The current watcher exited with code 1 on 09/14 and nothing restarted it; root
