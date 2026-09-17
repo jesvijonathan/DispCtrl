@@ -71,6 +71,35 @@ public sealed partial class DisplaysPage : Page
             display.ResetToDefaults();
     }
 
+    private async void OnCaptureLimits(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            // A DDC/CI capture is a round trip per external monitor. Without
+            // this the button invites a second press that would capture the
+            // same step twice and skip the other limit.
+            button.IsEnabled = false;
+            try
+            {
+                await ViewModel.CaptureLimitsAsync();
+            }
+            finally
+            {
+                button.IsEnabled = true;
+            }
+
+            return;
+        }
+
+        await ViewModel.CaptureLimitsAsync();
+    }
+
+    private void OnCancelCalibration(object sender, RoutedEventArgs e) =>
+        ViewModel.CancelCalibration();
+
+    private void OnRecalibrate(object sender, RoutedEventArgs e) =>
+        ViewModel.BeginCalibration();
+
     private async void OnPickWallpaper(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not DisplayViewModel display) return;

@@ -242,6 +242,177 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public Visibility UnisonVisibility =>
         _settings.Global.UnisonBrightness ? Visibility.Visible : Visibility.Collapsed;
 
+    // ----------------------------------------------- calibrated unison range --
+
+    /// <summary>Which limit the calibration walkthrough is currently asking for.</summary>
+    public enum CalibrationStep
+    {
+        None,
+        Lower,
+        Upper,
+    }
+
+    private CalibrationStep _step = CalibrationStep.None;
+
+    /// <summary>
+    /// Runs unison between per-display limits instead of scaling one captured
+    /// level.
+    /// </summary>
+    /// <remarks>
+    /// Switching it on starts the walkthrough rather than taking effect at
+    /// once: the limits have to come from the user physically deciding how dim
+    /// and how bright each panel should go, and there is nothing Umbra can read
+    /// off the hardware that would stand in for that judgement.
+    /// </remarks>
+    public bool UnisonCalibrated
+    {
+        get => _settings.Global.UnisonCalibrated;
+        set
+        {
+            if (_settings.Global.UnisonCalibrated == value) return;
+            _settings.Global.UnisonCalibrated = value;
+            Persist();
+            Raise();
+
+            if (value) BeginCalibration();
+            else ClearCalibration();
+
+            RaiseCalibration();
+        }
+    }
+
+    /// <summary>Starts, or restarts, the two-step walkthrough.</summary>
+    public void BeginCalibration()
+    {
+        _step = CalibrationStep.Lower;
+        RaiseCalibration();
+    }
+
+    private void ClearCalibration()
+    {
+        _step = CalibrationStep.None;
+        foreach (DisplayViewModel d in Displays) d.ClearLimits();
+    }
+
+    /// <summary>Abandons the walkthrough, leaving any limits already captured.</summary>
+    public void CancelCalibration()
+    {
+        _step = CalibrationStep.None;
+        RaiseCalibration();
+    }
+
+    /// <summary>
+    /// Takes every display's current level as the limit being asked for, then
+    /// moves the walkthrough on.
+    /// </summary>
+    /// <remarks>
+    /// Captures all displays at once rather than one at a time, because the
+    /// point of the step is a whole-desk judgement: the user looks at both
+    /// panels together, gets them to a matched dimness, and that pairing is
+    /// what makes the single slider mean the same thing on both afterwards.
+    /// </remarks>
+    public async Task CaptureLimitsAsync()
+    {
+        if (_step == CalibrationStep.None) return;
+
+        bool upper = _step == CalibrationStep.Upper;
+
+        var pending = new List<Task>(Displays.Count);
+        foreach (DisplayViewModel d in Displays) pending.Add(d.CaptureLimitAsync(upper));
+        await Task.WhenAll(pending);
+
+        if (upper)
+        {
+            _step = CalibrationStep.None;
+
+            // The displays are sitting at their ceilings right now, so the
+            // slider belongs at the top of its travel. Writing the value
+            // directly skips the apply a setter would trigger — there is
+            // nothing to change, and a redundant DDC/CI round trip here is
+            // visible as a flicker.
+            _settings.Global.UnisonLevel = 100;
+            Persist();
+            Raise(nameof(UnisonLevel));
+        }
+        else
+        {
+            _step = CalibrationStep.Upper;
+        }
+
+        RaiseCalibration();
+    }
+
+    public bool Calibrating => _step != CalibrationStep.None;
+
+    public Visibility CalibrationVisibility =>
+        _settings.Global.UnisonCalibrated ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility CalibrationStepVisibility =>
+        Calibrating ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility RecalibrateVisibility =>
+        _settings.Global.UnisonCalibrated && !Calibrating ? Visibility.Visible : Visibility.Collapsed;
+
+    public string CalibrationHeader => _step switch
+    {
+        CalibrationStep.Lower => "Step 1 of 2 — the dimmest you want to go",
+        CalibrationStep.Upper => "Step 2 of 2 — the brightest you want to go",
+        _ => "Calibrated range",
+    };
+
+    public string CalibrationPrompt => _step switch
+    {
+        CalibrationStep.Lower =>
+            "Set each display below to the dimmest level you would still work at, then capture. "
+            + "They do not have to read the same number — matching how they look is the point.",
+        CalibrationStep.Upper =>
+            "Now set each display to the brightest level you want unison to reach, then capture.",
+        _ => "The slider runs between the limits you captured, so 0% and 100% mean the same thing on every panel.",
+    };
+
+    public string CalibrationButtonText =>
+        _step == CalibrationStep.Upper ? "Capture the upper limit" : "Capture the lower limit";
+
+    /// <summary>Each display's captured limits, e.g. "1: 20–100%  |  2: 15–75%".</summary>
+    public string CalibrationSummary
+    {
+        get
+        {
+            var parts = new List<string>(Displays.Count);
+            foreach (DisplayViewModel d in Displays)
+                if (d.SupportsBrightness)
+                    parts.Add(d.RangeSummary);
+
+            return parts.Count == 0 ? "No display reports brightness control" : string.Join("  |  ", parts);
+        }
+    }
+
+    /// <summary>
+    /// The slider's floor. Calibrated, 0% is the level the user chose as their
+    /// dimmest, so it is a real setting; as a multiplier it is black, which is
+    /// not something a brightness control should offer by accident.
+    /// </summary>
+    public double UnisonMinimum => _settings.Global.UnisonCalibrated ? 0 : 10;
+
+    public string UnisonLevelDescription => _settings.Global.UnisonCalibrated
+        ? "Where each display sits between its own captured limits. 0% is your dimmest setting, not black."
+        : "A multiplier on each display's own baseline, not an absolute brightness — so panels with different peak output stay in proportion.";
+
+    private void RaiseCalibration()
+    {
+        Raise(nameof(Calibrating));
+        Raise(nameof(CalibrationVisibility));
+        Raise(nameof(CalibrationStepVisibility));
+        Raise(nameof(RecalibrateVisibility));
+        Raise(nameof(CalibrationHeader));
+        Raise(nameof(CalibrationPrompt));
+        Raise(nameof(CalibrationButtonText));
+        Raise(nameof(CalibrationSummary));
+        Raise(nameof(UnisonMinimum));
+        Raise(nameof(UnisonLevelDescription));
+        Raise(nameof(BrightnessSummary));
+    }
+
     public double UnisonLevel
     {
         get => _settings.Global.UnisonLevel;

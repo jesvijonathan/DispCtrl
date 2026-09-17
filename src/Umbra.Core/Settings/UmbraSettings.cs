@@ -91,6 +91,20 @@ public sealed class GlobalSettings
     public int UnisonLevel { get; set; } = 100;
 
     /// <summary>
+    /// Drive unison from a calibrated low/high limit per display instead of a
+    /// multiplier on one captured level.
+    /// </summary>
+    /// <remarks>
+    /// A multiplier is only honest near the level it was captured at: halving
+    /// an OLED already at 30% takes it somewhere unusable, while halving an
+    /// external at 90% is still bright. Calibration asks for each panel's own
+    /// dimmest and brightest acceptable level once, and then the slider runs
+    /// between them — so 0% and 100% mean the same thing on every panel even
+    /// though the numbers behind them differ.
+    /// </remarks>
+    public bool UnisonCalibrated { get; set; }
+
+    /// <summary>
     /// Restores the shipped defaults, leaving per-monitor settings alone.
     /// </summary>
     public void ResetToDefaults()
@@ -108,6 +122,7 @@ public sealed class GlobalSettings
         Logging = fresh.Logging;
         UnisonBrightness = fresh.UnisonBrightness;
         UnisonLevel = fresh.UnisonLevel;
+        UnisonCalibrated = fresh.UnisonCalibrated;
     }
 }
 
@@ -139,6 +154,31 @@ public sealed class MonitorSettings
     /// </remarks>
     public int BrightnessBaseline { get; set; } = -1;
 
+    /// <summary>
+    /// The dimmest level this display should reach when unison is calibrated.
+    /// -1 means it has not been captured.
+    /// </summary>
+    public int BrightnessFloor { get; set; } = -1;
+
+    /// <summary>
+    /// The brightest level this display should reach when unison is calibrated.
+    /// -1 means it has not been captured.
+    /// </summary>
+    public int BrightnessCeiling { get; set; } = -1;
+
+    /// <summary>
+    /// True once both limits are captured and there is room between them.
+    /// </summary>
+    /// <remarks>
+    /// An equal pair is rejected rather than accepted as a fixed level: it
+    /// means the display was not touched between the two capture steps, which
+    /// is a mistake far more often than an intention, and it would pin the
+    /// panel at one brightness for every slider position.
+    /// </remarks>
+    [JsonIgnore]
+    public bool HasBrightnessRange =>
+        BrightnessFloor >= 0 && BrightnessCeiling > BrightnessFloor;
+
     [JsonIgnore]
     public bool ManagesTaskbar => HideTaskbar;
 
@@ -150,6 +190,8 @@ public sealed class MonitorSettings
         HideTaskbar = fresh.HideTaskbar;
         ReclaimWorkArea = fresh.ReclaimWorkArea;
         BrightnessBaseline = fresh.BrightnessBaseline;
+        BrightnessFloor = fresh.BrightnessFloor;
+        BrightnessCeiling = fresh.BrightnessCeiling;
         // Label is descriptive, not a setting; keeping it leaves the file readable.
     }
 }

@@ -56,18 +56,51 @@ public static class DisplayIdentifier
         Open.Clear();
     }
 
+    /// <summary>
+    /// Plate side, in device-independent pixels.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a DIP measurement rather than a fraction of the pixel
+    /// count. Two panels at the same physical size but different resolutions
+    /// are the same number of DIPs across, so one constant is the same
+    /// apparent size on both — which is the whole job of an identify marker
+    /// shown on several screens at once.
+    /// </remarks>
+    private const double PlateDip = 148;
+
+    /// <summary>Numeral height as a fraction of the plate.</summary>
+    private const double GlyphRatio = 0.5;
+
+    /// <summary>Extra width each digit past the first adds, as a fraction.</summary>
+    private const double DigitWidthRatio = 0.34;
+
+    /// <summary>Largest share of the shorter panel edge the plate may take.</summary>
+    private const double MaxShareOfPanel = 0.25;
+
     private static Window CreateOverlay(DisplayInfo display, int number)
     {
         var window = new Window();
 
-        // Scale with the panel so the number reads the same physical size on a
-        // 14-inch laptop and a 24-inch monitor.
-        double box = Math.Min(display.Bounds.Width, display.Bounds.Height) * 0.22;
+        // AppWindow is positioned in raw pixels; the XAML inside is laid out in
+        // DIPs. Conflating the two is what made the number overflow its plate
+        // on a scaled panel and sit lost in the middle of it on an unscaled one.
+        double scale = display.Scale > 0 ? display.Scale : 1.0;
+
+        string caption = number.ToString();
+
+        double sideDip = Math.Min(
+            PlateDip,
+            Math.Min(display.Bounds.Width, display.Bounds.Height) / scale * MaxShareOfPanel);
+
+        // Grow with the digit count instead of cramming "10" into the width of
+        // a "1": the plate stays the same height on every display, and only a
+        // wider number widens it.
+        double widthDip = sideDip * (1 + (DigitWidthRatio * (caption.Length - 1)));
 
         var text = new TextBlock
         {
-            Text = number.ToString(),
-            FontSize = box * 0.55,
+            Text = caption,
+            FontSize = sideDip * GlyphRatio,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Colors.White),
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -82,7 +115,7 @@ public static class DisplayIdentifier
             Background = new SolidColorBrush(Color.FromArgb(235, 32, 32, 32)),
             BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(sideDip * 0.08),
             Child = text,
         };
 
@@ -104,15 +137,16 @@ public static class DisplayIdentifier
         // Bottom-left, inset a tenth of the panel on each side. Centred put it
         // squarely over whatever the user was looking at; a corner marker is
         // readable without obscuring the screen it is labelling.
-        int size = (int)Math.Round(box);
+        int width = (int)Math.Round(widthDip * scale);
+        int height = (int)Math.Round(sideDip * scale);
         int padX = (int)Math.Round(display.Bounds.Width * 0.10);
         int padY = (int)Math.Round(display.Bounds.Height * 0.10);
 
         app.MoveAndResize(new RectInt32(
             display.Bounds.Left + padX,
-            display.Bounds.Bottom - padY - size,
-            size,
-            size));
+            display.Bounds.Bottom - padY - height,
+            width,
+            height));
 
         window.Activate();
         return window;

@@ -216,32 +216,26 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// Set by the owning view model once every display is known, because
     /// "how big is this one" only means anything next to the others.
     /// </remarks>
-    public double PreviewScale
-    {
-        get => _previewScale;
-        set
-        {
-            if (Math.Abs(_previewScale - value) < 0.001) return;
-            _previewScale = value;
-            Raise(nameof(PreviewWidth));
-            Raise(nameof(PreviewHeight));
-        }
-    }
-
-    private double _previewScale = 1.0;
+    /// <summary>
+    /// Retained so the owning view model can still report relative size, even
+    /// though the preview itself no longer varies with it.
+    /// </summary>
+    public double PreviewScale { get; set; } = 1.0;
 
     private const double MaxPreviewWidth = 240;
 
     /// <summary>
-    /// Preview width, scaled to the panel's real size rather than its resolution.
+    /// Preview width. Deliberately the same for every display.
     /// </summary>
     /// <remarks>
-    /// Resolution is the wrong measure for a picture of a monitor: this
-    /// machine's 14-inch laptop panel has half again as many pixels as the
-    /// 24-inch display beside it, so sizing by pixels drew the small screen
-    /// larger. The physical dimensions come from the panel's own EDID.
+    /// Scaling these by physical size was tried and looked wrong: a row of
+    /// cards with previews of differing sizes reads as ragged rather than
+    /// informative, and the actual size is stated a few lines below as a
+    /// diagonal in inches, which is how anyone describes a monitor anyway.
+    /// Only the aspect ratio varies here, which is the part a picture conveys
+    /// better than words.
     /// </remarks>
-    public double PreviewWidth => Math.Round(MaxPreviewWidth * Math.Clamp(_previewScale, 0.35, 1.0));
+    public double PreviewWidth => MaxPreviewWidth;
 
     /// <summary>
     /// Preview height, from the panel's physical aspect ratio where known.
@@ -377,6 +371,9 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     public Visibility NoBrightnessVisibility =>
         _brightness.Supported ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>Distinguishes this display's brightness slider from the others'.</summary>
+    public string BrightnessAutomationName => $"Brightness {Number} — {_display.Label}";
 
     public string BrightnessBackend => _display.IsInternal
         ? "Backlight, over WMI — this panel has no DDC/CI"
@@ -931,6 +928,10 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(HideTaskbar));
         Raise(nameof(ReclaimWorkArea));
         Raise(nameof(TaskbarSummary));
+        Raise(nameof(BrightnessFloor));
+        Raise(nameof(BrightnessCeiling));
+        Raise(nameof(HasBrightnessRange));
+        Raise(nameof(RangeSummary));
     }
 
     // --------------------------------------------------------------- unison --
@@ -986,6 +987,13 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         await BrightnessReady.ConfigureAwait(true);
         if (!_brightness.Supported) return;
 
+        if (_settings.HasBrightnessRange)
+        {
+            ApplyLevel(_settings.BrightnessFloor
+                + (int)Math.Round((_settings.BrightnessCeiling - _settings.BrightnessFloor) * factor));
+            return;
+        }
+
         int baseline = _settings.BrightnessBaseline;
         if (baseline <= 0)
         {
@@ -995,11 +1003,70 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             BrightnessBaseline = baseline;
         }
 
-        int target = (int)Math.Round(Math.Clamp(baseline * factor, 0, 100));
+        ApplyLevel((int)Math.Round(baseline * factor));
+    }
+
+    private void ApplyLevel(int percent)
+    {
+        int target = Math.Clamp(percent, 0, 100);
 
         _brightnessPercent = target;
         Raise(nameof(BrightnessPercent));
         QueueBrightnessWrite(target);
+    }
+
+    // ---------------------------------------------------------- calibration --
+
+    /// <summary>The dimmest level unison will take this display to; -1 if unset.</summary>
+    public int BrightnessFloor => _settings.BrightnessFloor;
+
+    /// <summary>The brightest level unison will take this display to; -1 if unset.</summary>
+    public int BrightnessCeiling => _settings.BrightnessCeiling;
+
+    public bool HasBrightnessRange => _settings.HasBrightnessRange;
+
+    /// <summary>Where this display's calibrated limits stand, for the summary line.</summary>
+    public string RangeSummary => _settings.HasBrightnessRange
+        ? $"{Number}: {_settings.BrightnessFloor}–{_settings.BrightnessCeiling}%"
+        : $"{Number}: not set";
+
+    /// <summary>
+    /// Records where the user has just left this display as one end of its
+    /// unison range.
+    /// </summary>
+    /// <remarks>
+    /// Reads the level the app already holds rather than going back to the
+    /// hardware. The user set it through this same slider moments ago, and a
+    /// fresh DDC/CI read would sometimes answer with the pre-write value —
+    /// capturing a limit the display is no longer at.
+    /// </remarks>
+    public async Task CaptureLimitAsync(bool upper)
+    {
+        await BrightnessReady.ConfigureAwait(true);
+        if (!_brightness.Supported) return;
+
+        if (upper) _settings.BrightnessCeiling = _brightnessPercent;
+        else _settings.BrightnessFloor = _brightnessPercent;
+
+        _persist();
+
+        Raise(nameof(BrightnessFloor));
+        Raise(nameof(BrightnessCeiling));
+        Raise(nameof(HasBrightnessRange));
+        Raise(nameof(RangeSummary));
+    }
+
+    /// <summary>Forgets both limits, returning this display to the multiplier.</summary>
+    public void ClearLimits()
+    {
+        _settings.BrightnessFloor = -1;
+        _settings.BrightnessCeiling = -1;
+        _persist();
+
+        Raise(nameof(BrightnessFloor));
+        Raise(nameof(BrightnessCeiling));
+        Raise(nameof(HasBrightnessRange));
+        Raise(nameof(RangeSummary));
     }
 
     private string ConnectorLabel => _display.Connector switch

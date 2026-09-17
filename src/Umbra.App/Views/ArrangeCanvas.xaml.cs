@@ -219,15 +219,41 @@ public sealed partial class ArrangeCanvas : UserControl
         e.Handled = true;
     }
 
+    /// <remarks>
+    /// The display is resolved to a legal position on every move rather than
+    /// only on release, so an invalid arrangement is never even drawn. Letting
+    /// it float free and correcting on drop meant the user spent the whole drag
+    /// aiming at positions that were going to be rejected.
+    /// <para>
+    /// The scale is held fixed for the duration of the drag. Recomputing it as
+    /// the bounding box changes would move the tile under the cursor.
+    /// </para>
+    /// </remarks>
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (_dragging is null || sender is not Border border) return;
         if (!ReferenceEquals(border.Tag, _dragging)) return;
 
         Point p = e.GetCurrentPoint(Surface).Position;
-        Canvas.SetLeft(border, p.X - _grabOffset.X);
-        Canvas.SetTop(border, p.Y - _grabOffset.Y);
+
+        _dragging.X = (int)Math.Round((p.X - _grabOffset.X - _offsetX) / _scale) + _originX;
+        _dragging.Y = (int)Math.Round((p.Y - _grabOffset.Y - _offsetY) / _scale) + _originY;
+
+        Snap(_dragging);
+        ApplySolver(_dragging);
+        PlaceTiles();
+
         e.Handled = true;
+    }
+
+    /// <summary>Positions every tile from its desktop coordinates, without rescaling.</summary>
+    private void PlaceTiles()
+    {
+        foreach (Tile t in _tiles)
+        {
+            Canvas.SetLeft(t.Element, _offsetX + (t.X - _originX) * _scale);
+            Canvas.SetTop(t.Element, _offsetY + (t.Y - _originY) * _scale);
+        }
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
@@ -255,11 +281,7 @@ public sealed partial class ArrangeCanvas : UserControl
 
         Canvas.SetZIndex(border, 0);
 
-        // Screen position back into desktop coordinates.
-        tile.X = (int)Math.Round((Canvas.GetLeft(border) - _offsetX) / _scale) + _originX;
-        tile.Y = (int)Math.Round((Canvas.GetTop(border) - _offsetY) / _scale) + _originY;
-
-        Snap(tile);
+        // Already resolved on every move, so there is nothing left to correct.
         ApplySolver(tile);
 
         foreach (Tile t in _tiles) _staged[t.Display.Token] = (t.X, t.Y);

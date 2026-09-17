@@ -118,11 +118,12 @@
 
         <tk:SettingsExpander.Items>
           <tk:SettingsCard Header="Level"
-                           Description="A multiplier on each display's own baseline, not an absolute brightness — so panels with different peak output stay in proportion."
+                           Description="{x:Bind ViewModel.UnisonLevelDescription, Mode=OneWay}"
                            Visibility="{x:Bind ViewModel.UnisonVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
               <Slider Value="{x:Bind ViewModel.UnisonLevel, Mode=TwoWay}"
-                      Minimum="10" Maximum="100" StepFrequency="1"
+                      Minimum="{x:Bind ViewModel.UnisonMinimum, Mode=OneWay}"
+                      Maximum="100" StepFrequency="1"
                       Width="240" VerticalAlignment="Center"
                       AutomationProperties.Name="UnisonLevelSlider"/>
               <TextBlock Text="{x:Bind ViewModel.UnisonLevel, Mode=OneWay}"
@@ -131,6 +132,38 @@
               <TextBlock Text="%" VerticalAlignment="Center"
                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </StackPanel>
+          </tk:SettingsCard>
+
+          <!-- Calibration is a walkthrough rather than two number boxes: the
+               limits are a judgement made by looking at the panels side by
+               side, which no amount of typing reproduces. -->
+          <tk:SettingsCard Header="Use captured limits"
+                           Description="Ask each display how dim and how bright it should go, then run the slider between those levels instead of scaling one captured value."
+                           Visibility="{x:Bind ViewModel.UnisonVisibility, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE9E9;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.UnisonCalibrated, Mode=TwoWay}"
+                          AutomationProperties.Name="UnisonCalibratedToggle"/>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="{x:Bind ViewModel.CalibrationHeader, Mode=OneWay}"
+                           Description="{x:Bind ViewModel.CalibrationPrompt, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.CalibrationStepVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="{x:Bind ViewModel.CalibrationButtonText, Mode=OneWay}"
+                      Style="{StaticResource AccentButtonStyle}"
+                      Click="OnCaptureLimits"
+                      AutomationProperties.Name="CaptureLimitButton"/>
+              <Button Content="Cancel" Click="OnCancelCalibration"/>
+            </StackPanel>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Captured limits"
+                           Description="{x:Bind ViewModel.CalibrationSummary, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.RecalibrateVisibility, Mode=OneWay}">
+            <Button Content="Calibrate again" Click="OnRecalibrate"
+                    AutomationProperties.Name="RecalibrateButton"/>
           </tk:SettingsCard>
 
           <!-- The slider is a multiplier, so its own number says nothing about
@@ -309,9 +342,12 @@
                     <FontIcon Glyph="&#xE706;"/>
                   </tk:SettingsCard.HeaderIcon>
                   <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <!-- Named per display: two identically-labelled sliders on
+                         one page are indistinguishable to a screen reader. -->
                     <Slider Value="{x:Bind BrightnessPercent, Mode=TwoWay}"
                             Minimum="0" Maximum="100" StepFrequency="1"
-                            Width="220" VerticalAlignment="Center"/>
+                            Width="220" VerticalAlignment="Center"
+                            AutomationProperties.Name="{x:Bind BrightnessAutomationName}"/>
                     <TextBlock Text="{x:Bind BrightnessPercent, Mode=OneWay}"
                                VerticalAlignment="Center" MinWidth="32"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
