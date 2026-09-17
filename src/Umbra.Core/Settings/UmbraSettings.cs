@@ -20,6 +20,17 @@ public sealed class UmbraSettings
     /// </remarks>
     public Dictionary<string, MonitorSettings> Monitors { get; set; } = [];
 
+    /// <summary>
+    /// Rules that switch presets when an app takes the foreground.
+    /// </summary>
+    /// <remarks>
+    /// Kept in settings rather than in a preset, because a rule is about
+    /// <em>when</em> to use a preset, not part of what the preset is. Putting
+    /// them inside presets would mean exporting a preset also exported the
+    /// user's app list, which is both surprising and a small privacy leak.
+    /// </remarks>
+    public List<AppRule> AppRules { get; set; } = [];
+
     /// <summary>Settings for a monitor, creating defaults on first sight.</summary>
     public MonitorSettings For(string token)
     {
@@ -27,6 +38,42 @@ public sealed class UmbraSettings
         s = new MonitorSettings();
         Monitors[token] = s;
         return s;
+    }
+
+    /// <summary>
+    /// The warmth one display should actually be at, resolving unison,
+    /// calibration and per-monitor overrides against each other.
+    /// </summary>
+    /// <remarks>
+    /// Lives here rather than in either consumer because the engine and the
+    /// panel both need the answer and must not disagree about it. Two copies of
+    /// this rule drifting apart would show up as the screen not matching the
+    /// slider, which is close to impossible to attribute.
+    /// </remarks>
+    public int NightLightStrengthFor(string token)
+    {
+        NightLightSettings n = Global.NightLight;
+        if (!n.Enabled) return 0;
+
+        MonitorSettings m = For(token);
+
+        // Per-display mode: the display's own number, falling back to the
+        // shared one until it has been given a value of its own.
+        if (!n.Unison)
+            return Math.Clamp(m.NightLightStrength >= 0 ? m.NightLightStrength : n.Strength, 0, 100);
+
+        // Unison, calibrated: the shared slider runs between this panel's own
+        // captured limits, so the same position looks alike on panels that
+        // render warmth very differently.
+        if (n.Calibrated && m.HasNightLightRange)
+        {
+            double t = Math.Clamp(n.Strength, 0, 100) / 100.0;
+            return Math.Clamp(
+                m.NightLightFloor + (int)Math.Round((m.NightLightCeiling - m.NightLightFloor) * t),
+                0, 100);
+        }
+
+        return Math.Clamp(n.Strength, 0, 100);
     }
 }
 
@@ -147,7 +194,34 @@ public sealed class NightLightSettings
     /// <summary>How warm, 0-100. See <c>NightLight.KelvinFor</c> for the range.</summary>
     public int Strength { get; set; } = 45;
 
+    /// <summary>
+    /// Drive every display from <see cref="Strength"/> rather than each from
+    /// its own.
+    /// </summary>
+    /// <remarks>
+    /// On by default, because a desk with one screen warm and the other cold is
+    /// worse than one with neither warmed — the mismatch is more distracting
+    /// than the blue was. Per-display exists for the case where the panels
+    /// genuinely need different numbers to look the same.
+    /// </remarks>
+    public bool Unison { get; set; } = true;
+
+    /// <summary>
+    /// Run the unison slider between each display's captured warmth limits.
+    /// </summary>
+    /// <remarks>
+    /// The same idea as calibrated brightness, for the same reason: an OLED and
+    /// an IPS panel do not look equally warm at equal numbers, so one slider
+    /// position has to mean different numbers on each to look like one desk.
+    /// </remarks>
+    public bool Calibrated { get; set; }
+
     /// <summary>Only warm between <see cref="FromMinutes"/> and <see cref="ToMinutes"/>.</summary>
+    /// <remarks>
+    /// Deliberately global, and stays global even in per-display mode: a
+    /// schedule is about the time of day, which is the one thing every display
+    /// on the desk genuinely shares.
+    /// </remarks>
     public bool Scheduled { get; set; }
 
     /// <summary>Start of the warm period, in minutes past local midnight.</summary>
@@ -181,6 +255,49 @@ public sealed class NightLightSettings
     }
 
     private static int Normalise(int minutes) => ((minutes % 1440) + 1440) % 1440;
+}
+
+/// <summary>
+/// "When this app is in front, use this preset."
+/// </summary>
+/// <remarks>
+/// Matched on the executable name rather than the window title, because titles
+/// change with whatever document is open and are localised, while the image
+/// name is stable and is what a user can actually find in Task Manager.
+/// </remarks>
+public sealed class AppRule
+{
+    /// <summary>Executable name, with or without the extension. Case-insensitive.</summary>
+    public string Process { get; set; } = "";
+
+    /// <summary>The preset to apply while that app is in front.</summary>
+    public string Preset { get; set; } = "";
+
+    /// <summary>Whether this rule is live.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Preset to return to once the app is no longer in front. Blank leaves
+    /// whatever the app's preset set in place.
+    /// </summary>
+    public string? RevertTo { get; set; }
+
+    /// <summary>True when the rule has both halves filled in.</summary>
+    [JsonIgnore]
+    public bool IsComplete =>
+        !string.IsNullOrWhiteSpace(Process) && !string.IsNullOrWhiteSpace(Preset);
+
+    /// <summary>True when <paramref name="imageName"/> is the app this rule is about.</summary>
+    public bool Matches(string imageName)
+    {
+        if (!Enabled || string.IsNullOrWhiteSpace(Process)) return false;
+
+        string want = Process.Trim();
+        if (want.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            want = want[..^4];
+
+        return string.Equals(want, imageName, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 /// <summary>Everything Umbra can do to one monitor.</summary>
@@ -236,6 +353,22 @@ public sealed class MonitorSettings
     public bool HasBrightnessRange =>
         BrightnessFloor >= 0 && BrightnessCeiling > BrightnessFloor;
 
+    /// <summary>
+    /// This display's own warmth, 0-100. -1 means it has not been set and the
+    /// shared value applies.
+    /// </summary>
+    public int NightLightStrength { get; set; } = -1;
+
+    /// <summary>Least warmth this display should reach when unison is calibrated.</summary>
+    public int NightLightFloor { get; set; } = -1;
+
+    /// <summary>Most warmth this display should reach when unison is calibrated.</summary>
+    public int NightLightCeiling { get; set; } = -1;
+
+    [JsonIgnore]
+    public bool HasNightLightRange =>
+        NightLightFloor >= 0 && NightLightCeiling > NightLightFloor;
+
     [JsonIgnore]
     public bool ManagesTaskbar => HideTaskbar;
 
@@ -249,6 +382,9 @@ public sealed class MonitorSettings
         BrightnessBaseline = fresh.BrightnessBaseline;
         BrightnessFloor = fresh.BrightnessFloor;
         BrightnessCeiling = fresh.BrightnessCeiling;
+        NightLightStrength = fresh.NightLightStrength;
+        NightLightFloor = fresh.NightLightFloor;
+        NightLightCeiling = fresh.NightLightCeiling;
         // Label is descriptive, not a setting; keeping it leaves the file readable.
     }
 }

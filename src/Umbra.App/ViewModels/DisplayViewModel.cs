@@ -20,6 +20,18 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 {
     private readonly DisplayInfo _display;
     private readonly MonitorSettings _settings;
+    private readonly UmbraSettings _root;
+
+    /// <summary>
+    /// Whether each display is showing its own warmth slider right now.
+    /// </summary>
+    /// <remarks>
+    /// A callback rather than a setting, because it is true in per-display mode
+    /// <em>and</em> mid-calibration whatever the mode — and the calibration step
+    /// is transient UI state that has no business being written to disk.
+    /// </remarks>
+    private readonly Func<bool> _perDisplayWarmth;
+
     private readonly Action _persist;
     private readonly DispatcherQueue _ui = DispatcherQueue.GetForCurrentThread();
 
@@ -34,11 +46,14 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// </remarks>
     private CancellationTokenSource? _brightnessWrite;
 
-    public DisplayViewModel(DisplayInfo display, MonitorSettings settings, int number, Action persist)
+    public DisplayViewModel(DisplayInfo display, MonitorSettings settings, UmbraSettings root,
+                            int number, Action persist, Func<bool> perDisplayWarmth)
     {
         _display = display;
         _settings = settings;
+        _root = root;
         _persist = persist;
+        _perDisplayWarmth = perDisplayWarmth;
         Number = number;
 
         // Nothing blocking here. Everything this view model needs comes from
@@ -1064,6 +1079,82 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(HasBrightnessRange));
         Raise(nameof(RangeSummary));
     }
+
+    // --------------------------------------------------------- night light --
+
+    /// <summary>
+    /// This display's own warmth, 0-100.
+    /// </summary>
+    /// <remarks>
+    /// Writes the setting and nothing else. The engine owns the gamma ramp
+    /// outright — two processes writing one ramp is how warmth used to compound
+    /// until it could not be undone.
+    /// </remarks>
+    public double NightLightStrength
+    {
+        get
+        {
+            int own = _settings.NightLightStrength;
+            return own >= 0 ? own : _root.Global.NightLight.Strength;
+        }
+        set
+        {
+            int v = Math.Clamp((int)value, 0, 100);
+            if (_settings.NightLightStrength == v) return;
+            _settings.NightLightStrength = v;
+            _persist();
+            Raise();
+            Raise(nameof(NightLightStrengthText));
+        }
+    }
+
+    public string NightLightStrengthText
+    {
+        get
+        {
+            int resolved = (int)NightLightStrength;
+            return $"{resolved}%  ·  {NightLight.KelvinFor(resolved):0}K";
+        }
+    }
+
+    public string WarmthAutomationName => $"Warmth {Number} — {_display.Label}";
+
+    /// <summary>Where this display's captured warmth limits stand.</summary>
+    public string WarmthRangeSummary => _settings.HasNightLightRange
+        ? $"{Number}: {_settings.NightLightFloor}–{_settings.NightLightCeiling}%"
+        : $"{Number}: not set";
+
+    /// <summary>Takes where the user has just left this display as one warmth limit.</summary>
+    public void CaptureWarmthLimit(bool upper)
+    {
+        int current = (int)NightLightStrength;
+
+        if (upper) _settings.NightLightCeiling = current;
+        else _settings.NightLightFloor = current;
+
+        _persist();
+        Raise(nameof(WarmthRangeSummary));
+    }
+
+    public void ClearWarmthLimits()
+    {
+        _settings.NightLightFloor = -1;
+        _settings.NightLightCeiling = -1;
+        _persist();
+        Raise(nameof(WarmthRangeSummary));
+    }
+
+    /// <summary>Re-reads everything night light drives on this card.</summary>
+    public void RaiseNightLight()
+    {
+        Raise(nameof(NightLightStrength));
+        Raise(nameof(NightLightStrengthText));
+        Raise(nameof(WarmthRangeSummary));
+        Raise(nameof(NightLightVisibility));
+    }
+
+    public Visibility NightLightVisibility =>
+        _perDisplayWarmth() ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Forgets both limits, returning this display to the multiplier.</summary>
     public void ClearLimits()

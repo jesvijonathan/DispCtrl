@@ -1,0 +1,207 @@
+<Page x:Class="Umbra.App.Views.PresetsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:tk="using:CommunityToolkit.WinUI.Controls"
+      xmlns:vm="using:Umbra.App.ViewModels"
+      Loaded="OnLoaded">
+
+  <ScrollViewer Padding="0,0,0,32">
+    <StackPanel Padding="36,12,36,0" Spacing="0" HorizontalAlignment="Stretch">
+
+      <StackPanel Spacing="4" Margin="0,0,0,20">
+        <TextBlock Text="Presets" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Text="Named snapshots of the whole desk. One file each, so a preset can be copied, mailed or kept in a repo."
+                   Style="{StaticResource BodyTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      </StackPanel>
+
+      <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,0,0,12"
+               Visibility="{x:Bind ViewModel.EmptyVisibility, Mode=OneWay}"
+               Title="No presets yet"
+               Message="Get the displays how you want them, then save the desk as a preset below."/>
+
+      <tk:SettingsCard Header="Save the desk as a preset"
+                       Description="Captures every display's resolution, refresh rate, position, brightness, warmth and wallpaper as it is right now.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE74E;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBox x:Name="NewName" PlaceholderText="Name" MinWidth="200"
+                   AutomationProperties.Name="NewPresetName"/>
+          <Button Content="Save as new" Style="{StaticResource AccentButtonStyle}"
+                  Click="OnSaveAs" AutomationProperties.Name="SaveAsNewPreset"/>
+        </StackPanel>
+      </tk:SettingsCard>
+
+      <StackPanel Visibility="{x:Bind ViewModel.PresetVisibility, Mode=OneWay}">
+
+        <tk:SettingsExpander Header="Current preset"
+                             Description="{x:Bind ViewModel.Status, Mode=OneWay}"
+                             Margin="0,4,0,0"
+                             IsExpanded="True">
+          <tk:SettingsExpander.HeaderIcon>
+            <FontIcon Glyph="&#xE8FD;"/>
+          </tk:SettingsExpander.HeaderIcon>
+
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <ComboBox ItemsSource="{x:Bind ViewModel.Names}"
+                      SelectedItem="{x:Bind ViewModel.Selected, Mode=TwoWay}"
+                      MinWidth="200"
+                      AutomationProperties.Name="PresetPicker"/>
+            <Button Content="Apply" Style="{StaticResource AccentButtonStyle}"
+                    Click="OnApply" AutomationProperties.Name="ApplyPreset"/>
+          </StackPanel>
+
+          <tk:SettingsExpander.Items>
+            <!-- The sticky part: what has drifted since this preset was saved,
+                 with both ways out one press apart. Listing the differences
+                 rather than showing a dot is the point — "unsaved changes" on
+                 its own is a question the user cannot answer. -->
+            <tk:SettingsCard Header="Unsaved differences"
+                             Description="{x:Bind ViewModel.Differences, Mode=OneWay}"
+                             Visibility="{x:Bind ViewModel.DirtyVisibility, Mode=OneWay}">
+              <tk:SettingsCard.HeaderIcon>
+                <FontIcon Glyph="&#xE7BA;"/>
+              </tk:SettingsCard.HeaderIcon>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Save over it" Click="OnSave"
+                        AutomationProperties.Name="SavePreset"/>
+                <Button Content="Discard" Click="OnDiscard"
+                        AutomationProperties.Name="DiscardPreset"/>
+              </StackPanel>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="Displays in this preset"
+                             Description="{x:Bind ViewModel.Details, Mode=OneWay}">
+              <tk:SettingsCard.HeaderIcon>
+                <FontIcon Glyph="&#xE7F4;"/>
+              </tk:SettingsCard.HeaderIcon>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="Rename" Description="The name is the file name, so this renames the file too.">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox x:Name="RenameTo" PlaceholderText="New name" MinWidth="180"
+                         AutomationProperties.Name="RenamePresetTo"/>
+                <Button Content="Rename" Click="OnRename"/>
+              </StackPanel>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="Share" Description="A preset is one JSON file. Export it to send it; import one someone sent you.">
+              <tk:SettingsCard.HeaderIcon>
+                <FontIcon Glyph="&#xE72D;"/>
+              </tk:SettingsCard.HeaderIcon>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Export…" Click="OnExport"/>
+                <Button Content="Import…" Click="OnImport"/>
+                <Button Content="Open folder" Click="OnOpenFolder"/>
+              </StackPanel>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="Delete" Description="Removes the preset file. Nothing on screen changes.">
+              <Button Content="Delete" Click="OnDelete" AutomationProperties.Name="DeletePreset"/>
+            </tk:SettingsCard>
+          </tk:SettingsExpander.Items>
+        </tk:SettingsExpander>
+
+        <!-- Scope, so a narrow preset stays narrow. "Warm and dim for the
+             evening" should not drag the resolution along with it. -->
+        <tk:SettingsExpander Header="What this preset controls"
+                             Description="Anything switched off here is left exactly as it is when the preset is applied."
+                             Margin="0,4,0,0">
+          <tk:SettingsExpander.HeaderIcon>
+            <FontIcon Glyph="&#xE9E9;"/>
+          </tk:SettingsExpander.HeaderIcon>
+
+          <tk:SettingsExpander.Items>
+            <tk:SettingsCard Header="Arrangement"
+                             Description="Where each display sits, which one is main, and the extend/duplicate topology.">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeArrangement, Mode=TwoWay}"
+                            AutomationProperties.Name="ScopeArrangement"/>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="Resolution, refresh rate and scaling"
+                             Description="Changing resolution blanks the screen briefly. A refresh-rate-only change usually does not.">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeModes, Mode=TwoWay}"
+                            AutomationProperties.Name="ScopeModes"/>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="HDR">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeHdr, Mode=TwoWay}"
+                            AutomationProperties.Name="ScopeHdr"/>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="Brightness" Description="Per display, plus the unison level.">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeBrightness, Mode=TwoWay}"
+                            AutomationProperties.Name="ScopeBrightness"/>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="Night light" Description="Warmth, per-display values and the schedule.">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeNightLight, Mode=TwoWay}"
+                            AutomationProperties.Name="ScopeNightLight"/>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="Wallpaper"
+                             Description="Stores the image path. A preset from another machine will point at paths that do not exist here.">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeWallpaper, Mode=TwoWay}"
+                            AutomationProperties.Name="ScopeWallpaper"/>
+            </tk:SettingsCard>
+
+            <tk:SettingsCard Header="Taskbar hiding" Description="Which displays hide their taskbar.">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeTaskbar, Mode=TwoWay}"
+                            AutomationProperties.Name="ScopeTaskbar"/>
+            </tk:SettingsCard>
+          </tk:SettingsExpander.Items>
+        </tk:SettingsExpander>
+      </StackPanel>
+
+      <TextBlock Text="Per-app rules"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,4"/>
+      <TextBlock Text="The engine watches which app is in front and switches preset when one of these matches. A rule only fires once its app has held the foreground for a couple of seconds, so alt-tabbing past it does nothing."
+                 Style="{StaticResource CaptionTextBlockStyle}"
+                 TextWrapping="Wrap"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                 Margin="0,0,0,8"/>
+
+      <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,0,0,8"
+               Visibility="{x:Bind ViewModel.RulesEmptyVisibility, Mode=OneWay}"
+               Message="No rules yet. Add one, put in an executable name such as devenv or chrome, and pick a preset."/>
+
+      <ItemsControl ItemsSource="{x:Bind ViewModel.Rules}" HorizontalContentAlignment="Stretch">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Spacing="4"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:AppRuleViewModel">
+            <tk:SettingsCard Description="{x:Bind Summary, Mode=OneWay}" Header="Rule">
+              <tk:SettingsCard.HeaderIcon>
+                <FontIcon Glyph="&#xE7C4;"/>
+              </tk:SettingsCard.HeaderIcon>
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBox Text="{x:Bind Process, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         PlaceholderText="app.exe" MinWidth="140"
+                         AutomationProperties.Name="RuleProcess"/>
+                <TextBox Text="{x:Bind Preset, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         PlaceholderText="preset" MinWidth="140"
+                         AutomationProperties.Name="RulePreset"/>
+                <TextBox Text="{x:Bind RevertTo, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         PlaceholderText="back to (optional)" MinWidth="140"
+                         AutomationProperties.Name="RuleRevertTo"/>
+                <ToggleSwitch IsOn="{x:Bind Enabled, Mode=TwoWay}"/>
+                <Button Content="Remove" Click="OnRemoveRule" Tag="{x:Bind}"/>
+              </StackPanel>
+            </tk:SettingsCard>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Button Content="Add a rule" Click="OnAddRule" Margin="0,8,0,0"
+              AutomationProperties.Name="AddRule"/>
+
+      <InfoBar x:Name="Toast" IsOpen="False" IsClosable="True" Severity="Success"
+               Margin="0,16,0,0"/>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

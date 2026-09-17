@@ -66,6 +66,7 @@ public sealed partial class MainWindow : Window
             ? typeof(SettingsPage)
             : tag switch
             {
+                "presets" => typeof(PresetsPage),
                 "engine" => typeof(EnginePage),
                 "help" => typeof(HelpPage),
                 "about" => typeof(AboutPage),

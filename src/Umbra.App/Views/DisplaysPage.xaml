@@ -66,15 +66,15 @@
                Visibility="{x:Bind ViewModel.ArrangementStatusVisibility, Mode=OneWay}"
                Message="{x:Bind ViewModel.ArrangementStatus, Mode=OneWay}"/>
 
+      <!-- Identify moved into the arrangement surface, where the numbers it
+           flashes are the ones on the tiles. Two buttons here meant the same
+           idea asked for in two places. -->
       <tk:SettingsCard Header="Detect displays"
-                       Description="Identify shows each display&apos;s number on the screen itself. Detect re-scans, including monitors connected but switched off.">
+                       Description="Re-scans for monitors, including ones connected but switched off.">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE71E;"/>
         </tk:SettingsCard.HeaderIcon>
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="Identify" Click="OnIdentify"/>
-          <Button Content="Detect" Click="OnDetect"/>
-        </StackPanel>
+        <Button Content="Detect" Click="OnDetect"/>
       </tk:SettingsCard>
 
       <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,4,0,0"
@@ -133,23 +133,6 @@
         </StackPanel>
 
         <tk:SettingsExpander.Items>
-          <tk:SettingsCard Header="Level"
-                           Description="{x:Bind ViewModel.UnisonLevelDescription, Mode=OneWay}"
-                           Visibility="{x:Bind ViewModel.UnisonVisibility, Mode=OneWay}">
-            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-              <Slider Value="{x:Bind ViewModel.UnisonLevel, Mode=TwoWay}"
-                      Minimum="{x:Bind ViewModel.UnisonMinimum, Mode=OneWay}"
-                      Maximum="100" StepFrequency="1"
-                      Width="240" VerticalAlignment="Center"
-                      AutomationProperties.Name="UnisonLevelSlider"/>
-              <TextBlock Text="{x:Bind ViewModel.UnisonLevel, Mode=OneWay}"
-                         VerticalAlignment="Center" MinWidth="32"
-                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-              <TextBlock Text="%" VerticalAlignment="Center"
-                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-            </StackPanel>
-          </tk:SettingsCard>
-
           <!-- Calibration is a walkthrough rather than two number boxes: the
                limits are a judgement made by looking at the panels side by
                side, which no amount of typing reproduces. -->
@@ -204,7 +187,7 @@
              the header row, and the rest is behind the expander. -->
         <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
           <Slider Value="{x:Bind ViewModel.NightLightStrength, Mode=TwoWay}"
-                  Minimum="0" Maximum="100" StepFrequency="1"
+                  Minimum="5" Maximum="100" StepFrequency="1"
                   Width="200" VerticalAlignment="Center"
                   Visibility="{x:Bind ViewModel.NightLightVisibility, Mode=OneWay}"
                   AutomationProperties.Name="NightLightStrengthSliderInline"/>
@@ -455,6 +438,18 @@
                   </tk:SettingsCard.HeaderIcon>
                   <TextBlock Text="Unavailable" VerticalAlignment="Center"
                              Foreground="{ThemeResource TextFillColorDisabledBrush}"/>
+                </tk:SettingsCard>
+
+                <tk:SettingsCard Header="Night light"
+                                 Description="{x:Bind NightLightStrengthText, Mode=OneWay}"
+                                 Visibility="{x:Bind NightLightVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE706;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <Slider Value="{x:Bind NightLightStrength, Mode=TwoWay}"
+                          Minimum="0" Maximum="100" StepFrequency="1"
+                          Width="220" VerticalAlignment="Center"
+                          AutomationProperties.Name="{x:Bind WarmthAutomationName}"/>
                 </tk:SettingsCard>
 
                 <tk:SettingsCard Header="HDR" Description="{x:Bind HdrDescription, Mode=OneWay}"

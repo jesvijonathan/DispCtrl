@@ -1,0 +1,470 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using Microsoft.UI.Xaml;
+using Umbra.Core.Displays;
+using Umbra.Core.Presets;
+using Umbra.Core.Settings;
+using Umbra.Display.Presets;
+
+namespace Umbra.App.ViewModels;
+
+/// <summary>One app rule, as the list on the Presets page edits it.</summary>
+public sealed class AppRuleViewModel(AppRule rule, Action persist) : INotifyPropertyChanged
+{
+    public AppRule Rule { get; } = rule;
+
+    public string Process
+    {
+        get => Rule.Process;
+        set { Rule.Process = value; persist(); Raise(); Raise(nameof(Summary)); }
+    }
+
+    public string Preset
+    {
+        get => Rule.Preset;
+        set { Rule.Preset = value; persist(); Raise(); Raise(nameof(Summary)); }
+    }
+
+    public string RevertTo
+    {
+        get => Rule.RevertTo ?? "";
+        set
+        {
+            Rule.RevertTo = string.IsNullOrWhiteSpace(value) ? null : value;
+            persist();
+            Raise();
+            Raise(nameof(Summary));
+        }
+    }
+
+    public bool Enabled
+    {
+        get => Rule.Enabled;
+        set { Rule.Enabled = value; persist(); Raise(); }
+    }
+
+    public string Summary
+    {
+        get
+        {
+            if (!Rule.IsComplete) return "Incomplete — needs an app and a preset.";
+
+            string back = string.IsNullOrWhiteSpace(Rule.RevertTo)
+                ? "and stays there afterwards"
+                : $"then back to “{Rule.RevertTo}”";
+
+            return $"When {Rule.Process} is in front, use “{Rule.Preset}”, {back}.";
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Raise([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+/// <summary>
+/// The Presets page.
+/// </summary>
+/// <remarks>
+/// Holds the selected preset as "sticky": the desk drifts as the user changes
+/// things, and the page keeps saying how it differs from what was saved, with
+/// Save and Discard both one press away. That is the whole idea — a preset you
+/// have to remember to re-save is one that silently goes stale.
+/// </remarks>
+public sealed class PresetsViewModel : INotifyPropertyChanged
+{
+    /// <summary>
+    /// Read through a callback, not held.
+    /// </summary>
+    /// <remarks>
+    /// A rescan replaces the whole settings instance, so a captured reference
+    /// would silently go stale — this page would then be saving presets from,
+    /// and writing app rules into, an object nothing else still reads.
+    /// </remarks>
+    private readonly Func<UmbraSettings> _settingsSource;
+
+    private readonly Func<IReadOnlyList<DisplayInfo>> _displays;
+    private readonly Action _persist;
+
+    /// <summary>
+    /// Re-reads every display after a preset has been written.
+    /// </summary>
+    /// <remarks>
+    /// Applying a preset changes the hardware behind the other pages' backs, so
+    /// without this their controls keep showing what was true before. It is not
+    /// cosmetic: a brightness slider still reading 25 after the preset put the
+    /// panel back to 62 will write 25 again the moment it is nudged.
+    /// </remarks>
+    private readonly Action _refreshDisplays;
+
+    private UmbraSettings _settings => _settingsSource();
+
+    public PresetsViewModel(Func<UmbraSettings> settings, Func<IReadOnlyList<DisplayInfo>> displays,
+                            Action persist, Action refreshDisplays)
+    {
+        _settingsSource = settings;
+        _displays = displays;
+        _persist = persist;
+        _refreshDisplays = refreshDisplays;
+
+        Reload();
+    }
+
+    public ObservableCollection<string> Names { get; } = [];
+    public ObservableCollection<AppRuleViewModel> Rules { get; } = [];
+
+    private readonly List<Preset> _presets = [];
+    private string? _selected;
+    private string _status = "";
+    private List<string> _differences = [];
+
+    // ------------------------------------------------------------- listing --
+
+    public void Reload()
+    {
+        _presets.Clear();
+        _presets.AddRange(PresetStore.Load());
+
+        Names.Clear();
+        foreach (Preset p in _presets) Names.Add(p.Name);
+
+        if (_selected is not null && !Names.Contains(_selected)) _selected = null;
+        _selected ??= Names.Count > 0 ? Names[0] : null;
+
+        Rules.Clear();
+        foreach (AppRule r in _settings.AppRules) Rules.Add(new AppRuleViewModel(r, _persist));
+
+        Raise(nameof(Selected));
+        Raise(nameof(HasPresets));
+        Raise(nameof(EmptyVisibility));
+        Raise(nameof(PresetVisibility));
+        RefreshDrift();
+        RaiseScope();
+    }
+
+    public bool HasPresets => Names.Count > 0;
+
+    public Visibility EmptyVisibility => HasPresets ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility PresetVisibility => HasPresets ? Visibility.Visible : Visibility.Collapsed;
+
+    public string? Selected
+    {
+        get => _selected;
+        set
+        {
+            if (_selected == value) return;
+            _selected = value;
+            Raise();
+            RefreshDrift();
+            RaiseScope();
+            Raise(nameof(Details));
+        }
+    }
+
+    private Preset? Current
+    {
+        get
+        {
+            foreach (Preset p in _presets)
+                if (p.Name == _selected) return p;
+
+            return null;
+        }
+    }
+
+    // --------------------------------------------------------------- drift --
+
+    /// <summary>
+    /// Re-compares the desk against the selected preset.
+    /// </summary>
+    /// <remarks>
+    /// Capture is a hardware read per display — DDC/CI included — so this is
+    /// called when the page is shown and after an action, never on a timer.
+    /// </remarks>
+    public void RefreshDrift()
+    {
+        Preset? saved = Current;
+        if (saved is null)
+        {
+            _differences = [];
+            _status = "No preset selected.";
+            RaiseDrift();
+            return;
+        }
+
+        try
+        {
+            Preset live = PresetService.Capture(saved.Name, _displays(), _settings);
+            _differences = PresetDiff.Describe(saved, live);
+        }
+        catch (Exception ex)
+        {
+            _differences = [];
+            _status = $"Could not read the current setup: {ex.Message}";
+            RaiseDrift();
+            return;
+        }
+
+        _status = _differences.Count == 0
+            ? "Everything matches this preset."
+            : $"{_differences.Count} difference(s) from this preset.";
+
+        RaiseDrift();
+    }
+
+    public string Status => _status;
+
+    public string Differences => _differences.Count == 0
+        ? "Nothing has drifted."
+        : string.Join("\n", _differences);
+
+    public bool IsDirty => _differences.Count > 0;
+
+    public Visibility DirtyVisibility => IsDirty ? Visibility.Visible : Visibility.Collapsed;
+
+    private void RaiseDrift()
+    {
+        Raise(nameof(Status));
+        Raise(nameof(Differences));
+        Raise(nameof(IsDirty));
+        Raise(nameof(DirtyVisibility));
+    }
+
+    // ------------------------------------------------------------- actions --
+
+    /// <summary>Writes the selected preset onto the desk.</summary>
+    public async Task<string> ApplyAsync()
+    {
+        if (Current is not Preset preset) return "No preset selected.";
+
+        UmbraSettings settings = _settings;
+        IReadOnlyList<DisplayInfo> displays = _displays();
+
+        PresetResult result = await Task.Run(() => PresetService.Apply(preset, displays, settings));
+        _persist();
+
+        _refreshDisplays();
+        RefreshDrift();
+
+        if (!result.Ok) return string.Join("  ", result.Notes);
+
+        return result.Notes.Count == 0
+            ? $"Applied “{preset.Name}”."
+            : $"Applied “{preset.Name}”, with notes: " + string.Join("  ", result.Notes);
+    }
+
+    /// <summary>Overwrites the selected preset with the desk as it is now.</summary>
+    public string Save()
+    {
+        if (Current is not Preset preset) return "No preset selected.";
+
+        Preset fresh = PresetService.Capture(preset.Name, _displays(), _settings);
+
+        // Scope and description belong to the preset, not to the desk, so they
+        // survive a re-capture rather than being reset by it.
+        fresh.Scope = preset.Scope;
+        fresh.Description = preset.Description;
+
+        PresetStore.Save(fresh);
+        Reload();
+        Selected = fresh.Name;
+
+        return $"Saved “{fresh.Name}”.";
+    }
+
+    /// <summary>Captures the desk under a new name.</summary>
+    public string SaveAs(string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0) return "Give the preset a name first.";
+
+        if (Names.Contains(name))
+            return $"“{name}” already exists — pick another name, or use Save to overwrite it.";
+
+        PresetStore.Save(PresetService.Capture(name, _displays(), _settings));
+        Reload();
+        Selected = name;
+
+        return $"Saved “{name}”.";
+    }
+
+    /// <summary>Puts the desk back to the selected preset, discarding the drift.</summary>
+    public Task<string> DiscardAsync() => ApplyAsync();
+
+    public string Rename(string name)
+    {
+        if (Current is not Preset preset) return "No preset selected.";
+
+        name = name.Trim();
+        if (name.Length == 0) return "Give the preset a name first.";
+        if (name == preset.Name) return "That is already its name.";
+        if (Names.Contains(name)) return $"“{name}” already exists.";
+
+        PresetStore.Rename(preset.Name, name);
+        Reload();
+        Selected = name;
+
+        return $"Renamed to “{name}”.";
+    }
+
+    public string Delete()
+    {
+        if (Current is not Preset preset) return "No preset selected.";
+
+        PresetStore.Delete(preset.Name);
+        _selected = null;
+        Reload();
+
+        return $"Deleted “{preset.Name}”.";
+    }
+
+    public string Export(string destination)
+    {
+        if (Current is not Preset preset) return "No preset selected.";
+
+        PresetStore.Export(preset, destination);
+        return $"Exported to {destination}.";
+    }
+
+    public string Import(string source)
+    {
+        string? name = PresetStore.Import(source);
+        if (name is null) return "That file is not a preset Umbra can read.";
+
+        Reload();
+        Selected = name;
+
+        return $"Imported as “{name}”.";
+    }
+
+    public static string Folder => PresetStore.Directory;
+
+    // --------------------------------------------------------------- scope --
+
+    private PresetScope Scope => Current?.Scope ?? new PresetScope();
+
+    private void SetScope(Action<PresetScope> change)
+    {
+        if (Current is not Preset preset) return;
+
+        change(preset.Scope);
+        PresetStore.Save(preset);
+
+        RaiseScope();
+        RefreshDrift();
+    }
+
+    public bool ScopeArrangement
+    {
+        get => Scope.Arrangement;
+        set => SetScope(s => s.Arrangement = value);
+    }
+
+    public bool ScopeModes
+    {
+        get => Scope.Modes;
+        set => SetScope(s => s.Modes = value);
+    }
+
+    public bool ScopeHdr
+    {
+        get => Scope.Hdr;
+        set => SetScope(s => s.Hdr = value);
+    }
+
+    public bool ScopeBrightness
+    {
+        get => Scope.Brightness;
+        set => SetScope(s => s.Brightness = value);
+    }
+
+    public bool ScopeNightLight
+    {
+        get => Scope.NightLight;
+        set => SetScope(s => s.NightLight = value);
+    }
+
+    public bool ScopeWallpaper
+    {
+        get => Scope.Wallpaper;
+        set => SetScope(s => s.Wallpaper = value);
+    }
+
+    public bool ScopeTaskbar
+    {
+        get => Scope.Taskbar;
+        set => SetScope(s => s.Taskbar = value);
+    }
+
+    private void RaiseScope()
+    {
+        Raise(nameof(ScopeArrangement));
+        Raise(nameof(ScopeModes));
+        Raise(nameof(ScopeHdr));
+        Raise(nameof(ScopeBrightness));
+        Raise(nameof(ScopeNightLight));
+        Raise(nameof(ScopeWallpaper));
+        Raise(nameof(ScopeTaskbar));
+        Raise(nameof(Details));
+    }
+
+    /// <summary>
+    /// What the selected preset holds, per monitor.
+    /// </summary>
+    /// <remarks>
+    /// Says plainly whether each monitor in the preset is attached right now,
+    /// because that is the single most common reason a preset does less than
+    /// expected.
+    /// </remarks>
+    public string Details
+    {
+        get
+        {
+            if (Current is not Preset preset) return "";
+
+            var attached = new HashSet<string>(StringComparer.Ordinal);
+            foreach (DisplayInfo d in _displays()) attached.Add(d.Token);
+
+            var lines = new List<string>(preset.Monitors.Count);
+            foreach ((string token, PresetMonitor m) in preset.Monitors)
+            {
+                string state = attached.Contains(token) ? "attached" : "not attached";
+                string rate = m.RefreshHz > 0 ? $" @ {m.RefreshHz} Hz" : "";
+                string primary = m.Primary ? ", main" : "";
+
+                lines.Add($"{m.Label ?? token} — {m.Width} x {m.Height}{rate} at {m.X},{m.Y}{primary}  ({state})");
+            }
+
+            return lines.Count == 0 ? "This preset has no monitors in it." : string.Join("\n", lines);
+        }
+    }
+
+    // ----------------------------------------------------------- app rules --
+
+    public void AddRule()
+    {
+        var rule = new AppRule();
+        _settings.AppRules.Add(rule);
+        _persist();
+
+        Rules.Add(new AppRuleViewModel(rule, _persist));
+        Raise(nameof(RulesEmptyVisibility));
+    }
+
+    public void RemoveRule(AppRuleViewModel rule)
+    {
+        _settings.AppRules.Remove(rule.Rule);
+        _persist();
+
+        Rules.Remove(rule);
+        Raise(nameof(RulesEmptyVisibility));
+    }
+
+    public Visibility RulesEmptyVisibility =>
+        Rules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Raise([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}

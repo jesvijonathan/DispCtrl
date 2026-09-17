@@ -41,6 +41,12 @@
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
 
+        <muxc:NavigationViewItem Content="Presets" Tag="presets">
+          <muxc:NavigationViewItem.Icon>
+            <FontIcon Glyph="&#xE8FD;"/>
+          </muxc:NavigationViewItem.Icon>
+        </muxc:NavigationViewItem>
+
         <muxc:NavigationViewItem Content="Engine" Tag="engine">
           <muxc:NavigationViewItem.Icon>
             <FontIcon Glyph="&#xE945;"/>

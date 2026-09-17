@@ -25,6 +25,19 @@
     <EnableComHosting>false</EnableComHosting>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
+    <!-- Built-in COM, turned back on. PublishAot switches it off, and that was
+         fine while the engine only did taskbar work. Per-app presets made the
+         engine set brightness, and the built-in panel's brightness goes through
+         WMI (System.Management), which is built-in COM - so every rule that
+         touched the laptop screen died with NotSupported_COM.
+
+         This is a debt, not a fix: it is the one thing now standing between the
+         engine and Native AOT. Paying it off means reaching WMI through
+         source-generated COM interfaces the way Wallpaper.cs already reaches
+         IDesktopWallpaper, at which point this line goes away. Leaving PublishAot
+         set means the publish-time warning keeps saying so. -->
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+
     <!-- Memory and thread trimming for a process that sits resident all day.
          Concurrent GC buys throughput on a busy server by running collection on
          a dedicated background thread; this engine allocates almost nothing, so
@@ -67,6 +80,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Umbra.Core\Umbra.Core.csproj" />
+
+    <!-- Added when per-app presets landed. Umbra.Display used to be the app's
+         alone, on the reasoning that every call in it is a deliberate user
+         action. Per-app rules make those same calls background work, so that
+         reasoning no longer holds and the engine needs them too. -->
+    <ProjectReference Include="..\Umbra.Display\Umbra.Display.csproj" />
   </ItemGroup>
 
 </Project>

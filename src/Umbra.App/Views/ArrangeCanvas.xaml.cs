@@ -1,11 +1,15 @@
 using Microsoft.UI;
+using Windows.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Umbra.App.Services;
 using Umbra.Core.Displays;
 using Umbra.Display;
 using Windows.Foundation;
+using Windows.Storage.Streams;
 
 namespace Umbra.App.Views;
 
@@ -116,11 +120,10 @@ public sealed partial class ArrangeCanvas : UserControl
                 Foreground = new SolidColorBrush(Colors.White),
             };
 
-            // Flat plates, as Windows draws them: a solid fill, accent on the
-            // primary, and nothing else. The wallpaper that used to fill these
-            // made every tile a different brightness, which buried the one
-            // thing the diagram is for — where each panel sits relative to the
-            // others.
+            // Each tile carries the wallpaper actually on that display, which
+            // is what makes the diagram answer "which one is this?" at a
+            // glance. Windows draws flat plates here; this is deliberately not
+            // that, because the wallpaper is the fastest identifier there is.
             var border = new Border
             {
                 CornerRadius = new CornerRadius(8),
@@ -128,13 +131,25 @@ public sealed partial class ArrangeCanvas : UserControl
                 Background = (Brush)Application.Current.Resources[
                     d.IsPrimary ? "AccentFillColorDefaultBrush" : "ControlAltFillColorSecondaryBrush"],
                 BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
-                Child = label,
+
+                // A scrim under the numeral, so a bright or busy wallpaper
+                // cannot swallow it. Same treatment as the per-display preview.
+                Child = new Grid
+                {
+                    Children =
+                    {
+                        new Border { Background = new SolidColorBrush(Color.FromArgb(0x59, 0, 0, 0)) },
+                        label,
+                    },
+                },
             };
 
             border.PointerPressed += OnPointerPressed;
             border.PointerMoved += OnPointerMoved;
             border.PointerReleased += OnPointerReleased;
             border.PointerCaptureLost += OnPointerCaptureLost;
+
+            _ = LoadTileWallpaperAsync(border, d);
 
             var tile = new Tile { Element = border, Label = label, Display = d, X = x, Y = y };
             border.Tag = tile;
@@ -188,6 +203,41 @@ public sealed partial class ArrangeCanvas : UserControl
             Canvas.SetTop(t.Element, _offsetY + (t.Y - _originY) * _scale);
         }
     }
+
+    /// <summary>Paints a tile with the wallpaper actually on that display.</summary>
+    /// <remarks>
+    /// Decoded small and scrimmed by the numeral's own contrast, so a busy or
+    /// bright wallpaper cannot swallow the number sitting on it.
+    /// </remarks>
+    private static async Task LoadTileWallpaperAsync(Border border, DisplayInfo display)
+    {
+        try
+        {
+            string? path = await Task.Run(() => Wallpaper.Read(display)).ConfigureAwait(true);
+            if (path is null || !File.Exists(path)) return;
+
+            byte[] bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(true);
+
+            var stream = new InMemoryRandomAccessStream();
+            using (DataWriter writer = new(stream.GetOutputStreamAt(0)))
+            {
+                writer.WriteBytes(bytes);
+                await writer.StoreAsync();
+            }
+
+            var bitmap = new BitmapImage { DecodePixelWidth = 320 };
+            await bitmap.SetSourceAsync(stream);
+
+            border.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
+        }
+        catch (Exception)
+        {
+            // An unreadable wallpaper just leaves the tile flat-coloured.
+        }
+    }
+
+    private void OnIdentify(object sender, RoutedEventArgs e) =>
+        DisplayIdentifier.Show(_displays, TimeSpan.FromSeconds(3));
 
     // ----------------------------------------------------------------- drag --
 

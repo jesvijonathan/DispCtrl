@@ -123,6 +123,71 @@ Verified end to end: unscheduled on, schedule excluding now, schedule including
 now, off, and engine stop each land both panels exactly where expected, with a
 clean return to 100/100/100 every time. Kill-then-restart recovers too.
 
+### Presets
+
+One preset is one JSON file in `%LOCALAPPDATA%\Umbra\presets`. That is the
+whole sharing story: export is a copy, import is a paste, and a user who wants
+to know what a preset will do can read it. A bundle format or a registry blob
+would buy nothing and cost both of those.
+
+Three decisions worth keeping:
+
+- **Scope, not all-or-nothing.** The useful presets are narrow — "warm and dim
+  for the evening" should not drag the resolution and wallpaper along with it.
+  Each preset says which of seven aspects it controls, and the two that cost a
+  mode switch (arrangement, modes) are the ones worth leaving out.
+
+- **Capture records everything; scope decides what is applied.** Narrowing or
+  widening a preset later therefore never means re-capturing.
+
+- **Drift is listed, not flagged.** "Unsaved changes" on its own is a prompt the
+  user cannot answer. Knowing it is the brightness that moved and not the
+  resolution is the difference between confidently pressing Save and not daring
+  to. Brightness needs a two-point tolerance: DDC/CI rounds what it is asked
+  for, and without it a preset would sit permanently, uselessly dirty.
+
+Matching is on the same replug-surviving token as settings, so a preset follows
+the physical panel rather than the slot.
+
+### Per-app presets, and what they cost
+
+A rule is "when this app is in front, use this preset". The engine polls the
+foreground window once a second — a WinEvent hook would put the engine in the
+message path of every activation on the machine, for no gain — and a rule only
+fires once its app has held the foreground for two seconds, because applying a
+preset can blank the screen and alt-tabbing past an app must not do that.
+
+Three bugs found building it, all of the same family:
+
+- **Rules compared by reference.** Applying writes settings, the watcher reloads
+  the file, and the reload builds new `AppRule` objects — so the "already
+  active" guard never matched. It re-applied every tick, and each apply
+  triggered the next reload. Now compared by process and preset name.
+
+- **A stale persist closure.** The engine captured the settings instance it
+  started with; persisting that wrote its old view back over whatever the user
+  had just changed, silently undoing edits made in the panel. The callback now
+  takes the settings object the apply actually ran against.
+
+- **`NotSupported_COM`.** `PublishAot` switches off built-in COM interop, and
+  the built-in panel's brightness goes through WMI (`System.Management`), which
+  is built-in COM. Every rule that touched the laptop screen died. Re-enabled
+  with `BuiltInComInteropSupport`.
+
+**That last one is a debt, and it is now the thing standing between the engine
+and Native AOT.** Paying it off means reaching WMI through source-generated COM
+interfaces, the way `Wallpaper.cs` already reaches `IDesktopWallpaper`. Leaving
+`PublishAot` set keeps the publish-time warning saying so. The same change also
+moved `Umbra.Display` into the engine's references: that assembly used to be
+the app's alone, on the reasoning that every call in it is a deliberate user
+action, and per-app rules made those same calls background work.
+
+Verified end to end on this machine: the rule applied once on focus, reverted
+once on loss, brightness 68 to 20 and back, no loop and no clobbered settings.
+Foreground activation cannot be driven from a background script — Windows
+refuses the focus steal — so the test matches on whatever genuinely holds the
+foreground rather than trying to create it.
+
 ### Known open issue
 
 The current watcher exited with code 1 on 09/14 and nothing restarted it; root

@@ -94,6 +94,15 @@ public sealed partial class DisplaysPage : Page
         await ViewModel.CaptureLimitsAsync();
     }
 
+    private void OnCaptureWarmth(object sender, RoutedEventArgs e) =>
+        ViewModel.CaptureWarmthLimits();
+
+    private void OnCancelWarmth(object sender, RoutedEventArgs e) =>
+        ViewModel.CancelWarmthCalibration();
+
+    private void OnRecalibrateWarmth(object sender, RoutedEventArgs e) =>
+        ViewModel.BeginWarmthCalibration();
+
     private void OnCancelCalibration(object sender, RoutedEventArgs e) =>
         ViewModel.CancelCalibration();
 

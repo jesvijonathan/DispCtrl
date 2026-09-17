@@ -36,3 +36,9 @@ AttachConsole
 // pointless power cost on a laptop.
 timeBeginPeriod
 timeEndPeriod
+
+// ---- per-app presets ----
+// Which app is in front, polled once a second. A WinEvent hook would put this
+// process in the message path of every activation on the machine; two syscalls
+// on a timer cannot slow anything else down.
+GetWindowThreadProcessId

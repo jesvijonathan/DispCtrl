@@ -17,7 +17,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ObservableCollection<DisplayViewModel> Displays { get; } = [];
 
-    public MainViewModel() => Refresh();
+    public MainViewModel()
+    {
+        Presets = new PresetsViewModel(() => _settings, CurrentDisplays, Persist, Refresh);
+        Refresh();
+    }
+
+    /// <summary>The live display list, for anything that needs it after a rescan.</summary>
+    private List<DisplayInfo> CurrentDisplays()
+    {
+        var result = new List<DisplayInfo>(Displays.Count);
+        foreach (DisplayViewModel d in Displays) result.Add(d.Info);
+        return result;
+    }
 
     // ------------------------------------------------------------- displays --
 
@@ -67,7 +79,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             // legible even though nothing matches on it.
             ms.Label = d.Label;
 
-            Displays.Add(new DisplayViewModel(d, ms, i + 1, Persist));
+            Displays.Add(new DisplayViewModel(d, ms, _settings, i + 1, Persist, () => PerDisplayWarmth));
         }
 
         ScalePreviews();
@@ -191,6 +203,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Raise(nameof(StopVisibility));
     }
 
+    /// <summary>
+    /// The Presets page's state.
+    /// </summary>
+    /// <remarks>
+    /// Hung off the shared view model rather than created per navigation, so
+    /// the selected preset survives leaving the page and coming back. A picker
+    /// that forgets what was selected is not a picker anyone trusts.
+    /// </remarks>
+    public PresetsViewModel Presets { get; }
+
     // ---------------------------------------------------- unison brightness --
 
     /// <summary>
@@ -244,6 +266,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     // ------------------------------------------------------------ night light --
 
+    /// <summary>The lowest warmth worth storing. See <see cref="NightLightStrength"/>.</summary>
+    private const int MinStrength = 5;
+
     private NightLightSettings Night => _settings.Global.NightLight;
 
     /// <summary>
@@ -262,6 +287,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (Night.Enabled == value) return;
             Night.Enabled = value;
+
+            // Recover from a settings file that already carries a zero, written
+            // before the floor above existed.
+            if (value && Night.Strength < MinStrength) Night.Strength = new NightLightSettings().Strength;
+
             Persist();
             Raise();
             RaiseNightLight();
@@ -269,12 +299,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// How warm, as a percentage of the usable range.
+    /// </summary>
+    /// <remarks>
+    /// Floored at <see cref="MinStrength"/> rather than zero. Zero warmth is
+    /// indistinguishable from night light being off, so it is not a setting
+    /// anyone wants — and it is exactly what a two-way slider writes back the
+    /// moment it is realised, before binding has pushed the real value in. That
+    /// is how switching night light on used to silently set it to 0%.
+    /// </remarks>
     public double NightLightStrength
     {
         get => Night.Strength;
         set
         {
-            int v = Math.Clamp((int)value, 0, 100);
+            int v = Math.Clamp((int)value, MinStrength, 100);
             if (Night.Strength == v) return;
             Night.Strength = v;
             Persist();
@@ -328,8 +368,145 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>One warmth for the desk, or one per display.</summary>
+    public bool NightLightUnison
+    {
+        get => Night.Unison;
+        set
+        {
+            if (Night.Unison == value) return;
+            Night.Unison = value;
+            Persist();
+            Raise();
+            RaiseNightLight();
+        }
+    }
+
+    /// <summary>Run the shared slider between each display's captured limits.</summary>
+    public bool NightLightCalibrated
+    {
+        get => Night.Calibrated;
+        set
+        {
+            if (Night.Calibrated == value) return;
+            Night.Calibrated = value;
+            Persist();
+            Raise();
+
+            if (value) BeginWarmthCalibration();
+            else ClearWarmthCalibration();
+
+            RaiseNightLight();
+        }
+    }
+
+    private CalibrationStep _warmthStep = CalibrationStep.None;
+
+    public void BeginWarmthCalibration()
+    {
+        _warmthStep = CalibrationStep.Lower;
+        RaiseNightLight();
+    }
+
+    public void CancelWarmthCalibration()
+    {
+        _warmthStep = CalibrationStep.None;
+        RaiseNightLight();
+    }
+
+    private void ClearWarmthCalibration()
+    {
+        _warmthStep = CalibrationStep.None;
+        foreach (DisplayViewModel d in Displays) d.ClearWarmthLimits();
+    }
+
+    /// <summary>
+    /// Takes each display's current warmth as the limit being asked for.
+    /// </summary>
+    /// <remarks>
+    /// The per-display sliders are shown for the duration whatever unison says,
+    /// because the whole point of the step is setting the panels to look alike
+    /// by eye — which cannot be done through one shared control.
+    /// </remarks>
+    public void CaptureWarmthLimits()
+    {
+        if (_warmthStep == CalibrationStep.None) return;
+
+        bool upper = _warmthStep == CalibrationStep.Upper;
+        foreach (DisplayViewModel d in Displays) d.CaptureWarmthLimit(upper);
+
+        if (upper)
+        {
+            _warmthStep = CalibrationStep.None;
+            Night.Strength = 100;
+            Persist();
+            Raise(nameof(NightLightStrength));
+        }
+        else
+        {
+            _warmthStep = CalibrationStep.Upper;
+        }
+
+        RaiseNightLight();
+    }
+
+    public bool CalibratingWarmth => _warmthStep != CalibrationStep.None;
+
+    public Visibility WarmthStepVisibility =>
+        CalibratingWarmth ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility WarmthLimitsVisibility =>
+        Night.Enabled && Night.Unison && Night.Calibrated && !CalibratingWarmth
+            ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility NightLightCalibrateVisibility =>
+        Night.Enabled && Night.Unison ? Visibility.Visible : Visibility.Collapsed;
+
+    public string WarmthStepHeader => _warmthStep switch
+    {
+        CalibrationStep.Lower => "Step 1 of 2 — the least warmth you want",
+        CalibrationStep.Upper => "Step 2 of 2 — the most warmth you want",
+        _ => "Calibrated warmth",
+    };
+
+    public string WarmthStepPrompt => _warmthStep switch
+    {
+        CalibrationStep.Lower =>
+            "Each display now has its own warmth slider below. Set them so the screens look equally "
+            + "warm at the gentlest setting you would use, then capture.",
+        CalibrationStep.Upper =>
+            "Now set them so they look equally warm at the strongest setting you would use, then capture.",
+        _ => "",
+    };
+
+    public string WarmthStepButton =>
+        _warmthStep == CalibrationStep.Upper ? "Capture the most warmth" : "Capture the least warmth";
+
+    public string WarmthLimitsSummary
+    {
+        get
+        {
+            var parts = new List<string>(Displays.Count);
+            foreach (DisplayViewModel d in Displays) parts.Add(d.WarmthRangeSummary);
+            return parts.Count == 0 ? "No displays" : string.Join("  |  ", parts);
+        }
+    }
+
+    /// <summary>
+    /// Whether each display shows its own warmth slider right now.
+    /// </summary>
+    /// <remarks>
+    /// True in per-display mode, and also mid-calibration whatever the mode —
+    /// see <see cref="CaptureWarmthLimits"/>.
+    /// </remarks>
+    public bool PerDisplayWarmth => Night.Enabled && (!Night.Unison || CalibratingWarmth);
+
     public Visibility NightLightVisibility =>
         Night.Enabled ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>The shared slider only means anything in unison mode.</summary>
+    public Visibility NightLightSharedVisibility =>
+        Night.Enabled && Night.Unison ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility NightLightScheduleVisibility =>
         Night.Enabled && Night.Scheduled ? Visibility.Visible : Visibility.Collapsed;
@@ -384,9 +561,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void RaiseNightLight()
     {
         Raise(nameof(NightLightVisibility));
+        Raise(nameof(NightLightSharedVisibility));
         Raise(nameof(NightLightScheduleVisibility));
         Raise(nameof(NightLightStrengthText));
         Raise(nameof(NightLightStatus));
+        Raise(nameof(NightLightCalibrateVisibility));
+        Raise(nameof(CalibratingWarmth));
+        Raise(nameof(WarmthStepVisibility));
+        Raise(nameof(WarmthLimitsVisibility));
+        Raise(nameof(WarmthStepHeader));
+        Raise(nameof(WarmthStepPrompt));
+        Raise(nameof(WarmthStepButton));
+        Raise(nameof(WarmthLimitsSummary));
+        Raise(nameof(PerDisplayWarmth));
+
+        foreach (DisplayViewModel d in Displays) d.RaiseNightLight();
     }
 
     // ----------------------------------------------- calibrated unison range --

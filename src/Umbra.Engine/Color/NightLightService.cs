@@ -91,12 +91,14 @@ internal sealed class NightLightService : IDisposable
     {
         try
         {
-            NightLightSettings config;
+            UmbraSettings settings;
             lock (_gate)
             {
                 if (_disposed) return;
-                config = _settings.Global.NightLight;
+                settings = _settings;
             }
+
+            NightLightSettings config = settings.Global.NightLight;
 
             if (!config.ActiveAt(DateTime.Now))
             {
@@ -112,12 +114,16 @@ internal sealed class NightLightService : IDisposable
             // Re-applied every tick even when nothing changed, for the reasons
             // in the type remarks: otherwise the displays quietly go cold after
             // a resume and stay that way.
-            int strength = Math.Clamp(config.Strength, 0, 100);
+            // Resolved per display: unison, calibration and per-monitor
+            // overrides all land in one place, in Umbra.Core, so the engine and
+            // the panel cannot disagree about what a slider position means.
             foreach (DisplayInfo d in DisplayRegistry.Enumerate())
-                _ = NightLight.Apply(d, strength);
+                _ = NightLight.Apply(d, settings.NightLightStrengthFor(d.Token));
 
+            int strength = Math.Clamp(config.Strength, 0, 100);
             if (!_warm || strength != _appliedStrength)
-                Log.Write($"night light on at {strength}% ({NightLight.KelvinFor(strength):0}K)");
+                Log.Write($"night light on, shared level {strength}%"
+                    + (config.Unison ? "" : " (per display)"));
 
             _warm = true;
             _appliedStrength = strength;
