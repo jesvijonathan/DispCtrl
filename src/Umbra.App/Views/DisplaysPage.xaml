@@ -199,32 +199,6 @@
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
-      <tk:SettingsCard Header="Rotate with the device"
-                       Description="{x:Bind ViewModel.AutoRotationDetail, Mode=OneWay}"
-                       Margin="0,4,0,0"
-                       Visibility="{x:Bind ViewModel.AutoRotationVisibility, Mode=OneWay}">
-        <tk:SettingsCard.HeaderIcon>
-          <FontIcon Glyph="&#xE7AD;"/>
-        </tk:SettingsCard.HeaderIcon>
-        <Button Content="Open Settings" Click="OnOpenRotation"
-                AutomationProperties.Name="OpenRotationSettings"/>
-      </tk:SettingsCard>
-
-      <!-- Not per-monitor, and not a monitor setting: Windows drives it from
-           the ambient light sensor through the power scheme. It sits here
-           because this is where brightness lives, and because looking for it
-           among a monitor's own controls is the one place it will never be. -->
-      <tk:SettingsCard Header="Adaptive brightness"
-                       Description="{x:Bind ViewModel.AdaptiveBrightnessDetail, Mode=OneWay}"
-                       Margin="0,4,0,0"
-                       Visibility="{x:Bind ViewModel.AdaptiveBrightnessVisibility, Mode=OneWay}">
-        <tk:SettingsCard.HeaderIcon>
-          <FontIcon Glyph="&#xE706;"/>
-        </tk:SettingsCard.HeaderIcon>
-        <ToggleSwitch IsOn="{x:Bind ViewModel.AdaptiveBrightnessOn, Mode=TwoWay}"
-                      AutomationProperties.Name="AdaptiveBrightnessToggle"/>
-      </tk:SettingsCard>
-
       <tk:SettingsExpander Header="Night light"
                            Description="Warmer colours on every display at once, to cut blue light in the evening."
                            Margin="0,4,0,0">
@@ -497,6 +471,30 @@
                           Minimum="5" Maximum="100" StepFrequency="1"
                           Width="220" VerticalAlignment="Center"
                           AutomationProperties.Name="{x:Bind WarmthAutomationName}"/>
+                </tk:SettingsCard>
+
+                <!-- Windows settings, not the monitor's, but they act on this
+                     panel and nothing else: the light sensor drives the
+                     built-in backlight and the accelerometer turns the built-in
+                     screen. They belong where someone would look for them. -->
+                <tk:SettingsCard Header="Adaptive brightness"
+                                 Description="{x:Bind AdaptiveDetail, Mode=OneWay}"
+                                 Visibility="{x:Bind AdaptiveVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE706;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <ToggleSwitch IsOn="{x:Bind AdaptiveOn, Mode=TwoWay}"
+                                AutomationProperties.Name="AdaptiveBrightnessToggle"/>
+                </tk:SettingsCard>
+
+                <tk:SettingsCard Header="Rotate with the device"
+                                 Description="{x:Bind RotationDetail, Mode=OneWay}"
+                                 Visibility="{x:Bind RotationVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7AD;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <ToggleSwitch IsOn="{x:Bind RotationOn, Mode=TwoWay}"
+                                AutomationProperties.Name="AutoRotationToggle"/>
                 </tk:SettingsCard>
 
                 <tk:SettingsCard Header="OLED panel"

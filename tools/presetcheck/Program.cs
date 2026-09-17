@@ -65,7 +65,17 @@ empty.Scope.Arrangement = false;
 empty.Scope.Modes = false;
 empty.Scope.Brightness = false;
 empty.Scope.NightLight = false;
+empty.Scope.MonitorControls = false;
 Check("reports itself as empty", empty.Scope.IsEmpty);
+
+// Every aspect has to count, or a preset with only that one left on would be
+// refused as controlling nothing.
+var one = new Preset { Name = "One" };
+one.Scope.Arrangement = false;
+one.Scope.Modes = false;
+one.Scope.Brightness = false;
+one.Scope.NightLight = false;
+Check("a preset with only the monitor's settings is not empty", !one.Scope.IsEmpty);
 
 Console.WriteLine();
 Console.WriteLine("diff honours scope");
@@ -124,6 +134,40 @@ var incomplete = new AppRule { Process = "x" };
 Check("an incomplete rule is flagged", !incomplete.IsComplete);
 
 Console.WriteLine();
+
+Console.WriteLine();
+Console.WriteLine("the monitor's own settings in a preset");
+{
+    var vcpSaved = new Preset { Name = "S" };
+    vcpSaved.Monitors["t"] = new PresetMonitor
+    {
+        Label = "DELL",
+        MonitorControls = { ["0x12"] = 75, ["0x14"] = 5 },
+    };
+
+    var vcpLive = new Preset { Name = "S" };
+    vcpLive.Monitors["t"] = new PresetMonitor
+    {
+        Label = "DELL",
+        MonitorControls = { ["0x12"] = 58, ["0x14"] = 5 },
+    };
+
+    var diffs = PresetDiff.Describe(vcpSaved, vcpLive);
+    Check("a changed contrast is drift", diffs.Count == 1);
+    Check("and it names the code", diffs.Count == 1 && diffs[0].Contains("0x12"));
+
+    vcpLive.Monitors["t"].MonitorControls["0x12"] = 75;
+    Check("matching settings are not", PresetDiff.Describe(vcpSaved, vcpLive).Count == 0);
+
+    // A preset from another machine can name codes this monitor lacks.
+    vcpLive.Monitors["t"].MonitorControls.Remove("0x14");
+    Check("a code this monitor no longer reports is not drift",
+        PresetDiff.Describe(vcpSaved, vcpLive).Count == 0);
+
+    vcpSaved.Scope.MonitorControls = false;
+    vcpLive.Monitors["t"].MonitorControls["0x12"] = 1;
+    Check("nothing is reported when out of scope", PresetDiff.Describe(vcpSaved, vcpLive).Count == 0);
+}
 
 Console.WriteLine();
 Console.WriteLine("physical arrangement layout");

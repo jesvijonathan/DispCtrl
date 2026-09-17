@@ -158,4 +158,51 @@ public static class AutoRotation
         return new AutoRotationState(true, (flags & Disabled) == 0,
             (flags & Disabled) == 0 ? "On." : "Off.");
     }
+
+    /// <summary>
+    /// Turns auto-rotation on or off, asking for elevation once.
+    /// </summary>
+    /// <remarks>
+    /// The setting lives in HKLM and there is no public API to change it —
+    /// <c>SetAutoRotation</c> is not exported from user32 on this build, and the
+    /// key rejects a write from a normal token. So this shells out to Windows'
+    /// own <c>reg.exe</c> with the <c>runas</c> verb, which raises the UAC
+    /// prompt for that one write and nothing else.
+    /// <para>
+    /// Deliberately not "make the whole app elevated". Everything else Umbra
+    /// does — taskbars, DDC/CI, modes, gamma — works from a normal token, and a
+    /// packaged app cannot request elevation at all, so running the panel as
+    /// administrator would trade the Store for one toggle.
+    /// </para>
+    /// <para>
+    /// Returns false when the user dismisses the prompt, which is a normal
+    /// answer and not an error.
+    /// </para>
+    /// </remarks>
+    public static bool Write(bool enabled)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "reg.exe",
+            Arguments = "add \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AutoRotation\" "
+                      + $"/v Enable /t REG_DWORD /d {(enabled ? 1 : 0)} /f",
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+        };
+
+        try
+        {
+            using System.Diagnostics.Process? process = System.Diagnostics.Process.Start(start);
+            if (process is null) return false;
+
+            process.WaitForExit(10_000);
+            return process.HasExited && process.ExitCode == 0;
+        }
+        catch (Exception)
+        {
+            // The prompt was dismissed, or the policy forbids elevation.
+            return false;
+        }
+    }
 }

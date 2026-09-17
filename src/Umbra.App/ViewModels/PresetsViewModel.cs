@@ -588,6 +588,12 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         set => SetScope(s => s.Taskbar = value);
     }
 
+    public bool ScopeMonitorControls
+    {
+        get => Scope.MonitorControls;
+        set => SetScope(s => s.MonitorControls = value);
+    }
+
     private void RaiseScope()
     {
         Raise(nameof(ScopeArrangement));
@@ -597,6 +603,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         Raise(nameof(ScopeNightLight));
         Raise(nameof(ScopeWallpaper));
         Raise(nameof(ScopeTaskbar));
+        Raise(nameof(ScopeMonitorControls));
         Raise(nameof(Details));
     }
 

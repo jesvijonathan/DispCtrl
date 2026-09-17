@@ -86,10 +86,51 @@ public static class PresetService
                 WallpaperPath = Wallpaper.Read(d),
                 HideTaskbar = ms.HideTaskbar,
                 ReclaimWorkArea = ms.ReclaimWorkArea,
+                MonitorControls = CaptureMonitorControls(d),
             };
         }
 
         return preset;
+    }
+
+    /// <summary>
+    /// The monitor's own settings, as far as it will report them.
+    /// </summary>
+    /// <remarks>
+    /// Only the controls Umbra is willing to write. Recording one it would
+    /// refuse to set would put a value in the file that applying can never
+    /// honour, which is worse than not recording it.
+    /// </remarks>
+    /// <summary>VCP 10h, which brightness already owns.</summary>
+    private const byte BrightnessCode = 0x10;
+
+    private static Dictionary<string, int> CaptureMonitorControls(DisplayInfo display)
+    {
+        var result = new Dictionary<string, int>();
+        if (display.IsInternal) return result;
+
+        try
+        {
+            foreach (VcpControl c in MonitorCapabilities.ReadSettable(display).Controls)
+            {
+                if (!c.Settable || c.CurrentValue < 0) continue;
+
+                // Brightness has its own field, captured through the same path
+                // the brightness slider uses. Recording it here as well would
+                // give the preset two values for one setting, free to disagree
+                // — and on this Dell the VCP read came back 24 while the panel
+                // was plainly at 62.
+                if (c.Code == BrightnessCode) continue;
+
+                result[c.Hex] = c.CurrentValue;
+            }
+        }
+        catch (Exception)
+        {
+            // A monitor that will not talk simply contributes nothing.
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -159,6 +200,7 @@ public static class PresetService
         if (preset.Scope.NightLight) ApplyNightLight(preset, matched, settings);
         if (preset.Scope.Wallpaper) ApplyWallpaper(preset, matched, notes);
         if (preset.Scope.Taskbar) ApplyTaskbar(matched, settings);
+        if (preset.Scope.MonitorControls) ApplyMonitorControls(matched, notes);
 
         return new PresetResult(true, notes);
     }
@@ -319,6 +361,58 @@ public static class PresetService
             if (!Wallpaper.Write(d, m.WallpaperPath))
                 notes.Add($"{d.Label}: wallpaper could not be set.");
         }
+    }
+
+    /// <remarks>
+    /// Each write is a DDC/CI round trip, so a monitor with a dozen recorded
+    /// settings takes a noticeable moment. Values already at their target are
+    /// skipped, which in the common case of re-applying a preset means no
+    /// traffic at all.
+    /// </remarks>
+    private static void ApplyMonitorControls(List<(DisplayInfo Display, PresetMonitor State)> matched,
+                                             List<string> notes)
+    {
+        foreach ((DisplayInfo d, PresetMonitor m) in matched)
+        {
+            if (m.MonitorControls.Count == 0 || d.IsInternal) continue;
+
+            Dictionary<byte, int> live = [];
+            try
+            {
+                foreach (VcpControl c in MonitorCapabilities.ReadSettable(d).Controls)
+                    if (c.Settable && c.CurrentValue >= 0) live[c.Code] = c.CurrentValue;
+            }
+            catch (Exception)
+            {
+                notes.Add($"{d.Label}: could not read its own settings.");
+                continue;
+            }
+
+            foreach ((string hex, int want) in m.MonitorControls)
+            {
+                if (!TryParseCode(hex, out byte code)) continue;
+
+                // Presets written before brightness was excluded still name it.
+                if (code == BrightnessCode) continue;
+
+                // Only controls the monitor still offers. A preset from another
+                // machine, or from before a firmware change, can name codes this
+                // panel does not have.
+                if (!live.TryGetValue(code, out int have)) continue;
+                if (have == want) continue;
+
+                if (!MonitorCapabilities.Write(d, code, (uint)want))
+                    notes.Add($"{d.Label}: {hex} would not take {want}.");
+            }
+        }
+    }
+
+    private static bool TryParseCode(string hex, out byte code)
+    {
+        ReadOnlySpan<char> text = hex.AsSpan();
+        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) text = text[2..];
+
+        return byte.TryParse(text, System.Globalization.NumberStyles.HexNumber, null, out code);
     }
 
     private static void ApplyTaskbar(List<(DisplayInfo Display, PresetMonitor State)> matched, UmbraSettings settings)

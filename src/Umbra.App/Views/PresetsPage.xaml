@@ -154,6 +154,12 @@
                             AutomationProperties.Name="ScopeWallpaper"/>
             </tk:SettingsCard>
 
+            <tk:SettingsCard Header="The monitor's own settings"
+                             Description="Contrast, colour preset, picture mode, input source, sharpness and RGB gains — the settings Windows cannot restore at all.">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeMonitorControls, Mode=TwoWay}"
+                            AutomationProperties.Name="ScopeMonitorControls"/>
+            </tk:SettingsCard>
+
             <tk:SettingsCard Header="Taskbar hiding" Description="Which displays hide their taskbar.">
               <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeTaskbar, Mode=TwoWay}"
                             AutomationProperties.Name="ScopeTaskbar"/>

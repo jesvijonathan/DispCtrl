@@ -292,6 +292,40 @@ permanent damage. Better to ask than to guess.
   codes. ddcutil's position — record them, do not write them blind — is the
   same one taken here, and is the reason those codes are reported and never set.
 
+### Read DDC/CI too fast and it lies
+
+The channel gate stopped two callers colliding. It does not stop one caller
+asking too quickly, and that turns out to be worse, because it does not fail.
+
+Sweeping 37 VCP codes back to back, this Dell answered a brightness read with
+24 while the panel was plainly at 62 — a reply belonging to a different
+question. A preset captured from that sweep then wrote 24 back to the hardware,
+so a wrong read became a wrong screen. MCCS asks for 40ms between messages and
+means it; ddcutil carries per-model tuned delays for the same reason. There is
+now a flat 40ms gap between reads.
+
+Brightness is also excluded from the monitor-settings a preset captures. It has
+its own field, read through the path the brightness slider uses, and carrying it
+twice let one preset hold two values for one setting, free to disagree.
+
+### Where a Windows setting belongs
+
+Adaptive brightness and auto-rotation are Windows settings, not monitor ones,
+and they were put in the page's global section on that reasoning. That was the
+wrong call: both act on the built-in panel and nothing else — the ambient light
+sensor drives the laptop's backlight, the accelerometer turns the laptop's
+screen. They now sit on that display's card, worded so it is clear they are
+Windows' and machine-wide.
+
+Auto-rotation is settable now rather than a hand-off. There is no public API —
+`SetAutoRotation` is not exported from user32 on this build — and the HKLM key
+refuses a normal token, so the toggle shells out to Windows' own `reg.exe` with
+the `runas` verb: one UAC prompt for that one write.
+
+**Not** by making the app elevated. Everything else works from a normal token,
+and a packaged app cannot request elevation at all, so running the panel as
+administrator would trade the Store requirement for a single toggle.
+
 ### One monitor, one DDC/CI conversation
 
 A monitor has a single DDC/CI channel and will not serve two conversations at

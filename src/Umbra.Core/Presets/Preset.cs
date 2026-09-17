@@ -68,10 +68,23 @@ public sealed class PresetScope
     /// <summary>Which monitors hide their taskbar.</summary>
     public bool Taskbar { get; set; }
 
+    /// <summary>
+    /// The monitor's own settings: contrast, colour preset, picture mode,
+    /// input source, sharpness, RGB gains.
+    /// </summary>
+    /// <remarks>
+    /// On by default. These are the settings a monitor forgets when it is
+    /// switched between machines or inputs, and the ones Windows cannot restore
+    /// at all — which makes them among the most worthwhile things a preset can
+    /// carry.
+    /// </remarks>
+    public bool MonitorControls { get; set; } = true;
+
     /// <summary>True when the preset would change nothing at all.</summary>
     [JsonIgnore]
     public bool IsEmpty =>
-        !Arrangement && !Modes && !Hdr && !Brightness && !NightLight && !Wallpaper && !Taskbar;
+        !Arrangement && !Modes && !Hdr && !Brightness && !NightLight && !Wallpaper && !Taskbar
+        && !MonitorControls;
 }
 
 public sealed class PresetGlobal
@@ -135,4 +148,15 @@ public sealed class PresetMonitor
 
     public bool HideTaskbar { get; set; }
     public bool ReclaimWorkArea { get; set; } = true;
+
+    /// <summary>
+    /// The monitor's own VCP settings, keyed by code as "0x12".
+    /// </summary>
+    /// <remarks>
+    /// Keyed by hex string rather than by number so the file reads the way the
+    /// display report and every DDC/CI tool write these codes. Only controls
+    /// Umbra is willing to set are recorded; a manufacturer-specific code it
+    /// will not write has no business being restored either.
+    /// </remarks>
+    public Dictionary<string, int> MonitorControls { get; set; } = [];
 }

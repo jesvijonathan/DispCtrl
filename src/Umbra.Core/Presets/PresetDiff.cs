@@ -123,5 +123,16 @@ public static class PresetDiff
 
         if (scope.Taskbar && (want.HideTaskbar != have.HideTaskbar || want.ReclaimWorkArea != have.ReclaimWorkArea))
             diffs.Add($"{name}: taskbar hiding");
+
+        if (!scope.MonitorControls) return;
+
+        // Only codes both sides know about. A preset naming a control this
+        // monitor no longer reports is not drift — it is a preset from
+        // somewhere else, and applying already says so.
+        foreach ((string code, int wanted) in want.MonitorControls)
+        {
+            if (!have.MonitorControls.TryGetValue(code, out int actual) || actual == wanted) continue;
+            diffs.Add($"{name}: the monitor's {code} is {actual}, preset has {wanted}");
+        }
     }
 }

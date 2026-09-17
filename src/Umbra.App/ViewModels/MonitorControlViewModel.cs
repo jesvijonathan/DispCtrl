@@ -21,6 +21,17 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
     private readonly VcpControl _control;
 
     /// <summary>
+    /// Reports that the desk changed, so the preset bar re-checks.
+    /// </summary>
+    /// <remarks>
+    /// Without this, changing contrast or picture mode left the bar saying
+    /// everything matched while the monitor plainly did not — these are
+    /// hardware settings that never touch the settings file, so nothing else
+    /// would have noticed.
+    /// </remarks>
+    private readonly Action _deskChanged;
+
+    /// <summary>
     /// Coalesces a drag into one write.
     /// </summary>
     /// <remarks>
@@ -31,10 +42,11 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
     /// </remarks>
     private CancellationTokenSource? _pending;
 
-    public MonitorControlViewModel(DisplayInfo display, VcpControl control)
+    public MonitorControlViewModel(DisplayInfo display, VcpControl control, Action deskChanged)
     {
         _display = display;
         _control = control;
+        _deskChanged = deskChanged;
 
         foreach (VcpValue v in control.Values) Options.Add(v.Name);
         _selected = control.CurrentOption?.Name;
@@ -79,6 +91,7 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
             Raise(nameof(ValueText));
 
             Queue(() => MonitorCapabilities.Write(_display, _control.Code, (uint)v));
+            _deskChanged();
         }
     }
 
@@ -103,6 +116,7 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
 
                 _control.Current = v.Value;
                 Queue(() => MonitorCapabilities.Write(_display, _control.Code, v.Value));
+                _deskChanged();
                 break;
             }
         }

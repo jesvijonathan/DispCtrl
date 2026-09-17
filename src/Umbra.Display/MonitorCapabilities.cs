@@ -79,7 +79,7 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     /// </remarks>
     public bool Settable =>
         Kind != VcpKind.Information
-        && Settables.Contains(Code)
+        && VcpControl.Settables.Contains(Code)
         && (Kind == VcpKind.Continuous || CurrentOption is not null);
 
     /// <summary>
@@ -92,7 +92,7 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     /// it does is how a panel ends up in a state its own OSD cannot undo. They
     /// are reported, never written.
     /// </remarks>
-    private static readonly HashSet<byte> Settables =
+    internal static readonly HashSet<byte> Settables =
         [0x0C, 0x10, 0x12, 0x14, 0x16, 0x18, 0x1A, 0x60, 0x62, 0x66, 0x6C, 0x6E, 0x70,
          0x72, 0x87, 0x8D, 0xCA, 0xCC, 0xD6, 0xDC];
 
@@ -237,6 +237,16 @@ public static class MonitorCapabilities
         [0xDF] = ("MCCS version", VcpKind.Information),
     };
 
+    /// <summary>
+    /// Gap between consecutive VCP reads on one monitor, in milliseconds.
+    /// </summary>
+    /// <remarks>
+    /// The MCCS standard asks for 40ms between messages. Skipping it mostly
+    /// works, which is what makes it dangerous: the failure is not an error but
+    /// a reply belonging to the previous question.
+    /// </remarks>
+    private const int InterMessageMs = 40;
+
     /// <summary>Named values for the discrete controls worth offering.</summary>
     private static readonly Dictionary<byte, Dictionary<byte, string>> ValueNames = new()
     {
@@ -338,11 +348,22 @@ public static class MonitorCapabilities
     /// made to time out.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Capabilities strings already read, by device path.
+    /// </summary>
+    /// <remarks>
+    /// Cached for the life of the process because the string is a property of
+    /// the monitor, not of its current state — it does not change while the
+    /// panel is plugged in. Re-reading it is several DDC/CI round trips, and it
+    /// was being paid on every drift check.
+    /// </remarks>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string?> Strings = new();
+
     public static MonitorCapability Read(DisplayInfo display, bool readValues = true)
     {
         if (display.IsInternal) return MonitorCapability.None;
 
-        string? raw = ReadString(display);
+        string? raw = Strings.GetOrAdd(display.Key.DevicePath, _ => ReadString(display));
         if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
 
         MonitorCapability parsed = Parse(raw);
@@ -351,6 +372,37 @@ public static class MonitorCapabilities
         ReadCurrentValues(display, parsed.Controls);
         return parsed;
     }
+
+    /// <summary>
+    /// Reads only the controls Umbra is willing to set.
+    /// </summary>
+    /// <remarks>
+    /// A third of the round trips of a full read, and everything the preset
+    /// machinery actually needs: a control that will never be written does not
+    /// need its value captured. On the Dell this is 11 reads instead of 37.
+    /// </remarks>
+    public static MonitorCapability ReadSettable(DisplayInfo display)
+    {
+        if (display.IsInternal) return MonitorCapability.None;
+
+        string? raw = Strings.GetOrAdd(display.Key.DevicePath, _ => ReadString(display));
+        if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
+
+        MonitorCapability parsed = Parse(raw);
+
+        // Settable is partly decided by the value read, so the candidates are
+        // filtered on the allow list here and judged fully afterwards.
+        var wanted = new List<VcpControl>();
+        foreach (VcpControl c in parsed.Controls)
+            if (c.Kind != VcpKind.Information && VcpControl.Settables.Contains(c.Code)) wanted.Add(c);
+
+        if (wanted.Count > 0) ReadCurrentValues(display, wanted);
+
+        return parsed;
+    }
+
+    /// <summary>Forgets the cached string, so a replugged monitor is asked afresh.</summary>
+    public static void Forget(DisplayInfo display) => Strings.TryRemove(display.Key.DevicePath, out _);
 
     // ------------------------------------------------------------ reading --
 
@@ -386,8 +438,20 @@ public static class MonitorCapabilities
     {
         _ = DdcChannel.With<bool>(display, handle =>
         {
+            bool first = true;
+
             foreach (VcpControl c in controls)
             {
+                // MCCS specifies a gap between messages, and monitors mean it.
+                // Read back to back, this Dell returned replies that did not
+                // belong to the code asked for — a sweep reported brightness as
+                // 24 while the panel was plainly at 62, and a preset captured
+                // from that sweep then wrote the wrong value back to the
+                // hardware. ddcutil carries tuned per-model delays for the same
+                // reason; this is the conservative flat version of that.
+                if (!first) Thread.Sleep(InterMessageMs);
+                first = false;
+
                 uint current = 0, max = 0;
                 MC_VCP_CODE_TYPE type = default;
 
@@ -562,4 +626,41 @@ public static class MonitorCapabilities
     /// </remarks>
     public static bool Write(DisplayInfo display, byte code, uint value) =>
         DdcChannel.With(display, handle => PInvoke.SetVCPFeature(handle, code, value) != 0, false);
+
+    /// <summary>
+    /// Asks the monitor to restore its own factory settings.
+    /// </summary>
+    /// <remarks>
+    /// The standard gives three codes for this and monitors implement different
+    /// subsets: 04 restores everything, 05 just brightness and contrast, 08 just
+    /// colour. Whichever the panel advertises is used, widest first, and one is
+    /// enough — 04 covers what 05 and 08 do.
+    /// <para>
+    /// These are write-only triggers: the value is ignored, the act of writing
+    /// is the command. Only sent when the monitor listed the code, like every
+    /// other write here.
+    /// </para>
+    /// </remarks>
+    public static bool RestoreFactory(DisplayInfo display)
+    {
+        if (display.IsInternal) return false;
+
+        var available = new HashSet<byte>();
+        try
+        {
+            foreach (VcpControl c in Read(display, readValues: false).Controls) available.Add(c.Code);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+
+        if (available.Contains(0x04)) return Write(display, 0x04, 1);
+
+        bool any = false;
+        if (available.Contains(0x05)) any |= Write(display, 0x05, 1);
+        if (available.Contains(0x08)) any |= Write(display, 0x08, 1);
+
+        return any;
+    }
 }

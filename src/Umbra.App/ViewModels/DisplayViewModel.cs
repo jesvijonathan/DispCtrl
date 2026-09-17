@@ -100,6 +100,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Task advanced = LoadAdvancedAsync();
         Task brightness = LoadBrightnessAsync();
         Task monitorControls = LoadMonitorControlsAsync();
+        LoadMachineSettings();
 
         (List<(uint, uint)> resolutions, DisplayMode? current, string? wallpaper, WallpaperFit fit) =
             await Task.Run(() => (
@@ -965,10 +966,42 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// Those belong to Windows, not to Umbra, and silently rewriting them would
     /// be far more destructive than the word "reset" implies.
     /// </remarks>
+    /// <summary>
+    /// Puts this display back to defaults — Umbra's, and the monitor's own.
+    /// </summary>
+    /// <remarks>
+    /// Resetting Umbra's settings alone looked like a button that did nothing,
+    /// because the settings it clears are mostly invisible while the things the
+    /// user had actually changed — contrast, picture mode, colour preset — sat
+    /// untouched. Those belong to the monitor, and the monitor has a standard
+    /// command for restoring them, so this sends it.
+    /// <para>
+    /// Resolution, refresh rate, HDR and scaling still belong to Windows and are
+    /// deliberately left alone: they are not Umbra's to reset, and changing them
+    /// here would blank the screen for something nobody asked for.
+    /// </para>
+    /// </remarks>
     public void ResetToDefaults()
     {
         _settings.ResetToDefaults();
         _persist();
+
+        DisplayInfo d = _display;
+        if (!d.IsInternal)
+        {
+            _ = Task.Run(async () =>
+            {
+                bool ok = MonitorCapabilities.RestoreFactory(d);
+                if (!ok) return;
+
+                // The monitor needs a moment to settle before its new values
+                // read back correctly.
+                await Task.Delay(1200).ConfigureAwait(false);
+                _ui.TryEnqueue(() => _ = LoadMonitorControlsAsync());
+            });
+        }
+
+        _deskChanged();
 
         Raise(nameof(HideTaskbar));
         Raise(nameof(ReclaimWorkArea));
@@ -1101,6 +1134,131 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(RangeSummary));
     }
 
+    // ------------------------------------- Windows settings for this panel --
+
+    /// <summary>
+    /// Machine-wide display settings that only affect the built-in panel.
+    /// </summary>
+    /// <remarks>
+    /// Adaptive brightness and auto-rotation are Windows settings rather than
+    /// monitor ones, but both act on the built-in screen and nothing else: the
+    /// ambient light sensor drives the laptop's backlight, and the accelerometer
+    /// rotates the laptop's panel. Shown on that display's card because that is
+    /// where anyone would look for them, with wording that says plainly they are
+    /// Windows' and machine-wide.
+    /// </remarks>
+    public Visibility MachineSettingsVisibility =>
+        _display.IsInternal ? Visibility.Visible : Visibility.Collapsed;
+
+    private AdaptiveBrightnessState _adaptive = AdaptiveBrightnessState.Unsupported;
+    private AutoRotationState _rotation = AutoRotationState.Unsupported("");
+
+    /// <summary>Gate: a two-way toggle writes its own value back as it is realised.</summary>
+    private bool _adaptiveReady;
+
+    public Visibility AdaptiveVisibility =>
+        _display.IsInternal && _adaptive.Supported ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool AdaptiveOn
+    {
+        get => _adaptive.Enabled;
+        set
+        {
+            if (!_adaptiveReady || !_adaptive.Supported || _adaptive.Enabled == value) return;
+
+            _ = Task.Run(() =>
+            {
+                AdaptiveBrightness.Write(value);
+                AdaptiveBrightnessState after = AdaptiveBrightness.Read();
+
+                _ui.TryEnqueue(() =>
+                {
+                    _adaptive = after;
+                    Raise(nameof(AdaptiveOn));
+                    Raise(nameof(AdaptiveDetail));
+                });
+            });
+        }
+    }
+
+    public string AdaptiveDetail
+    {
+        get
+        {
+            string state = (_adaptive.PluggedIn, _adaptive.OnBattery) switch
+            {
+                (true, true) => "On, plugged in and on battery",
+                (true, false) => "On when plugged in, off on battery",
+                (false, true) => "On when on battery, off when plugged in",
+                _ => "Off",
+            };
+
+            return $"{state}. A Windows power setting, driven by the ambient light sensor \u2014 "
+                 + "which is why it is not among the monitor's own controls.";
+        }
+    }
+
+    private bool _rotationReady;
+
+    public Visibility RotationVisibility =>
+        _display.IsInternal && _rotation.Supported ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool RotationOn
+    {
+        get => _rotation.Enabled;
+        set
+        {
+            if (!_rotationReady || !_rotation.Supported || _rotation.Enabled == value) return;
+
+            _ = Task.Run(() =>
+            {
+                AutoRotation.Write(value);
+                AutoRotationState after = AutoRotation.Read();
+
+                // Read back rather than assumed: the prompt can be dismissed,
+                // and a toggle that moves when the setting did not is worse
+                // than one that refuses to move.
+                _ui.TryEnqueue(() =>
+                {
+                    _rotation = after;
+                    Raise(nameof(RotationOn));
+                    Raise(nameof(RotationDetail));
+                });
+            });
+        }
+    }
+
+    public string RotationDetail =>
+        $"{_rotation.Reason} The setting lives in a machine-wide key, so changing it asks for "
+        + "administrator rights once \u2014 the rest of Umbra never needs them.";
+
+    private void LoadMachineSettings()
+    {
+        if (!_display.IsInternal) return;
+
+        _ = Task.Run(() =>
+        {
+            AdaptiveBrightnessState adaptive = AdaptiveBrightness.Read();
+            AutoRotationState rotation = AutoRotation.Read();
+
+            _ui.TryEnqueue(() =>
+            {
+                _adaptive = adaptive;
+                _rotation = rotation;
+
+                Raise(nameof(AdaptiveOn));
+                Raise(nameof(AdaptiveDetail));
+                Raise(nameof(AdaptiveVisibility));
+                Raise(nameof(RotationOn));
+                Raise(nameof(RotationDetail));
+                Raise(nameof(RotationVisibility));
+
+                _adaptiveReady = true;
+                _rotationReady = true;
+            });
+        });
+    }
+
     // ----------------------------------------------- the monitor's own controls --
 
     /// <summary>
@@ -1194,7 +1352,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             // code, and two controls for one value would fight each other.
             if (c.Code == 0x10) continue;
 
-            MonitorControls.Add(new MonitorControlViewModel(d, c));
+            MonitorControls.Add(new MonitorControlViewModel(d, c, _deskChanged));
         }
 
         _reportedControls = cap.Controls.Count;
