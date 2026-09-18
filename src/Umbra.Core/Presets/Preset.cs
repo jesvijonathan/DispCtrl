@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace Umbra.Core.Presets;
 
 /// <summary>
@@ -14,11 +12,24 @@ namespace Umbra.Core.Presets;
 /// preset saved today still finds the right panel after the cables have been
 /// pulled and swapped.
 /// </para>
+/// <para>
+/// A preset holds <em>everything</em>, and applying one restores everything it
+/// holds. There is no per-preset list of what it is allowed to touch: a preset
+/// that silently left some of the desk alone was a preset whose behaviour you
+/// had to remember, and "why didn't it change the brightness" is a worse
+/// question than "why did it". What a preset does not carry is what could not
+/// be read from the hardware at the time, and those fields say so.
+/// </para>
 /// </remarks>
 public sealed class Preset
 {
     /// <summary>Schema version, so a later format change can migrate.</summary>
-    public int Version { get; set; } = 1;
+    /// <remarks>
+    /// Version 2 dropped the scope object. Files written by version 1 still
+    /// load — the unknown property is ignored — and gain the fields they lack
+    /// as defaults, which for every one of them means "not recorded".
+    /// </remarks>
+    public int Version { get; set; } = 2;
 
     public string Name { get; set; } = "Untitled";
 
@@ -27,66 +38,13 @@ public sealed class Preset
 
     public DateTimeOffset SavedUtc { get; set; } = DateTimeOffset.UtcNow;
 
-    /// <summary>What this preset is allowed to change.</summary>
-    public PresetScope Scope { get; set; } = new();
-
     public PresetGlobal Global { get; set; } = new();
 
     /// <summary>Per-monitor state, keyed on <c>DisplayKey.ToToken()</c>.</summary>
     public Dictionary<string, PresetMonitor> Monitors { get; set; } = [];
 }
 
-/// <summary>
-/// Which aspects of the desk a preset controls.
-/// </summary>
-/// <remarks>
-/// Scoped rather than all-or-nothing because the useful presets are usually
-/// narrow: "warm and dim for the evening" should not also drag the resolution
-/// and wallpaper along with it. Anything switched off here is left exactly as
-/// it is when the preset is applied.
-/// <para>
-/// The two that cost a mode switch — arrangement and modes — are the ones that
-/// blank the screen, so they are the ones worth being able to leave out.
-/// </para>
-/// </remarks>
-public sealed class PresetScope
-{
-    /// <summary>Positions, which display is primary, and the topology.</summary>
-    public bool Arrangement { get; set; } = true;
-
-    /// <summary>Resolution, refresh rate, scaling and orientation.</summary>
-    public bool Modes { get; set; } = true;
-
-    public bool Hdr { get; set; }
-
-    public bool Brightness { get; set; } = true;
-
-    public bool NightLight { get; set; } = true;
-
-    public bool Wallpaper { get; set; }
-
-    /// <summary>Which monitors hide their taskbar.</summary>
-    public bool Taskbar { get; set; }
-
-    /// <summary>
-    /// The monitor's own settings: contrast, colour preset, picture mode,
-    /// input source, sharpness, RGB gains.
-    /// </summary>
-    /// <remarks>
-    /// On by default. These are the settings a monitor forgets when it is
-    /// switched between machines or inputs, and the ones Windows cannot restore
-    /// at all — which makes them among the most worthwhile things a preset can
-    /// carry.
-    /// </remarks>
-    public bool MonitorControls { get; set; } = true;
-
-    /// <summary>True when the preset would change nothing at all.</summary>
-    [JsonIgnore]
-    public bool IsEmpty =>
-        !Arrangement && !Modes && !Hdr && !Brightness && !NightLight && !Wallpaper && !Taskbar
-        && !MonitorControls;
-}
-
+/// <summary>Everything that belongs to the desk rather than to one monitor.</summary>
 public sealed class PresetGlobal
 {
     /// <summary>Extend, Duplicate, InternalOnly or ExternalOnly.</summary>
@@ -106,8 +64,50 @@ public sealed class PresetGlobal
 
     /// <summary>Wallpaper fit, as the <c>WallpaperFit</c> ordinal.</summary>
     public int WallpaperFit { get; set; }
+
+    /// <summary>
+    /// Variable refresh rate, which Windows keeps as one machine-wide switch.
+    /// </summary>
+    /// <remarks>
+    /// Null when the machine has no display that supports it, so applying a
+    /// preset from a machine that does cannot turn something on here that does
+    /// not exist.
+    /// </remarks>
+    public bool? VariableRefreshRate { get; set; }
+
+    /// <summary>How the auto-hiding taskbars behave.</summary>
+    /// <remarks>
+    /// Part of the snapshot because it is part of how the desk is set up: a
+    /// preset for presenting wants the bar to stay put, an everyday one wants
+    /// it quick. Null when the preset predates these being captured, which is
+    /// the difference between "this preset wants 350 ms" and "this preset has
+    /// nothing to say about it".
+    /// </remarks>
+    public PresetTaskbar? Taskbar { get; set; }
 }
 
+/// <summary>
+/// The taskbar's reveal behaviour, as a preset carries it.
+/// </summary>
+/// <remarks>
+/// A class rather than loose fields on <see cref="PresetGlobal"/> so the whole
+/// group can be absent. All-or-nothing is right here: these values only make
+/// sense together, and a preset carrying a poll interval but not the delay it
+/// was tuned against would be worse than one carrying neither.
+/// </remarks>
+public sealed class PresetTaskbar
+{
+    public int HideDelayMs { get; set; } = 350;
+    public int AnimMs { get; set; } = 180;
+    public int RevealPx { get; set; } = 2;
+    public int ArmDistancePx { get; set; } = 300;
+    public int IdlePollMs { get; set; } = 100;
+    public int FarPollMs { get; set; } = 500;
+    public int ArmedPollMs { get; set; } = 16;
+    public int ShownPollMs { get; set; } = 40;
+}
+
+/// <summary>One monitor's whole state, as a preset carries it.</summary>
 public sealed class PresetMonitor
 {
     /// <summary>
@@ -118,6 +118,32 @@ public sealed class PresetMonitor
     /// wants when that monitor is not currently attached. Never used to match.
     /// </remarks>
     public string? Label { get; set; }
+
+    // ---------------------------------------------------------- identity --
+    // Recorded, never applied. A preset file is something people send each
+    // other and open in an editor, and these are what make it readable: which
+    // monitor this actually was, on what cable, at what size. Matching is on
+    // the token alone.
+
+    /// <summary>EDID manufacturer and product code, e.g. DEL-A234.</summary>
+    public string? Model { get; set; }
+
+    /// <summary>EDID serial. Present so a shared preset can be traced back.</summary>
+    public string? Serial { get; set; }
+
+    /// <summary>Internal, Hdmi, DisplayPort and so on.</summary>
+    public string? Connector { get; set; }
+
+    public int PhysicalWidthMm { get; set; }
+    public int PhysicalHeightMm { get; set; }
+
+    /// <summary>Effective DPI at capture; 96 is 100%.</summary>
+    public uint Dpi { get; set; }
+
+    /// <summary>The colour profile Windows had assigned.</summary>
+    public string? ColorProfile { get; set; }
+
+    // -------------------------------------------------------- arrangement --
 
     public int X { get; set; }
     public int Y { get; set; }
@@ -134,8 +160,13 @@ public sealed class PresetMonitor
 
     public bool Hdr { get; set; }
 
+    // ------------------------------------------------------------ light --
+
     /// <summary>-1 when this display reported no brightness control.</summary>
     public int Brightness { get; set; } = -1;
+
+    /// <summary>Gamma-ramp dimming, 10 to 100. Composed with warmth by the engine.</summary>
+    public int SoftwareBrightness { get; set; } = 100;
 
     public int NightLightStrength { get; set; } = -1;
     public int NightLightFloor { get; set; } = -1;
@@ -143,6 +174,18 @@ public sealed class PresetMonitor
     public int BrightnessBaseline { get; set; } = -1;
     public int BrightnessFloor { get; set; } = -1;
     public int BrightnessCeiling { get; set; } = -1;
+
+    /// <summary>
+    /// Whether the owner has marked this panel as OLED.
+    /// </summary>
+    /// <remarks>
+    /// Null when nobody has said. Carried so that moving a preset to a rebuilt
+    /// machine does not lose a fact the user had to supply by hand — nothing
+    /// on this panel reports it.
+    /// </remarks>
+    public bool? IsOled { get; set; }
+
+    // ----------------------------------------------------------- desktop --
 
     public string? WallpaperPath { get; set; }
 

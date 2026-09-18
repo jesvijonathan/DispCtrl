@@ -1,0 +1,65 @@
+<UserControl x:Class="Umbra.App.Views.PresetChanges"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:presets="using:Umbra.Core.Presets">
+
+  <!-- A sign, not a paragraph. Drift is worth knowing about at a glance and
+       worth reading only when deciding between Save and Discard, so the count
+       is always visible and the detail is one press away. Shared between the
+       docked bar and the Presets page so the two can never disagree about what
+       has changed. -->
+  <Button Click="OnClick"
+          Visibility="{x:Bind ViewModel.DirtyVisibility, Mode=OneWay}"
+          ToolTipService.ToolTip="{x:Bind ViewModel.DriftTooltip, Mode=OneWay}"
+          AutomationProperties.Name="ShowPresetChanges">
+
+    <StackPanel Orientation="Horizontal" Spacing="6">
+      <FontIcon Glyph="&#xE7BA;" FontSize="14"
+                Foreground="{ThemeResource SystemFillColorCautionBrush}"/>
+      <TextBlock Text="{x:Bind ViewModel.DriftCount, Mode=OneWay}"/>
+    </StackPanel>
+
+    <Button.Flyout>
+      <Flyout Placement="Top">
+        <StackPanel Spacing="10" MaxWidth="540">
+          <TextBlock Text="What has changed since this preset was saved"
+                     Style="{StaticResource BodyStrongTextBlockStyle}"/>
+
+          <ScrollViewer MaxHeight="380" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{x:Bind ViewModel.Changes, Mode=OneWay}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="presets:PresetChange">
+                  <Grid ColumnSpacing="16" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{x:Bind Setting}"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource BodyTextBlockStyle}"/>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                                VerticalAlignment="Center">
+                      <TextBlock Text="{x:Bind Now}"
+                                 Style="{StaticResource BodyTextBlockStyle}"/>
+                      <FontIcon Glyph="&#xE72A;" FontSize="10" VerticalAlignment="Center"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                      <TextBlock Text="{x:Bind Saved}"
+                                 Style="{StaticResource BodyTextBlockStyle}"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <TextBlock Text="Left is the desk now. Right is what the preset holds."
+                     Style="{StaticResource CaptionTextBlockStyle}"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+      </Flyout>
+    </Button.Flyout>
+  </Button>
+</UserControl>

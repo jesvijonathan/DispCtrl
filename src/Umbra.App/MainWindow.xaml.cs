@@ -75,6 +75,7 @@ public sealed partial class MainWindow : Window
             ? typeof(SettingsPage)
             : tag switch
             {
+                "taskbar" => typeof(TaskbarPage),
                 "presets" => typeof(PresetsPage),
                 "hotkeys" => typeof(HotkeysPage),
                 "engine" => typeof(EnginePage),

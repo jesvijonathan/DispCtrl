@@ -60,38 +60,52 @@ PresetStore.Delete("Shared");
 File.Delete(temp);
 
 Console.WriteLine();
-Console.WriteLine("a preset that controls nothing");
-var empty = new Preset { Name = "Nothing" };
-empty.Scope.Arrangement = false;
-empty.Scope.Modes = false;
-empty.Scope.Brightness = false;
-empty.Scope.NightLight = false;
-empty.Scope.MonitorControls = false;
-Check("reports itself as empty", empty.Scope.IsEmpty);
+Console.WriteLine("a preset holds everything, so everything is compared");
 
-// Every aspect has to count, or a preset with only that one left on would be
-// refused as controlling nothing.
-var one = new Preset { Name = "One" };
-one.Scope.Arrangement = false;
-one.Scope.Modes = false;
-one.Scope.Brightness = false;
-one.Scope.NightLight = false;
-Check("a preset with only the monitor's settings is not empty", !one.Scope.IsEmpty);
-
-Console.WriteLine();
-Console.WriteLine("diff honours scope");
+// The scope object is gone. What replaced it is the rule that a preset carries
+// the whole desk, so these assert that nothing is quietly skipped any more.
 var saved = new Preset { Name = "S" };
-saved.Scope.Wallpaper = false;
-saved.Monitors["t"] = new PresetMonitor { Label = "M", Brightness = 50, WallpaperPath = "a.jpg" };
+saved.Monitors["t"] = new PresetMonitor { Label = "M", Brightness = 50, WallpaperPath = "a.jpg", Width = 1920, Height = 1080 };
 
 var live = new Preset { Name = "S" };
-live.Monitors["t"] = new PresetMonitor { Label = "M", Brightness = 50, WallpaperPath = "b.jpg" };
+live.Monitors["t"] = new PresetMonitor { Label = "M", Brightness = 50, WallpaperPath = "b.jpg", Width = 1920, Height = 1080 };
 
-Check("a wallpaper change is ignored when out of scope",
-    PresetDiff.Describe(saved, live).Count == 0);
+Check("a wallpaper change is reported", PresetDiff.Describe(saved, live).Count == 1);
 
-saved.Scope.Wallpaper = true;
-Check("and reported when in scope", PresetDiff.Describe(saved, live).Count == 1);
+live.Monitors["t"].SoftwareBrightness = 60;
+Check("so is software dimming", PresetDiff.Describe(saved, live).Count == 2);
+
+live.Monitors["t"].HideTaskbar = true;
+Check("so is taskbar hiding", PresetDiff.Describe(saved, live).Count == 3);
+
+// The taskbar block is absent on a preset saved before it was captured, and
+// absent must not read as "wants the defaults".
+var noBar = new Preset { Name = "Old" };
+var withBar = new Preset { Name = "New" };
+withBar.Global.Taskbar = new PresetTaskbar { HideDelayMs = 900 };
+Check("an old preset says nothing about the taskbar", PresetDiff.Describe(noBar, withBar).Count == 0);
+
+var barA = new Preset { Name = "A" };
+barA.Global.Taskbar = new PresetTaskbar { HideDelayMs = 350 };
+var barB = new Preset { Name = "B" };
+barB.Global.Taskbar = new PresetTaskbar { HideDelayMs = 900 };
+Check("two presets that both have one are compared", PresetDiff.Describe(barA, barB).Count == 1);
+
+// Same for variable refresh, which is null on a machine with nothing capable.
+var vrrNull = new Preset { Name = "A" };
+var vrrOn = new Preset { Name = "B" };
+vrrOn.Global.VariableRefreshRate = true;
+Check("unknown variable refresh is not drift", PresetDiff.Describe(vrrNull, vrrOn).Count == 0);
+
+vrrNull.Global.VariableRefreshRate = false;
+Check("known variable refresh is", PresetDiff.Describe(vrrNull, vrrOn).Count == 1);
+
+// A change has to be readable on its own, since it is shown in a flyout with
+// no surrounding prose to lean on.
+var readable = PresetDiff.Describe(barA, barB)[0];
+Check("a change names the setting", readable.Setting.Contains("delay", StringComparison.OrdinalIgnoreCase));
+Check("a change carries both values", readable.Now.Length > 0 && readable.Saved.Length > 0);
+Check("and reads as a sentence for the command line", readable.Line.Contains("preset has"));
 
 Console.WriteLine();
 Console.WriteLine("brightness tolerance");
@@ -155,7 +169,7 @@ Console.WriteLine("the monitor's own settings in a preset");
 
     var diffs = PresetDiff.Describe(vcpSaved, vcpLive);
     Check("a changed contrast is drift", diffs.Count == 1);
-    Check("and it names the code", diffs.Count == 1 && diffs[0].Contains("0x12"));
+    Check("and it names the code", diffs.Count == 1 && diffs[0].Setting.Contains("0x12"));
 
     vcpLive.Monitors["t"].MonitorControls["0x12"] = 75;
     Check("matching settings are not", PresetDiff.Describe(vcpSaved, vcpLive).Count == 0);
@@ -165,9 +179,8 @@ Console.WriteLine("the monitor's own settings in a preset");
     Check("a code this monitor no longer reports is not drift",
         PresetDiff.Describe(vcpSaved, vcpLive).Count == 0);
 
-    vcpSaved.Scope.MonitorControls = false;
     vcpLive.Monitors["t"].MonitorControls["0x12"] = 1;
-    Check("nothing is reported when out of scope", PresetDiff.Describe(vcpSaved, vcpLive).Count == 0);
+    Check("a changed control is always reported now", PresetDiff.Describe(vcpSaved, vcpLive).Count == 1);
 }
 
 Console.WriteLine();

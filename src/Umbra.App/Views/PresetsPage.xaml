@@ -3,6 +3,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:tk="using:CommunityToolkit.WinUI.Controls"
       xmlns:vm="using:Umbra.App.ViewModels"
+      xmlns:views="using:Umbra.App.Views"
       Loaded="OnLoaded">
 
   <ScrollViewer Padding="0,0,0,32">
@@ -21,7 +22,7 @@
                Message="Get the displays how you want them, then save the desk as a preset below."/>
 
       <tk:SettingsCard Header="Save the desk as a preset"
-                       Description="Captures every display's resolution, refresh rate, position, brightness, warmth and wallpaper as it is right now.">
+                       Description="Captures the whole desk exactly as it is: every display's resolution, refresh rate, position, scaling, HDR, brightness, warmth, wallpaper, the monitor's own settings, and how the taskbar behaves.">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE74E;"/>
         </tk:SettingsCard.HeaderIcon>
@@ -32,14 +33,6 @@
                   Click="OnSaveAs" AutomationProperties.Name="SaveAsNewPreset"/>
         </StackPanel>
       </tk:SettingsCard>
-
-      <!-- The detail the docked bar deliberately leaves out. It lives here
-           because a list of differences is something you read, not something
-           you glance at on the way past. -->
-      <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Margin="0,4,0,0"
-               Visibility="{x:Bind ViewModel.DirtyVisibility, Mode=OneWay}"
-               Title="What has changed since this preset was saved"
-               Message="{x:Bind ViewModel.Differences, Mode=OneWay}"/>
 
       <StackPanel Visibility="{x:Bind ViewModel.PresetVisibility, Mode=OneWay}">
 
@@ -61,17 +54,18 @@
           </StackPanel>
 
           <tk:SettingsExpander.Items>
-            <!-- The sticky part: what has drifted since this preset was saved,
-                 with both ways out one press apart. Listing the differences
-                 rather than showing a dot is the point — "unsaved changes" on
-                 its own is a question the user cannot answer. -->
+            <!-- Drift is a sign, not a paragraph. The list is a press away
+                 rather than on the page because it is read once, when deciding
+                 between Save and Discard, and then not again — while the two
+                 buttons are what the card is actually for. -->
             <tk:SettingsCard Header="Unsaved differences"
-                             Description="{x:Bind ViewModel.Differences, Mode=OneWay}"
+                             Description="This preset no longer matches the desk."
                              Visibility="{x:Bind ViewModel.DirtyVisibility, Mode=OneWay}">
               <tk:SettingsCard.HeaderIcon>
-                <FontIcon Glyph="&#xE7BA;"/>
+                <FontIcon Glyph="&#xE7BA;" Foreground="{ThemeResource SystemFillColorCautionBrush}"/>
               </tk:SettingsCard.HeaderIcon>
               <StackPanel Orientation="Horizontal" Spacing="8">
+                <views:PresetChanges/>
                 <Button Content="Save over it" Click="OnSave"
                         AutomationProperties.Name="SavePreset"/>
                 <Button Content="Discard" Click="OnDiscard"
@@ -86,86 +80,46 @@
               </tk:SettingsCard.HeaderIcon>
             </tk:SettingsCard>
 
-            <tk:SettingsCard Header="Rename" Description="The name is the file name, so this renames the file too.">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBox x:Name="RenameTo" PlaceholderText="New name" MinWidth="180"
-                         AutomationProperties.Name="RenamePresetTo"/>
-                <Button Content="Rename" Click="OnRename"/>
-              </StackPanel>
-            </tk:SettingsCard>
-
-            <tk:SettingsCard Header="Share" Description="A preset is one JSON file. Export it to send it; import one someone sent you.">
+            <!-- One menu rather than three cards. Renaming, sharing and
+                 deleting are all things done to the file, they are all rare,
+                 and three cards of them pushed the two buttons that matter off
+                 the bottom of the expander. -->
+            <tk:SettingsCard Header="Manage this preset"
+                             Description="A preset is one JSON file, so sharing it is sending the file.">
               <tk:SettingsCard.HeaderIcon>
                 <FontIcon Glyph="&#xE72D;"/>
               </tk:SettingsCard.HeaderIcon>
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Export…" Click="OnExport"/>
-                <Button Content="Import…" Click="OnImport"/>
-                <Button Content="Open folder" Click="OnOpenFolder"/>
-              </StackPanel>
-            </tk:SettingsCard>
-
-            <tk:SettingsCard Header="Delete" Description="Removes the preset file. Nothing on screen changes.">
-              <Button Content="Delete" Click="OnDelete" AutomationProperties.Name="DeletePreset"/>
-            </tk:SettingsCard>
-          </tk:SettingsExpander.Items>
-        </tk:SettingsExpander>
-
-        <!-- Scope, so a narrow preset stays narrow. "Warm and dim for the
-             evening" should not drag the resolution along with it. -->
-        <tk:SettingsExpander Header="What this preset controls"
-                             Description="Anything switched off here is left exactly as it is when the preset is applied."
-                             Margin="0,4,0,0">
-          <tk:SettingsExpander.HeaderIcon>
-            <FontIcon Glyph="&#xE9E9;"/>
-          </tk:SettingsExpander.HeaderIcon>
-
-          <tk:SettingsExpander.Items>
-            <tk:SettingsCard Header="Arrangement"
-                             Description="Where each display sits, which one is main, and the extend/duplicate topology.">
-              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeArrangement, Mode=TwoWay}"
-                            AutomationProperties.Name="ScopeArrangement"/>
-            </tk:SettingsCard>
-
-            <tk:SettingsCard Header="Resolution, refresh rate and scaling"
-                             Description="Changing resolution blanks the screen briefly. A refresh-rate-only change usually does not.">
-              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeModes, Mode=TwoWay}"
-                            AutomationProperties.Name="ScopeModes"/>
-            </tk:SettingsCard>
-
-            <tk:SettingsCard Header="HDR">
-              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeHdr, Mode=TwoWay}"
-                            AutomationProperties.Name="ScopeHdr"/>
-            </tk:SettingsCard>
-
-            <tk:SettingsCard Header="Brightness" Description="Per display, plus the unison level.">
-              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeBrightness, Mode=TwoWay}"
-                            AutomationProperties.Name="ScopeBrightness"/>
-            </tk:SettingsCard>
-
-            <tk:SettingsCard Header="Night light" Description="Warmth, per-display values and the schedule.">
-              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeNightLight, Mode=TwoWay}"
-                            AutomationProperties.Name="ScopeNightLight"/>
-            </tk:SettingsCard>
-
-            <tk:SettingsCard Header="Wallpaper"
-                             Description="Stores the image path. A preset from another machine will point at paths that do not exist here.">
-              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeWallpaper, Mode=TwoWay}"
-                            AutomationProperties.Name="ScopeWallpaper"/>
-            </tk:SettingsCard>
-
-            <tk:SettingsCard Header="The monitor's own settings"
-                             Description="Contrast, colour preset, picture mode, input source, sharpness and RGB gains — the settings Windows cannot restore at all.">
-              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeMonitorControls, Mode=TwoWay}"
-                            AutomationProperties.Name="ScopeMonitorControls"/>
-            </tk:SettingsCard>
-
-            <tk:SettingsCard Header="Taskbar hiding" Description="Which displays hide their taskbar.">
-              <ToggleSwitch IsOn="{x:Bind ViewModel.ScopeTaskbar, Mode=TwoWay}"
-                            AutomationProperties.Name="ScopeTaskbar"/>
+              <DropDownButton Content="Actions" AutomationProperties.Name="PresetActions">
+                <DropDownButton.Flyout>
+                  <MenuFlyout Placement="Bottom">
+                    <MenuFlyoutItem Text="Rename…" Click="OnRename"
+                                    AutomationProperties.Name="RenamePreset">
+                      <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AC;"/></MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutSeparator/>
+                    <MenuFlyoutItem Text="Export…" Click="OnExport"
+                                    AutomationProperties.Name="ExportPreset">
+                      <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;"/></MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutItem Text="Import…" Click="OnImport"
+                                    AutomationProperties.Name="ImportPreset">
+                      <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B5;"/></MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutItem Text="Open the presets folder" Click="OnOpenFolder">
+                      <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE838;"/></MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutSeparator/>
+                    <MenuFlyoutItem Text="Delete" Click="OnDelete"
+                                    AutomationProperties.Name="DeletePreset">
+                      <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;"/></MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                  </MenuFlyout>
+                </DropDownButton.Flyout>
+              </DropDownButton>
             </tk:SettingsCard>
           </tk:SettingsExpander.Items>
         </tk:SettingsExpander>
+
       </StackPanel>
 
       <TextBlock Text="Per-app rules"

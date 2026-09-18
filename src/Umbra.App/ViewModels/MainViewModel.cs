@@ -1302,6 +1302,88 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// How often the engine looks at the cursor, in four bands.
+    /// </summary>
+    /// <remarks>
+    /// One property each rather than a group, because each is bound to its own
+    /// slider and a group would mean re-raising all four whenever any moved.
+    /// The clamps are the same ones the engine applies when it reads the file,
+    /// so a value set here cannot mean something different once it gets there.
+    /// </remarks>
+    public double ArmDistancePx
+    {
+        get => _settings.Global.ArmDistancePx;
+        set => SetPoll(v => _settings.Global.ArmDistancePx = v, _settings.Global.ArmDistancePx, value, 10, 4000);
+    }
+
+    public double IdlePollMs
+    {
+        get => _settings.Global.IdlePollMs;
+        set => SetPoll(v => _settings.Global.IdlePollMs = v, _settings.Global.IdlePollMs, value, 8, 2000);
+    }
+
+    public double FarPollMs
+    {
+        get => _settings.Global.FarPollMs;
+        set => SetPoll(v => _settings.Global.FarPollMs = v, _settings.Global.FarPollMs, value, 8, 5000);
+    }
+
+    public double ArmedPollMs
+    {
+        get => _settings.Global.ArmedPollMs;
+        set => SetPoll(v => _settings.Global.ArmedPollMs = v, _settings.Global.ArmedPollMs, value, 4, 500);
+    }
+
+    public double ShownPollMs
+    {
+        get => _settings.Global.ShownPollMs;
+        set => SetPoll(v => _settings.Global.ShownPollMs = v, _settings.Global.ShownPollMs, value, 4, 500);
+    }
+
+    private void SetPoll(Action<int> write, int current, double value, int min, int max,
+                         [CallerMemberName] string? name = null)
+    {
+        int v = Math.Clamp((int)value, min, max);
+        if (current == v) return;
+
+        write(v);
+        Persist();
+        Raise(name);
+        Raise(nameof(PollSummary));
+    }
+
+    /// <summary>The four intervals in one line, for the collapsed expander.</summary>
+    public string PollSummary =>
+        $"Idle {_settings.Global.IdlePollMs} ms, armed {_settings.Global.ArmedPollMs} ms within "
+        + $"{_settings.Global.ArmDistancePx} px, shown {_settings.Global.ShownPollMs} ms.";
+
+    /// <summary>Puts the polling back where it started.</summary>
+    /// <remarks>
+    /// Worth a button: these are the settings most likely to be dragged around
+    /// out of curiosity, and the least likely to be remembered afterwards.
+    /// </remarks>
+    public void RestorePolling()
+    {
+        var defaults = new GlobalSettings();
+        GlobalSettings g = _settings.Global;
+
+        g.ArmDistancePx = defaults.ArmDistancePx;
+        g.IdlePollMs = defaults.IdlePollMs;
+        g.FarPollMs = defaults.FarPollMs;
+        g.ArmedPollMs = defaults.ArmedPollMs;
+        g.ShownPollMs = defaults.ShownPollMs;
+
+        Persist();
+
+        Raise(nameof(ArmDistancePx));
+        Raise(nameof(IdlePollMs));
+        Raise(nameof(FarPollMs));
+        Raise(nameof(ArmedPollMs));
+        Raise(nameof(ShownPollMs));
+        Raise(nameof(PollSummary));
+    }
+
     public bool Logging
     {
         get => _settings.Global.Logging;

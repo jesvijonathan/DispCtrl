@@ -562,7 +562,7 @@ public static class CommandLine
                 // Keep the scope a preset already had; overwriting it with the
                 // defaults would quietly widen what an existing preset controls.
                 Preset? existing = PresetStore.Read(PresetStore.PathFor(name));
-                if (existing is not null) fresh.Scope = existing.Scope;
+
 
                 PresetStore.Save(fresh);
                 Console.WriteLine($"saved '{name}'");

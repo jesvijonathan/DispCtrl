@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Umbra.App.ViewModels;
 using Windows.Storage;
@@ -60,15 +61,73 @@ public sealed partial class PresetsPage : Page
 
     private async void OnDiscard(object sender, RoutedEventArgs e) => Say(await ViewModel.DiscardAsync());
 
-    private void OnRename(object sender, RoutedEventArgs e)
+    /// <remarks>
+    /// A dialog rather than a text box on the page. Renaming happens once in
+    /// the life of a preset, and a permanently visible field for it was taking
+    /// up a row that the everyday buttons wanted.
+    /// </remarks>
+    private async void OnRename(object sender, RoutedEventArgs e)
     {
-        string message = ViewModel.Rename(RenameTo.Text);
-        Say(message, message.StartsWith("Renamed", StringComparison.Ordinal));
+        if (ViewModel.Selected is not { } current || current == PresetsViewModel.NewEntry) return;
 
-        if (message.StartsWith("Renamed", StringComparison.Ordinal)) RenameTo.Text = "";
+        var field = new TextBox
+        {
+            Text = current,
+            PlaceholderText = "New name",
+            SelectionStart = current.Length,
+        };
+        AutomationProperties.SetName(field, "RenamePresetTo");
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"Rename \u201c{current}\u201d",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    field,
+                    new TextBlock
+                    {
+                        Text = "The name is the file name, so this renames the file too.",
+                        Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                },
+            },
+            PrimaryButtonText = "Rename",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        string message = ViewModel.Rename(field.Text);
+        Say(message, message.StartsWith("Renamed", StringComparison.Ordinal));
     }
 
-    private void OnDelete(object sender, RoutedEventArgs e) => Say(ViewModel.Delete());
+    /// <remarks>
+    /// Asks first. Deleting is the one action here that destroys something, it
+    /// now sits in a menu where a mis-click is easier, and the preset file is
+    /// not in the recycle bin afterwards.
+    /// </remarks>
+    private async void OnDelete(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Selected is not { } current || current == PresetsViewModel.NewEntry) return;
+
+        var confirm = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"Delete \u201c{current}\u201d?",
+            Content = "The preset file is removed. Nothing on screen changes.",
+            PrimaryButtonText = "Delete",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+        };
+
+        if (await confirm.ShowAsync() == ContentDialogResult.Primary) Say(ViewModel.Delete());
+    }
 
     private async void OnExport(object sender, RoutedEventArgs e)
     {

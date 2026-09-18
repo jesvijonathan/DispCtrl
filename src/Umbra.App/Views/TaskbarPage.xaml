@@ -1,0 +1,233 @@
+<Page x:Class="Umbra.App.Views.TaskbarPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:tk="using:CommunityToolkit.WinUI.Controls">
+
+  <ScrollViewer Padding="0,0,0,32">
+    <StackPanel Padding="36,12,36,0" Spacing="0" HorizontalAlignment="Stretch">
+
+      <StackPanel Spacing="4" Margin="0,0,0,24">
+        <TextBlock Text="Taskbar" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Text="How the auto-hiding taskbars behave. Which monitors hide theirs is set per display, on the Displays page."
+                   Style="{StaticResource BodyTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      </StackPanel>
+
+      <TextBlock Text="Reveal behaviour"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,0,0,8"/>
+
+      <tk:SettingsCard Header="Hide delay"
+                       Description="How long the taskbar stays out after the cursor leaves.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE916;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Slider Value="{x:Bind ViewModel.HideDelayMs, Mode=TwoWay}"
+                  Minimum="0" Maximum="1500" StepFrequency="50"
+                  Width="220" VerticalAlignment="Center"
+                  AutomationProperties.Name="HideDelay"/>
+          <TextBlock Text="{x:Bind ViewModel.HideDelayMs, Mode=OneWay}"
+                     VerticalAlignment="Center" MinWidth="42"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          <TextBlock Text="ms" VerticalAlignment="Center"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+      </tk:SettingsCard>
+
+      <tk:SettingsExpander Header="Show and hide animation"
+                           Description="Slide the taskbar in and out, or snap it instantly.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE7C4;"/>
+        </tk:SettingsExpander.HeaderIcon>
+
+        <ToggleSwitch IsOn="{x:Bind ViewModel.AnimateTaskbar, Mode=TwoWay}"
+                      OnContent="Animate"
+                      OffContent="Instant"
+                      AutomationProperties.Name="AnimateTaskbar"/>
+
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Slide duration"
+                           Description="How long the slide takes.">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <Slider Value="{x:Bind ViewModel.AnimMs, Mode=TwoWay}"
+                      IsEnabled="{x:Bind ViewModel.AnimMsEnabled, Mode=OneWay}"
+                      Minimum="40" Maximum="500" StepFrequency="10"
+                      Width="220" VerticalAlignment="Center"
+                      AutomationProperties.Name="SlideDuration"/>
+              <TextBlock Text="{x:Bind ViewModel.AnimMs, Mode=OneWay}"
+                         VerticalAlignment="Center" MinWidth="42"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <TextBlock Text="ms" VerticalAlignment="Center"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsCard Header="Edge sensitivity"
+                       Description="How close to the screen edge the cursor must get to reveal the taskbar.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE7C9;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Slider Value="{x:Bind ViewModel.RevealPx, Mode=TwoWay}"
+                  Minimum="1" Maximum="20" StepFrequency="1"
+                  Width="220" VerticalAlignment="Center"
+                  AutomationProperties.Name="EdgeSensitivity"/>
+          <TextBlock Text="{x:Bind ViewModel.RevealPx, Mode=OneWay}"
+                     VerticalAlignment="Center" MinWidth="42"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          <TextBlock Text="px" VerticalAlignment="Center"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+      </tk:SettingsCard>
+
+      <TextBlock Text="Responsiveness"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,8"/>
+
+      <!-- These were only ever editable by hand in settings.json, which is a
+           strange place to keep the knobs that decide how the thing feels. The
+           defaults are good; the expander stays shut so they read as the
+           advanced settings they are. -->
+      <tk:SettingsExpander Header="How often the engine looks at the cursor"
+                           Description="{x:Bind ViewModel.PollSummary, Mode=OneWay}">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE9D9;"/>
+        </tk:SettingsExpander.HeaderIcon>
+
+        <Button Content="Restore defaults" Click="OnRestorePolling"
+                AutomationProperties.Name="RestorePolling"/>
+
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Left">
+            <TextBlock TextWrapping="Wrap" MaxWidth="720"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+              Far from any hidden taskbar there is nothing to react to, so the engine
+              idles. As the cursor comes within the arm distance it starts looking more
+              often, and while a bar is out it looks more often again.
+              <LineBreak/><LineBreak/>
+              Lower numbers mean a bar that reveals the instant you reach the edge and an
+              engine that wakes more; higher numbers mean the opposite. A fast flick from
+              the far side of the desk is the case that suffers first.
+            </TextBlock>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Arm distance"
+                           Description="How near a managed edge the cursor must be before polling speeds up.">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <Slider Value="{x:Bind ViewModel.ArmDistancePx, Mode=TwoWay}"
+                      Minimum="50" Maximum="1000" StepFrequency="25"
+                      Width="220" VerticalAlignment="Center"
+                      AutomationProperties.Name="ArmDistance"/>
+              <TextBlock Text="{x:Bind ViewModel.ArmDistancePx, Mode=OneWay}"
+                         VerticalAlignment="Center" MinWidth="42"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <TextBlock Text="px" VerticalAlignment="Center"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Idle" Description="Nowhere near a managed edge.">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <Slider Value="{x:Bind ViewModel.IdlePollMs, Mode=TwoWay}"
+                      Minimum="20" Maximum="400" StepFrequency="10"
+                      Width="220" VerticalAlignment="Center"
+                      AutomationProperties.Name="IdlePoll"/>
+              <TextBlock Text="{x:Bind ViewModel.IdlePollMs, Mode=OneWay}"
+                         VerticalAlignment="Center" MinWidth="42"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <TextBlock Text="ms" VerticalAlignment="Center"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Far" Description="The longest the engine will ever wait.">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <Slider Value="{x:Bind ViewModel.FarPollMs, Mode=TwoWay}"
+                      Minimum="100" Maximum="2000" StepFrequency="50"
+                      Width="220" VerticalAlignment="Center"
+                      AutomationProperties.Name="FarPoll"/>
+              <TextBlock Text="{x:Bind ViewModel.FarPollMs, Mode=OneWay}"
+                         VerticalAlignment="Center" MinWidth="42"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <TextBlock Text="ms" VerticalAlignment="Center"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Armed" Description="Inside the arm distance. This one decides how quick the reveal feels.">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <Slider Value="{x:Bind ViewModel.ArmedPollMs, Mode=TwoWay}"
+                      Minimum="8" Maximum="100" StepFrequency="4"
+                      Width="220" VerticalAlignment="Center"
+                      AutomationProperties.Name="ArmedPoll"/>
+              <TextBlock Text="{x:Bind ViewModel.ArmedPollMs, Mode=OneWay}"
+                         VerticalAlignment="Center" MinWidth="42"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <TextBlock Text="ms" VerticalAlignment="Center"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Shown" Description="While a taskbar is out, watching for the cursor to leave.">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <Slider Value="{x:Bind ViewModel.ShownPollMs, Mode=TwoWay}"
+                      Minimum="10" Maximum="200" StepFrequency="5"
+                      Width="220" VerticalAlignment="Center"
+                      AutomationProperties.Name="ShownPoll"/>
+              <TextBlock Text="{x:Bind ViewModel.ShownPollMs, Mode=OneWay}"
+                         VerticalAlignment="Center" MinWidth="42"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <TextBlock Text="ms" VerticalAlignment="Center"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <TextBlock Text="Primary taskbar"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,8"/>
+
+      <!-- The honest answer to "why can't I hide the primary one?". Umbra
+           cannot move it, but Windows can — at a cost worth stating up front. -->
+      <tk:SettingsExpander Header="Use Windows' own auto-hide"
+                           Description="The only way to hide the primary monitor's taskbar.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE7C4;"/>
+        </tk:SettingsExpander.HeaderIcon>
+
+        <ToggleSwitch IsOn="{x:Bind ViewModel.GlobalAutoHide, Mode=TwoWay}"
+                      AutomationProperties.Name="GlobalAutoHide"/>
+
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Left">
+            <TextBlock TextWrapping="Wrap" MaxWidth="720"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+              Umbra cannot move the primary taskbar: the call reports success and
+              Explorer restores it within about 120 milliseconds. Windows' own auto-hide
+              can, because Explorer is the one doing the hiding.
+              <LineBreak/><LineBreak/>
+              Two things to know before turning it on. It is a single global switch, so it
+              auto-hides every taskbar, not just the primary one. And it leaves a
+              one-pixel strip lit along the edge, because Explorer needs that strip to
+              catch the hover — which is precisely the burn-in risk Umbra's own hiding
+              exists to avoid.
+              <LineBreak/><LineBreak/>
+              Umbra keeps managing every other monitor itself. Where you have enabled
+              hiding on a display, Umbra parks that taskbar fully off the panel as usual
+              and overrides Windows' sliver — so this switch effectively applies to the
+              primary display only.
+              <LineBreak/><LineBreak/>
+              So this is the right choice when your primary display is not the one at
+              risk, and the wrong one when it is an OLED panel.
+            </TextBlock>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+    </StackPanel>
+  </ScrollViewer>
+</Page>

@@ -352,43 +352,197 @@
                         <ColumnDefinition Width="*"/>
                       </Grid.ColumnDefinitions>
                       <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                       </Grid.RowDefinitions>
 
-                      <TextBlock Grid.Row="1" Grid.Column="0" Text="Active signal mode" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ActiveSignalMode, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+                      <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                 Text="The panel"
+                                 Style="{StaticResource CaptionTextBlockStyle}"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                 Margin="0,0,0,0"/>
 
-                      <TextBlock Grid.Row="2" Grid.Column="0" Text="Desktop mode" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind DesktopModeText, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+                      <TextBlock Grid.Row="1" Grid.Column="0" Text="Model" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ProductName, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
 
-                      <TextBlock Grid.Row="3" Grid.Column="0" Text="Bit depth" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Bind BitDepth, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+                      <TextBlock Grid.Row="2" Grid.Column="0" Text="Manufacturer and product" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ModelCode, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
 
-                      <TextBlock Grid.Row="4" Grid.Column="0" Text="Colour format" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="4" Grid.Column="1" Text="{x:Bind ColorFormat, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+                      <TextBlock Grid.Row="3" Grid.Column="0" Text="Serial" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Bind SerialText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"
+                                 FontFamily="Consolas"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
 
-                      <TextBlock Grid.Row="5" Grid.Column="0" Text="Colour space" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="5" Grid.Column="1" Text="{x:Bind ColorSpace, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+                      <TextBlock Grid.Row="4" Grid.Column="0" Text="Screen size" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="4" Grid.Column="1" Text="{x:Bind ScreenSizeText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
 
-                      <TextBlock Grid.Row="6" Grid.Column="0" Text="HDR status" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="6" Grid.Column="1" Text="{x:Bind HdrStatus, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+                      <TextBlock Grid.Row="5" Grid.Column="0" Text="Pixel density" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="5" Grid.Column="1" Text="{x:Bind PixelDensityText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
 
-                      <TextBlock Grid.Row="7" Grid.Column="0" Text="Scan type" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="7" Grid.Column="1" Text="{x:Bind ScanLineOrdering, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+                      <TextBlock Grid.Row="6" Grid.Column="0" Text="Panel technology" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="6" Grid.Column="1" Text="{x:Bind PanelTechnology, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
 
-                      <TextBlock Grid.Row="8" Grid.Column="0" Text="Pixel clock" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="8" Grid.Column="1" Text="{x:Bind PixelClock, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+                      <TextBlock Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
+                                 Text="Connection"
+                                 Style="{StaticResource CaptionTextBlockStyle}"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                 Margin="0,10,0,0"/>
 
-                      <TextBlock Grid.Row="9" Grid.Column="0" Text="Panel technology" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="9" Grid.Column="1" Text="{x:Bind PanelTechnology, Mode=OneWay}" Style="{StaticResource InfoValue}"/>
+                      <TextBlock Grid.Row="8" Grid.Column="0" Text="Connector" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="8" Grid.Column="1" Text="{x:Bind ConnectorText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
 
-                      <TextBlock Grid.Row="10" Grid.Column="0" Text="Identity" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="10" Grid.Column="1" Text="{x:Bind Token}"
+                      <TextBlock Grid.Row="9" Grid.Column="0" Text="Main display" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="9" Grid.Column="1" Text="{x:Bind PrimaryText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="10" Grid.Column="0" Text="Active signal mode" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="10" Grid.Column="1" Text="{x:Bind ActiveSignalMode, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="11" Grid.Column="0" Text="Pixel clock" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="11" Grid.Column="1" Text="{x:Bind PixelClock, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="12" Grid.Column="0" Text="Scan type" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="12" Grid.Column="1" Text="{x:Bind ScanLineOrdering, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="13" Grid.Column="0" Text="DDC/CI" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="13" Grid.Column="1" Text="{x:Bind DdcText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="14" Grid.Column="0" Grid.ColumnSpan="2"
+                                 Text="Picture"
+                                 Style="{StaticResource CaptionTextBlockStyle}"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                 Margin="0,10,0,0"/>
+
+                      <TextBlock Grid.Row="15" Grid.Column="0" Text="Resolution" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="15" Grid.Column="1" Text="{x:Bind ResolutionText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="16" Grid.Column="0" Text="Native resolution" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="16" Grid.Column="1" Text="{x:Bind NativeResolutionText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="17" Grid.Column="0" Text="Refresh rate" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="17" Grid.Column="1" Text="{x:Bind RefreshText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="18" Grid.Column="0" Text="Variable refresh" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="18" Grid.Column="1" Text="{x:Bind VrrRangeText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="19" Grid.Column="0" Text="Scaling" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="19" Grid.Column="1" Text="{x:Bind DpiText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="20" Grid.Column="0" Text="Orientation" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="20" Grid.Column="1" Text="{x:Bind OrientationText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="21" Grid.Column="0" Text="Desktop mode" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="21" Grid.Column="1" Text="{x:Bind DesktopModeText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="22" Grid.Column="0" Grid.ColumnSpan="2"
+                                 Text="Colour"
+                                 Style="{StaticResource CaptionTextBlockStyle}"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                 Margin="0,10,0,0"/>
+
+                      <TextBlock Grid.Row="23" Grid.Column="0" Text="Bit depth" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="23" Grid.Column="1" Text="{x:Bind BitDepth, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="24" Grid.Column="0" Text="Colour depth" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="24" Grid.Column="1" Text="{x:Bind ColorDepthText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="25" Grid.Column="0" Text="Colour format" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="25" Grid.Column="1" Text="{x:Bind ColorFormat, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="26" Grid.Column="0" Text="Colour space" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="26" Grid.Column="1" Text="{x:Bind ColorSpace, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="27" Grid.Column="0" Text="Colour profile" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="27" Grid.Column="1" Text="{x:Bind ColorProfileName, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="28" Grid.Column="0" Text="HDR status" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="28" Grid.Column="1" Text="{x:Bind HdrStatus, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="29" Grid.Column="0" Grid.ColumnSpan="2"
+                                 Text="Placement"
+                                 Style="{StaticResource CaptionTextBlockStyle}"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                 Margin="0,10,0,0"/>
+
+                      <TextBlock Grid.Row="30" Grid.Column="0" Text="Position" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="30" Grid.Column="1" Text="{x:Bind PositionText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="31" Grid.Column="0" Text="Work area" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="31" Grid.Column="1" Text="{x:Bind WorkAreaText, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"/>
+
+                      <TextBlock Grid.Row="32" Grid.Column="0" Grid.ColumnSpan="2"
+                                 Text="How Umbra knows it"
+                                 Style="{StaticResource CaptionTextBlockStyle}"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                 Margin="0,10,0,0"/>
+
+                      <TextBlock Grid.Row="33" Grid.Column="0" Text="Windows name" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="33" Grid.Column="1" Text="{x:Bind WindowsName, Mode=OneWay}"
+                                 Style="{StaticResource InfoValue}"
+                                 FontFamily="Consolas"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                      <TextBlock Grid.Row="34" Grid.Column="0" Text="Identity" Style="{StaticResource InfoLabel}"/>
+                      <TextBlock Grid.Row="34" Grid.Column="1" Text="{x:Bind Token}"
                                  Style="{StaticResource InfoValue}"
                                  FontFamily="Consolas"
                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -821,14 +975,18 @@
                    AutomationProperties.Name="StickyPresetName"/>
         </StackPanel>
 
-        <!-- Whether there is anything to save, and nothing more. The list of
-             differences belongs on the Presets page, where there is room. -->
-        <TextBlock Grid.Column="1"
-                   Text="{x:Bind ViewModel.Presets.ShortStatus, Mode=OneWay}"
-                   VerticalAlignment="Center"
-                   TextTrimming="CharacterEllipsis"
-                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   AutomationProperties.Name="PresetStatus"/>
+        <!-- Whether there is anything to save, with the detail behind a sign
+             rather than spelled out. A bar is glanced at; four lines of
+             differences in one would be furniture nobody reads. -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                    VerticalAlignment="Center">
+          <TextBlock Text="{x:Bind ViewModel.Presets.ShortStatus, Mode=OneWay}"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                     AutomationProperties.Name="PresetStatus"/>
+          <views:PresetChanges/>
+        </StackPanel>
 
         <!-- Nothing to do, nothing on screen. Buttons that are always there
              stop meaning anything, and applying a preset the desk already

@@ -29,9 +29,12 @@ public static class PresetService
 {
     /// <summary>Takes a snapshot of the desk as it is right now.</summary>
     /// <remarks>
-    /// Captures everything regardless of scope. Scope decides what is
-    /// <em>applied</em>, not what is recorded, so narrowing or widening a preset
-    /// later does not mean re-capturing what was already there.
+    /// Everything, with no filter: what a preset holds is what applying it
+    /// restores. A field is left at its "not recorded" default only when the
+    /// hardware would not answer, and applying skips exactly those.
+    /// <para>
+    /// Blocks on DDC/CI, so not from the UI thread.
+    /// </para>
     /// </remarks>
     public static Preset Capture(string name, IReadOnlyList<DisplayInfo> displays, UmbraSettings settings)
     {
@@ -54,6 +57,18 @@ public static class PresetService
                 NightLightFrom = night.FromMinutes,
                 NightLightTo = night.ToMinutes,
                 WallpaperFit = (int)Wallpaper.ReadFit(),
+                VariableRefreshRate = CaptureVrr(displays),
+                Taskbar = new PresetTaskbar
+                {
+                    HideDelayMs = settings.Global.HideDelayMs,
+                    AnimMs = settings.Global.AnimMs,
+                    RevealPx = settings.Global.RevealPx,
+                    ArmDistancePx = settings.Global.ArmDistancePx,
+                    IdlePollMs = settings.Global.IdlePollMs,
+                    FarPollMs = settings.Global.FarPollMs,
+                    ArmedPollMs = settings.Global.ArmedPollMs,
+                    ShownPollMs = settings.Global.ShownPollMs,
+                },
             },
         };
 
@@ -64,9 +79,26 @@ public static class PresetService
             HdrState hdr = AdvancedDisplay.ReadHdr(d);
             ScalingState scaling = AdvancedDisplay.ReadScaling(d);
 
+            string? profile = null;
+            try
+            {
+                profile = DisplayDetails.Read(d).ColorProfile;
+            }
+            catch (Exception)
+            {
+                // Recorded for the reader, never applied. Not worth failing over.
+            }
+
             preset.Monitors[d.Token] = new PresetMonitor
             {
                 Label = d.Label,
+                Model = d.Key.Model,
+                Serial = d.Key.Serial,
+                Connector = d.Connector.ToString(),
+                PhysicalWidthMm = d.PhysicalWidthMm,
+                PhysicalHeightMm = d.PhysicalHeightMm,
+                Dpi = d.Dpi,
+                ColorProfile = profile,
                 X = d.Bounds.Left,
                 Y = d.Bounds.Top,
                 Primary = d.IsPrimary,
@@ -84,6 +116,8 @@ public static class PresetService
                 BrightnessFloor = ms.BrightnessFloor,
                 BrightnessCeiling = ms.BrightnessCeiling,
                 WallpaperPath = Wallpaper.Read(d),
+                SoftwareBrightness = ms.SoftwareBrightness,
+                IsOled = ms.IsOled,
                 HideTaskbar = ms.HideTaskbar,
                 ReclaimWorkArea = ms.ReclaimWorkArea,
                 MonitorControls = CaptureMonitorControls(d),
@@ -91,6 +125,29 @@ public static class PresetService
         }
 
         return preset;
+    }
+
+    /// <summary>
+    /// Whether variable refresh is on, or null when nothing here supports it.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than false on a machine with no capable display, so that
+    /// applying this preset elsewhere cannot switch off something it was never
+    /// in a position to observe.
+    /// </remarks>
+    private static bool? CaptureVrr(IReadOnlyList<DisplayInfo> displays)
+    {
+        try
+        {
+            foreach (DisplayInfo d in displays)
+                if (VariableRefreshRate.Read(d).Capable) return VariableRefreshRate.IsEnabled();
+        }
+        catch (Exception)
+        {
+            // Treated as "nothing to say", which is what null means here.
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -177,8 +234,6 @@ public static class PresetService
     /// </remarks>
     public static PresetResult Apply(Preset preset, IReadOnlyList<DisplayInfo> displays, UmbraSettings settings)
     {
-        if (preset.Scope.IsEmpty) return PresetResult.Nothing("This preset controls nothing.");
-
         var notes = new List<string>();
 
         // Matched by token, so a preset follows the physical panel across
@@ -193,14 +248,19 @@ public static class PresetService
         int missing = preset.Monitors.Count - matched.Count;
         if (missing > 0) notes.Add($"{missing} display(s) in this preset are not attached, and were skipped.");
 
-        if (preset.Scope.Arrangement) ApplyArrangement(preset, displays, matched, notes);
-        if (preset.Scope.Modes) ApplyModes(matched, notes);
-        if (preset.Scope.Hdr) ApplyHdr(matched, notes);
-        if (preset.Scope.Brightness) ApplyBrightness(preset, matched, settings, notes);
-        if (preset.Scope.NightLight) ApplyNightLight(preset, matched, settings);
-        if (preset.Scope.Wallpaper) ApplyWallpaper(preset, matched, notes);
-        if (preset.Scope.Taskbar) ApplyTaskbar(matched, settings);
-        if (preset.Scope.MonitorControls) ApplyMonitorControls(matched, notes);
+        // Order matters. Arrangement and modes blank the screen, so they go
+        // first and everything else lands on the layout the preset asked for
+        // rather than on the one being replaced.
+        ApplyArrangement(preset, displays, matched, notes);
+        ApplyModes(matched, notes);
+        ApplyHdr(matched, notes);
+        ApplyVrr(preset, notes);
+        ApplyBrightness(preset, matched, settings, notes);
+        ApplyNightLight(preset, matched, settings);
+        ApplyWallpaper(preset, matched, notes);
+        ApplyTaskbar(matched, settings);
+        ApplyTaskbarBehaviour(preset, settings);
+        ApplyMonitorControls(matched, notes);
 
         return new PresetResult(true, notes);
     }
@@ -305,12 +365,56 @@ public static class PresetService
             ms.BrightnessBaseline = m.BrightnessBaseline;
             ms.BrightnessFloor = m.BrightnessFloor;
             ms.BrightnessCeiling = m.BrightnessCeiling;
+            ms.SoftwareBrightness = m.SoftwareBrightness;
+
+            // Only when the preset has an opinion. A preset saved before anyone
+            // marked the panel must not un-mark it.
+            if (m.IsOled is not null) ms.IsOled = m.IsOled;
 
             if (m.Brightness < 0) continue;
 
             if (!Brightness.Write(d, (uint)m.Brightness))
                 notes.Add($"{d.Label}: brightness could not be set.");
         }
+    }
+
+    /// <remarks>
+    /// One machine-wide switch, not a per-display one, and skipped entirely
+    /// when the preset has nothing to say — see <see cref="CaptureVrr"/>.
+    /// </remarks>
+    private static void ApplyVrr(Preset preset, List<string> notes)
+    {
+        if (preset.Global.VariableRefreshRate is not { } want) return;
+
+        try
+        {
+            if (VariableRefreshRate.IsEnabled() != want && !VariableRefreshRate.SetEnabled(want))
+                notes.Add($"Variable refresh rate could not be turned {(want ? "on" : "off")}.");
+        }
+        catch (Exception ex)
+        {
+            notes.Add($"Variable refresh rate: {ex.Message}");
+        }
+    }
+
+    /// <remarks>
+    /// Settings only; the engine picks these up from the file. Skipped when the
+    /// preset predates them being captured, so an old preset does not quietly
+    /// reset the taskbar timings to defaults.
+    /// </remarks>
+    private static void ApplyTaskbarBehaviour(Preset preset, UmbraSettings settings)
+    {
+        if (preset.Global.Taskbar is not { } t) return;
+
+        GlobalSettings g = settings.Global;
+        g.HideDelayMs = t.HideDelayMs;
+        g.AnimMs = t.AnimMs;
+        g.RevealPx = t.RevealPx;
+        g.ArmDistancePx = t.ArmDistancePx;
+        g.IdlePollMs = t.IdlePollMs;
+        g.FarPollMs = t.FarPollMs;
+        g.ArmedPollMs = t.ArmedPollMs;
+        g.ShownPollMs = t.ShownPollMs;
     }
 
     /// <remarks>

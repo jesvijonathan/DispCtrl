@@ -195,3 +195,53 @@ What decided the shape:
 
 Still open: prompting when an unknown monitor appears (must offer, never send),
 and a maintainer-side path from issue to `devices/*.md`.
+
+
+## Presets hold everything (built)
+
+Requested as "preset should basically take a snapshot of all values.. like all
+values", then "why have what this preset controls if we are going to save all
+values".
+
+The second question answers the first. Scope existed so a narrow preset could
+stay narrow, but once a preset captures the whole desk, a list of what it is
+allowed to touch is a second, invisible piece of state that has to be remembered
+to predict what applying will do. It is gone.
+
+Schema version 2. Added to the snapshot: software dimming, the OLED marking,
+variable refresh, the taskbar's whole reveal behaviour, and per monitor the
+model, serial, connector, physical size, DPI and colour profile. The last six are
+recorded and never applied - they are what makes a shared file readable.
+
+Two shapes matter:
+
+- **Absent is not the same as default.** `PresetTaskbar?` and `bool?
+  VariableRefreshRate` are nullable so a preset saved before those existed does
+  not reset them on apply or show up as drift.
+- **Guard per field, not per display.** The first attempt skipped a whole
+  monitor whose mode could not be read, which also threw away its brightness.
+
+Drift is now a `PresetChange` record rather than a sentence, so the panel can lay
+it out as setting / now / saved. It shows as a sign with a count, and the list
+is behind it in a flyout - shared between the docked bar and the Presets page by
+a `UserControl`. Rename, export, import, open folder and delete collapsed into
+one actions menu; delete and rename now ask in a dialog.
+
+## Taskbar page (built)
+
+The reveal settings, Windows' global auto-hide, and the four polling intervals -
+which had never had a UI at all and were editable only by hand in settings.json.
+Settings keeps what is not about the taskbar.
+
+## Display information (built)
+
+Twenty-nine facts in six groups, from what was ten. The gap was real: several
+properties existed on the view model and were bound nowhere. `ScreenSizeText`
+(inches and mm) and `PixelDensityText` (real PPI) had been written and never
+placed, and `ColorProfileName` was read from Windows and never shown.
+
+New: model, EDID manufacturer and product code, serial, screen size in inches,
+pixel density, connector, whether it is the main display, DDC/CI status with the
+control count, native resolution, variable refresh range, DPI with scaling,
+orientation, colour depth, colour profile, position, work area, and the Windows
+device name beside Umbra's own token.

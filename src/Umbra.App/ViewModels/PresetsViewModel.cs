@@ -129,7 +129,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     private readonly List<Preset> _presets = [];
     private string? _selected;
     private string _status = "";
-    private List<string> _differences = [];
+    private List<PresetChange> _differences = [];
 
     // ------------------------------------------------------------- listing --
 
@@ -166,7 +166,6 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         Raise(nameof(ActionVisibility));
         Raise(nameof(SaveButtonText));
         RefreshDrift();
-        RaiseScope();
     }
 
     public bool HasPresets => _presets.Count > 0;
@@ -216,7 +215,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     /// Deliberately not the list of differences. In a bar it would be four
     /// lines of detail nobody reads in passing, and it would make the bar tall
     /// enough to be furniture. What belongs here is whether there is anything
-    /// to save; <see cref="Differences"/> spells it out on the Presets page,
+    /// to save; the drift flyout on the Presets page spells it out,
     /// where there is room to read it.
     /// </remarks>
     public string ShortStatus
@@ -247,8 +246,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             _selected = value;
             Raise();
             RefreshDrift();
-            RaiseScope();
-            Raise(nameof(Details));
+                Raise(nameof(Details));
             Raise(nameof(Creating));
             Raise(nameof(CreatingVisibility));
             Raise(nameof(ExistingVisibility));
@@ -360,20 +358,42 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     public string Status => _status;
 
-    public string Differences => _differences.Count == 0
-        ? "Nothing has drifted."
-        : string.Join("\n", _differences);
+    /// <summary>
+    /// Every difference, for the flyout that opens off the drift icon.
+    /// </summary>
+    /// <remarks>
+    /// An observable collection rather than a rebuilt list, so the flyout can
+    /// stay open while a re-check finishes underneath it. Re-assigning the
+    /// property instead would close it every time the debounce fired, which on
+    /// a moving slider is continuously.
+    /// </remarks>
+    public ObservableCollection<PresetChange> Changes { get; } = [];
 
     public bool IsDirty => _differences.Count > 0;
 
     public Visibility DirtyVisibility => IsDirty ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>What the drift icon says when pointed at.</summary>
+    public string DriftTooltip => _differences.Count switch
+    {
+        0 => "Everything matches this preset.",
+        1 => "1 setting differs from this preset. Click to see it.",
+        _ => $"{_differences.Count} settings differ from this preset. Click to see them.",
+    };
+
+    public string DriftCount => _differences.Count.ToString();
+
     private void RaiseDrift()
     {
+        // Mutated in place rather than replaced, so an open flyout survives.
+        Changes.Clear();
+        foreach (PresetChange c in _differences) Changes.Add(c);
+
+        Raise(nameof(DriftTooltip));
+        Raise(nameof(DriftCount));
         Raise(nameof(ActionVisibility));
         Raise(nameof(Status));
         Raise(nameof(ShortStatus));
-        Raise(nameof(Differences));
         Raise(nameof(IsDirty));
         Raise(nameof(DirtyVisibility));
     }
@@ -413,9 +433,8 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
         Preset fresh = await CaptureAsync(preset.Name).ConfigureAwait(true);
 
-        // Scope and description belong to the preset, not to the desk, so they
-        // survive a re-capture rather than being reset by it.
-        fresh.Scope = preset.Scope;
+        // The description belongs to the preset, not to the desk, so it
+        // survives a re-capture.
         fresh.Description = preset.Description;
 
         PresetStore.Save(fresh);
@@ -533,88 +552,6 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     // --------------------------------------------------------------- scope --
 
-    private PresetScope Scope => Current?.Scope ?? new PresetScope();
-
-    private void SetScope(Action<PresetScope> change)
-    {
-        if (Current is not Preset preset) return;
-
-        change(preset.Scope);
-        PresetStore.Save(preset);
-
-        RaiseScope();
-        RefreshDrift();
-    }
-
-    public bool ScopeArrangement
-    {
-        get => Scope.Arrangement;
-        set => SetScope(s => s.Arrangement = value);
-    }
-
-    public bool ScopeModes
-    {
-        get => Scope.Modes;
-        set => SetScope(s => s.Modes = value);
-    }
-
-    public bool ScopeHdr
-    {
-        get => Scope.Hdr;
-        set => SetScope(s => s.Hdr = value);
-    }
-
-    public bool ScopeBrightness
-    {
-        get => Scope.Brightness;
-        set => SetScope(s => s.Brightness = value);
-    }
-
-    public bool ScopeNightLight
-    {
-        get => Scope.NightLight;
-        set => SetScope(s => s.NightLight = value);
-    }
-
-    public bool ScopeWallpaper
-    {
-        get => Scope.Wallpaper;
-        set => SetScope(s => s.Wallpaper = value);
-    }
-
-    public bool ScopeTaskbar
-    {
-        get => Scope.Taskbar;
-        set => SetScope(s => s.Taskbar = value);
-    }
-
-    public bool ScopeMonitorControls
-    {
-        get => Scope.MonitorControls;
-        set => SetScope(s => s.MonitorControls = value);
-    }
-
-    private void RaiseScope()
-    {
-        Raise(nameof(ScopeArrangement));
-        Raise(nameof(ScopeModes));
-        Raise(nameof(ScopeHdr));
-        Raise(nameof(ScopeBrightness));
-        Raise(nameof(ScopeNightLight));
-        Raise(nameof(ScopeWallpaper));
-        Raise(nameof(ScopeTaskbar));
-        Raise(nameof(ScopeMonitorControls));
-        Raise(nameof(Details));
-    }
-
-    /// <summary>
-    /// What the selected preset holds, per monitor.
-    /// </summary>
-    /// <remarks>
-    /// Says plainly whether each monitor in the preset is attached right now,
-    /// because that is the single most common reason a preset does less than
-    /// expected.
-    /// </remarks>
     public string Details
     {
         get

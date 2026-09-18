@@ -177,6 +177,8 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             })
                 Raise(name);
 
+            RaiseInformation();
+
             _selectedOrientation = detail.Orientation is "—" ? Orientations[0] : detail.Orientation;
             Raise(nameof(SelectedOrientation));
             _orientationReady = true;
@@ -654,6 +656,119 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     public string ScanLineOrdering => _detail.ScanLineOrdering;
     public string PixelClock => _detail.PixelClock;
     public string ColorProfileName => _detail.ColorProfile;
+
+    // ------------------------------------------------------ what it is --
+    // Everything the panel, its EDID and Windows will say about it. The
+    // expensive reads all happen elsewhere and land in the fields these read
+    // from, so every one of these is a property access.
+
+    /// <summary>EDID manufacturer and product code, e.g. DEL-A234.</summary>
+    public string ModelCode => _display.Key.Model.Length > 0 ? _display.Key.Model : "Not reported";
+
+    /// <summary>The name the panel gives itself, which is the marketing one.</summary>
+    public string ProductName => string.IsNullOrWhiteSpace(_display.FriendlyName)
+        ? "Not reported"
+        : _display.FriendlyName;
+
+    /// <remarks>
+    /// Shown because it is how a monitor is identified for a warranty or a
+    /// support call, and because Umbra's own identity token is built from it —
+    /// seeing both makes the token legible rather than mysterious.
+    /// </remarks>
+    public string SerialText => _display.Key.HasSerial ? _display.Key.Serial : "Not reported";
+
+    public string ConnectorText => ConnectorLabel;
+
+    /// <summary>The name Windows uses, e.g. \\.\DISPLAY1.</summary>
+    /// <remarks>
+    /// Transient — it is reassigned on replug — which is exactly why it is
+    /// worth showing next to the token that is not.
+    /// </remarks>
+    public string WindowsName => _display.GdiName;
+
+    public string ResolutionText => $"{_display.Bounds.Width} \u00d7 {_display.Bounds.Height}";
+
+    /// <summary>The largest mode this panel offers, which is its native one.</summary>
+    public string NativeResolutionText
+    {
+        get
+        {
+            if (Resolutions.Count == 0) return "\u2014";
+
+            string best = Resolutions[0];
+            return best == ResolutionText ? $"{best}  (running natively)" : best;
+        }
+    }
+
+    public string RefreshText => $"{_display.RefreshHz} Hz";
+
+    public string PositionText => $"{_display.Bounds.Left}, {_display.Bounds.Top}";
+
+    /// <remarks>
+    /// Bounds minus whatever the shell has reserved. Worth showing beside the
+    /// resolution: when Umbra reclaims a hidden taskbar's strip, this is the
+    /// number that proves it worked.
+    /// </remarks>
+    public string WorkAreaText =>
+        $"{_display.WorkArea.Width} \u00d7 {_display.WorkArea.Height}  at  {_display.WorkArea.Left}, {_display.WorkArea.Top}";
+
+    public string OrientationText => _display.OrientationDegrees switch
+    {
+        0 => "Landscape",
+        90 => "Portrait  (rotated 90\u00b0)",
+        180 => "Landscape, flipped  (180\u00b0)",
+        270 => "Portrait, flipped  (270\u00b0)",
+        _ => $"{_display.OrientationDegrees}\u00b0",
+    };
+
+    public string ColorDepthText => $"{_display.BitsPerPixel}-bit colour";
+
+    public string DpiText => $"{_display.Dpi} DPI  \u00b7  {_display.Scale * 100:0}% scaling";
+
+    public string VrrRangeText => _vrr.Capable
+        ? $"{_vrr.Range}  \u00b7  {(_vrr.Enabled ? "on" : "off")}"
+        : "Not advertised";
+
+    public string PrimaryText => _display.IsPrimary ? "Yes" : "No";
+
+    /// <summary>Whether the monitor answers DDC/CI, and what it said.</summary>
+    public string DdcText
+    {
+        get
+        {
+            if (_display.IsInternal) return "Built-in panels have no DDC/CI channel";
+            if (!_capabilitiesRead) return "Asking\u2026";
+
+            return _reportedControls > 0
+                ? $"Answers  \u00b7  {_reportedControls} controls reported, {MonitorControls.Count} offered here"
+                : "No answer";
+        }
+    }
+
+    /// <summary>Everything above, raised together after a rescan.</summary>
+    private void RaiseInformation()
+    {
+        Raise(nameof(ModelCode));
+        Raise(nameof(ProductName));
+        Raise(nameof(SerialText));
+        Raise(nameof(ConnectorText));
+        Raise(nameof(WindowsName));
+        Raise(nameof(ResolutionText));
+        Raise(nameof(NativeResolutionText));
+        Raise(nameof(RefreshText));
+        Raise(nameof(PositionText));
+        Raise(nameof(WorkAreaText));
+        Raise(nameof(OrientationText));
+        Raise(nameof(ColorDepthText));
+        Raise(nameof(DpiText));
+        Raise(nameof(VrrRangeText));
+        Raise(nameof(PrimaryText));
+        Raise(nameof(DdcText));
+        Raise(nameof(PanelTechnology));
+        Raise(nameof(ScreenSizeText));
+        Raise(nameof(PixelDensityText));
+        Raise(nameof(ColorProfileName));
+    }
 
     /// <summary>
     /// The at-a-glance line on the collapsed card.
@@ -1443,6 +1558,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         }
 
         _capabilitiesRead = true;
+        RaiseInformation();
         Raise(nameof(PanelTechnology));
         Raise(nameof(OledSummary));
 
@@ -1604,7 +1720,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(RangeSummary));
     }
 
-    private string ConnectorLabel => _display.Connector switch
+    public string ConnectorLabel => _display.Connector switch
     {
         ConnectorKind.Internal => "Internal",
         ConnectorKind.Hdmi => "HDMI",

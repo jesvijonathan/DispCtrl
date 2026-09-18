@@ -219,6 +219,14 @@ Every one of these was a real bug. Do not reintroduce them.
 - Capability strings are cached per device path — they describe the monitor, not
   its state.
 
+- **Retry capability reads, and never cache a failure.** A capabilities string is
+  around a hundred round trips and roughly one attempt in three came back empty
+  on this Dell. `MonitorCapabilities` now tries three times, 150 ms apart, and
+  caches only success — `GetOrAdd` was storing the failure, so one unlucky read
+  made the monitor mute for the life of the process. The symptom was silent
+  wrong answers: a device record saying the panel answers nothing, a preset
+  capturing none of the monitor's own settings, an empty controls list.
+
 ### Gamma
 
 - **The engine owns the ramp. The app must never write it.** Both writing it
@@ -266,21 +274,27 @@ Every one of these was a real bug. Do not reintroduce them.
 
 ### Presets
 
-- The preset name **is** the file stem. Two names can sanitise to one file, so
-  compare files (`PresetStore.SameFile`), not names — `Rename` used to delete the
-  file it had just written.
-- Capture records everything; **scope decides what is applied**. Narrowing a
-  preset later must never require re-capturing.
-- Brightness is captured in its own field, not as VCP `0x10`, or a preset holds
-  two values for one setting.
-- Drift is **listed, not flagged** — "unsaved changes" alone is a prompt nobody
-  can answer. Brightness needs a two-point tolerance or DDC/CI rounding leaves a
-  preset permanently dirty.
-- Compare app rules **by value**. The settings watcher hands back fresh objects,
-  so a reference comparison never matches: the rule re-applied every tick and
-  each apply triggered the next reload.
-- The engine must persist **the settings object the apply ran against**, never
-  one captured at startup — that wrote its stale view back over the user's edits.
+- **A preset holds everything and applies everything.** The `PresetScope` object
+  is gone (schema version 2). A preset that silently left part of the desk alone
+  was one whose behaviour you had to remember, and "why didn't it change the
+  brightness" is a worse question than "why did it".
+- v1 files still load: the unknown `scope` property is ignored, and fields they
+  lack default to "not recorded".
+- **"Not recorded" has to be distinguishable from a value.** `PresetTaskbar` is a
+  nullable object and `VariableRefreshRate` is a `bool?` for exactly this reason:
+  a preset saved before those were captured must not reset them to defaults on
+  apply, and must not count as drift.
+- Guard per field, not per display. An early return for a monitor whose mode
+  could not be read also silenced its brightness, which had been read perfectly
+  well.
+- `PresetDiff.Describe` returns `PresetChange` records (where / what / now /
+  saved), because the panel lays them out as a table. `PresetDiff.Lines` puts
+  them back into prose for the command line.
+- Brightness has a 2-point tolerance: DDC/CI rounds, and without it a preset is
+  permanently and uselessly dirty.
+- Identity fields (model, serial, connector, physical size, DPI, colour profile)
+  are recorded and never applied. They make a shared file readable. Matching is
+  on the token alone.
 
 ### Settings file
 
@@ -364,6 +378,20 @@ What does not work, and cost time discovering:
 
 ---
 
+## Pages
+
+`Displays`, `Taskbar`, `Presets`, `Hotkeys`, `Engine`, `Settings`, `Help`,
+`About`. Taskbar was split out of Settings: reveal behaviour, the four polling
+intervals (which had no UI at all before, only settings.json), and Windows'
+global auto-hide. What stayed in Settings is what is not about the taskbar —
+logging and the reset.
+
+Which monitors hide their taskbar stays per display, on the Displays page.
+
+`PresetChanges` is a `UserControl`, not markup repeated twice: the docked bar and
+the Presets page both show the drift sign, and two copies would disagree the
+first time either changed.
+
 ## Conventions
 
 Match what is there. It is deliberate and consistent.
@@ -401,8 +429,7 @@ short version, in recommended order:
 4. ~~Hotkeys~~ — **done**, engine-registered, with a Hotkeys page.
 5. **Combined brightness** — one slider spanning hardware above a switching
    point and software dimming below it.
-2. **Presets capturing everything** — identity, serial, remaining read-only
-   state; apply replaces wholesale.
+2. ~~Presets capturing everything~~ - **done**, schema v2, scope removed.
 3. **Persistent known-monitor cache** — survive restarts, keyed on model+serial.
    Copy ddcutil's `<mfg>-<model>-<product>` convention.
 4. **More fields in the display report.**

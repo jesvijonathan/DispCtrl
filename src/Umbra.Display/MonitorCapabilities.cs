@@ -363,7 +363,7 @@ public static class MonitorCapabilities
     {
         if (display.IsInternal) return MonitorCapability.None;
 
-        string? raw = Strings.GetOrAdd(display.Key.DevicePath, _ => ReadString(display));
+        string? raw = Capabilities(display);
         if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
 
         MonitorCapability parsed = Parse(raw);
@@ -385,7 +385,7 @@ public static class MonitorCapabilities
     {
         if (display.IsInternal) return MonitorCapability.None;
 
-        string? raw = Strings.GetOrAdd(display.Key.DevicePath, _ => ReadString(display));
+        string? raw = Capabilities(display);
         if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
 
         MonitorCapability parsed = Parse(raw);
@@ -400,6 +400,60 @@ public static class MonitorCapabilities
 
         return parsed;
     }
+
+    /// <summary>
+    /// The monitor's capabilities string, retried and cached only on success.
+    /// </summary>
+    /// <remarks>
+    /// DDC/CI is a lossy channel over a wire that was not designed for it, and
+    /// a capabilities read is the longest conversation Umbra ever has with a
+    /// monitor — around a hundred round trips for a string of any size. Roughly
+    /// one attempt in three on this Dell comes back with nothing, which is
+    /// normal for the protocol and the reason ddcutil retries by default.
+    /// <para>
+    /// Not retrying showed up as a monitor that intermittently reported no
+    /// controls at all: a device record claiming the panel answers nothing, a
+    /// preset capturing none of the monitor's own settings, and the controls
+    /// list on the Displays page simply empty. All three are silent wrong
+    /// answers rather than visible failures, which is the worst shape for a bug
+    /// like this to take.
+    /// </para>
+    /// <para>
+    /// Only a successful read is cached. <c>GetOrAdd</c> stored the failure too,
+    /// so within one process a single unlucky attempt meant the monitor was
+    /// treated as mute until it was replugged.
+    /// </para>
+    /// </remarks>
+    private static string? Capabilities(DisplayInfo display)
+    {
+        if (Strings.TryGetValue(display.Key.DevicePath, out string? cached)
+            && !string.IsNullOrWhiteSpace(cached))
+        {
+            return cached;
+        }
+
+        for (int attempt = 1; attempt <= Attempts; attempt++)
+        {
+            string? raw = ReadString(display);
+
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                Strings[display.Key.DevicePath] = raw;
+                return raw;
+            }
+
+            // Long enough for the monitor to finish whatever it was doing, and
+            // short enough that three attempts still feel like one operation.
+            if (attempt < Attempts) Thread.Sleep(RetryMs);
+        }
+
+        return null;
+    }
+
+    /// <summary>How many times a capabilities read is attempted before giving up.</summary>
+    private const int Attempts = 3;
+
+    private const int RetryMs = 150;
 
     /// <summary>Forgets the cached string, so a replugged monitor is asked afresh.</summary>
     public static void Forget(DisplayInfo display) => Strings.TryRemove(display.Key.DevicePath, out _);
