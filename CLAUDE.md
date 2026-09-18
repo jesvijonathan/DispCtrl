@@ -117,6 +117,22 @@ umbra preset apply Evening
 
 Exit codes: 0 done, 1 refused, 2 asked wrongly.
 
+### Contributing a device record
+
+```
+umbra contribute                    # every monitor, printed; sends nothing
+umbra contribute --display 2        # one of them
+umbra contribute --display 2 --open # prefills a GitHub issue for review
+```
+
+Writes `%LOCALAPPDATA%\Umbra\devices\<KEY>.md` and, with `--open`, opens
+`github.com/jesvijonathan/Display-Control/issues/new` with the body filled in.
+The panel has the same thing under **Displays -> Help Umbra support more
+monitors**, which shows the whole text in a dialog first.
+
+Committed records live in `devices/`, one file per model, keyed on EDID
+manufacturer and product code (`DEL-A234.md`). See `devices/README.md`.
+
 ### Hotkeys
 
 Global shortcuts live in `settings.Hotkeys` and are registered by the **engine**,
@@ -146,6 +162,10 @@ count. **Add to this rather than writing throwaway probes** — several probes i
 this project's history should have been checks here.
 
 ---
+
+Includes the redaction checks: the scrub in isolation, then end to end over the
+monitors actually attached - asserting that the text the app would publish
+carries none of their serials, device paths, or the account name. 69 assertions.
 
 ## Traps already paid for
 
@@ -271,6 +291,35 @@ Every one of these was a real bug. Do not reintroduce them.
   unparseable — it was quarantined as `settings.json.bad`, the engine fell back
   to defaults, and the symptom was hotkeys simply never firing.
 
+### Publishing device records
+
+Everything here is load-bearing; this is the one feature where a bug is
+unrecallable.
+
+- **`DisplayReport` is not publishable and never will be.** It carries the
+  monitor serial, `\\?\DISPLAY#...` device paths, and wallpaper paths with the
+  user's account name in them. `DeviceSubmission` is a separate type built by
+  choosing fields, not by filtering the report. Keep it that way.
+- **The test for a field**: would it be identical on someone else's monitor of
+  the same model? Current settings fail it. Brightness 62 describes an evening
+  at a desk, so controls are recorded by range, never by current value.
+- **`Redact.Scrub` runs over the finished text**, not the fields, so a field
+  added later cannot quietly reintroduce a leak. It removes attached panels'
+  serials, device paths, `C:\Users\...` paths, bare GUIDs and the account name.
+- `tools/presetcheck` asserts all of this **against the monitors actually
+  attached**, not fixtures. That end-to-end check is the one that matters.
+- **No token, no network call from the app.** It opens a prefilled issue in the
+  browser the person is already signed into and they press Submit. A token in a
+  Store app is a token given to everyone who installs it.
+- **The body is plain ASCII** - the only place in Umbra without proper
+  typography. It travels percent-encoded, where an em dash costs nine characters
+  and `x` costs one. With typography the Dell's record was 6200 characters and
+  overran the URL; without it, 5760 and it prefills. Budget is 7000, under the
+  8k where GitHub answers 414.
+- `blank_issues_enabled: true` in `.github/ISSUE_TEMPLATE/config.yml` is
+  required. Turning it off sends `issues/new?body=` to the template chooser and
+  silently drops the body.
+
 ### Build
 
 - `PublishAot=true` disables built-in COM interop. The internal panel's
@@ -338,7 +387,8 @@ Working and verified on hardware: per-monitor taskbar hiding, per-monitor
 wallpaper, unison brightness (multiplier and calibrated range), night light
 (unison, per-monitor, calibrated, scheduled), software dimming, arrangement
 drag/apply, presets with per-app rules, monitor capability discovery and control,
-display report, identify overlays, hotplug re-discovery.
+display report, identify overlays, hotplug re-discovery, device contribution
+(anonymised, consent-gated).
 
 Outstanding, roughly in the order last discussed:
 
@@ -356,8 +406,9 @@ short version, in recommended order:
 3. **Persistent known-monitor cache** — survive restarts, keyed on model+serial.
    Copy ddcutil's `<mfg>-<model>-<product>` convention.
 4. **More fields in the display report.**
-5. **Opt-in contribution toggle** — consent plus a staged anonymised bundle. Do
-   not wire it to a destination that does not exist.
+5. ~~Opt-in contribution~~ - **done**, `umbra contribute` and the panel card.
+   Records land in `devices/`; `DEL-A234.md` and `SDC-4154.md` are seeded from
+   this machine.
 6. **OLED burn-in protection** — original scope, still unbuilt. The per-monitor
    `IsOled` flag exists and is what it should key off.
 7. **Remember window positions** across replug.

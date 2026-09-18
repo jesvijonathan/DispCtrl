@@ -104,6 +104,27 @@
         </StackPanel>
       </tk:SettingsCard>
 
+      <!-- One issue per monitor, which is how the device folder is organised:
+           a record describes a model, not a desk. The button says "Review"
+           rather than "Send" because that is what it does - the dialog shows
+           the exact text, and GitHub is where it is actually submitted. -->
+      <tk:SettingsExpander Header="Help Umbra support more monitors"
+                           Description="{x:Bind ViewModel.ContributeStatus, Mode=OneWay}"
+                           ItemsSource="{x:Bind ViewModel.Displays, Mode=OneWay}">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE8C8;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.ItemTemplate>
+          <DataTemplate x:DataType="vm:DisplayViewModel">
+            <tk:SettingsCard Header="{x:Bind Name}"
+                             Description="{x:Bind RoleAndConnection}">
+              <Button Content="Review&#x2026;" Click="OnContribute" Tag="{x:Bind Token}"
+                      AutomationProperties.Name="{x:Bind ContributeAutomationName}"/>
+            </tk:SettingsCard>
+          </DataTemplate>
+        </tk:SettingsExpander.ItemTemplate>
+      </tk:SettingsExpander>
+
       <tk:SettingsCard Header="Connect to a wireless display"
                        Description="Opens Windows' own pairing flow — Miracast discovery and PIN entry belong there.">
         <tk:SettingsCard.HeaderIcon>

@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Umbra.Core\Umbra.Core.csproj" />
+    <ProjectReference Include="..\..\src\Umbra.Display\Umbra.Display.csproj" />
   </ItemGroup>
 </Project>

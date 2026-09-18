@@ -241,6 +241,9 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     public string Token => _display.Token;
 
+    /// <summary>Distinct per display, so a test can name which button it means.</summary>
+    public string ContributeAutomationName => $"Contribute {Number}";
+
     public string ScaleText => $"{_display.Scale * 100:0}%";
 
     public bool IsPrimary => _display.IsPrimary;

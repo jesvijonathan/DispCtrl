@@ -164,3 +164,34 @@ Effort: small. Risk: low.
 6. **E**, **H**, **L**.
 7. **G** — only after deciding about residency.
 8. **K** — recommend against.
+
+
+## Device contribution (built)
+
+Requested as "send monitor details to repo ... we get a copy of all the monitor
+the user has into our repository under devices ... like auto create a issue".
+
+Built as `DeviceSubmission` + `DeviceContribution` in `Umbra.Display/Devices`,
+`umbra contribute`, and a card on the Displays page.
+
+What decided the shape:
+
+- **Anonymised by construction, not by filtering.** The display report this grew
+  out of contains the monitor's serial, device instance paths and wallpaper
+  paths carrying the user's Windows account name. None of that can be published,
+  and a filter over the report would leak the first field someone added. The
+  submission is a separate type whose every field answers "would this be the
+  same on another unit of this model?".
+- **A second pass anyway.** `Redact.Scrub` runs over the finished markdown, so a
+  field added later cannot reintroduce a leak without being both sensitive and
+  shaped unlike a serial, a device path, a user path or a GUID.
+- **No token, no request from the app.** It opens a prefilled issue in the
+  browser; the person reads the exact text and presses Submit. A token shipped
+  in a Store app is a token given to everyone who installs it, and a submission
+  the app makes on someone's behalf is not consent.
+- **One issue per monitor**, because a record describes a model, not a desk.
+- **Keyed `<MFG>-<PRODUCT>`**, not Umbra's internal token - that ends in the
+  serial.
+
+Still open: prompting when an unknown monitor appears (must offer, never send),
+and a maintainer-side path from issue to `devices/*.md`.

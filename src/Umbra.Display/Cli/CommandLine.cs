@@ -1,4 +1,5 @@
 using Umbra.Core.Displays;
+using Umbra.Display.Devices;
 using Umbra.Core.Presets;
 using Umbra.Core.Settings;
 using Umbra.Display.Presets;
@@ -57,6 +58,7 @@ public static class CommandLine
                 "resolution" => Resolution(args),
                 "primary" => Primary(args),
                 "report" => Report(),
+                "contribute" => Contribute(args),
                 _ => Usage($"unknown command: {verb}"),
             };
         }
@@ -688,6 +690,53 @@ public static class CommandLine
         return 0;
     }
 
+    /// <summary>
+    /// Prepares a device record and, on request, opens it as an issue.
+    /// </summary>
+    /// <remarks>
+    /// Prints by default and opens nothing. Publishing is an outward step that
+    /// cannot be taken back, so it takes the extra word: someone running
+    /// <c>umbra contribute</c> to see what it would send must not find it sent.
+    /// </remarks>
+    private static int Contribute(string[] args)
+    {
+        List<DisplayInfo> targets = Targets(args, out string? error);
+        if (error is not null) return Usage(error);
+
+        bool open = Has(args, "--open");
+        bool quiet = Has(args, "--quiet");
+
+        foreach (DisplayInfo d in targets)
+        {
+            Contribution c = DeviceContribution.Prepare(d, targets);
+
+            if (!quiet)
+            {
+                Console.WriteLine(c.Body);
+                Console.WriteLine();
+            }
+
+            if (c.Path.Length > 0) Console.WriteLine($"saved: {c.Path}");
+
+            if (!open)
+            {
+                Console.WriteLine("not sent. Add --open to review and submit it at "
+                    + $"github.com/{DeviceContribution.Repository}");
+                continue;
+            }
+
+            if (!c.Prefilled)
+                Console.WriteLine("too long for a prefilled issue — paste the saved file into the form");
+
+            if (DeviceContribution.Open(c))
+                Console.WriteLine("opened in your browser — review it, then press Submit");
+            else
+                Console.Error.WriteLine($"could not open a browser. The text is at {c.Path}");
+        }
+
+        return 0;
+    }
+
     // ------------------------------------------------------------ output --
 
     private static int Report(List<DisplayInfo> targets, Func<DisplayInfo, string> read)
@@ -742,6 +791,13 @@ public static class CommandLine
 
           report                   write the display report, print its path
 
+        Contributing
+          contribute               show the device record for each monitor, send nothing
+          contribute --open        open it as a prefilled issue to review and submit
+            --quiet                print only the saved path
+          Carries what the model is — controls, ranges, capabilities string. Never
+          the serial, the device path, a file path, your user name or your settings.
+
         Targeting
           --display <n|token>      one display; --all for every one
           Without either, a command reads rather than writes and reports them all.
@@ -758,6 +814,7 @@ public static class CommandLine
           umbra nightlight 60 --from 20:00 --to 07:00
           umbra input "DisplayPort 1" --display 2
           umbra preset apply Evening
+          umbra contribute --display 2 --open
         """;
 
     private static int Fail(string message)

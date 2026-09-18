@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Umbra.App.ViewModels;
 using Umbra.Core.Displays;
 using Umbra.Display;
+using Umbra.Display.Devices;
 using WinRT.Interop;
 
 namespace Umbra.App.Views;
@@ -103,6 +104,72 @@ public sealed partial class DisplaysPage : Page
             FileName = MainViewModel.ReportPath,
             UseShellExecute = true,
         });
+    }
+
+    /// <summary>
+    /// Shows exactly what would be published, then opens it for review.
+    /// </summary>
+    /// <remarks>
+    /// The text is shown in full rather than summarised. Someone deciding
+    /// whether to publish a record of their hardware is entitled to read the
+    /// record, and a dialog saying "device details will be sent" asks them to
+    /// take it on trust. The text is selectable, so it can be checked or copied
+    /// before anything leaves the machine.
+    /// </remarks>
+    private async void OnContribute(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string token) return;
+
+        button.IsEnabled = false;
+        Contribution? prepared;
+        try
+        {
+            prepared = await ViewModel.PrepareContributionAsync(token);
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+
+        if (prepared is not { } contribution) return;
+
+        var body = new TextBlock
+        {
+            Text = contribution.Body,
+            IsTextSelectionEnabled = true,
+            TextWrapping = TextWrapping.Wrap,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 12,
+        };
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Send this to the Umbra project?",
+            Content = new ScrollViewer
+            {
+                Content = body,
+                MaxHeight = 420,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            },
+            PrimaryButtonText = "Review on GitHub",
+            SecondaryButtonText = "Copy",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+        };
+
+        ContentDialogResult result = await dialog.ShowAsync();
+
+        if (result == ContentDialogResult.Primary)
+        {
+            ViewModel.OpenContribution(contribution);
+        }
+        else if (result == ContentDialogResult.Secondary)
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(contribution.Body);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        }
     }
 
     private void OnIdentify(object sender, RoutedEventArgs e) => ViewModel.Identify();

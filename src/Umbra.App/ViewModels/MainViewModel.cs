@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Umbra.Display;
 using Umbra.App.Services;
 using Umbra.Core.Displays;
+using Umbra.Display.Devices;
 using Umbra.Core.Settings;
 
 namespace Umbra.App.ViewModels;
@@ -421,6 +422,66 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public static string ReportPath => DisplayReport.Path_;
+
+    // ---------------------------------------------------------- contributing --
+
+    private string _contributeStatus =
+        "Umbra can only offer a control it knows a monitor has. Sending what yours report teaches it "
+        + "about hardware nobody here owns. You see the exact text first, and submit it yourself.";
+
+    public string ContributeStatus
+    {
+        get => _contributeStatus;
+        private set { _contributeStatus = value; Raise(); }
+    }
+
+    /// <summary>
+    /// Builds one display's device record, sending nothing.
+    /// </summary>
+    /// <remarks>
+    /// Off the UI thread, because it asks the monitor about every code it
+    /// advertises — seconds of blocking DDC/CI traffic. Returns null when the
+    /// display has gone away since the button was drawn, which is ordinary on a
+    /// desk where monitors get switched to another input.
+    /// </remarks>
+    public async Task<Contribution?> PrepareContributionAsync(string token)
+    {
+        List<DisplayInfo> displays = CurrentDisplays();
+
+        DisplayInfo? display = null;
+        foreach (DisplayInfo d in displays)
+            if (d.Token == token) { display = d; break; }
+
+        if (display is null)
+        {
+            ContributeStatus = "That display is no longer connected.";
+            return null;
+        }
+
+        ContributeStatus = $"Asking {display.Label} what it can do\u2026";
+
+        try
+        {
+            Contribution c = await Task.Run(() => DeviceContribution.Prepare(display, displays));
+            ContributeStatus = $"Ready: {c.Title}. Nothing has been sent.";
+            return c;
+        }
+        catch (Exception ex)
+        {
+            ContributeStatus = $"Could not read that display: {ex.Message}";
+            return null;
+        }
+    }
+
+    /// <summary>Opens the prepared issue for review. The person still presses Submit.</summary>
+    public void OpenContribution(Contribution contribution)
+    {
+        ContributeStatus = DeviceContribution.Open(contribution)
+            ? "Opened in your browser. Review it there, then press Submit."
+            : $"Could not open a browser. The text is saved at {contribution.Path}.";
+    }
+
+    public static string ContributeFolder => DeviceContribution.Folder;
 
     // ------------------------------------------------------------ night light --
 

@@ -1,4 +1,5 @@
 using Umbra.Core.Displays;
+using Umbra.Display.Devices;
 using Umbra.Core.Presets;
 using Umbra.Core.Settings;
 
@@ -228,6 +229,80 @@ Console.WriteLine("physical arrangement layout");
     Check("a display with no reported size falls back to pixels",
         Math.Abs(fallback[0].Width - 1920) < 0.01);
 }
+
+// ---------------------------------------------------------------- redaction --
+// The part that has to be right. Everything below asks the same question: can
+// anything that identifies this machine or this person reach a public issue?
+
+Console.WriteLine();
+Console.WriteLine("redaction: what must never be published");
+
+const string Serial = "3QQQ2X3";
+string[] serials = [Serial];
+
+Check("a serial is removed", !Redact.Scrub($"Serial {Serial} here", serials).Contains(Serial));
+Check("a serial is removed whatever its case",
+    !Redact.Scrub($"serial {Serial.ToLowerInvariant()}", serials).Contains(Serial, StringComparison.OrdinalIgnoreCase));
+
+Check("a device path is removed",
+    !Redact.Scrub(@"path \\?\DISPLAY#SDC4154#5&1af48b2f&0&UID256#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}")
+        .Contains("SDC4154#5"));
+
+Check("a user profile path is removed",
+    !Redact.Scrub(@"wallpaper C:\Users\Jesvi Jonathan\Pictures\a.jpg").Contains("Users"));
+
+Check("a bare GUID is removed",
+    !Redact.Scrub("{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}").Contains("e6f07b5f"));
+
+Check("the account name is removed",
+    !Redact.Scrub($"signed in as {Environment.UserName}")
+        .Contains(Environment.UserName, StringComparison.OrdinalIgnoreCase));
+
+// Over-redaction would be its own failure: a record scrubbed into uselessness
+// teaches nobody anything about the monitor.
+const string Capabilities = "(prot(monitor)type(LCD)model(U2424H)cmds(01 02 03 07 0C E3 F3)"
+    + "vcp(02 04 05 08 10 12 14(01 04 05 06 08 09 0B 0C) 16 18 1A 52 60(0F 11) 87 AC AE B2 B6)mccs_ver(2.1))";
+
+Check("a capabilities string survives untouched", Redact.Scrub(Capabilities, serials) == Capabilities);
+Check("and reads as clean", Redact.IsClean(Capabilities, serials));
+Check("ordinary text is left alone", Redact.Scrub("DEL U2424H, 527 x 296 mm") == "DEL U2424H, 527 x 296 mm");
+
+Check("a key splits into maker and product", Redact.Manufacturer("DEL-A234") == "DEL" && Redact.Product("DEL-A234") == "A234");
+Check("a key with no product does not invent one", Redact.Product("SDC") == "");
+
+Console.WriteLine();
+Console.WriteLine("redaction: end to end, over the monitors actually attached");
+
+// The assertion that protects the person using this. Everything above tests the
+// scrub in isolation; this one asks whether the text the application would
+// really publish carries anything it should not.
+List<DisplayInfo> attached = DisplayRegistry.Enumerate();
+var secrets = new List<string>();
+
+foreach (DisplayInfo d in attached)
+{
+    if (d.Key.HasSerial) secrets.Add(d.Key.Serial);
+    secrets.Add(d.Key.DevicePath);
+}
+
+secrets.Add(Environment.UserName);
+
+foreach (DisplayInfo d in attached)
+{
+    Contribution c = DeviceContribution.Prepare(d, attached);
+    Console.WriteLine($"    {c.Title}: {c.Body.Length} characters, {(c.Prefilled ? "prefills" : "needs pasting")}");
+
+    foreach (string secret in secrets)
+        if (secret.Length >= 4)
+            Check($"{c.Key} does not carry \"{Shorten(secret)}\"",
+                !c.Body.Contains(secret, StringComparison.OrdinalIgnoreCase));
+
+    Check($"{c.Key} says something about the monitor", c.Body.Length > 200);
+    Check($"{c.Key} is filed under the model, not the unit", !c.Key.Contains('_') && c.Key.Length <= 12);
+    Check($"{c.Key} is plain ASCII, so the URL stays short", c.Body.All(char.IsAscii));
+}
+
+static string Shorten(string s) => s.Length <= 24 ? s : s[..24] + "...";
 
 Console.WriteLine();
 Console.WriteLine(failures == 0 ? "all checks passed" : $"{failures} FAILED");
