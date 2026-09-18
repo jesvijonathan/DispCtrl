@@ -8,6 +8,11 @@
     <RootNamespace>DisplCtrl.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
+    <!-- So the exe carries the icon itself. Without it a pinned shortcut, the
+         taskbar button and alt-tab all show the generic .NET icon, and setting
+         it on the shortcut alone fixes only the first of the three. -->
+    <ApplicationIcon>Assets\DisplCtrl.ico</ApplicationIcon>
+
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
 

@@ -10,6 +10,7 @@
 
     <!-- `dispctrl`, because that is what someone types. -->
     <AssemblyName>dispctrl</AssemblyName>
+    <ApplicationIcon>..\DisplCtrl.App\Assets\DisplCtrl.ico</ApplicationIcon>
     <RootNamespace>DisplCtrl.Cli</RootNamespace>
 
     <Nullable>enable</Nullable>

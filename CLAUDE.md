@@ -117,6 +117,27 @@ dispctrl preset apply Evening
 
 Exit codes: 0 done, 1 refused, 2 asked wrongly.
 
+### Shortcuts
+
+```
+tools\Install-Shortcuts.ps1                       # Start menu, Release
+tools\Install-Shortcuts.ps1 -Configuration Debug
+tools\Install-Shortcuts.ps1 -AddToPath            # dispctrl on the user PATH
+tools\Install-Shortcuts.ps1 -Remove
+```
+
+The shortcut points **at `bin\<configuration>`**, not at a copy, so rebuilding
+updates what it launches. Copying the exe somewhere would freeze it at that
+build and go stale silently — which is exactly the confusion that prompted it
+(the engine was running from Release while only Debug was being rebuilt).
+
+Windows removed the *Pin to taskbar* verb in 10 1903 and it has not returned;
+an application cannot pin itself. The script checks the shell verbs and says so
+rather than pretending. Pinning is one right-click on the Start entry.
+
+Both exes carry `Assets\DisplCtrl.ico` via `<ApplicationIcon>`. Setting it only
+on the shortcut would leave the taskbar button and alt-tab generic.
+
 ### Contributing a device record
 
 ```
