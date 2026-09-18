@@ -1,0 +1,103 @@
+<Page x:Class="DisplCtrl.App.Views.EnginePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:tk="using:CommunityToolkit.WinUI.Controls">
+
+  <Page.Resources>
+    <!-- Stopping hands the taskbars back, which is the consequential action
+         here, so it reads as one. WinUI ships an accent button style but no
+         critical one. -->
+    <Style x:Key="CriticalButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+      <Setter Property="Background" Value="{ThemeResource SystemFillColorCriticalBackgroundBrush}"/>
+      <Setter Property="Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}"/>
+      <Setter Property="BorderBrush" Value="{ThemeResource SystemFillColorCriticalBrush}"/>
+    </Style>
+
+    <!-- The button itself carries the state, so no separate indicator dot is
+         needed: green invites starting, red warns that stopping hands the
+         taskbars back. WinUI ships neither, so both are defined here. -->
+    <Style x:Key="SuccessButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+      <Setter Property="Background" Value="{ThemeResource SystemFillColorSuccessBackgroundBrush}"/>
+      <Setter Property="Foreground" Value="{ThemeResource SystemFillColorSuccessBrush}"/>
+      <Setter Property="BorderBrush" Value="{ThemeResource SystemFillColorSuccessBrush}"/>
+    </Style>
+  </Page.Resources>
+
+  <ScrollViewer Padding="0,0,0,32">
+    <!-- Stretch with no MaxWidth. The cap was the problem: a Stretch panel
+           with a MaxWidth centres itself once the window exceeds that width,
+           which is what pushed content off to one side. Pinning it Left instead
+           fixed the drift but made the panel size to its content, so cards
+           stopped filling. Filling at every width is what Windows Settings
+           does, and the side padding already keeps line length sane. -->
+      <StackPanel Padding="36,12,36,0" Spacing="0"
+                  HorizontalAlignment="Stretch">
+
+      <TextBlock Text="Engine" Style="{StaticResource TitleTextBlockStyle}"/>
+      <TextBlock Text="The background process that moves the taskbars"
+                 Style="{StaticResource BodyTextBlockStyle}"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                 Margin="0,4,0,28"/>
+
+      <tk:SettingsCard Header="{x:Bind ViewModel.EngineStateText, Mode=OneWay}"
+                       Description="{x:Bind ViewModel.EngineDetailText, Mode=OneWay}">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE945;"/>
+        </tk:SettingsCard.HeaderIcon>
+
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Button Content="Start"
+                  Style="{StaticResource SuccessButtonStyle}"
+                  Visibility="{x:Bind ViewModel.StartVisibility, Mode=OneWay}"
+                  IsEnabled="{x:Bind ViewModel.CanToggleEngine}"
+                  Click="OnToggleEngine"
+                  MinWidth="96"/>
+
+          <Button Content="Stop"
+                  Style="{StaticResource CriticalButtonStyle}"
+                  Visibility="{x:Bind ViewModel.StopVisibility, Mode=OneWay}"
+                  Click="OnToggleEngine"
+                  MinWidth="96"/>
+        </StackPanel>
+      </tk:SettingsCard>
+
+      <TextBlock Text="Files"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,8"/>
+
+      <tk:SettingsCard Header="Settings file"
+                       Description="{x:Bind ViewModel.SettingsPath}">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE8A5;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Click="OnOpenSettingsFolder"
+                Width="40" Height="36" Padding="0"
+                ToolTipService.ToolTip="Open containing folder"
+                AutomationProperties.Name="Open containing folder">
+          <FontIcon Glyph="&#xE838;" FontSize="16"/>
+        </Button>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Log"
+                       Description="{x:Bind ViewModel.LogPath}">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE9D9;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Click="OnOpenLog"
+                Width="40" Height="36" Padding="0"
+                ToolTipService.ToolTip="Open log"
+                AutomationProperties.Name="Open log">
+          <FontIcon Glyph="&#xE8A7;" FontSize="16"/>
+        </Button>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Executable"
+                       Description="{x:Bind ViewModel.EnginePath}">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE756;"/>
+        </tk:SettingsCard.HeaderIcon>
+      </tk:SettingsCard>
+
+    </StackPanel>
+  </ScrollViewer>
+</Page>

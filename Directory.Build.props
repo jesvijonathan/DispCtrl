@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- One place to bump the shipping version; the MSIX manifest reads it too. -->
-    <UmbraVersion>0.1.0</UmbraVersion>
+    <DisplCtrlVersion>0.1.0</DisplCtrlVersion>
 
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
@@ -22,7 +22,7 @@
     <AnalysisLevel>latest</AnalysisLevel>
 
     <Authors>Jesvi Jonathan</Authors>
-    <Product>Umbra</Product>
+    <Product>DisplCtrl</Product>
   </PropertyGroup>
 
 </Project>

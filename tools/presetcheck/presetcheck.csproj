@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Umbra.Core\Umbra.Core.csproj" />
-    <ProjectReference Include="..\..\src\Umbra.Display\Umbra.Display.csproj" />
+    <ProjectReference Include="..\..\src\DisplCtrl.Core\DisplCtrl.Core.csproj" />
+    <ProjectReference Include="..\..\src\DisplCtrl.Display\DisplCtrl.Display.csproj" />
   </ItemGroup>
 </Project>

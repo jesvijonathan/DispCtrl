@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs, removes and inspects the Umbra engine's autostart.
+    Installs, removes and inspects the DisplCtrl engine's autostart.
 
 .DESCRIPTION
     INTERIM TOOLING. The shipping app registers autostart through the MSIX
@@ -35,21 +35,21 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $Root        = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$Exe         = Join-Path $Root 'src\Umbra.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\Umbra.Engine.exe'
-$TaskName    = 'Umbra.Engine'
+$Exe         = Join-Path $Root 'src\DisplCtrl.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\DisplCtrl.Engine.exe'
+$TaskName    = 'DisplCtrl.Engine'
 $LegacyTask  = 'SecondaryTaskbarAutoHide'
 $LegacyProc  = 'SecondaryTaskbarAutoHide'
 $LegacyDir   = Join-Path $env:LOCALAPPDATA 'SecondaryTaskbarAutoHide'
-$AppExe      = Join-Path $Root 'src\Umbra.App\bin\Release\net10.0-windows10.0.26100.0\win-x64\Umbra.App.exe'
-$IconPath    = Join-Path $Root 'src\Umbra.App\Assets\Umbra.ico'
-$StartMenu   = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Umbra.lnk'
+$AppExe      = Join-Path $Root 'src\DisplCtrl.App\bin\Release\net10.0-windows10.0.26100.0\win-x64\DisplCtrl.App.exe'
+$IconPath    = Join-Path $Root 'src\DisplCtrl.App\Assets\DisplCtrl.ico'
+$StartMenu   = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\DisplCtrl.lnk'
 
 function Add-Shortcut {
     if (-not (Test-Path $AppExe)) {
-        throw "Panel not built. Run: dotnet build src\Umbra.App\Umbra.App.csproj -c Release"
+        throw "Panel not built. Run: dotnet build src\DisplCtrl.App\DisplCtrl.App.csproj -c Release"
     }
     if (-not (Test-Path $IconPath)) {
-        & (Join-Path $Root 'tools\New-UmbraIcon.ps1') | Out-Null
+        & (Join-Path $Root 'tools\New-DisplCtrlIcon.ps1') | Out-Null
     }
 
     # A .lnk is interim. The MSIX package declares its own Start entry and
@@ -63,7 +63,7 @@ function Add-Shortcut {
     $lnk.Save()
 
     Write-Host "Added Start menu entry: $StartMenu"
-    Write-Host 'Search for "Umbra" in the Start menu.'
+    Write-Host 'Search for "DisplCtrl" in the Start menu.'
 }
 
 function Remove-Shortcut {
@@ -77,23 +77,23 @@ function Remove-Shortcut {
 
 function Assert-Built {
     if (-not (Test-Path $Exe)) {
-        throw "Engine not built. Run:`n  dotnet build `"$Root\src\Umbra.Engine\Umbra.Engine.csproj`" -c Release"
+        throw "Engine not built. Run:`n  dotnet build `"$Root\src\DisplCtrl.Engine\DisplCtrl.Engine.csproj`" -c Release"
     }
 }
 
-function Stop-Umbra {
+function Stop-DisplCtrl {
     # Graceful, not Stop-Process: the engine restores the taskbars on its way
     # out. Killing it would leave a bar parked off-screen.
-    if (-not (Get-Process -Name 'Umbra.Engine' -ErrorAction SilentlyContinue)) { return }
+    if (-not (Get-Process -Name 'DisplCtrl.Engine' -ErrorAction SilentlyContinue)) { return }
 
     & $Exe stop | Out-Null
     for ($i = 0; $i -lt 30; $i++) {
         Start-Sleep -Milliseconds 200
-        if (-not (Get-Process -Name 'Umbra.Engine' -ErrorAction SilentlyContinue)) { return }
+        if (-not (Get-Process -Name 'DisplCtrl.Engine' -ErrorAction SilentlyContinue)) { return }
     }
 
     Write-Warning 'Engine did not stop on request; forcing. A taskbar may need explorer restarted.'
-    Get-Process -Name 'Umbra.Engine' -ErrorAction SilentlyContinue | Stop-Process -Force
+    Get-Process -Name 'DisplCtrl.Engine' -ErrorAction SilentlyContinue | Stop-Process -Force
 }
 
 function Remove-Legacy {
@@ -121,14 +121,14 @@ function Remove-Legacy {
     if (Test-Path $LegacyDir) {
         Write-Host ''
         Write-Host "Its files are still at:  $LegacyDir"
-        Write-Host '  Left in place deliberately, as a rollback if Umbra disappoints.'
+        Write-Host '  Left in place deliberately, as a rollback if DisplCtrl disappoints.'
         Write-Host '  Delete whenever you like - nothing runs from there any more.'
     }
 }
 
-function Install-Umbra {
+function Install-DisplCtrl {
     Assert-Built
-    Stop-Umbra
+    Stop-DisplCtrl
 
     $action = New-ScheduledTaskAction -Execute $Exe -Argument 'run'
 
@@ -168,17 +168,17 @@ function Install-Umbra {
     Show-Status
 }
 
-function Uninstall-Umbra {
+function Uninstall-DisplCtrl {
     if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
         Write-Host "Removed task '$TaskName'."
     }
-    Stop-Umbra
+    Stop-DisplCtrl
     Write-Host 'Engine stopped and taskbars restored.'
 }
 
 function Show-Status {
-    $proc = Get-Process -Name 'Umbra.Engine' -ErrorAction SilentlyContinue
+    $proc = Get-Process -Name 'DisplCtrl.Engine' -ErrorAction SilentlyContinue
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 
     if ($proc) {
@@ -207,7 +207,7 @@ function Show-Status {
     Write-Host ''
     if (Test-Path $Exe) { & $Exe status }
 
-    $log = Join-Path $env:LOCALAPPDATA 'Umbra\engine.log'
+    $log = Join-Path $env:LOCALAPPDATA 'DisplCtrl\engine.log'
     if (Test-Path $log) {
         Write-Host ''
         Write-Host 'Recent log:'
@@ -215,8 +215,8 @@ function Show-Status {
     }
 }
 
-if     ($Install)        { Install-Umbra }
-elseif ($Uninstall)      { Uninstall-Umbra; Remove-Shortcut }
+if     ($Install)        { Install-DisplCtrl }
+elseif ($Uninstall)      { Uninstall-DisplCtrl; Remove-Shortcut }
 elseif ($RemoveLegacy)   { Remove-Legacy }
 elseif ($AddShortcut)    { Add-Shortcut }
 elseif ($RemoveShortcut) { Remove-Shortcut }

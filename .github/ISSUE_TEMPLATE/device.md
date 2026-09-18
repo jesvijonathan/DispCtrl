@@ -6,9 +6,9 @@ labels: device
 ---
 
 <!--
-  Umbra writes this for you:
+  DisplCtrl writes this for you:
 
-      umbra contribute --display 2 --open
+      dispctrl contribute --display 2 --open
 
   It strips the serial number, the device path, file paths, your Windows account
   name and your current settings before it shows you anything. If you are

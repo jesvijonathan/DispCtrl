@@ -2,10 +2,10 @@
 
 What real monitors report about themselves.
 
-Umbra can only offer a control it knows a monitor has. It learns that by asking
+DisplCtrl can only offer a control it knows a monitor has. It learns that by asking
 the panel over DDC/CI — but only about the panel in front of it. Every record
 here comes from someone who owned a monitor this project does not, ran
-`umbra contribute`, read what it produced, and submitted it.
+`dispctrl contribute`, read what it produced, and submitted it.
 
 ## What a record is
 
@@ -17,7 +17,7 @@ SDC-4154.md      the Samsung panel in a Zenbook
 ```
 
 That key is what every unit of a model carries. It is deliberately not the
-identifier Umbra uses internally, which ends in the serial number.
+identifier DisplCtrl uses internally, which ends in the serial number.
 
 A record holds the connector, the physical size, the modes, the panel
 technology, the verbatim MCCS capabilities string, and every VCP code the
@@ -31,26 +31,26 @@ monitor lists with its range or its permitted values.
 - **Current settings.** Brightness 62 describes an evening at someone's desk,
   not a monitor.
 
-`umbra contribute` strips all four before showing you anything, and the checks
+`dispctrl contribute` strips all four before showing you anything, and the checks
 in `tools/presetcheck` assert it over the monitors actually attached to the
 machine running them. If you are filing a record by hand, strip them yourself.
 
 ## Contributing one
 
 ```
-umbra contribute                 # every attached monitor, printed, nothing sent
-umbra contribute --display 2     # just that one
-umbra contribute --display 2 --open
+dispctrl contribute                 # every attached monitor, printed, nothing sent
+dispctrl contribute --display 2     # just that one
+dispctrl contribute --display 2 --open
 ```
 
 `--open` fills in a GitHub issue and opens it in your browser. Nothing is sent
 until you press Submit there. The same text is saved to
-`%LOCALAPPDATA%\Umbra\devices\` either way.
+`%LOCALAPPDATA%\DisplCtrl\devices\` either way.
 
-The panel has the same thing under **Displays → Help Umbra support more
+The panel has the same thing under **Displays → Help DisplCtrl support more
 monitors**, which shows the full text before it opens anything.
 
-There is no access token in Umbra and it makes no network requests. A token
+There is no access token in DisplCtrl and it makes no network requests. A token
 shipped inside an application is a token handed to everyone who installs it,
 and a submission the application makes on your behalf is not one you agreed to.
 

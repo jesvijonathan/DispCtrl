@@ -1,4 +1,4 @@
-# Umbra
+# DisplCtrl
 
 Per-monitor display management for Windows 11. A resident engine plus an
 on-demand WinUI 3 panel.
@@ -21,7 +21,7 @@ Two displays, and nearly every hard-won lesson below comes from one of them.
 | True density | 242 PPI, 302x189 mm, 14.0" | 93 PPI, 527x296 mm, 23.8" |
 | Position | secondary, right of the Dell | **primary**, at 0,0 |
 | Brightness | WMI (no DDC/CI) | DDC/CI |
-| Taskbar | hidden by Umbra | Windows' own auto-hide |
+| Taskbar | hidden by DisplCtrl | Windows' own auto-hide |
 | DDC/CI | none — built-in panels have no channel | 37 VCP controls, 11 offered |
 
 Token identities: `SDC-4154-E2387367` (internal), `DEL-A234-3QQQ2X3` (Dell).
@@ -35,30 +35,30 @@ by tests that changed hardware state and did not restore it.
 ## Architecture
 
 ```
-Umbra.Core      no hardware writes. Display enumeration, EDID, settings,
+DisplCtrl.Core      no hardware writes. Display enumeration, EDID, settings,
                 presets (model + diff), gamma ramps, arrangement geometry.
-Umbra.Display   every call that changes something: DDC/CI, CCD writes, modes,
+DisplCtrl.Display   every call that changes something: DDC/CI, CCD writes, modes,
                 wallpaper COM, power scheme. Referenced by BOTH app and engine.
-Umbra.Engine    resident. Taskbar hiding, night light + software dimming,
+DisplCtrl.Engine    resident. Taskbar hiding, night light + software dimming,
                 per-app preset rules. Native AOT intended (see debt below).
-Umbra.App       WinUI 3 panel, launched on demand, exits after.
-Umbra.Cli       `umbra.exe`, console subsystem. Every feature, scriptable.
+DisplCtrl.App       WinUI 3 panel, launched on demand, exits after.
+DisplCtrl.Cli       `dispctrl.exe`, console subsystem. Every feature, scriptable.
 ```
 
 The two processes share **only** `settings.json`. The engine watches it with a
 `FileSystemWatcher` (120 ms debounce). There is no IPC.
 
-`Umbra.Display` used to be the app's alone, on the reasoning that every call in
+`DisplCtrl.Display` used to be the app's alone, on the reasoning that every call in
 it is a deliberate user action. Per-app preset rules made those same calls
 background work, so the engine references it too.
 
 ### State on disk
 
 ```
-%LOCALAPPDATA%\Umbra\settings.json     shared, engine watches it
-%LOCALAPPDATA%\Umbra\engine.log        engine's rolling log
-%LOCALAPPDATA%\Umbra\displays.log      display report, rewritten whole
-%LOCALAPPDATA%\Umbra\presets\*.json    one file per preset, name = file stem
+%LOCALAPPDATA%\DisplCtrl\settings.json     shared, engine watches it
+%LOCALAPPDATA%\DisplCtrl\engine.log        engine's rolling log
+%LOCALAPPDATA%\DisplCtrl\displays.log      display report, rewritten whole
+%LOCALAPPDATA%\DisplCtrl\presets\*.json    one file per preset, name = file stem
 ```
 
 ---
@@ -69,10 +69,10 @@ Run everything from the repo root. There is no solution file; build projects
 individually, in dependency order when several changed.
 
 ```bash
-dotnet build src/Umbra.Core/Umbra.Core.csproj       -c Release -v q --nologo
-dotnet build src/Umbra.Display/Umbra.Display.csproj -c Release -v q --nologo
-dotnet build src/Umbra.Engine/Umbra.Engine.csproj   -c Release -v q --nologo
-dotnet build src/Umbra.App/Umbra.App.csproj         -c Release -v q --nologo
+dotnet build src/DisplCtrl.Core/DisplCtrl.Core.csproj       -c Release -v q --nologo
+dotnet build src/DisplCtrl.Display/DisplCtrl.Display.csproj -c Release -v q --nologo
+dotnet build src/DisplCtrl.Engine/DisplCtrl.Engine.csproj   -c Release -v q --nologo
+dotnet build src/DisplCtrl.App/DisplCtrl.App.csproj         -c Release -v q --nologo
 ```
 
 **A running process locks its DLLs and the build fails with MSB3027.** Stop both
@@ -80,8 +80,8 @@ first — and stop the engine *gracefully*, or it leaves a taskbar parked
 off-screen:
 
 ```powershell
-& ".\src\Umbra.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\Umbra.Engine.exe" stop
-Get-Process Umbra.App -EA SilentlyContinue | ForEach-Object { $_.Kill() }
+& ".\src\DisplCtrl.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\DisplCtrl.Engine.exe" stop
+Get-Process DisplCtrl.App -EA SilentlyContinue | ForEach-Object { $_.Kill() }
 ```
 
 The engine unwinds asynchronously; wait for the process to disappear before
@@ -91,13 +91,13 @@ app may be killed outright.
 Restart the engine through its scheduled task, which is how it normally runs:
 
 ```powershell
-Start-ScheduledTask -TaskName 'Umbra.Engine'
+Start-ScheduledTask -TaskName 'DisplCtrl.Engine'
 ```
 
 Engine CLI: `displays`, `enable <n>`, `disable <n>`, `status`, `run [--for <s>]
 [--trace]`, `stop`.
 
-`umbra.exe` is the scriptable front end — `umbra help` lists everything. It is a
+`dispctrl.exe` is the scriptable front end — `dispctrl help` lists everything. It is a
 **console** subsystem app, unlike the engine: a WinExe does not block the shell
 that launched it, so a script gets neither output nor an exit code. That is why
 there are two binaries rather than one.
@@ -108,11 +108,11 @@ the symptoms are baffling rather than obvious: a 200% panel reports 100%, and a
 monitor with a working contrast control reports none.
 
 ```
-umbra displays
-umbra brightness -10 --all
-umbra nightlight 60 --from 20:00 --to 07:00
-umbra input "DisplayPort 1" --display 2
-umbra preset apply Evening
+dispctrl displays
+dispctrl brightness -10 --all
+dispctrl nightlight 60 --from 20:00 --to 07:00
+dispctrl input "DisplayPort 1" --display 2
+dispctrl preset apply Evening
 ```
 
 Exit codes: 0 done, 1 refused, 2 asked wrongly.
@@ -120,14 +120,14 @@ Exit codes: 0 done, 1 refused, 2 asked wrongly.
 ### Contributing a device record
 
 ```
-umbra contribute                    # every monitor, printed; sends nothing
-umbra contribute --display 2        # one of them
-umbra contribute --display 2 --open # prefills a GitHub issue for review
+dispctrl contribute                    # every monitor, printed; sends nothing
+dispctrl contribute --display 2        # one of them
+dispctrl contribute --display 2 --open # prefills a GitHub issue for review
 ```
 
-Writes `%LOCALAPPDATA%\Umbra\devices\<KEY>.md` and, with `--open`, opens
+Writes `%LOCALAPPDATA%\DisplCtrl\devices\<KEY>.md` and, with `--open`, opens
 `github.com/jesvijonathan/Display-Control/issues/new` with the body filled in.
-The panel has the same thing under **Displays -> Help Umbra support more
+The panel has the same thing under **Displays -> Help DisplCtrl support more
 monitors**, which shows the whole text in a dialog first.
 
 Committed records live in `devices/`, one file per model, keyed on EDID
@@ -146,7 +146,7 @@ must both happen on that thread; releasing from elsewhere silently does nothing
 and leaves the combination held until the process exits. `MOD_NOREPEAT` is set,
 or holding a shortcut walks brightness to an end stop.
 
-Autostart and the Start menu entry are managed by `tools/Umbra.ps1`
+Autostart and the Start menu entry are managed by `tools/DisplCtrl.ps1`
 (`-Install`, `-Uninstall`, `-Status`, `-AddShortcut`, `-RemoveLegacy`). It is
 interim; MSIX `windows.startupTask` replaces it.
 
@@ -264,12 +264,12 @@ Every one of these was a real bug. Do not reintroduce them.
 - Windows requires every display flush against at least one other: no gap, no
   overlap, and a corner touch does not count. `ArrangementSolver` enforces it
   during the drag so an invalid layout is never drawn.
-- Windows sizes its own arrangement tiles by **raw pixel count**. Umbra
+- Windows sizes its own arrangement tiles by **raw pixel count**. DisplCtrl
   deliberately does not — see `PhysicalLayout`.
 - `IDesktopWallpaper` is a **local** COM server: `CLSCTX_ALL`, not
   `CLSCTX_INPROC_SERVER`.
 - The **primary taskbar cannot be moved** — `SetWindowPos` returns true and
-  Explorer restores it in ~120 ms. Umbra uses Windows' own global auto-hide
+  Explorer restores it in ~120 ms. DisplCtrl uses Windows' own global auto-hide
   there instead.
 
 ### Presets
@@ -325,7 +325,7 @@ unrecallable.
 - **No token, no network call from the app.** It opens a prefilled issue in the
   browser the person is already signed into and they press Submit. A token in a
   Store app is a token given to everyone who installs it.
-- **The body is plain ASCII** - the only place in Umbra without proper
+- **The body is plain ASCII** - the only place in DisplCtrl without proper
   typography. It travels percent-encoded, where an em dash costs nine characters
   and `x` costs one. With typography the Dell's record was 6200 characters and
   overran the URL; without it, 5760 and it prefills. Budget is 7000, under the
@@ -370,7 +370,7 @@ What does not work, and cost time discovering:
   `SetForegroundWindow` nor `AppActivate`. To test per-app rules, match on
   whatever genuinely holds the foreground instead of trying to create it.
 - **Gamma ramp reads fail from PowerShell** P/Invoke. Verify gamma through the
-  engine log or a small console project referencing `Umbra.Core`.
+  engine log or a small console project referencing `DisplCtrl.Core`.
 - Nested `SettingsExpander` children realise lazily: scroll the page top to
   bottom, expanding at each step, or UIA will not find inner controls.
 - A capabilities sweep takes ~30 s (37 round trips at 40 ms plus reads). Wait for
@@ -425,7 +425,7 @@ short version, in recommended order:
 
 1. ~~Brightness fallback, high-level to VCP `0x10`~~ — **done**.
 2. ~~Lift the gamma clamp~~ — **done**, `GammaRange`.
-3. ~~Full command line~~ — **done**, `umbra.exe`.
+3. ~~Full command line~~ — **done**, `dispctrl.exe`.
 4. ~~Hotkeys~~ — **done**, engine-registered, with a Hotkeys page.
 5. **Combined brightness** — one slider spanning hardware above a switching
    point and software dimming below it.
@@ -433,7 +433,7 @@ short version, in recommended order:
 3. **Persistent known-monitor cache** — survive restarts, keyed on model+serial.
    Copy ddcutil's `<mfg>-<model>-<product>` convention.
 4. **More fields in the display report.**
-5. ~~Opt-in contribution~~ - **done**, `umbra contribute` and the panel card.
+5. ~~Opt-in contribution~~ - **done**, `dispctrl contribute` and the panel card.
    Records land in `devices/`; `DEL-A234.md` and `SDC-4154.md` are seeded from
    this machine.
 6. **OLED burn-in protection** — original scope, still unbuilt. The per-monitor
@@ -457,7 +457,7 @@ Cloned outside the repo at `../refs/` (not tracked, re-clone with
 
 Two ideas from these are worth knowing even before implementing them:
 
-- **A shade overlay dims further than gamma can.** Umbra's software dimming is
+- **A shade overlay dims further than gamma can.** DisplCtrl's software dimming is
   capped at ~50% by Windows' gamma clamp; a click-through translucent window has
   no such limit. MonitorControl keeps both and picks per display.
 - **Ambient light is not "one monitor's sensor drives the others".** It is one
@@ -473,4 +473,4 @@ Two ideas from these are worth knowing even before implementing them:
 - [linuxhw/EDID](https://github.com/linuxhw/EDID) — ~175,000 real EDIDs by
   vendor and model.
 - There is **no** comprehensive public database of manufacturer-specific VCP
-  codes. ddcutil's position, and Umbra's: record them, never write them blind.
+  codes. ddcutil's position, and DisplCtrl's: record them, never write them blind.

@@ -1,7 +1,7 @@
-using Umbra.Core.Displays;
-using Umbra.Display.Devices;
-using Umbra.Core.Presets;
-using Umbra.Core.Settings;
+using DisplCtrl.Core.Displays;
+using DisplCtrl.Display.Devices;
+using DisplCtrl.Core.Presets;
+using DisplCtrl.Core.Settings;
 
 // Exercises the preset store's edge cases directly, in a scratch folder, so the
 // awkward name cases can be checked without a real desk in the way.

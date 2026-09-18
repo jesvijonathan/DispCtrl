@@ -1,9 +1,9 @@
-# Umbra — roadmap and decisions
+# DisplCtrl — roadmap and decisions
 
 A per-monitor display manager for Windows 11, built around OLED care on a
 secondary panel. Native, minimal, MSIX-packaged for the Store.
 
-> `Umbra` is a placeholder name. It is cheap to change now (namespaces + package
+> `DisplCtrl` is a placeholder name. It is cheap to change now (namespaces + package
 > identity) and expensive after Store submission, so decide before we submit.
 
 ## Target setup (the machine this is built against)
@@ -125,7 +125,7 @@ clean return to 100/100/100 every time. Kill-then-restart recovers too.
 
 ### Presets
 
-One preset is one JSON file in `%LOCALAPPDATA%\Umbra\presets`. That is the
+One preset is one JSON file in `%LOCALAPPDATA%\DisplCtrl\presets`. That is the
 whole sharing story: export is a copy, import is a paste, and a user who wants
 to know what a preset will do can read it. A bundle format or a registry blob
 would buy nothing and cost both of those.
@@ -178,7 +178,7 @@ Three bugs found building it, all of the same family:
 and Native AOT.** Paying it off means reaching WMI through source-generated COM
 interfaces, the way `Wallpaper.cs` already reaches `IDesktopWallpaper`. Leaving
 `PublishAot` set keeps the publish-time warning saying so. The same change also
-moved `Umbra.Display` into the engine's references: that assembly used to be
+moved `DisplCtrl.Display` into the engine's references: that assembly used to be
 the app's alone, on the reasoning that every call in it is a deliberate user
 action, and per-app rules made those same calls background work.
 
@@ -190,11 +190,11 @@ foreground rather than trying to create it.
 
 ### The display report
 
-`%LOCALAPPDATA%\Umbra\displays.log`, written by the engine at start and by the
+`%LOCALAPPDATA%\DisplCtrl\displays.log`, written by the engine at start and by the
 Displays page on demand. Per display: identity and device path, connector,
 geometry, true pixel density from the EDID against the DPI Windows renders at,
 current mode, signal detail, every mode the driver reports grouped by
-resolution, and what Umbra can actually drive — brightness and over which
+resolution, and what DisplCtrl can actually drive — brightness and over which
 backend, HDR, the scaling steps offered, the variable refresh range, colour
 profile, whether gamma control works, wallpaper, and whether the taskbar can be
 hidden there.
@@ -220,7 +220,7 @@ controller type, sub-pixel layout and panel technology.
 
 Three things this forced:
 
-- **Discovery, not a fixed list.** The controls Umbra offers are built from
+- **Discovery, not a fixed list.** The controls DisplCtrl offers are built from
   what the panel reported, so it never shows a control the monitor in front of
   you does not have — and does show the ones it does.
 
@@ -246,7 +246,7 @@ not something that quietly already happened.
 
 Windows draws its arrangement diagram in raw pixels, which makes a 14-inch
 2880x1800 laptop panel look wider than the 24-inch monitor beside it. The
-diagram's whole job is to show where things physically are, so Umbra draws it in
+diagram's whole job is to show where things physically are, so DisplCtrl draws it in
 millimetres from the EDID.
 
 The first attempt rescaled the coordinate space piecewise, interval by interval,
@@ -415,7 +415,7 @@ rule matching. 24 checks.
 
 The current watcher exited with code 1 on 09/14 and nothing restarted it; root
 cause was never found (no logging existed at the time). Mitigated with a
-2-minute watchdog rather than fixed. **Umbra must not inherit this** — the
+2-minute watchdog rather than fixed. **DisplCtrl must not inherit this** — the
 engine needs a supervisor path that does not depend on Task Scheduler.
 
 ### Measured CPU — and a corrected assumption
@@ -428,9 +428,9 @@ parked away from every managed edge, same job:
 | | CPU (% of one core) | RSS |
 |---|---|---|
 | Existing watcher (.NET Framework, optimized) | **0.052%** | 20.6 MB |
-| Umbra engine (.NET 10, Release, JIT) | **0.122%** | 32.1 MB |
+| DisplCtrl engine (.NET 10, Release, JIT) | **0.122%** | 32.1 MB |
 
-So Umbra is currently ~2x the CPU and ~1.5x the memory, despite polling at
+So DisplCtrl is currently ~2x the CPU and ~1.5x the memory, despite polling at
 10 Hz where the old watcher polls at 25 Hz. It does strictly less work per
 second, so this is runtime overhead — JIT, tiered compilation, GC and
 finalizer threads — not the loop. **Native AOT is the lever**, and it is
@@ -512,9 +512,9 @@ Precedent matters more than policy text here — these all ship on the Store tod
 | Taskbar blur | TranslucentTB (C++/WinRT, WinUI 3) | Low |
 | Wallpaper layer widgets | Lively Wallpaper (C#, WinUI 3) | Low |
 | DDC/CI brightness | Monitorian, Twinkle Tray | Low |
-| **Repositioning `Shell_SecondaryTrayWnd`** | Windhawk (not Store — injects into explorer) | **Highest.** Umbra moves the window from outside rather than injecting, which is far milder, but it is still cross-process shell manipulation and has no direct Store precedent. |
+| **Repositioning `Shell_SecondaryTrayWnd`** | Windhawk (not Store — injects into explorer) | **Highest.** DisplCtrl moves the window from outside rather than injecting, which is far milder, but it is still cross-process shell manipulation and has no direct Store precedent. |
 
-**Umbra needs no elevation anywhere.** The last candidate was WMI
+**DisplCtrl needs no elevation anywhere.** The last candidate was WMI
 `WmiSetBrightness` for the internal panel, which the docs imply needs admin —
 tested unelevated on this machine and it succeeded. So the MSIX needs
 `runFullTrust` (routine for packaged desktop apps) but **not** `allowElevation`

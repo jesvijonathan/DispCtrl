@@ -16,7 +16,7 @@ Device key: `DEL-A234`
 | Brightness over DDC/CI | yes |
 | MCCS version | 2.1 |
 
-#### Controls it lists (37, 12 Umbra will drive)
+#### Controls it lists (37, 12 DisplCtrl will drive)
 
 - `0x02` New control value: 0 to 255
 - `0x04` Restore factory defaults: 0 to 1
@@ -82,4 +82,4 @@ Device key: `DEL-A234`
 
 ---
 
-Submitted from Umbra. Serial number, device path, file paths, user name and current settings are not collected - only what is true of every unit of this model.
+Submitted from DisplCtrl. Serial number, device path, file paths, user name and current settings are not collected - only what is true of every unit of this model.

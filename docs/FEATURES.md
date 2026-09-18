@@ -1,6 +1,6 @@
 # Candidate features
 
-Drawn from studying four open-source display tools alongside what Umbra already
+Drawn from studying four open-source display tools alongside what DisplCtrl already
 does. Clones live outside the repo at `../refs/`:
 
 | Repo | Language | Why it was worth reading |
@@ -14,7 +14,7 @@ Status is honest: **done** means verified on this hardware.
 
 ---
 
-## Already in Umbra
+## Already in DisplCtrl
 
 Several things on the original request list turned out to be built already,
 because the capability-discovery work generalised them.
@@ -31,7 +31,7 @@ because the capability-discovery work generalised them.
 | Display profiles to save and set | presets, with scope and drift tracking |
 | Per-monitor brightness ranges | calibrated unison limits — Monitorian does the same thing |
 | Refresh rate switching | CCD path, applied without blanking where the driver allows |
-| Multi-monitor taskbars | Windows 11 draws them; Umbra hides them per monitor |
+| Multi-monitor taskbars | Windows 11 draws them; DisplCtrl hides them per monitor |
 
 ---
 
@@ -55,12 +55,12 @@ Effort: moderate. Risk: low. Testable end to end via the simulated source.
 
 ### B. Shade dimming instead of gamma
 
-**The fix for Umbra's 50% dimming floor.** MonitorControl uses a click-through
+**The fix for DisplCtrl's 50% dimming floor.** MonitorControl uses a click-through
 translucent black window per display, alpha = 1 − brightness, rather than a gamma
 ramp. It has no clamp, so it dims to near-black, and it does not fight other
 software that owns the gamma table.
 
-Umbra's software dimming is currently capped by Windows' gamma clamp — 50% at
+DisplCtrl's software dimming is currently capped by Windows' gamma clamp — 50% at
 best, and less once night light takes part of the range. A shade removes that
 entirely. Keep gamma as the default (no extra window, works over full-screen
 exclusive content) and offer the shade per display where the range matters, which
@@ -80,7 +80,7 @@ Pairs naturally with B. Effort: small once B exists.
 ### D. Brightness fallback, high level to low
 
 Monitorian tries `GetMonitorBrightness` and falls back to VCP `0x10` when it
-fails. Some monitors answer one and not the other. Umbra uses only the high-level
+fails. Some monitors answer one and not the other. DisplCtrl uses only the high-level
 call, so it reports "no brightness control" on panels that would in fact answer
 `0x10`.
 
@@ -141,7 +141,7 @@ Effort: small on top of B. Risk: low.
 
 ColorControl exposes NVIDIA/AMD dithering, colour depth and format. These are
 vendor APIs (NVAPI, ADL) with real redistribution and stability questions, and
-nothing about them is per-monitor in the way the rest of Umbra is.
+nothing about them is per-monitor in the way the rest of DisplCtrl is.
 
 Listed for completeness. Recommend **not** doing it.
 
@@ -171,8 +171,8 @@ Effort: small. Risk: low.
 Requested as "send monitor details to repo ... we get a copy of all the monitor
 the user has into our repository under devices ... like auto create a issue".
 
-Built as `DeviceSubmission` + `DeviceContribution` in `Umbra.Display/Devices`,
-`umbra contribute`, and a card on the Displays page.
+Built as `DeviceSubmission` + `DeviceContribution` in `DisplCtrl.Display/Devices`,
+`dispctrl contribute`, and a card on the Displays page.
 
 What decided the shape:
 
@@ -190,7 +190,7 @@ What decided the shape:
   in a Store app is a token given to everyone who installs it, and a submission
   the app makes on someone's behalf is not consent.
 - **One issue per monitor**, because a record describes a model, not a desk.
-- **Keyed `<MFG>-<PRODUCT>`**, not Umbra's internal token - that ends in the
+- **Keyed `<MFG>-<PRODUCT>`**, not DisplCtrl's internal token - that ends in the
   serial.
 
 Still open: prompting when an unknown monitor appears (must offer, never send),
@@ -244,4 +244,4 @@ New: model, EDID manufacturer and product code, serial, screen size in inches,
 pixel density, connector, whether it is the main display, DDC/CI status with the
 control count, native resolution, variable refresh range, DPI with scaling,
 orientation, colour depth, colour profile, position, work area, and the Windows
-device name beside Umbra's own token.
+device name beside DisplCtrl's own token.

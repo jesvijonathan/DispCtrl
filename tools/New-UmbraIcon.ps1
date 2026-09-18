@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Generates Umbra's application icon.
+    Generates DisplCtrl's application icon.
 
 .DESCRIPTION
-    Draws a monitor with one dark panel and one lit, which is what Umbra is
+    Draws a monitor with one dark panel and one lit, which is what DisplCtrl is
     about: two displays treated differently. Rendered at 256px and wrapped in a
     PNG-compressed ICO, which Windows Vista and later read natively.
 
@@ -11,7 +11,7 @@
     regenerated or restyled without a drawing tool in the loop.
 #>
 param(
-    [string]$OutputPath = (Join-Path (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)) 'src\Umbra.App\Assets\Umbra.ico')
+    [string]$OutputPath = (Join-Path (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)) 'src\DisplCtrl.App\Assets\DisplCtrl.ico')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,7 +34,7 @@ function New-RoundedPath([float]$x, [float]$y, [float]$w, [float]$h, [float]$r) 
     return $p
 }
 
-# Outer body. Near-black, matching the OLED case Umbra exists for.
+# Outer body. Near-black, matching the OLED case DisplCtrl exists for.
 $body = New-RoundedPath 20 36 216 150 18
 $g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 32, 32, 36))), $body)
 $g.DrawPath((New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 78, 78, 86), 4)), $body)
