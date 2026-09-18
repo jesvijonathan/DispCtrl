@@ -31,6 +31,16 @@ public sealed class UmbraSettings
     /// </remarks>
     public List<AppRule> AppRules { get; set; } = [];
 
+    /// <summary>
+    /// Global keyboard shortcuts, registered by the engine.
+    /// </summary>
+    /// <remarks>
+    /// Global rather than per-preset: a shortcut is how you reach a thing, not
+    /// part of what the thing is, and one that changed meaning depending on the
+    /// active preset would be worse than no shortcut.
+    /// </remarks>
+    public List<Hotkey> Hotkeys { get; set; } = [];
+
     /// <summary>Settings for a monitor, creating defaults on first sight.</summary>
     public MonitorSettings For(string token)
     {

@@ -8,7 +8,8 @@ namespace Umbra.Core.Presets;
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    UseStringEnumConverter = true)]
 [JsonSerializable(typeof(Preset))]
 public partial class PresetJsonContext : JsonSerializerContext;
 

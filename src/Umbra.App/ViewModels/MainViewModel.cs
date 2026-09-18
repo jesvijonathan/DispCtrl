@@ -20,6 +20,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public MainViewModel()
     {
         Presets = new PresetsViewModel(() => _settings, CurrentDisplays, Persist, Refresh);
+        Hotkeys = new HotkeysViewModel(() => _settings, Persist);
         Refresh();
     }
 
@@ -285,6 +286,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// that forgets what was selected is not a picker anyone trusts.
     /// </remarks>
     public PresetsViewModel Presets { get; }
+
+    /// <summary>The Hotkeys page's state, shared for the same reason presets are.</summary>
+    public HotkeysViewModel Hotkeys { get; }
 
     // ---------------------------------------------------- unison brightness --
 

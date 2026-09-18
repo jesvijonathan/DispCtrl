@@ -76,6 +76,7 @@ public sealed partial class MainWindow : Window
             : tag switch
             {
                 "presets" => typeof(PresetsPage),
+                "hotkeys" => typeof(HotkeysPage),
                 "engine" => typeof(EnginePage),
                 "help" => typeof(HelpPage),
                 "about" => typeof(AboutPage),

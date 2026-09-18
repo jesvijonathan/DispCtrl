@@ -42,3 +42,17 @@ timeEndPeriod
 // process in the message path of every activation on the machine; two syscalls
 // on a timer cannot slow anything else down.
 GetWindowThreadProcessId
+
+// ---- global hotkeys ----
+// WM_HOTKEY goes to the queue of the thread that registered it, and the engine
+// polls rather than pumping, so the hotkey service owns a thread of its own.
+RegisterHotKey
+UnregisterHotKey
+GetMessage
+PostThreadMessage
+GetCurrentThreadId
+MSG
+HOT_KEY_MODIFIERS
+WM_HOTKEY
+WM_APP
+WM_QUIT

@@ -117,6 +117,19 @@ umbra preset apply Evening
 
 Exit codes: 0 done, 1 refused, 2 asked wrongly.
 
+### Hotkeys
+
+Global shortcuts live in `settings.Hotkeys` and are registered by the **engine**,
+because a panel that registered them would lose them on closing — the opposite
+of what a global shortcut is for. The Hotkeys page only edits the list.
+
+`RegisterHotKey` delivers `WM_HOTKEY` to the queue of the thread that
+registered it, and the engine polls rather than pumping, so `HotkeyService` owns
+a thread with a message pump of its own. Registration **and** unregistration
+must both happen on that thread; releasing from elsewhere silently does nothing
+and leaves the combination held until the process exits. `MOD_NOREPEAT` is set,
+or holding a shortcut walks brightness to an end stop.
+
 Autostart and the Start menu entry are managed by `tools/Umbra.ps1`
 (`-Install`, `-Uninstall`, `-Status`, `-AddShortcut`, `-RemoveLegacy`). It is
 interim; MSIX `windows.startupTask` replaces it.
@@ -148,6 +161,8 @@ Every one of these was a real bug. Do not reintroduce them.
   extent, scrolled it out of the realisation window, recycled and collapsed it,
   shrank the extent — a self-feeding open/close flicker. Use `ItemsControl` with
   a plain `StackPanel` panel; there are never more than a few displays.
+- **A `ComboBox` applies `SelectedItem` before its `ItemsSource` is filled**,
+  finds nothing matching and renders blank. Bind `SelectedIndex` instead.
 - **A two-way `Slider`/`ToggleSwitch` writes its own value to the source as it
   is realised**, before an async read has said what the value is. Indistinguish-
   able from the user acting. Every such binding needs a `_xxxReady` gate. This
@@ -247,6 +262,15 @@ Every one of these was a real bug. Do not reintroduce them.
 - The engine must persist **the settings object the apply ran against**, never
   one captured at startup — that wrote its stale view back over the user's edits.
 
+### Settings file
+
+- Enums serialise as **names**, via `UseStringEnumConverter`. The file is
+  hand-edited routinely; `"brightnessDown"` says what it does and a number
+  silently means something else the moment a value is inserted into the enum.
+  Before that was set, a hand-written action name made the whole file
+  unparseable — it was quarantined as `settings.json.bad`, the engine fell back
+  to defaults, and the symptom was hotkeys simply never firing.
+
 ### Build
 
 - `PublishAot=true` disables built-in COM interop. The internal panel's
@@ -323,7 +347,9 @@ short version, in recommended order:
 
 1. ~~Brightness fallback, high-level to VCP `0x10`~~ — **done**.
 2. ~~Lift the gamma clamp~~ — **done**, `GammaRange`.
-3. **Combined brightness** — one slider spanning hardware above a switching
+3. ~~Full command line~~ — **done**, `umbra.exe`.
+4. ~~Hotkeys~~ — **done**, engine-registered, with a Hotkeys page.
+5. **Combined brightness** — one slider spanning hardware above a switching
    point and software dimming below it.
 2. **Presets capturing everything** — identity, serial, remaining read-only
    state; apply replaces wholesale.

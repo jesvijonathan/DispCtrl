@@ -3,6 +3,7 @@ using Umbra.Core.Settings;
 using Umbra.Display;
 using Umbra.Display.Cli;
 using Umbra.Engine.Color;
+using Umbra.Engine.Input;
 using Umbra.Engine.Presets;
 using Umbra.Engine.Taskbar;
 using Windows.Win32;
@@ -106,7 +107,7 @@ internal static class Program
     /// </para>
     /// </remarks>
     private static FileSystemWatcher WatchSettings(TaskbarManager manager, NightLightService nightLight,
-                                                   AppRuleService appRules)
+                                                   AppRuleService appRules, HotkeyService hotkeys)
     {
         Directory.CreateDirectory(SettingsStore.Directory);
 
@@ -120,6 +121,7 @@ internal static class Program
                 manager.ApplySettings(reloaded);
                 nightLight.Update(reloaded);
                 appRules.Update(reloaded);
+                hotkeys.Update(reloaded);
             }
             catch (Exception ex)
             {
@@ -380,11 +382,12 @@ internal static class Program
         foreach (MonitorSettings ms in settings.Monitors.Values)
             if (ms.SoftwareBrightness < 100) dimming = true;
 
-        if (managed == 0 && !settings.Global.NightLight.Enabled && settings.AppRules.Count == 0 && !dimming)
+        if (managed == 0 && !settings.Global.NightLight.Enabled && settings.AppRules.Count == 0
+            && !dimming && settings.Hotkeys.Count == 0)
         {
             Console.Error.WriteLine(
                 "nothing to do: no taskbar is managed, night light is off, nothing is software-dimmed, "
-                + "and there are no app rules.");
+                + "and there are no app rules or hotkeys.");
             Console.Error.WriteLine("run `displays`, then `enable <n>` — or turn something on in the app.");
             return 1;
         }
@@ -461,7 +464,9 @@ internal static class Program
             // without this the next reload would undo half of what it did.
             using var appRules = new AppRuleService(settings, SettingsStore.Save);
 
-            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules);
+            using var hotkeys = new HotkeyService(settings, SettingsStore.Save);
+
+            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys);
 
             manager.Run(cts.Token);
             return 0;

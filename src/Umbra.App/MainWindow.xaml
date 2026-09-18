@@ -47,6 +47,12 @@
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
 
+        <muxc:NavigationViewItem Content="Hotkeys" Tag="hotkeys">
+          <muxc:NavigationViewItem.Icon>
+            <FontIcon Glyph="&#xE765;"/>
+          </muxc:NavigationViewItem.Icon>
+        </muxc:NavigationViewItem>
+
         <muxc:NavigationViewItem Content="Engine" Tag="engine">
           <muxc:NavigationViewItem.Icon>
             <FontIcon Glyph="&#xE945;"/>

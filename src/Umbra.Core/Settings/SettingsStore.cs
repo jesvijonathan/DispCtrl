@@ -10,7 +10,13 @@ namespace Umbra.Core.Settings;
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+
+    // Enums as names, not numbers. This file is meant to be readable and is
+    // routinely hand-edited; "brightnessDown" says what it does, 1 does not —
+    // and a number silently means something different the moment a value is
+    // inserted into the enum.
+    UseStringEnumConverter = true)]
 [JsonSerializable(typeof(UmbraSettings))]
 public partial class SettingsJsonContext : JsonSerializerContext;
 
