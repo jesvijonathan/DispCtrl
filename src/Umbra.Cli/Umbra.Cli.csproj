@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Console subsystem, unlike the engine. A WinExe does not block the shell
+         that launched it, so a script gets no output and no exit code — which
+         makes it useless for the one job a command line has. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+
+    <!-- `umbra`, because that is what someone types. -->
+    <AssemblyName>umbra</AssemblyName>
+    <RootNamespace>Umbra.Cli</RootNamespace>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Umbra.Core\Umbra.Core.csproj" />
+    <ProjectReference Include="..\Umbra.Display\Umbra.Display.csproj" />
+  </ItemGroup>
+
+</Project>

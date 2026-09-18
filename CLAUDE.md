@@ -42,6 +42,7 @@ Umbra.Display   every call that changes something: DDC/CI, CCD writes, modes,
 Umbra.Engine    resident. Taskbar hiding, night light + software dimming,
                 per-app preset rules. Native AOT intended (see debt below).
 Umbra.App       WinUI 3 panel, launched on demand, exits after.
+Umbra.Cli       `umbra.exe`, console subsystem. Every feature, scriptable.
 ```
 
 The two processes share **only** `settings.json`. The engine watches it with a
@@ -96,6 +97,26 @@ Start-ScheduledTask -TaskName 'Umbra.Engine'
 Engine CLI: `displays`, `enable <n>`, `disable <n>`, `status`, `run [--for <s>]
 [--trace]`, `stop`.
 
+`umbra.exe` is the scriptable front end — `umbra help` lists everything. It is a
+**console** subsystem app, unlike the engine: a WinExe does not block the shell
+that launched it, so a script gets neither output nor an exit code. That is why
+there are two binaries rather than one.
+
+It also carries an `app.manifest` declaring PerMonitorV2. Without it the process
+sees virtualised coordinates, `MonitorFromPoint` resolves the wrong monitor, and
+the symptoms are baffling rather than obvious: a 200% panel reports 100%, and a
+monitor with a working contrast control reports none.
+
+```
+umbra displays
+umbra brightness -10 --all
+umbra nightlight 60 --from 20:00 --to 07:00
+umbra input "DisplayPort 1" --display 2
+umbra preset apply Evening
+```
+
+Exit codes: 0 done, 1 refused, 2 asked wrongly.
+
 Autostart and the Start menu entry are managed by `tools/Umbra.ps1`
 (`-Install`, `-Uninstall`, `-Status`, `-AddShortcut`, `-RemoveLegacy`). It is
 interim; MSIX `windows.startupTask` replaces it.
@@ -143,8 +164,10 @@ Every one of these was a real bug. Do not reintroduce them.
 
 - **One channel per monitor; it will not serve two conversations.** Two callers
   do not queue — one is answered and the other fails, and the result looks
-  exactly like a dead monitor. Everything goes through `DdcChannel.With`, gated
-  per device path.
+  exactly like a dead monitor. Everything goes through `DdcChannel.With`, whose
+  gate is a **named mutex**, not a semaphore: engine, panel and CLI are three
+  processes sharing one channel per monitor, and an in-process lock serialises
+  none of that.
 - **Leave 40 ms between messages.** Read back to back, the Dell answered a
   brightness read with a reply belonging to a different code (24 when the panel
   was at 62). A preset captured from that sweep wrote the wrong value to the

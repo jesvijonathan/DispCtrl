@@ -1,6 +1,7 @@
 using Umbra.Core.Displays;
 using Umbra.Core.Settings;
 using Umbra.Display;
+using Umbra.Display.Cli;
 using Umbra.Engine.Color;
 using Umbra.Engine.Presets;
 using Umbra.Engine.Taskbar;
@@ -55,7 +56,11 @@ internal static class Program
             "run" => Run(ParseDuration(args), HasFlag(args, "--trace")),
             "stop" => Stop(),
             "help" or "--help" or "-h" or "/?" => Usage(0),
-            _ => Usage(2, $"unknown command: {command}"),
+
+            // Everything else is a display command. Kept in one place rather
+            // than spread through this switch: they share targeting, output and
+            // exit-code conventions that only make sense together.
+            _ => CommandLine.Run(command, args.Length > 1 ? args[1..] : []),
         };
     }
 
@@ -185,16 +190,51 @@ internal static class Program
         TextWriter w = code == 0 ? Console.Out : Console.Error;
         if (error is not null) w.WriteLine(error);
         w.WriteLine("""
-            Umbra engine
+            Umbra
 
-              displays            list attached monitors
-              status              show what is configured
-              enable  <n|token>   hide the taskbar on that monitor
-              disable <n|token>   stop hiding it
-              run [--for <s>]     run the engine (Ctrl+C restores everything)
-              stop                ask a running engine to restore and exit
+            Engine
+              displays              list attached monitors
+              status                show what is configured
+              enable  <n|token>     hide the taskbar on that monitor
+              disable <n|token>     stop hiding it
+              run [--for <s>]       run the engine (Ctrl+C restores everything)
+              stop                  ask a running engine to restore and exit
 
-            <n> is the number shown by `displays`.
+            Brightness and colour
+              brightness [<n>|+n|-n]   read or set; an offset is relative
+              dim [<n>]                software dimming, for panels with no control
+              unison [on|off|<n>]      one level across every display
+              nightlight [on|off|<n>] [--from 20:00 --to 07:00] [--no-schedule]
+
+            The monitor's own settings
+              contrast [<n>]           ─┐
+              volume [<n>]              │ whatever the monitor reports
+              sharpness [<n>]          ─┘
+              input [<name>]           switch source, by name: "HDMI 1"
+              power <on|standby|off>   the monitor's own power state
+              vcp <code> [<value>]     any allow-listed VCP code, e.g. vcp 0x14
+
+            Layout
+              topology <extend|duplicate|internal|external>
+              resolution [<WxH>]
+              refresh [<hz>]
+              primary [<n|token>]
+
+            Presets
+              preset list
+              preset apply  <name>
+              preset save   <name>
+              preset delete <name>
+
+              report                write the display report and print its path
+
+            Every display command takes --display <n|token> or --all.
+            Without one it reads rather than writes, and reports every display.
+            <n> is the number shown by `displays`: built-in first, then left to
+            right, the same numbering the panel uses.
+
+            Exit codes: 0 done, 1 refused, 2 asked wrongly.
+
             --for <s> runs for that many seconds then restores by itself,
             which is the safe way to trial a configuration.
             """);

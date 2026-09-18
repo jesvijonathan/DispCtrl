@@ -32,16 +32,57 @@ namespace Umbra.Display;
 internal static class DdcChannel
 {
     /// <summary>
-    /// One gate per monitor, not one globally.
+    /// One gate per monitor, shared across every Umbra process.
     /// </summary>
     /// <remarks>
-    /// Two monitors have two independent channels, and serialising across them
-    /// would double the time a two-monitor sweep takes for no reason.
+    /// A named mutex rather than a semaphore, because the callers are in
+    /// different processes. The engine sweeps capabilities on a timer, the panel
+    /// reads brightness when it opens, and the command line does whatever it was
+    /// asked — three processes, one channel per monitor. An in-process gate
+    /// serialises none of that, and a collision on this channel does not fail
+    /// loudly: the monitor answers one caller and hands the other a reply
+    /// belonging to a different question.
+    /// <para>
+    /// Two monitors have two independent channels, so the name carries the
+    /// device path's hash — serialising across monitors would double every
+    /// sweep for nothing.
+    /// </para>
+    /// <para>
+    /// <c>Local\</c> scopes it to the logon session, matching the engine's own
+    /// single-instance mutex. Umbra is per-user; a second user's monitors are
+    /// not these monitors.
+    /// </para>
     /// </remarks>
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new();
+    private static readonly ConcurrentDictionary<string, Mutex> Gates = new();
 
-    private static SemaphoreSlim GateFor(DisplayInfo display) =>
-        Gates.GetOrAdd(display.Key.DevicePath, static _ => new SemaphoreSlim(1, 1));
+    private static Mutex GateFor(DisplayInfo display) =>
+        Gates.GetOrAdd(display.Key.DevicePath, static path => new Mutex(false, MutexName(path)));
+
+    /// <summary>
+    /// A mutex name derived from the device path.
+    /// </summary>
+    /// <remarks>
+    /// Hashed rather than used directly: a device path contains backslashes,
+    /// which are the namespace separator in a kernel object name, and is longer
+    /// than the 260-character limit on some systems. FNV-1a for the same reason
+    /// <c>DisplayKey.ToToken</c> uses it — <c>GetHashCode</c> is randomised per
+    /// process, so two processes would derive different names for one monitor
+    /// and the gate would not gate anything.
+    /// </remarks>
+    private static string MutexName(string devicePath)
+    {
+        const ulong offset = 14695981039346656037;
+        const ulong prime = 1099511628211;
+
+        ulong hash = offset;
+        foreach (char c in devicePath.ToUpperInvariant())
+        {
+            hash ^= c;
+            hash *= prime;
+        }
+
+        return $"Local\\Umbra.Ddc.{hash:x16}";
+    }
 
     /// <summary>
     /// How long to wait for another caller to finish before giving up.
@@ -63,8 +104,22 @@ internal static class DdcChannel
     /// </remarks>
     public static unsafe T With<T>(DisplayInfo display, Func<HANDLE, T> work, T fallback)
     {
-        SemaphoreSlim gate = GateFor(display);
-        if (!gate.Wait(Patience)) return fallback;
+        Mutex gate = GateFor(display);
+
+        bool held;
+        try
+        {
+            held = gate.WaitOne(Patience);
+        }
+        catch (AbandonedMutexException)
+        {
+            // The holder died mid-conversation. The channel is free, and the
+            // monitor will have given up on whatever was in flight; taking it is
+            // correct and the alternative is never talking to this monitor again.
+            held = true;
+        }
+
+        if (!held) return fallback;
 
         try
         {
@@ -93,7 +148,7 @@ internal static class DdcChannel
         }
         finally
         {
-            gate.Release();
+            gate.ReleaseMutex();
         }
     }
 }
