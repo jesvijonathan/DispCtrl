@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using DisplCtrl.App.ViewModels;
+using DisplCtrl.Core.Presets;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
@@ -21,7 +22,6 @@ public sealed partial class PresetsPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         ViewModel.Reload();
-        ViewModel.RefreshDrift();
     }
 
     private void Say(string message, bool ok = true)
@@ -41,7 +41,7 @@ public sealed partial class PresetsPage : Page
         button.IsEnabled = false;
         try
         {
-            Say(await ViewModel.ApplyAsync());
+            Say(await ViewModel.ApplyAsync(), ViewModel.LastOperationOk);
         }
         finally
         {
@@ -49,7 +49,7 @@ public sealed partial class PresetsPage : Page
         }
     }
 
-    private async void OnSave(object sender, RoutedEventArgs e) => Say(await ViewModel.SaveAsync());
+    private async void OnSave(object sender, RoutedEventArgs e) => Say(await ViewModel.SaveAsync(), ViewModel.LastOperationOk);
 
     private async void OnSaveAs(object sender, RoutedEventArgs e)
     {
@@ -166,6 +166,68 @@ public sealed partial class PresetsPage : Page
             FileName = PresetsViewModel.Folder,
             UseShellExecute = true,
         });
+    }
+
+    private async void OnEditJson(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.SelectedPreset is null) return;
+        var editor = new TextBox
+        {
+            Text = ViewModel.SelectedJson, AcceptsReturn = true,
+            TextWrapping = TextWrapping.NoWrap, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            MinWidth = 460, Height = 420,
+        };
+        ScrollViewer.SetVerticalScrollBarVisibility(editor, ScrollBarVisibility.Auto);
+        ScrollViewer.SetHorizontalScrollBarVisibility(editor, ScrollBarVisibility.Auto);
+        var error = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot, Title = "View / edit preset values",
+            Content = new StackPanel { Spacing = 8, Children = { new TextBlock
+            {
+                Text = "Changes update the saved file. Apply restores them to your displays. Use includeGlobal and includeLayout to control shared settings and layout.",
+                TextWrapping = TextWrapping.Wrap,
+            }, editor, error } },
+            PrimaryButtonText = "Save file", CloseButtonText = "Cancel",
+        };
+        dialog.PrimaryButtonClick += (_, args) =>
+        {
+            try { Say(ViewModel.SaveJson(editor.Text)); }
+            catch (Exception ex) { error.Text = ex.Message; args.Cancel = true; }
+        };
+        await dialog.ShowAsync();
+    }
+
+    private async void OnMapDisplays(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.SelectedPreset is not { } preset) return;
+        var fields = new Dictionary<string, ComboBox>();
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(new TextBlock { Text = "Choose the local display for each saved monitor. Values stay unchanged; unsupported settings are reported when applied.", TextWrapping = TextWrapping.Wrap });
+        foreach (var (token, state) in preset.Monitors)
+        {
+            var choices = new List<PresetScopeChoice> { new(token, "Keep saved identity") };
+            choices.AddRange(ViewModel.AvailableDisplays.Where(d => d.Token != token).Select(d => new PresetScopeChoice(d.Token, d.Label)));
+            var field = new ComboBox { Header = state.Label ?? token, ItemsSource = choices,
+                DisplayMemberPath = "Label", SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+            fields[token] = field;
+            panel.Children.Add(field);
+        }
+        var error = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        panel.Children.Add(error);
+        var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "Map saved displays", Content = new ScrollViewer { Content = panel, MaxHeight = 440 },
+            PrimaryButtonText = "Save mapping", CloseButtonText = "Cancel" };
+        dialog.PrimaryButtonClick += (_, args) =>
+        {
+            try { Say(ViewModel.MapDisplays(fields.ToDictionary(pair => pair.Key, pair => ((PresetScopeChoice)pair.Value.SelectedItem).Token!))); }
+            catch (Exception ex) { error.Text = ex.Message; args.Cancel = true; }
+        };
+        await dialog.ShowAsync();
+    }
+
+    private void OnClearReturn(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is AppRuleViewModel rule) rule.RevertTo = "";
     }
 
     private void OnAddRule(object sender, RoutedEventArgs e) => ViewModel.AddRule();

@@ -7,16 +7,34 @@
       Loaded="OnLoaded">
 
   <Page.Resources>
-    <!-- One style for every label in the information grid, so the block reads
-         as a table rather than as a pile of individually styled text. -->
+    <!-- One style per kind of cell in the information table, so the block reads
+         as a table rather than as a pile of individually styled text.
+
+         Top aligned rather than centred: a value long enough to wrap used to
+         pull its own label down into the middle of the two lines, which is what
+         made a column of otherwise tidy pairs look ragged. -->
+    <Style x:Key="InfoSection" TargetType="TextBlock"
+           BasedOn="{StaticResource CaptionTextBlockStyle}">
+      <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <Setter Property="Margin" Value="0,12,0,2"/>
+    </Style>
     <Style x:Key="InfoLabel" TargetType="TextBlock">
       <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
-      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="VerticalAlignment" Value="Top"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
     <Style x:Key="InfoValue" TargetType="TextBlock">
-      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="VerticalAlignment" Value="Top"/>
       <Setter Property="TextWrapping" Value="Wrap"/>
       <Setter Property="IsTextSelectionEnabled" Value="True"/>
+    </Style>
+    <!-- Serials, device names and identity tokens: monospaced because they are
+         read a character at a time, and dimmed because they only matter when
+         something has gone wrong. -->
+    <Style x:Key="InfoIdentifier" TargetType="TextBlock"
+           BasedOn="{StaticResource InfoValue}">
+      <Setter Property="FontFamily" Value="Consolas"/>
+      <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
     </Style>
   </Page.Resources>
 
@@ -56,6 +74,34 @@
                Visibility="{x:Bind ViewModel.InactiveVisibility, Mode=OneWay}"
                Message="{x:Bind ViewModel.InactiveText, Mode=OneWay}"/>
 
+      <!-- The arrangement leads the page. It is the picture of the desk, and
+           everything below it is a setting belonging to one of the panels in
+           that picture, so it reads as the subject rather than as one more card
+           among the settings. Detect, Identify, Reset and Apply all live inside
+           the surface, because each of them is about the diagram.
+
+           Deliberately not a SettingsCard. That control reserves a header
+           gutter and places content in its right-hand action area whatever
+           ContentAlignment says, so a wide child ends up stranded in a narrow
+           column — glaring once the window is maximised. A plain header plus a
+           full-width block is what actually spans. -->
+      <StackPanel Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="16">
+          <FontIcon Glyph="&#xE80A;" VerticalAlignment="Center"/>
+          <StackPanel>
+            <TextBlock Text="Arrange displays"/>
+            <TextBlock Text="Drag a display to match where it physically sits. Nothing changes until you apply."
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          </StackPanel>
+        </StackPanel>
+        <views:ArrangeCanvas x:Name="ArrangeSurface" Margin="0,4,0,4"/>
+      </StackPanel>
+
+      <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,0,0,4"
+               Visibility="{x:Bind ViewModel.DetectStatusVisibility, Mode=OneWay}"
+               Message="{x:Bind ViewModel.DetectStatus, Mode=OneWay}"/>
+
       <!-- The same four choices as Win+P, applied through the documented
            topology flags so Windows reuses the arrangement you last had. -->
       <tk:SettingsCard Header="Multiple displays"
@@ -72,58 +118,33 @@
                Visibility="{x:Bind ViewModel.ArrangementStatusVisibility, Mode=OneWay}"
                Message="{x:Bind ViewModel.ArrangementStatus, Mode=OneWay}"/>
 
-      <!-- Identify moved into the arrangement surface, where the numbers it
-           flashes are the ones on the tiles. Two buttons here meant the same
-           idea asked for in two places. -->
-      <tk:SettingsCard Header="Detect displays"
-                       Description="Re-scans for monitors, including ones connected but switched off.">
-        <tk:SettingsCard.HeaderIcon>
-          <FontIcon Glyph="&#xE71E;"/>
-        </tk:SettingsCard.HeaderIcon>
-        <Button Content="Detect" Click="OnDetect"/>
-      </tk:SettingsCard>
+      <!-- One card, and not an expander. Writing the report and preparing what
+           could be published are the same sweep of the same hardware, and
+           splitting them charged the user for it twice: once for the file, then
+           once more per monitor, behind an expander, for a button whose label
+           could not explain why it was per monitor in the first place.
 
-      <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,4,0,0"
-               Visibility="{x:Bind ViewModel.DetectStatusVisibility, Mode=OneWay}"
-               Message="{x:Bind ViewModel.DetectStatus, Mode=OneWay}"/>
-
-      <!-- Says plainly where the file goes and that it stays there. The report
-           is the raw material for supporting hardware DisplCtrl has never seen, and
-           sending one should be a thing the user chooses to do, not something
-           that quietly already happened. -->
-      <tk:SettingsCard Header="Display report"
-                       Description="{x:Bind ViewModel.ReportStatus, Mode=OneWay}">
+           Collect reads every display. View shows exactly what would leave the
+           machine. Submit opens it for the final press, which happens on
+           GitHub and not here. -->
+      <tk:SettingsCard Header="Send monitor details"
+                       Description="{x:Bind ViewModel.DetailsStatus, Mode=OneWay}">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE9F9;"/>
         </tk:SettingsCard.HeaderIcon>
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="Write report" Click="OnWriteReport"
-                  AutomationProperties.Name="WriteDisplayReport"/>
-          <Button Content="Open" Click="OnOpenReport"
-                  AutomationProperties.Name="OpenDisplayReport"/>
+          <Button Content="Collect" Click="OnCollect"
+                  AutomationProperties.Name="CollectMonitorDetails"/>
+          <Button Content="View&#x2026;" Click="OnViewDetails"
+                  Visibility="{x:Bind ViewModel.CollectedVisibility, Mode=OneWay}"
+                  AutomationProperties.Name="ViewMonitorDetails"/>
+          <Button Content="Submit" Click="OnSubmitDetails"
+                  Style="{StaticResource AccentButtonStyle}"
+                  ToolTipService.ToolTip="Opens one prefilled issue per monitor — you read it and press Submit in the browser"
+                  Visibility="{x:Bind ViewModel.CollectedVisibility, Mode=OneWay}"
+                  AutomationProperties.Name="SubmitMonitorDetails"/>
         </StackPanel>
       </tk:SettingsCard>
-
-      <!-- One issue per monitor, which is how the device folder is organised:
-           a record describes a model, not a desk. The button says "Review"
-           rather than "Send" because that is what it does - the dialog shows
-           the exact text, and GitHub is where it is actually submitted. -->
-      <tk:SettingsExpander Header="Help DisplCtrl support more monitors"
-                           Description="{x:Bind ViewModel.ContributeStatus, Mode=OneWay}"
-                           ItemsSource="{x:Bind ViewModel.Displays, Mode=OneWay}">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE8C8;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <tk:SettingsExpander.ItemTemplate>
-          <DataTemplate x:DataType="vm:DisplayViewModel">
-            <tk:SettingsCard Header="{x:Bind Name}"
-                             Description="{x:Bind RoleAndConnection}">
-              <Button Content="Review&#x2026;" Click="OnContribute" Tag="{x:Bind Token}"
-                      AutomationProperties.Name="{x:Bind ContributeAutomationName}"/>
-            </tk:SettingsCard>
-          </DataTemplate>
-        </tk:SettingsExpander.ItemTemplate>
-      </tk:SettingsExpander>
 
       <tk:SettingsCard Header="Connect to a wireless display"
                        Description="Opens Windows' own pairing flow — Miracast discovery and PIN entry belong there.">
@@ -133,26 +154,9 @@
         <Button Content="Connect" Click="OnConnectWireless"/>
       </tk:SettingsCard>
 
-      <!-- Deliberately not a SettingsCard. That control reserves a header
-           gutter and places content in its right-hand action area whatever
-           ContentAlignment says, so a wide child ends up stranded in a narrow
-           column — glaring once the window is maximised. A plain header plus a
-           full-width block is what actually spans. -->
-      <StackPanel Margin="0,4,0,0" Spacing="6">
-        <StackPanel Orientation="Horizontal" Spacing="16">
-          <FontIcon Glyph="&#xE80A;" VerticalAlignment="Center"/>
-          <StackPanel>
-            <TextBlock Text="Arrange displays"/>
-            <TextBlock Text="Drag a display to match where it physically sits. Nothing changes until you apply."
-                       Style="{StaticResource CaptionTextBlockStyle}"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-          </StackPanel>
-        </StackPanel>
-        <views:ArrangeCanvas x:Name="ArrangeSurface" Margin="0,4,0,4"/>
-      </StackPanel>
-
       <tk:SettingsExpander Header="Unison brightness"
-                           Description="One control for every display, relative to the level each is already at.">
+                           Description="One control for every display, relative to the level each is already at."
+                           Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
           <FontIcon Glyph="&#xE706;"/>
         </tk:SettingsExpander.HeaderIcon>
@@ -235,8 +239,36 @@
                       AutomationProperties.Name="NightLightToggle"/>
 
         <tk:SettingsExpander.Items>
+          <!-- Windows has a night light of its own, and two switches for one
+               screen is a worse answer than one switch that both pages show.
+               With this on, Windows does the warming: a display has one gamma
+               ramp, and both warming it at once is twice as orange as either
+               asked for. -->
+          <tk:SettingsCard Header="Use Windows' night light"
+                           Description="Makes this and Windows' own night light the same switch, in both directions. Windows then does the warming, reaching 1200K but only for the whole desk at once.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE771;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <!-- The button stays regardless of the switch: Windows' page holds
+                 the parts deliberately not mirrored here, its own schedule and
+                 the sunset-to-sunrise option, which are worth reaching whether
+                 or not the two toggles are linked. -->
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <Button Click="OnOpenWindowsNightLight"
+                      ToolTipService.ToolTip="Opens Windows' own night light page in Settings"
+                      AutomationProperties.Name="OpenWindowsNightLight">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <FontIcon Glyph="&#xE8A7;" FontSize="14"/>
+                  <TextBlock Text="Open in Windows"/>
+                </StackPanel>
+              </Button>
+              <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightFollowsWindows, Mode=TwoWay}"
+                            AutomationProperties.Name="NightLightFollowWindowsToggle"/>
+            </StackPanel>
+          </tk:SettingsCard>
+
           <tk:SettingsCard Header="Strength"
-                           Description="How far towards warm. The top of the slider is as warm as Windows will accept a gamma change; past that it refuses the ramp outright."
+                           Description="{x:Bind ViewModel.NightLightStrengthDetail, Mode=OneWay}"
                            Visibility="{x:Bind ViewModel.NightLightSharedVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
               <Slider Value="{x:Bind ViewModel.NightLightStrength, Mode=TwoWay}"
@@ -293,6 +325,169 @@
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
+      <!-- Dark mode, focus and OLED rest sit with unison brightness and night
+           light because they are the same kind of setting: one switch for the
+           whole desk. They were on the Settings page, which left the page about
+           DisplCtrl itself holding most of what DisplCtrl does to the displays. -->
+      <tk:SettingsCard Header="Dark mode"
+                       Description="Windows&#39; own setting, for apps and the taskbar together. DisplCtrl follows it like any other app."
+                       Margin="0,4,0,0">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE708;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Click="OnOpenWindowsColours"
+                  ToolTipService.ToolTip="Opens Windows&#39; own colours page in Settings"
+                  AutomationProperties.Name="OpenWindowsColours">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <FontIcon Glyph="&#xE8A7;" FontSize="14"/>
+              <TextBlock Text="Open in Windows"/>
+            </StackPanel>
+          </Button>
+          <ToggleSwitch IsOn="{x:Bind ViewModel.DarkMode, Mode=TwoWay}"
+                        AutomationProperties.Name="DarkModeToggle"/>
+        </StackPanel>
+      </tk:SettingsCard>
+
+      <tk:SettingsExpander Header="Focus mode"
+                           Description="Keep the active window clear and dim its surroundings. Applies to windows, not to individual browser tabs."
+                           Margin="0,4,0,0">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE890;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.FocusEnabled, Mode=TwoWay}" AutomationProperties.Name="FocusMode"/>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Background dimming" Description="0% is unchanged; 100% is black. The active window stays at its normal brightness.">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Slider Value="{x:Bind ViewModel.FocusDim, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="160" AutomationProperties.Name="FocusDim"/>
+              <TextBlock Text="{x:Bind ViewModel.FocusDim, Mode=OneWay}" VerticalAlignment="Center"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Delay after switching windows" Description="Milliseconds before the background starts to dim.">
+            <NumberBox Value="{x:Bind ViewModel.FocusDelay, Mode=TwoWay}" Minimum="0" Maximum="10000" SmallChange="100" Width="135" SpinButtonPlacementMode="Compact" AutomationProperties.Name="FocusDelay"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Fade duration" Description="Milliseconds, for the dimming appearing and disappearing and for the slide below. Set to 0 for an instant change.">
+            <NumberBox Value="{x:Bind ViewModel.FocusFade, Mode=TwoWay}" Minimum="0" Maximum="2000" SmallChange="50" Width="135" SpinButtonPlacementMode="Compact" AutomationProperties.Name="FocusFade"/>
+          </tk:SettingsCard>
+          <!-- One choice, not two switches. Both at once meant the shape
+               travelled and cross-faded together, which is the worst of the
+               pair rather than a blend of them. -->
+          <tk:SettingsCard Header="Transition between windows"
+                           Description="Fading moves only the brightness and cuts both shapes instantly. Sliding moves the shape across, which is what reads as lag.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE706;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ComboBox ItemsSource="{x:Bind ViewModel.WindowTransitions}"
+                      SelectedIndex="{x:Bind ViewModel.WindowTransition, Mode=TwoWay}"
+                      MinWidth="200"
+                      AutomationProperties.Name="WindowTransition"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="One clear window per display"
+                           Description="Each display keeps the last window used on it clear, instead of the whole desk sharing one. A display nothing has been opened on stays dimmed.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7F4;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusPerMonitor, Mode=TwoWay}" AutomationProperties.Name="FocusPerMonitor"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep the hovered window clear too"
+                           Description="Hold both the focused window and the one under the pointer clear at once, for reading one while typing in another. The taskbar counts as a window, so pointing at it clears it too.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE962;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusKeepHoveredClear, Mode=TwoWay}" AutomationProperties.Name="FocusKeepHoveredClear"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="OLED displays only" Description="Dim only the panels marked as OLED under Each display, below.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusOledOnly, Mode=TwoWay}" AutomationProperties.Name="FocusOledOnly"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Match the dimming to brightness"
+                           Description="Ease the dimming on panels unison brightness is already running dim, so one setting looks the same on every screen.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE706;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusScaleWithBrightness, Mode=TwoWay}" AutomationProperties.Name="FocusScaleWithBrightness"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Follow the mouse"
+                           Description="Keep whatever the pointer is over clear, rather than the window with keyboard focus.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE962;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusFollowMouse, Mode=TwoWay}" AutomationProperties.Name="FocusFollowMouse"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Dim other monitors"
+                           Description="Also dim monitors that do not contain the active window. Ignored when each display keeps its own window, since then every display has one. Which displays may be dimmed at all is set on each display, below.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusOtherMonitors, Mode=TwoWay}" AutomationProperties.Name="FocusOtherMonitors"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep taskbar area clear" Description="Leave the space reserved for the taskbar at normal brightness.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusKeepTaskbar, Mode=TwoWay}" AutomationProperties.Name="FocusKeepTaskbar"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Pause for fullscreen windows" Description="Avoid dimming while watching fullscreen content or playing a fullscreen game.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusPauseFullscreen, Mode=TwoWay}" AutomationProperties.Name="FocusPauseFullscreen"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Excluded apps" Description="Pause while one of these apps is active. Separate executable names with commas, for example vlc.exe, game.exe." ContentAlignment="Vertical">
+            <TextBox Text="{x:Bind ViewModel.FocusExcludedApps, Mode=TwoWay}" PlaceholderText="App executable names" AutomationProperties.Name="FocusExcludedApps"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Right now" Description="{x:Bind ViewModel.ProtectionStatus, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE9E9;"/>
+            </tk:SettingsCard.HeaderIcon>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Reset focus mode"
+                           Description="Puts the settings above back to their defaults. The switch itself is left alone.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE777;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <Button Content="Reset" Click="OnResetFocus" AutomationProperties.Name="ResetFocusSettings"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <!-- One switch, but it reaches only the panels that are both marked OLED
+           and have protection left on, so the first card says which those are.
+           A global-looking toggle that quietly skips half the desk is the kind
+           of control someone has to test to understand. -->
+      <tk:SettingsExpander Header="OLED idle protection"
+                           Description="Rest OLED panels after a spell without input. Panels not marked as OLED are never touched."
+                           Margin="0,4,0,0">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE7F4;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.OledIdleEnabled, Mode=TwoWay}" AutomationProperties.Name="OledIdleProtection"/>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Which displays" Description="{x:Bind ViewModel.OledCoverage, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7F4;"/>
+            </tk:SettingsCard.HeaderIcon>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Dim after inactivity" Description="Minutes without keyboard or mouse input. Input restores the display automatically.">
+            <NumberBox Value="{x:Bind ViewModel.OledIdleMinutes, Mode=TwoWay}" Minimum="1" Maximum="120" SmallChange="1" Width="135" SpinButtonPlacementMode="Compact" AutomationProperties.Name="OledIdleMinutes"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Idle dimming" Description="100% gives the panel a black screen. This does not run a hardware compensation cycle.">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Slider Value="{x:Bind ViewModel.OledIdleDim, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="160" AutomationProperties.Name="OledIdleDim"/>
+              <TextBlock Text="{x:Bind ViewModel.OledIdleDim, Mode=OneWay}" VerticalAlignment="Center"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Idle fade duration" Description="Milliseconds to reach the idle dimming level.">
+            <NumberBox Value="{x:Bind ViewModel.OledIdleFade, Mode=TwoWay}" Minimum="0" Maximum="2000" SmallChange="100" Width="135" SpinButtonPlacementMode="Compact" AutomationProperties.Name="OledIdleFade"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Pause during fullscreen content">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.OledPauseFullscreen, Mode=TwoWay}" AutomationProperties.Name="OledPauseFullscreen"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Manual screen-rest duration" Description="Minutes for Run screen rest on a display. Move the mouse, click or press a key to end it early.">
+            <NumberBox Value="{x:Bind ViewModel.OledRestMinutes, Mode=TwoWay}" Minimum="1" Maximum="30" SmallChange="1" Width="135" SpinButtonPlacementMode="Compact" AutomationProperties.Name="OledRestMinutes"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Reset OLED idle protection"
+                           Description="Puts the settings above back to their defaults. Which panels are OLED is set on each display.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE777;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <Button Content="Reset" Click="OnResetOled" AutomationProperties.Name="ResetOledSettings"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
       <TextBlock Text="Each display"
                  Style="{StaticResource BodyStrongTextBlockStyle}"
                  Margin="0,28,0,8"/>
@@ -326,7 +521,17 @@
 
               <tk:SettingsExpander.Items>
 
-                <!-- Information first.
+                <!-- Information first: the panel on the left, and everything it
+                     reports in one block pinned to the right edge.
+
+                     Pinned rather than spread across the card, because that is
+                     the grammar of every other row on this page — what the
+                     thing is on the left, what it says or does on the right.
+                     Left to fill the width, the table put its labels hard
+                     against the icon gutter and its values adrift in the middle
+                     of an otherwise empty row, lining up with nothing above or
+                     below it.
+
                      SettingsCard keeps its icon/header gutter even with
                      ContentAlignment="Vertical", so content is always indented
                      past it. Rather than fight that, the card is given a real
@@ -335,231 +540,28 @@
                      deliberate rather than a gap. -->
                 <tk:SettingsCard ContentAlignment="Vertical"
                                  HorizontalContentAlignment="Stretch">
-                  <Grid ColumnSpacing="28" Padding="0,4,0,8">
+                  <Grid ColumnSpacing="24" Padding="0,4,0,8">
                     <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="Auto"/>
+                      <!-- The preview takes whatever the table does not, and
+                           centres itself in it. Pinned left it sat alone against
+                           the icon gutter with the whole gap to its right; in
+                           the middle of its own share it reads as the other half
+                           of the card rather than as something left over. -->
                       <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-
-                    <!-- Facts, as a table. Explicitly stretched and left
-                         aligned so the block starts at the card edge instead
-                         of floating in the middle with dead space beside it. -->
-                    <Grid Grid.Column="1" ColumnSpacing="16" RowSpacing="9"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Center">
-                      <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                      </Grid.ColumnDefinitions>
-                      <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                      </Grid.RowDefinitions>
-
-                      <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
-                                 Text="The panel"
-                                 Style="{StaticResource CaptionTextBlockStyle}"
-                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                 Margin="0,0,0,0"/>
-
-                      <TextBlock Grid.Row="1" Grid.Column="0" Text="Model" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ProductName, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="2" Grid.Column="0" Text="Manufacturer and product" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ModelCode, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="3" Grid.Column="0" Text="Serial" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Bind SerialText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"
-                                 FontFamily="Consolas"
-                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-
-                      <TextBlock Grid.Row="4" Grid.Column="0" Text="Screen size" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="4" Grid.Column="1" Text="{x:Bind ScreenSizeText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="5" Grid.Column="0" Text="Pixel density" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="5" Grid.Column="1" Text="{x:Bind PixelDensityText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="6" Grid.Column="0" Text="Panel technology" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="6" Grid.Column="1" Text="{x:Bind PanelTechnology, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
-                                 Text="Connection"
-                                 Style="{StaticResource CaptionTextBlockStyle}"
-                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                 Margin="0,10,0,0"/>
-
-                      <TextBlock Grid.Row="8" Grid.Column="0" Text="Connector" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="8" Grid.Column="1" Text="{x:Bind ConnectorText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="9" Grid.Column="0" Text="Main display" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="9" Grid.Column="1" Text="{x:Bind PrimaryText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="10" Grid.Column="0" Text="Active signal mode" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="10" Grid.Column="1" Text="{x:Bind ActiveSignalMode, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="11" Grid.Column="0" Text="Pixel clock" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="11" Grid.Column="1" Text="{x:Bind PixelClock, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="12" Grid.Column="0" Text="Scan type" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="12" Grid.Column="1" Text="{x:Bind ScanLineOrdering, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="13" Grid.Column="0" Text="DDC/CI" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="13" Grid.Column="1" Text="{x:Bind DdcText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="14" Grid.Column="0" Grid.ColumnSpan="2"
-                                 Text="Picture"
-                                 Style="{StaticResource CaptionTextBlockStyle}"
-                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                 Margin="0,10,0,0"/>
-
-                      <TextBlock Grid.Row="15" Grid.Column="0" Text="Resolution" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="15" Grid.Column="1" Text="{x:Bind ResolutionText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="16" Grid.Column="0" Text="Native resolution" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="16" Grid.Column="1" Text="{x:Bind NativeResolutionText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="17" Grid.Column="0" Text="Refresh rate" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="17" Grid.Column="1" Text="{x:Bind RefreshText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="18" Grid.Column="0" Text="Variable refresh" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="18" Grid.Column="1" Text="{x:Bind VrrRangeText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="19" Grid.Column="0" Text="Scaling" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="19" Grid.Column="1" Text="{x:Bind DpiText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="20" Grid.Column="0" Text="Orientation" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="20" Grid.Column="1" Text="{x:Bind OrientationText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="21" Grid.Column="0" Text="Desktop mode" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="21" Grid.Column="1" Text="{x:Bind DesktopModeText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="22" Grid.Column="0" Grid.ColumnSpan="2"
-                                 Text="Colour"
-                                 Style="{StaticResource CaptionTextBlockStyle}"
-                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                 Margin="0,10,0,0"/>
-
-                      <TextBlock Grid.Row="23" Grid.Column="0" Text="Bit depth" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="23" Grid.Column="1" Text="{x:Bind BitDepth, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="24" Grid.Column="0" Text="Colour depth" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="24" Grid.Column="1" Text="{x:Bind ColorDepthText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="25" Grid.Column="0" Text="Colour format" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="25" Grid.Column="1" Text="{x:Bind ColorFormat, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="26" Grid.Column="0" Text="Colour space" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="26" Grid.Column="1" Text="{x:Bind ColorSpace, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="27" Grid.Column="0" Text="Colour profile" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="27" Grid.Column="1" Text="{x:Bind ColorProfileName, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="28" Grid.Column="0" Text="HDR status" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="28" Grid.Column="1" Text="{x:Bind HdrStatus, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="29" Grid.Column="0" Grid.ColumnSpan="2"
-                                 Text="Placement"
-                                 Style="{StaticResource CaptionTextBlockStyle}"
-                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                 Margin="0,10,0,0"/>
-
-                      <TextBlock Grid.Row="30" Grid.Column="0" Text="Position" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="30" Grid.Column="1" Text="{x:Bind PositionText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="31" Grid.Column="0" Text="Work area" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="31" Grid.Column="1" Text="{x:Bind WorkAreaText, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"/>
-
-                      <TextBlock Grid.Row="32" Grid.Column="0" Grid.ColumnSpan="2"
-                                 Text="How DisplCtrl knows it"
-                                 Style="{StaticResource CaptionTextBlockStyle}"
-                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                 Margin="0,10,0,0"/>
-
-                      <TextBlock Grid.Row="33" Grid.Column="0" Text="Windows name" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="33" Grid.Column="1" Text="{x:Bind WindowsName, Mode=OneWay}"
-                                 Style="{StaticResource InfoValue}"
-                                 FontFamily="Consolas"
-                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-
-                      <TextBlock Grid.Row="34" Grid.Column="0" Text="Identity" Style="{StaticResource InfoLabel}"/>
-                      <TextBlock Grid.Row="34" Grid.Column="1" Text="{x:Bind Token}"
-                                 Style="{StaticResource InfoValue}"
-                                 FontFamily="Consolas"
-                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                    </Grid>
 
                     <!-- The panel itself, drawn at its real aspect ratio with
                          its own wallpaper in it — the same idea as the preview
                          in Windows' Display settings. -->
-                    <!-- Left-aligned explicitly: an element with an explicit Width
-                         inside a StackPanel centres itself when alignment is
-                         left at the default Stretch. -->
+                    <!-- Centred on both axes, so it sits in the middle of the
+                         space between the card edge and the table beside it. -->
                     <StackPanel Grid.Column="0" Spacing="8"
                                 VerticalAlignment="Center"
-                                HorizontalAlignment="Left">
+                                HorizontalAlignment="Center">
                       <Border Width="{x:Bind PreviewWidth}"
                               Height="{x:Bind PreviewHeight}"
-                              HorizontalAlignment="Left"
+                              HorizontalAlignment="Center"
                               CornerRadius="6"
                               BorderThickness="2"
                               BorderBrush="{ThemeResource CardStrokeColorDefaultSolidBrush}"
@@ -577,7 +579,7 @@
                           <Border Background="#59000000"/>
                           <TextBlock Text="{x:Bind Number}"
                                      HorizontalAlignment="Center" VerticalAlignment="Center"
-                                     FontSize="34" FontWeight="SemiBold"
+                                     FontSize="48" FontWeight="SemiBold"
                                      Foreground="White"/>
                         </Grid>
                       </Border>
@@ -587,6 +589,89 @@
                                  Style="{StaticResource CaptionTextBlockStyle}"
                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                     </StackPanel>
+
+                    <!-- Everything the display says, as one block against the
+                         right edge. Capped rather than stretched: a table that
+                         grows with the window ends up with a hand's width of
+                         nothing between each label and its value. -->
+                    <Grid Grid.Column="1" RowSpacing="8"
+                          HorizontalAlignment="Right" VerticalAlignment="Top"
+                          MinWidth="420" MaxWidth="660">
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                      </Grid.RowDefinitions>
+
+                      <!-- The whole table, in one press, and attached to the
+                           block it copies. Every value below is selectable, but
+                           dragging a selection through thirty rows of a
+                           scrolling list is not what someone should have to do
+                           to paste their monitor into a support thread. -->
+                      <Button Grid.Row="0" Click="OnCopyInfo" Tag="{x:Bind}"
+                              Width="40" Height="36" Padding="0"
+                              HorizontalAlignment="Right"
+                              ToolTipService.ToolTip="Copy these details"
+                              AutomationProperties.Name="{x:Bind CopyInfoAutomationName}">
+                        <FontIcon Glyph="&#xE8C8;" FontSize="16"/>
+                      </Button>
+
+                      <!-- Scrolled, with a ceiling. This is thirty-odd rows and
+                           it is the first thing an expanded card shows: at full
+                           height it pushed every actual control for the display
+                           past the bottom of the window, so the table had to be
+                           scrolled past rather than read. Chaining is left on,
+                           so the wheel carries on down the page once the table
+                           is at its end. -->
+                      <ScrollViewer Grid.Row="1"
+                                    MaxHeight="360"
+                                    Padding="0,0,12,0"
+                                    VerticalScrollBarVisibility="Auto"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    HorizontalScrollMode="Disabled">
+                        <!-- ItemsControl, not ItemsRepeater: the same
+                             virtualisation trap as the display list above, and
+                             there is nothing here worth virtualising. -->
+                        <ItemsControl ItemsSource="{x:Bind Information, Mode=OneWay}"
+                                      HorizontalContentAlignment="Stretch">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Spacing="8"/>
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:InfoRow">
+                              <!-- One fixed label column for every row, which is
+                                   what makes the values line up. Sized per row,
+                                   each pair found its own width and the column
+                                   of values came out ragged. -->
+                              <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                  <ColumnDefinition Width="190"/>
+                                  <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Grid.ColumnSpan="2"
+                                           Text="{x:Bind Label}"
+                                           Visibility="{x:Bind SectionVisibility}"
+                                           Style="{StaticResource InfoSection}"/>
+
+                                <TextBlock Grid.Column="0" Text="{x:Bind Label}"
+                                           Visibility="{x:Bind FieldVisibility}"
+                                           Style="{StaticResource InfoLabel}"/>
+
+                                <TextBlock Grid.Column="1" Text="{x:Bind Value}"
+                                           Visibility="{x:Bind ProseVisibility}"
+                                           Style="{StaticResource InfoValue}"/>
+
+                                <TextBlock Grid.Column="1" Text="{x:Bind Value}"
+                                           Visibility="{x:Bind IdentifierVisibility}"
+                                           Style="{StaticResource InfoIdentifier}"/>
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </ScrollViewer>
+                    </Grid>
                   </Grid>
                 </tk:SettingsCard>
 
@@ -712,6 +797,28 @@
                                 AutomationProperties.Name="{x:Bind OledAutomationName}"/>
                 </tk:SettingsCard>
 
+                <tk:SettingsCard Header="Focus dimming"
+                                 Description="Let focus mode dim this display. Off leaves it at full brightness whatever else is happening.">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE890;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <ToggleSwitch IsOn="{x:Bind FocusDimming, Mode=TwoWay}" AutomationProperties.Name="{x:Bind FocusDimmingAutomationName}"/>
+                </tk:SettingsCard>
+
+                <tk:SettingsCard Header="OLED burn-in protection"
+                                 Description="Whether the shared idle and screen-rest settings above reach this panel."
+                                 Visibility="{x:Bind OledProtectionVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7F4;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Run screen rest" Click="OnScreenRest" Tag="{x:Bind}"
+                            ToolTipService.ToolTip="Blacks this panel now. Move the mouse or press a key to end it early."
+                            AutomationProperties.Name="RunOledScreenRest"/>
+                    <ToggleSwitch IsOn="{x:Bind OledProtectionEnabled, Mode=TwoWay}" AutomationProperties.Name="OledPanelProtection"/>
+                  </StackPanel>
+                </tk:SettingsCard>
+
                 <tk:SettingsCard Header="HDR" Description="{x:Bind HdrDescription, Mode=OneWay}"
                                  Visibility="{x:Bind HdrVisibility, Mode=OneWay}">
                   <tk:SettingsCard.HeaderIcon>
@@ -833,7 +940,7 @@
                 </tk:SettingsCard>
 
                 <tk:SettingsCard Header="Reclaim the work area"
-                                 Description="Let maximised windows fill the whole panel once its taskbar is hidden.">
+                                 Description="Let maximised windows fill the whole display. The taskbar appears over them when revealed.">
                   <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE9A6;"/>
                   </tk:SettingsCard.HeaderIcon>
@@ -947,7 +1054,7 @@
          when it starts mattering, so it stays pinned to the bottom while the
          settings above it move. It drives the same view model as the Presets
          page, so the two cannot disagree. -->
-    <Border Grid.Row="1"
+    <Border x:Name="PresetFooter" x:Load="{x:Bind ViewModel.PresetsEnabled}" Grid.Row="1"
             Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
             BorderThickness="0,1,0,0"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"

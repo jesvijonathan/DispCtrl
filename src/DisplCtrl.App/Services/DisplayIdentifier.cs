@@ -86,18 +86,18 @@ public static partial class DisplayIdentifier
     /// <summary><c>DWMWA_WINDOW_CORNER_PREFERENCE</c>.</summary>
     private const uint WindowCornerPreference = 33;
 
-    /// <summary><c>DWMWCP_ROUND</c> — the full radius, as a dialog gets.</summary>
-    private const uint CornerRound = 2;
+    /// <summary><c>DWMWCP_DONOTROUND</c> — matches the opaque rectangular content.</summary>
+    private const uint CornerSquare = 1;
 
     [LibraryImport("dwmapi.dll")]
     private static partial int DwmSetWindowAttribute(nint hwnd, uint attribute, ref uint value, uint size);
 
-    private static void RoundCorners(Window window)
+    private static void ConfigureFrame(Window window)
     {
         try
         {
             nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
-            uint preference = CornerRound;
+            uint preference = CornerSquare;
             _ = DwmSetWindowAttribute(hwnd, WindowCornerPreference, ref preference, sizeof(uint));
         }
         catch (Exception)
@@ -142,18 +142,11 @@ public static partial class DisplayIdentifier
             VerticalAlignment = VerticalAlignment.Center,
         };
 
-        // Windows' own identifier is a soft-cornered dark plate with a light
-        // numeral, not a flat accent block. Matching that is most of what makes
-        // it read as part of the system.
+        // Fill the entire client rectangle. Rounded XAML leaves the window's
+        // light background visible outside the plate on borderless windows.
         window.Content = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(235, 32, 32, 32)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
-            BorderThickness = new Thickness(1),
-            // 8 DIP, because that is exactly what DWMWCP_ROUND cuts the window
-            // frame to. A larger radius here would be drawn inside a frame
-            // clipped tighter than it, which is what left the curve chopped.
-            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Color.FromArgb(255, 32, 32, 32)),
             Child = text,
         };
 
@@ -172,11 +165,8 @@ public static partial class DisplayIdentifier
 
         app.IsShownInSwitchers = false;
 
-        // The plate's rounded corners were being drawn inside a square window,
-        // so each corner showed the window's own background and the curve came
-        // out chopped. DWM has to round the window itself; nothing done inside
-        // the XAML can cut the frame.
-        RoundCorners(window);
+        // Keep the native frame and XAML content square.
+        ConfigureFrame(window);
 
         // Bottom-left, inset a tenth of the panel on each side. Centred put it
         // squarely over whatever the user was looking at; a corner marker is

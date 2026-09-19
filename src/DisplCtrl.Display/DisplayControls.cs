@@ -114,6 +114,7 @@ public static class DisplayArrangement
     /// </remarks>
     public static unsafe bool SetOrientation(DisplayInfo display, ScreenOrientation orientation)
     {
+        using var stateChange = new DisplayStateChange();
         var dm = new DEVMODEW { dmSize = (ushort)sizeof(DEVMODEW) };
         if (!PInvoke.EnumDisplaySettingsEx(
                 display.GdiName, ENUM_DISPLAY_SETTINGS_MODE.ENUM_CURRENT_SETTINGS, ref dm, 0))
@@ -148,6 +149,7 @@ public static class DisplayArrangement
     /// </remarks>
     public static unsafe bool SetPrimary(DisplayInfo target, IReadOnlyList<DisplayInfo> all)
     {
+        using var stateChange = new DisplayStateChange();
         int dx = -target.Bounds.Left;
         int dy = -target.Bounds.Top;
 
@@ -199,6 +201,7 @@ public static class DisplayArrangement
                                            IReadOnlyList<DisplayInfo> all,
                                            out string? error)
     {
+        using var stateChange = new DisplayStateChange();
         error = null;
         uint pathCount, modeCount;
         if (PInvoke.GetDisplayConfigBufferSizes(
@@ -305,6 +308,7 @@ public static class DisplayArrangement
     /// </remarks>
     public static unsafe bool SetRefreshRate(DisplayInfo display, uint hz)
     {
+        using var stateChange = new DisplayStateChange();
         const uint PathModeIdxInvalid = 0xffffffff;
         const uint SdcUseSupplied = 0x00000020;
         const uint SdcApply = 0x00000080;

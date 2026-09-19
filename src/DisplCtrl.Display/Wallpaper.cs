@@ -141,6 +141,7 @@ public static unsafe partial class Wallpaper
 
     public static unsafe bool Write(DisplayInfo display, string imagePath)
     {
+        using var stateChange = new DisplayStateChange();
         if (!File.Exists(imagePath)) return false;
 
         try
@@ -235,6 +236,7 @@ public static unsafe partial class Wallpaper
     /// </remarks>
     public static unsafe bool WriteFit(WallpaperFit fit)
     {
+        using var stateChange = new DisplayStateChange();
         (string style, string tile) = fit switch
         {
             WallpaperFit.Center => ("0", "0"),
@@ -277,6 +279,7 @@ public static unsafe partial class Wallpaper
     /// <summary>Sets the colour shown where no wallpaper covers — black, for an OLED panel.</summary>
     public static bool WriteBackgroundColor(byte r, byte g, byte b)
     {
+        using var stateChange = new DisplayStateChange();
         try
         {
             IDesktopWallpaper? api = Create();

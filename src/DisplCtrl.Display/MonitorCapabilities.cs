@@ -1,4 +1,6 @@
 using System.Text;
+using System.Diagnostics;
+using DisplCtrl.Core.Caching;
 using DisplCtrl.Core.Displays;
 using Windows.Win32;
 using Windows.Win32.Devices.Display;
@@ -92,6 +94,14 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     /// it does is how a panel ends up in a state its own OSD cannot undo. They
     /// are reported, never written.
     /// </remarks>
+    /// <summary>Whether a code is one DisplCtrl is willing to write at all.</summary>
+    /// <remarks>
+    /// Separate from <see cref="Settable"/>, which also asks whether this
+    /// particular monitor is answering sensibly. The report needs to tell the
+    /// two apart to say why a control is not offered.
+    /// </remarks>
+    public static bool IsAllowed(byte code) => Settables.Contains(code);
+
     internal static readonly HashSet<byte> Settables =
         [0x0C, 0x10, 0x12, 0x14, 0x16, 0x18, 0x1A, 0x60, 0x62, 0x66, 0x6C, 0x6E, 0x70,
          0x72, 0x87, 0x8D, 0xCA, 0xCC, 0xD6, 0xDC];
@@ -359,6 +369,39 @@ public static class MonitorCapabilities
     /// </remarks>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string?> Strings = new();
 
+    private sealed class ControlReadings
+    {
+        public readonly Lock Gate = new();
+        public readonly Dictionary<byte, (int Current, int Maximum, long At)> Values = [];
+    }
+    private static readonly BoundedCache<(string Path, nint Handle), ControlReadings> Readings = new(32);
+    private static readonly BoundedCache<string, MonitorCapability> Parsed = new(32);
+    private static readonly TimeSpan ReadingLifetime = TimeSpan.FromSeconds(5);
+
+    private static MonitorCapability Template(string raw)
+    {
+        MonitorCapability template = Parsed.Get(raw, TimeSpan.FromHours(1), () => Parse(raw));
+        return template with { Controls = template.Controls.Select(control => control with { }).ToArray() };
+    }
+
+    /// <summary>Reads UI controls plus the four informational values actually shown.</summary>
+    public static MonitorCapability ReadForUi(DisplayInfo display)
+    {
+        if (display.IsInternal) return MonitorCapability.None;
+        string? raw = Capabilities(display);
+        if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
+        MonitorCapability result = Template(raw);
+        var visible = result.Controls.Where(control =>
+            (VcpControl.IsAllowed(control.Code) && control.Code != 0x10)
+            || control.Code is 0xB6 or 0xC9 or 0xC0 or 0xC8).ToList();
+        ReadCurrentValues(display, visible, useCache: true);
+        return result;
+    }
+
+    internal static void InvalidateAllValues() => Readings.Clear();
+
+    public static void InvalidateValues(DisplayInfo display) => Readings.Remove((display.Key.DevicePath, display.Handle));
+
     public static MonitorCapability Read(DisplayInfo display, bool readValues = true)
     {
         if (display.IsInternal) return MonitorCapability.None;
@@ -366,7 +409,7 @@ public static class MonitorCapabilities
         string? raw = Capabilities(display);
         if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
 
-        MonitorCapability parsed = Parse(raw);
+        MonitorCapability parsed = Template(raw);
         if (!readValues || parsed.Controls.Count == 0) return parsed;
 
         ReadCurrentValues(display, parsed.Controls);
@@ -381,22 +424,22 @@ public static class MonitorCapabilities
     /// machinery actually needs: a control that will never be written does not
     /// need its value captured. On the Dell this is 11 reads instead of 37.
     /// </remarks>
-    public static MonitorCapability ReadSettable(DisplayInfo display)
+    public static MonitorCapability ReadSettable(DisplayInfo display, bool useCache = false)
     {
         if (display.IsInternal) return MonitorCapability.None;
 
         string? raw = Capabilities(display);
         if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
 
-        MonitorCapability parsed = Parse(raw);
+        MonitorCapability parsed = Template(raw);
 
         // Settable is partly decided by the value read, so the candidates are
         // filtered on the allow list here and judged fully afterwards.
         var wanted = new List<VcpControl>();
         foreach (VcpControl c in parsed.Controls)
-            if (c.Kind != VcpKind.Information && VcpControl.Settables.Contains(c.Code)) wanted.Add(c);
+            if (c.Code != 0x10 && c.Kind != VcpKind.Information && VcpControl.Settables.Contains(c.Code)) wanted.Add(c);
 
-        if (wanted.Count > 0) ReadCurrentValues(display, wanted);
+        if (wanted.Count > 0) ReadCurrentValues(display, wanted, useCache);
 
         return parsed;
     }
@@ -456,7 +499,11 @@ public static class MonitorCapabilities
     private const int RetryMs = 150;
 
     /// <summary>Forgets the cached string, so a replugged monitor is asked afresh.</summary>
-    public static void Forget(DisplayInfo display) => Strings.TryRemove(display.Key.DevicePath, out _);
+    public static void Forget(DisplayInfo display)
+    {
+        Strings.TryRemove(display.Key.DevicePath, out _);
+        InvalidateValues(display);
+    }
 
     // ------------------------------------------------------------ reading --
 
@@ -488,39 +535,41 @@ public static class MonitorCapabilities
             return Encoding.ASCII.GetString(buffer, 0, end);
         }, null);
 
-    private static unsafe void ReadCurrentValues(DisplayInfo display, IReadOnlyList<VcpControl> controls)
+    private static unsafe void ReadCurrentValues(DisplayInfo display, IReadOnlyList<VcpControl> controls, bool useCache = false)
     {
-        _ = DdcChannel.With<bool>(display, handle =>
+        ControlReadings readings = Readings.Get((display.Key.DevicePath, display.Handle), TimeSpan.FromMinutes(10), () => new());
+        // Share concurrent reads of the same panel, keeping separate panels independent.
+        lock (readings.Gate)
         {
-            bool first = true;
-
-            foreach (VcpControl c in controls)
+            var pending = new List<VcpControl>();
+            foreach (VcpControl control in controls)
             {
-                // MCCS specifies a gap between messages, and monitors mean it.
-                // Read back to back, this Dell returned replies that did not
-                // belong to the code asked for — a sweep reported brightness as
-                // 24 while the panel was plainly at 62, and a preset captured
-                // from that sweep then wrote the wrong value back to the
-                // hardware. ddcutil carries tuned per-model delays for the same
-                // reason; this is the conservative flat version of that.
-                if (!first) Thread.Sleep(InterMessageMs);
-                first = false;
-
-                uint current = 0, max = 0;
-                MC_VCP_CODE_TYPE type = default;
-
-                // One handle for the whole sweep: opening and closing the
-                // channel per control is both slower and, on some monitors,
-                // enough to make them start refusing requests.
-                if (PInvoke.GetVCPFeatureAndVCPFeatureReply(handle, c.Code, &type, &current, &max) == 0)
-                    continue;
-
-                c.Current = (int)current;
-                c.Maximum = (int)max;
+                if (useCache && readings.Values.TryGetValue(control.Code, out var value)
+                    && Stopwatch.GetElapsedTime(value.At) < ReadingLifetime)
+                { control.Current = value.Current; control.Maximum = value.Maximum; }
+                else pending.Add(control);
             }
-
-            return true;
-        }, false);
+            if (pending.Count == 0) return;
+            _ = DdcChannel.With(display, handle =>
+            {
+                bool first = true;
+                foreach (VcpControl control in pending)
+                {
+                    // Preserve the protocol gap; removing it produces incorrect replies.
+                    if (!first) Thread.Sleep(InterMessageMs);
+                    first = false;
+                    uint current = 0, maximum = 0;
+                    MC_VCP_CODE_TYPE type = default;
+                    if (PInvoke.GetVCPFeatureAndVCPFeatureReply(handle, control.Code, &type, &current, &maximum) == 0) continue;
+                    control.Current = (int)current;
+                    control.Maximum = (int)maximum;
+                }
+                return true;
+            }, false);
+            long completed = Stopwatch.GetTimestamp();
+            foreach (VcpControl control in pending)
+                if (control.Current >= 0) readings.Values[control.Code] = (control.Current, control.Maximum, completed);
+        }
     }
 
     // ------------------------------------------------------------ parsing --
@@ -678,8 +727,13 @@ public static class MonitorCapabilities
     /// string. Writing a speculative code is how a manufacturer-specific
     /// feature gets triggered by accident.
     /// </remarks>
-    public static bool Write(DisplayInfo display, byte code, uint value) =>
-        DdcChannel.With(display, handle => PInvoke.SetVCPFeature(handle, code, value) != 0, false);
+    public static bool Write(DisplayInfo display, byte code, uint value)
+    {
+        using var stateChange = new DisplayStateChange();
+        InvalidateValues(display);
+        try { return DdcChannel.With(display, handle => PInvoke.SetVCPFeature(handle, code, value) != 0, false); }
+        finally { InvalidateValues(display); }
+    }
 
     /// <summary>
     /// Asks the monitor to restore its own factory settings.

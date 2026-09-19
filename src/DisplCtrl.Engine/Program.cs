@@ -107,7 +107,8 @@ internal static class Program
     /// </para>
     /// </remarks>
     private static FileSystemWatcher WatchSettings(TaskbarManager manager, NightLightService nightLight,
-                                                   AppRuleService appRules, HotkeyService hotkeys)
+                                                   AppRuleService? appRules, HotkeyService hotkeys,
+                                                   Protection.FocusService focus, Shell.TrayIconService tray)
     {
         Directory.CreateDirectory(SettingsStore.Directory);
 
@@ -120,8 +121,10 @@ internal static class Program
                 DisplCtrlSettings reloaded = SettingsStore.Load();
                 manager.ApplySettings(reloaded);
                 nightLight.Update(reloaded);
-                appRules.Update(reloaded);
+                appRules?.Update(reloaded);
                 hotkeys.Update(reloaded);
+                focus.Update(reloaded);
+                tray.Update(reloaded);
             }
             catch (Exception ex)
             {
@@ -222,12 +225,7 @@ internal static class Program
               refresh [<hz>]
               primary [<n|token>]
 
-            Presets
-              preset list
-              preset apply  <name>
-              preset save   <name>
-              preset delete <name>
-
+            Diagnostics
               report                write the display report and print its path
 
             Every display command takes --display <n|token> or --all.
@@ -382,12 +380,20 @@ internal static class Program
         foreach (MonitorSettings ms in settings.Monitors.Values)
             if (ms.SoftwareBrightness < 100) dimming = true;
 
-        if (managed == 0 && !settings.Global.NightLight.Enabled && settings.AppRules.Count == 0
-            && !dimming && settings.Hotkeys.Count == 0)
+        bool appRulesEnabled = DisplCtrl.Core.FeatureFlags.Presets && settings.AppRules.Any(rule => rule.Enabled);
+        bool hotkeysEnabled = settings.Hotkeys.Any(h => h.Enabled && h.IsComplete
+            && (DisplCtrl.Core.FeatureFlags.Presets || h.Action != HotkeyAction.ApplyPreset));
+        if (managed == 0 && !settings.Global.NightLight.Enabled && !appRulesEnabled
+            && !dimming && !hotkeysEnabled && !settings.Global.Focus.Enabled
+            && !settings.Global.OledCare.Enabled && settings.Global.TaskbarOpacity >= 100
+            && !settings.Global.TaskbarGlassEnabled
+            // An icon in the notification area is a reason to be resident all
+            // by itself: it is the only way the panel can be reached.
+            && !settings.Global.QuickPanel.Enabled)
         {
             Console.Error.WriteLine(
                 "nothing to do: no taskbar is managed, night light is off, nothing is software-dimmed, "
-                + "and there are no app rules or hotkeys.");
+                + "and there is no enabled automation or shortcut.");
             Console.Error.WriteLine("run `displays`, then `enable <n>` — or turn something on in the app.");
             return 1;
         }
@@ -462,11 +468,26 @@ internal static class Program
             // Persisting from the engine is new with app rules: applying a
             // preset writes into settings as well as to the hardware, so
             // without this the next reload would undo half of what it did.
-            using var appRules = new AppRuleService(settings, SettingsStore.Save);
+            using var appRules = DisplCtrl.Core.FeatureFlags.Presets
+                ? new AppRuleService(settings, SettingsStore.Save) : null;
 
             using var hotkeys = new HotkeyService(settings, SettingsStore.Save);
+            // Constructed unconditionally, and that is the whole point: this
+            // service is what notices the settings file turning these features
+            // on, so creating it only when they are already on meant enabling
+            // either one in the panel did nothing at all until the engine was
+            // restarted — silently, because the reload path hung off a null.
+            // Idle it costs one thread and a message-only window: it registers
+            // no hooks and creates no overlays until something is switched on.
+            using var focus = new Protection.FocusService(settings);
 
-            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys);
+            // The notification area icon, and with it the quick panel. Like the
+            // service above it has to exist before the feature is switched on,
+            // or turning the icon on in the panel would do nothing until the
+            // engine was next restarted.
+            using var tray = new Shell.TrayIconService(settings, SettingsStore.Save);
+
+            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys, focus, tray);
 
             manager.Run(cts.Token);
             return 0;

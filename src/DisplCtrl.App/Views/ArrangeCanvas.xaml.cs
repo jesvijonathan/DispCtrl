@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Xaml.Shapes;
 using DisplCtrl.App.Services;
 using DisplCtrl.Core.Displays;
 using DisplCtrl.Display;
@@ -13,15 +14,7 @@ using Windows.Storage.Streams;
 
 namespace DisplCtrl.App.Views;
 
-/// <summary>
-/// The monitor arrangement surface, mirroring Windows' own Display settings.
-/// </summary>
-/// <remarks>
-/// Displays are drawn to scale in desktop coordinates and dragged to new
-/// positions. Nothing is applied while dragging: a mode change per mouse-move
-/// would reflow the desktop continuously. The whole arrangement is committed
-/// once, on Apply.
-/// </remarks>
+/// <summary>A physical-size preview with separate Windows desktop coordinates.</summary>
 public sealed partial class ArrangeCanvas : UserControl
 {
     private sealed class Tile
@@ -31,325 +24,354 @@ public sealed partial class ArrangeCanvas : UserControl
         public required DisplayInfo Display { get; init; }
         public int X { get; set; }
         public int Y { get; set; }
-
         public int Width => Display.Bounds.Width;
         public int Height => Display.Bounds.Height;
+        public int Right => X + Width;
+        public int Bottom => Y + Height;
     }
 
-    /// <summary>
-    /// How close two edges must be, <em>on screen</em>, to snap together.
-    /// </summary>
-    /// <remarks>
-    /// Expressed in screen pixels and converted at the current scale. A fixed
-    /// desktop-space threshold is unusable: the canvas draws a ~4800px-wide
-    /// desktop into a few hundred pixels, so even 60 desktop pixels lands under
-    /// six on screen.
-    /// </remarks>
-    private const double SnapScreenPixels = 22;
+    private const string RestingHint =
+        "Drag to arrange; nearby edges and centres snap into alignment. Tiles reflect physical display size when available.";
+    private const double GridSpacing = 24;
 
     private readonly List<Tile> _tiles = [];
-    private IReadOnlyList<DisplayInfo> _displays = [];
-
-    /// <summary>
-    /// Positions staged by dragging, keyed by display token.
-    /// </summary>
-    /// <remarks>
-    /// Held separately from the tiles so a relayout cannot discard them. The
-    /// surface used to rebuild from <see cref="DisplayInfo.Bounds"/> on every
-    /// size change, which silently reverted a staged arrangement — and that
-    /// looked exactly like Apply doing nothing, because by then it was writing
-    /// back the original coordinates.
-    /// </remarks>
+    private readonly Dictionary<string, PhysicalLayout.Placed> _preview = [];
+    private readonly List<Line> _gridLines = [];
     private readonly Dictionary<string, (int X, int Y)> _staged = [];
-
-    private double _scale = 0.1;
-    private double _offsetX, _offsetY;
-
+    private readonly Dictionary<string, (int X, int Y)> _livePositions = [];
+    private IReadOnlyList<DisplayInfo> _displays = [];
+    private double _scale = 1, _offsetX, _offsetY, _originX, _originY;
     private Tile? _dragging;
     private Point _grabOffset;
+    private (int X, int Y) _grabbedAt;
+    private bool _panning;
+    private Point _panAt;
 
-    public ArrangeCanvas() => InitializeComponent();
+    // Wheel input is a burst; fit shortly after the final notch.
+    private static readonly TimeSpan SettleAfter = TimeSpan.FromMilliseconds(450);
+    private readonly System.Diagnostics.Stopwatch _fitClock = new();
+    private (double Scale, double X, double Y) _fitFrom, _fitTo;
+    private bool _hasView;
 
-    /// <summary>
-    /// The snap distance in desktop pixels, for the display being dragged.
-    /// </summary>
-    /// <remarks>
-    /// The diagram is drawn in millimetres now, so the conversion runs screen
-    /// pixels to millimetres to desktop pixels. Skipping the middle step made
-    /// the threshold wrong by the panel's own density — several times too small
-    /// on a dense laptop panel, which is exactly where snapping matters most.
-    /// </remarks>
-    private int SnapThreshold
+    private readonly DispatcherTimer _settle = new();
+
+    public ArrangeCanvas()
     {
-        get
-        {
-            double millimetres = SnapScreenPixels / Math.Max(_scale, 0.0001);
+        InitializeComponent();
+        Hint.Text = RestingHint;
 
-            DisplayInfo? d = _dragging?.Display;
-            double perPx = d is { HasPhysicalSize: true }
-                ? d.PhysicalWidthMm / (double)d.Bounds.Width
-                : 1;
-
-            return (int)Math.Round(millimetres / Math.Max(perPx, 0.0001));
-        }
+        _settle.Interval = SettleAfter;
+        _settle.Tick += OnSettled;
+        Unloaded += (_, _) => { _settle.Stop(); StopFit(); };
+        Loaded += (_, _) => { if (_tiles.Count > 0) Layout(); };
     }
 
-    /// <summary>Rebuilds the surface for a new set of displays.</summary>
+    private void OnSettled(object? sender, object e)
+    {
+        _settle.Stop();
+        if (_dragging is null && !_panning) Layout();
+    }
+
+    private void Touch()
+    {
+        StopFit();
+        _settle.Stop();
+        _settle.Start();
+    }
+
+    private void StopFit()
+    {
+        CompositionTarget.Rendering -= OnFitFrame;
+        _fitClock.Stop();
+    }
+
+    private void OnFitFrame(object? sender, object e)
+    {
+        double progress = Math.Clamp(_fitClock.Elapsed.TotalMilliseconds / 280, 0, 1);
+        double eased = 1 - Math.Pow(1 - progress, 3);
+        _scale = _fitFrom.Scale + (_fitTo.Scale - _fitFrom.Scale) * eased;
+        _offsetX = _fitFrom.X + (_fitTo.X - _fitFrom.X) * eased;
+        _offsetY = _fitFrom.Y + (_fitTo.Y - _fitFrom.Y) * eased;
+        PlaceTiles();
+        if (progress >= 1) StopFit();
+    }
+
+    /// <summary>Loads the live arrangement used to detect pending changes.</summary>
     public void Load(IReadOnlyList<DisplayInfo> displays)
     {
         _displays = displays;
         _staged.Clear();
+        _livePositions.Clear();
+        foreach (DisplayInfo display in displays)
+            _livePositions[display.Token] = (display.Bounds.Left, display.Bounds.Top);
         ApplyButton.IsEnabled = false;
+        Hint.Text = RestingHint;
         Build();
     }
 
-    /// <remarks>
-    /// A size change only re-lays-out; it never rebuilds from scratch, so a
-    /// staged arrangement survives the window being resized or maximised.
-    /// </remarks>
-    private void OnSurfaceSizeChanged(object sender, SizeChangedEventArgs e)
+    private void OnControlSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (_tiles.Count == 0) Build();
-        else Layout();
+        // This control sits in a vertically unbounded ScrollViewer.
+        Surface.Height = Math.Clamp(e.NewSize.Width * 0.38, 220, 440);
     }
 
-    // ---------------------------------------------------------------- build --
+    private void OnSurfaceSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        Surface.Clip = new RectangleGeometry { Rect = new Rect(0, 0, Surface.ActualWidth, Surface.ActualHeight) };
+        if (_tiles.Count == 0) Build();
+        else if (_dragging is null) Layout();
+    }
 
     private void Build()
     {
+        StopFit();
+        _hasView = false;
         Surface.Children.Clear();
         _tiles.Clear();
+        _gridLines.Clear();
+        if (_displays.Count == 0 || Surface.ActualWidth <= 0 || Surface.ActualHeight <= 0) return;
 
-        if (_displays.Count == 0 || Surface.ActualWidth <= 0) return;
-
-        foreach (DisplayInfo d in _displays)
+        DrawGrid();
+        foreach (DisplayInfo display in _displays)
         {
-            (int x, int y) = _staged.TryGetValue(d.Token, out (int X, int Y) s)
-                ? s
-                : (d.Bounds.Left, d.Bounds.Top);
-
-            // Windows draws a plain light numeral straight on the panel, with
-            // no chip behind it. The chip was the thing that made this read as
-            // someone's approximation of the real control.
+            (int x, int y) = _staged.TryGetValue(display.Token, out (int X, int Y) staged)
+                ? staged : (display.Bounds.Left, display.Bounds.Top);
             var label = new TextBlock
             {
                 Text = (_tiles.Count + 1).ToString(),
-                FontSize = 28,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new SolidColorBrush(Colors.White),
             };
-
-            // Each tile carries the wallpaper actually on that display, which
-            // is what makes the diagram answer "which one is this?" at a
-            // glance. Windows draws flat plates here; this is deliberately not
-            // that, because the wallpaper is the fastest identifier there is.
             var border = new Border
             {
                 CornerRadius = new CornerRadius(8),
-                BorderThickness = new Thickness(d.IsPrimary ? 0 : 1),
+                BorderThickness = new Thickness(display.IsPrimary ? 0 : 1),
                 Background = (Brush)Application.Current.Resources[
-                    d.IsPrimary ? "AccentFillColorDefaultBrush" : "ControlAltFillColorSecondaryBrush"],
+                    display.IsPrimary ? "AccentFillColorDefaultBrush" : "ControlAltFillColorSecondaryBrush"],
                 BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
-
-                // A scrim under the numeral, so a bright or busy wallpaper
-                // cannot swallow it. Same treatment as the per-display preview.
-                Child = new Grid
-                {
-                    Children =
-                    {
-                        new Border { Background = new SolidColorBrush(Color.FromArgb(0x59, 0, 0, 0)) },
-                        label,
-                    },
-                },
+                Child = new Grid { CornerRadius = new CornerRadius(8), Children = {
+                    new Border { Background = new SolidColorBrush(Color.FromArgb(0x80, 0, 0, 0)) },
+                    label } },
             };
-
+            ToolTipService.SetToolTip(border, display.Label);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(border, $"Display {_tiles.Count + 1}, {display.Label}");
             border.PointerPressed += OnPointerPressed;
             border.PointerMoved += OnPointerMoved;
             border.PointerReleased += OnPointerReleased;
             border.PointerCaptureLost += OnPointerCaptureLost;
+            _ = LoadTileWallpaperAsync(border, display);
 
-            _ = LoadTileWallpaperAsync(border, d);
-
-            var tile = new Tile { Element = border, Label = label, Display = d, X = x, Y = y };
+            var tile = new Tile { Element = border, Label = label, Display = display, X = x, Y = y };
             border.Tag = tile;
-
+            Canvas.SetZIndex(border, 1);
             Surface.Children.Add(border);
             _tiles.Add(tile);
         }
-
+        UpdatePreview();
         Layout();
     }
 
-    /// <summary>
-    /// Where each tile sits in the diagram, in millimetres.
-    /// </summary>
-    /// <remarks>
-    /// Recomputed whenever the arrangement changes, and consulted by both the
-    /// layout and the drag maths so the two cannot disagree about where a tile
-    /// is.
-    /// </remarks>
-    private readonly Dictionary<string, PhysicalLayout.Placed> _placed = [];
-
-    /// <summary>Recomputes scale and places every tile at its physical size.</summary>
-    /// <remarks>
-    /// Drawn in millimetres rather than pixels: a 14-inch panel at 2880x1800 has
-    /// more pixels than a 24-inch monitor, and drawing by pixel count makes the
-    /// laptop the bigger of the two on a diagram whose entire job is to show
-    /// where things physically are.
-    /// </remarks>
+    /// <summary>Fits the current desktop bounds into the canvas.</summary>
     private void Layout()
     {
         if (_tiles.Count == 0 || Surface.ActualWidth <= 0 || Surface.ActualHeight <= 0) return;
-
-        var panels = new List<PhysicalLayout.Panel>(_tiles.Count);
-        foreach (Tile t in _tiles)
+        double minX = _preview.Values.Min(tile => tile.X), minY = _preview.Values.Min(tile => tile.Y);
+        double maxX = _preview.Values.Max(tile => tile.X + tile.Width), maxY = _preview.Values.Max(tile => tile.Y + tile.Height);
+        double scale = Math.Min(Surface.ActualWidth / Math.Max(1, maxX - minX),
+                                Surface.ActualHeight / Math.Max(1, maxY - minY)) * 0.86;
+        double offsetX = (Surface.ActualWidth - ((maxX - minX) * scale)) / 2;
+        double offsetY = (Surface.ActualHeight - ((maxY - minY) * scale)) / 2;
+        StopFit();
+        // Rebase without moving the current picture, then interpolate the view.
+        _offsetX += (minX - _originX) * _scale;
+        _offsetY += (minY - _originY) * _scale;
+        _originX = minX;
+        _originY = minY;
+        DrawGrid();
+        if (!_hasView || !new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
         {
-            DisplayInfo d = t.Display;
-
-            double mmX = d.HasPhysicalSize ? d.PhysicalWidthMm / (double)d.Bounds.Width : 0;
-            double mmY = d.HasPhysicalSize ? d.PhysicalHeightMm / (double)d.Bounds.Height : 0;
-
-            panels.Add(new PhysicalLayout.Panel(d.Token, t.X, t.Y, t.Width, t.Height, mmX, mmY));
+            _hasView = true;
+            _scale = scale;
+            _offsetX = offsetX;
+            _offsetY = offsetY;
+            PlaceTiles();
+            return;
         }
-
-        _placed.Clear();
-        foreach (PhysicalLayout.Placed p in PhysicalLayout.Resolve(panels)) _placed[p.Token] = p;
-
-        double minX = double.MaxValue, minY = double.MaxValue;
-        double maxX = double.MinValue, maxY = double.MinValue;
-
-        foreach (PhysicalLayout.Placed p in _placed.Values)
-        {
-            minX = Math.Min(minX, p.X);
-            minY = Math.Min(minY, p.Y);
-            maxX = Math.Max(maxX, p.X + p.Width);
-            maxY = Math.Max(maxY, p.Y + p.Height);
-        }
-
-        double spanX = Math.Max(1, maxX - minX);
-        double spanY = Math.Max(1, maxY - minY);
-
-        _scale = Math.Min(Surface.ActualWidth / spanX, Surface.ActualHeight / spanY) * 0.86;
-        _offsetX = (Surface.ActualWidth - (spanX * _scale)) / 2;
-        _offsetY = (Surface.ActualHeight - (spanY * _scale)) / 2;
-        _originMmX = minX;
-        _originMmY = minY;
-
-        PlaceTiles();
+        _fitFrom = (_scale, _offsetX, _offsetY);
+        _fitTo = (scale, offsetX, offsetY);
+        _fitClock.Restart();
+        CompositionTarget.Rendering += OnFitFrame;
     }
 
-    private double _originMmX, _originMmY;
-
-    /// <summary>Paints a tile with the wallpaper actually on that display.</summary>
-    /// <remarks>
-    /// Decoded small and scrimmed by the numeral's own contrast, so a busy or
-    /// bright wallpaper cannot swallow the number sitting on it.
-    /// </remarks>
-    private static async Task LoadTileWallpaperAsync(Border border, DisplayInfo display)
+    private void DrawGrid()
     {
-        try
+        foreach (Line line in _gridLines) Surface.Children.Remove(line);
+        _gridLines.Clear();
+        var stroke = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        for (double x = GridSpacing; x < Surface.ActualWidth; x += GridSpacing)
+            AddGridLine(new Line { X1 = x, X2 = x, Y2 = Surface.ActualHeight, Stroke = stroke });
+        for (double y = GridSpacing; y < Surface.ActualHeight; y += GridSpacing)
+            AddGridLine(new Line { Y1 = y, Y2 = y, X2 = Surface.ActualWidth, Stroke = stroke });
+    }
+
+    private void AddGridLine(Line line)
+    {
+        line.StrokeThickness = 1;
+        line.Opacity = 0.12;
+        line.IsHitTestVisible = false;
+        Canvas.SetZIndex(line, 0);
+        Surface.Children.Add(line);
+        _gridLines.Add(line);
+    }
+
+    private void PlaceTiles()
+    {
+        foreach (Tile tile in _tiles)
         {
-            string? path = await Task.Run(() => Wallpaper.Read(display)).ConfigureAwait(true);
-            if (path is null || !File.Exists(path)) return;
-
-            byte[] bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(true);
-
-            var stream = new InMemoryRandomAccessStream();
-            using (DataWriter writer = new(stream.GetOutputStreamAt(0)))
-            {
-                writer.WriteBytes(bytes);
-                await writer.StoreAsync();
-            }
-
-            var bitmap = new BitmapImage { DecodePixelWidth = 320 };
-            await bitmap.SetSourceAsync(stream);
-
-            border.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
-        }
-        catch (Exception)
-        {
-            // An unreadable wallpaper just leaves the tile flat-coloured.
+            PhysicalLayout.Placed at = _preview[tile.Display.Token];
+            double width = at.Width * _scale, height = at.Height * _scale;
+            tile.Element.Width = width;
+            tile.Element.Height = height;
+            tile.Label.FontSize = Math.Clamp(Math.Min(width, height) * 0.3, 13, 44);
+            Canvas.SetLeft(tile.Element, _offsetX + ((at.X - _originX) * _scale));
+            Canvas.SetTop(tile.Element, _offsetY + ((at.Y - _originY) * _scale));
         }
     }
 
-    private void OnIdentify(object sender, RoutedEventArgs e) =>
-        DisplayIdentifier.Show(_displays, TimeSpan.FromSeconds(3));
+    // -------------------------------------------------------------- view --
 
-    // ----------------------------------------------------------------- drag --
+    /// <summary>Pans the canvas with the middle mouse button.</summary>
+    private void OnSurfacePointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(Surface).Properties.IsMiddleButtonPressed || _dragging is not null) return;
+
+        Touch();
+        _panning = true;
+        _panAt = e.GetCurrentPoint(Surface).Position;
+        Surface.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void OnSurfacePointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_panning) return;
+
+        Touch();
+        Point pointer = e.GetCurrentPoint(Surface).Position;
+        _offsetX += pointer.X - _panAt.X;
+        _offsetY += pointer.Y - _panAt.Y;
+        _panAt = pointer;
+        PlaceTiles();
+        e.Handled = true;
+    }
+
+    private void OnSurfacePointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_panning) return;
+        Touch();
+        _panning = false;
+        Surface.ReleasePointerCapture(e.Pointer);
+        _settle.Stop();
+        Layout();
+        e.Handled = true;
+    }
+
+    private void OnSurfacePointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_panning) return;
+        _panning = false;
+        _settle.Stop();
+        Layout();
+    }
+
+    /// <summary>Zooms around the pointer, so the location being inspected stays put.</summary>
+    private void OnSurfacePointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        if (_dragging is not null || _panning || _scale <= 0) return;
+
+        Touch();
+        Point pointer = e.GetCurrentPoint(Surface).Position;
+        double desktopX = ((pointer.X - _offsetX) / _scale) + _originX;
+        double desktopY = ((pointer.Y - _offsetY) / _scale) + _originY;
+        double factor = e.GetCurrentPoint(Surface).Properties.MouseWheelDelta > 0 ? 1.12 : 1 / 1.12;
+        _scale = Math.Clamp(_scale * factor, 0.02, 2.5);
+        _offsetX = pointer.X - ((desktopX - _originX) * _scale);
+        _offsetY = pointer.Y - ((desktopY - _originY) * _scale);
+        PlaceTiles();
+        e.Handled = true;
+    }
 
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
         if (sender is not Border border || border.Tag is not Tile tile) return;
-
+        if (!e.GetCurrentPoint(Surface).Properties.IsLeftButtonPressed) return;
+        Touch();
         _dragging = tile;
-        Point p = e.GetCurrentPoint(Surface).Position;
-        _grabOffset = new Point(p.X - Canvas.GetLeft(border), p.Y - Canvas.GetTop(border));
-
+        _grabbedAt = (tile.X, tile.Y);
+        Point pointer = e.GetCurrentPoint(Surface).Position;
+        _grabOffset = new Point(pointer.X - Canvas.GetLeft(border), pointer.Y - Canvas.GetTop(border));
         border.CapturePointer(e.Pointer);
         Canvas.SetZIndex(border, 10);
         e.Handled = true;
     }
 
-    /// <remarks>
-    /// The display is resolved to a legal position on every move rather than
-    /// only on release, so an invalid arrangement is never even drawn. Letting
-    /// it float free and correcting on drop meant the user spent the whole drag
-    /// aiming at positions that were going to be rejected.
-    /// <para>
-    /// The scale is held fixed for the duration of the drag. Recomputing it as
-    /// the bounding box changes would move the tile under the cursor.
-    /// </para>
-    /// </remarks>
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (_dragging is null || sender is not Border border) return;
-        if (!ReferenceEquals(border.Tag, _dragging)) return;
-
-        Point p = e.GetCurrentPoint(Surface).Position;
-
-        // Screen position back to millimetres, then millimetres back to desktop
-        // pixels through this display's own density. Going straight to pixels
-        // would move the tile at the wrong rate now that the diagram is drawn
-        // physically — a dense panel would crawl under the cursor.
-        double mmX = ((p.X - _grabOffset.X - _offsetX) / _scale) + _originMmX;
-        double mmY = ((p.Y - _grabOffset.Y - _offsetY) / _scale) + _originMmY;
-
-        DisplayInfo moved = _dragging.Display;
-        double perPxX = moved.HasPhysicalSize ? moved.PhysicalWidthMm / (double)moved.Bounds.Width : 1;
-        double perPxY = moved.HasPhysicalSize ? moved.PhysicalHeightMm / (double)moved.Bounds.Height : 1;
-
-        _dragging.X = (int)Math.Round(mmX / Math.Max(perPxX, 0.0001));
-        _dragging.Y = (int)Math.Round(mmY / Math.Max(perPxY, 0.0001));
-
-        Snap(_dragging);
-        ApplySolver(_dragging);
-        Layout();
-
+        if (_dragging is null || sender is not Border border || !ReferenceEquals(border.Tag, _dragging)) return;
+        Touch();
+        Point pointer = e.GetCurrentPoint(Surface).Position;
+        double x = ((pointer.X - _grabOffset.X - _offsetX) / _scale) + _originX;
+        double y = ((pointer.Y - _grabOffset.Y - _offsetY) / _scale) + _originY;
+        var panels = _tiles.Select(tile => new ArrangementSolver.Panel(tile.Display.Token,
+            tile.X, tile.Y, tile.Width, tile.Height, tile.Display.IsPrimary)).ToList();
+        var moving = PreviewPanel(_dragging);
+        double nearest = double.MaxValue;
+        ArrangementSlots.Slot? best = null;
+        PhysicalLayout.Placed landing = default;
+        foreach (var slot in ArrangementSlots.For(panels, _dragging.Display.Token))
+        {
+            Tile other = _tiles.First(tile => tile.Display.Token == slot.Against);
+            var at = PhysicalLayout.Hang(PreviewPanel(other), moving with { X = slot.X, Y = slot.Y },
+                _preview[slot.Against]);
+            if (_tiles.Any(tile => tile != _dragging && Intersects(at, _preview[tile.Display.Token]))) continue;
+            double distance = Math.Pow(at.X - x, 2) + Math.Pow(at.Y - y, 2);
+            if (distance >= nearest) continue;
+            nearest = distance;
+            best = slot;
+            landing = at;
+        }
+        if (best is { } target)
+        {
+            _dragging.X = target.X;
+            _dragging.Y = target.Y;
+            _preview[_dragging.Display.Token] = landing;
+            PlaceTiles();
+        }
         e.Handled = true;
     }
 
-    /// <summary>Positions and sizes every tile from the millimetre map.</summary>
-    private void PlaceTiles()
+    private static bool Intersects(PhysicalLayout.Placed a, PhysicalLayout.Placed b) =>
+        a.X < b.X + b.Width - 0.001 && b.X < a.X + a.Width - 0.001 &&
+        a.Y < b.Y + b.Height - 0.001 && b.Y < a.Y + a.Height - 0.001;
+
+    private PhysicalLayout.Panel PreviewPanel(Tile tile)
     {
-        foreach (Tile t in _tiles)
-        {
-            if (!_placed.TryGetValue(t.Display.Token, out PhysicalLayout.Placed p)) continue;
+        // Use one unit system for the whole preview if EDID size is unavailable.
+        bool physical = _tiles.All(item => item.Display.HasPhysicalSize);
+        bool rotated = tile.Display.OrientationDegrees is 90 or 270;
+        double width = physical ? (rotated ? tile.Display.PhysicalHeightMm : tile.Display.PhysicalWidthMm) : tile.Width;
+        double height = physical ? (rotated ? tile.Display.PhysicalWidthMm : tile.Display.PhysicalHeightMm) : tile.Height;
+        return new(tile.Display.Token, tile.X, tile.Y, tile.Width, tile.Height,
+            width / tile.Width, height / tile.Height);
+    }
 
-            double w = Math.Max(26, p.Width * _scale);
-            double h = Math.Max(20, p.Height * _scale);
-
-            t.Element.Width = w;
-            t.Element.Height = h;
-
-            // The numeral grows with its plate, as Windows' does. A fixed size
-            // swamps a small tile and looks lost on a large one.
-            t.Label.FontSize = Math.Clamp(Math.Min(w, h) * 0.3, 13, 44);
-
-            Canvas.SetLeft(t.Element, _offsetX + ((p.X - _originMmX) * _scale));
-            Canvas.SetTop(t.Element, _offsetY + ((p.Y - _originMmY) * _scale));
-        }
+    private void UpdatePreview()
+    {
+        _preview.Clear();
+        foreach (var at in PhysicalLayout.Resolve(_tiles.Select(PreviewPanel).ToList()))
+            _preview[at.Token] = at;
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
@@ -358,11 +380,6 @@ public sealed partial class ArrangeCanvas : UserControl
         e.Handled = true;
     }
 
-    /// <remarks>
-    /// Capture loss is treated as a completed drag rather than a cancellation:
-    /// the pointer can be taken away by the window losing focus mid-drag, and
-    /// discarding the move then would look like the drag simply not working.
-    /// </remarks>
     private void OnPointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
         if (sender is Border border) Commit(border);
@@ -371,130 +388,91 @@ public sealed partial class ArrangeCanvas : UserControl
     private void Commit(Border border)
     {
         if (_dragging is null || !ReferenceEquals(border.Tag, _dragging)) return;
-
-        Tile tile = _dragging;
+        Tile moved = _dragging;
         _dragging = null;
+        Touch();
+        Canvas.SetZIndex(border, 1);
+        if (moved.X == _grabbedAt.X && moved.Y == _grabbedAt.Y) { Layout(); return; }
 
-        Canvas.SetZIndex(border, 0);
-
-        // Already resolved on every move, so there is nothing left to correct.
-        ApplySolver(tile);
-
-        foreach (Tile t in _tiles) _staged[t.Display.Token] = (t.X, t.Y);
-
+        NormaliseToPrimary();
+        foreach (Tile tile in _tiles) _staged[tile.Display.Token] = (tile.X, tile.Y);
+        PlaceTiles();
+        _settle.Stop();
         Layout();
-
-        ApplyButton.IsEnabled = true;
-        Hint.Text = "Not applied yet.";
+        ApplyButton.IsEnabled = _tiles.Any(tile => !_livePositions.TryGetValue(tile.Display.Token, out var original) || original != (tile.X, tile.Y));
+        Hint.Text = "Aligned with the nearest display. Not applied yet.";
     }
 
-    /// <summary>
-    /// Pulls a dragged display onto its neighbours' edges and centre lines.
-    /// </summary>
-    /// <remarks>
-    /// Windows rejects an arrangement with gaps between displays, so landing a
-    /// few pixels short would silently fail. Centre-line snapping is what makes
-    /// it behave like a grid: panels of different heights line up on their
-    /// middles, not only on their top or bottom edges.
-    /// </remarks>
-    private void Snap(Tile moved)
+    private void NormaliseToPrimary()
     {
-        int threshold = SnapThreshold;
-
-        foreach (Tile other in _tiles)
-        {
-            if (ReferenceEquals(other, moved)) continue;
-
-            // Butt against a neighbour, left or right.
-            if (Math.Abs(moved.X - (other.X + other.Width)) < threshold) moved.X = other.X + other.Width;
-            else if (Math.Abs(moved.X + moved.Width - other.X) < threshold) moved.X = other.X - moved.Width;
-
-            // Above or below.
-            if (Math.Abs(moved.Y - (other.Y + other.Height)) < threshold) moved.Y = other.Y + other.Height;
-            else if (Math.Abs(moved.Y + moved.Height - other.Y) < threshold) moved.Y = other.Y - moved.Height;
-
-            // Edge alignment.
-            if (Math.Abs(moved.Y - other.Y) < threshold) moved.Y = other.Y;
-            else if (Math.Abs(moved.Y + moved.Height - (other.Y + other.Height)) < threshold)
-                moved.Y = other.Y + other.Height - moved.Height;
-
-            if (Math.Abs(moved.X - other.X) < threshold) moved.X = other.X;
-            else if (Math.Abs(moved.X + moved.Width - (other.X + other.Width)) < threshold)
-                moved.X = other.X + other.Width - moved.Width;
-
-            // Centre lines, which is what makes unequal panels line up neatly.
-            int otherCentreY = other.Y + other.Height / 2;
-            if (Math.Abs(moved.Y + moved.Height / 2 - otherCentreY) < threshold)
-                moved.Y = otherCentreY - moved.Height / 2;
-
-            int otherCentreX = other.X + other.Width / 2;
-            if (Math.Abs(moved.X + moved.Width / 2 - otherCentreX) < threshold)
-                moved.X = otherCentreX - moved.Width / 2;
-        }
+        Tile? primary = _tiles.FirstOrDefault(tile => tile.Display.IsPrimary);
+        if (primary is null || (primary.X == 0 && primary.Y == 0)) return;
+        int shiftX = primary.X, shiftY = primary.Y;
+        foreach (Tile tile in _tiles) { tile.X -= shiftX; tile.Y -= shiftY; }
+        // Preview coordinates stay in physical units and do not need rebasing.
     }
 
-    /// <summary>
-    /// Hands the arrangement to the shared solver and writes the result back.
-    /// </summary>
-    /// <remarks>
-    /// The rules live in <see cref="ArrangementSolver"/> rather than here so
-    /// they are pure geometry and can be tested directly, instead of only
-    /// through a pointer device. What runs is what is covered.
-    /// </remarks>
-    private void ApplySolver(Tile moved)
-    {
-        var panels = new List<ArrangementSolver.Panel>(_tiles.Count);
-        foreach (Tile t in _tiles)
-            panels.Add(new ArrangementSolver.Panel(
-                t.Display.Token, t.X, t.Y, t.Width, t.Height, t.Display.IsPrimary));
-
-        List<ArrangementSolver.Panel> solved =
-            ArrangementSolver.Resolve(panels, moved.Display.Token);
-
-        foreach (ArrangementSolver.Panel p in solved)
-        {
-            foreach (Tile t in _tiles)
-            {
-                if (t.Display.Token != p.Token) continue;
-                t.X = p.X;
-                t.Y = p.Y;
-                break;
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------- apply --
+    private void OnIdentify(object sender, RoutedEventArgs e) =>
+        DisplayIdentifier.Show(_displays, TimeSpan.FromSeconds(3));
 
     private async void OnApply(object sender, RoutedEventArgs e)
     {
         ApplyButton.IsEnabled = false;
+        ResetButton.IsEnabled = false;
+        Surface.IsHitTestVisible = false;
         Hint.Text = "Applying…";
-
         var positions = new Dictionary<string, (int X, int Y)>();
-        foreach (Tile t in _tiles) positions[t.Display.Token] = (t.X, t.Y);
-
+        foreach (Tile tile in _tiles) positions[tile.Display.Token] = (tile.X, tile.Y);
         var all = new List<DisplayInfo>(_displays);
-
         (bool ok, string? why) = await Task.Run(() =>
         {
-            bool r = DisplayArrangement.SetPositions(positions, all, out string? e);
-            return (r, e);
+            bool result = DisplayArrangement.SetPositions(positions, all, out string? error);
+            return (result, error);
         });
-
-        // Saying what Windows objected to, rather than guessing at it. The old
-        // message blamed a corner overlap every time, which was wrong whenever
-        // the real cause was something else.
+        ResetButton.IsEnabled = true;
+        Surface.IsHitTestVisible = true;
         Hint.Text = ok ? "Arrangement applied." : $"Not applied — {why}.";
-
-        _staged.Clear();
-        App.ViewModel.Refresh();
+        if (ok) { _staged.Clear(); App.ViewModel.Refresh(); }
+        else ApplyButton.IsEnabled = true;
     }
 
     private void OnReset(object sender, RoutedEventArgs e)
     {
+        _settle.Stop();
+        // Keep the live left-to-right order, removing gaps and vertical offsets.
+        int left = 0;
+        foreach (Tile tile in _tiles.OrderBy(tile => tile.Display.Bounds.Left)
+                                   .ThenBy(tile => tile.Display.Bounds.Top))
+        {
+            tile.X = left;
+            tile.Y = 0;
+            left += tile.Width;
+        }
+        NormaliseToPrimary();
         _staged.Clear();
-        ApplyButton.IsEnabled = false;
-        Hint.Text = "Drag a display to move it. It snaps flush against its neighbour.";
-        Build();
+        foreach (Tile tile in _tiles) _staged[tile.Display.Token] = (tile.X, tile.Y);
+        ApplyButton.IsEnabled = _tiles.Any(tile => !_livePositions.TryGetValue(tile.Display.Token, out var original)
+            || original != (tile.X, tile.Y));
+        Hint.Text = ApplyButton.IsEnabled
+            ? "Displays arranged side by side. Select Apply to save."
+            : "Displays are already arranged side by side.";
+        UpdatePreview();
+        Layout();
+    }
+
+    private static async Task LoadTileWallpaperAsync(Border border, DisplayInfo display)
+    {
+        try
+        {
+            string? path = await Task.Run(() => Wallpaper.Read(display)).ConfigureAwait(true);
+            if (path is null || !File.Exists(path)) return;
+            byte[] bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(true);
+            var stream = new InMemoryRandomAccessStream();
+            using (DataWriter writer = new(stream.GetOutputStreamAt(0))) { writer.WriteBytes(bytes); await writer.StoreAsync(); }
+            var bitmap = new BitmapImage { DecodePixelWidth = 320 };
+            await bitmap.SetSourceAsync(stream);
+            border.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
+        }
+        catch (Exception) { }
     }
 }

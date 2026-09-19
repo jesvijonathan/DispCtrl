@@ -94,6 +94,20 @@ Restart the engine through its scheduled task, which is how it normally runs:
 Start-ScheduledTask -TaskName 'DisplCtrl.Engine'
 ```
 
+**That task does not exist on this machine and this command fails.** The rename
+left the registered task called `Umbra.Engine`, still pointing at
+`src\Umbra.Engine\bin\...\Umbra.Engine.exe` - a path that no longer exists. So
+the engine does not come back on its own, and the only way to restart it is
+directly:
+
+```powershell
+Start-Process ".\src\DisplCtrl.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\DisplCtrl.Engine.exe" run
+```
+
+Re-registering it is `tools/DisplCtrl.ps1 -Install`, which has not been run since
+the rename. Until it is, **a reboot leaves the desk with no engine**: no taskbar
+hiding, no night light schedule, no per-app rules.
+
 Engine CLI: `displays`, `enable <n>`, `disable <n>`, `status`, `run [--for <s>]
 [--trace]`, `stop`.
 
@@ -138,6 +152,49 @@ rather than pretending. Pinning is one right-click on the Start entry.
 Both exes carry `Assets\DisplCtrl.ico` via `<ApplicationIcon>`. Setting it only
 on the shortcut would leave the taskbar button and alt-tab generic.
 
+### What a monitor will tell you
+
+Three sources, and they answer different questions:
+
+- **EDID** - `EdidReader.Describe` decodes the whole base block: manufacturer
+  (expanded through `PnpNames`), product code, build week and year, EDID version
+  and checksum, digital link depth and interface, declared size, gamma, DPMS,
+  colour encodings, the CIE primaries and white point, every established,
+  standard and detailed timing, the range limits, and which descriptor blocks
+  are present. `Edid` itself stays small and cached - it is on the engine's
+  rescan path. `EdidReader` is the on-demand one.
+- **DDC/CI** - `MonitorCapabilities` for the VCP codes, including the read-only
+  ones the panel will not let you change but will happily answer: **firmware
+  level (0xC9)**, hours in use (0xC0), controller type (0xC8), display
+  technology (0xB6), sub-pixel layout (0xB2).
+- **Windows** - modes, current signal, HDR, scaling, VRR, colour profile.
+
+Two things are **not** available and must not be invented:
+
+- **Country of manufacture.** The PNP registry records a country of
+  *registration* against the three-letter code; the EDID carries none, and a
+  panel built in one country by a company registered in another would be
+  described wrongly either way.
+- **Bit depth and digital interface on EDID 1.3.** Those sub-fields only exist
+  from 1.4. Reading them off a 1.3 panel returns whatever the reserved bits
+  hold, which is how this Dell first came out as "0-bit, not declared" - a claim
+  about the monitor that the monitor never made. `EdidReader.Input` gates on the
+  version.
+
+### Detect is not Identify
+
+They sit next to each other on the arrangement surface and are easy to confuse,
+because Detect calls Identify when it finishes.
+
+- **Identify** flashes each display's number on it for three seconds. Instant,
+  and changes nothing.
+- **Detect** re-enumerates the hardware, which is seconds of DDC/CI traffic per
+  panel, and is the only one that can find a monitor that is connected but
+  switched off. Then it identifies, so you can see what it found.
+
+Windows' own Display settings carries both for the same reason. The labels
+cannot express the difference, so both carry tooltips.
+
 ### Contributing a device record
 
 ```
@@ -148,8 +205,13 @@ dispctrl contribute --display 2 --open # prefills a GitHub issue for review
 
 Writes `%LOCALAPPDATA%\DisplCtrl\devices\<KEY>.md` and, with `--open`, opens
 `github.com/jesvijonathan/Display-Control/issues/new` with the body filled in.
-The panel has the same thing under **Displays -> Help DisplCtrl support more
-monitors**, which shows the whole text in a dialog first.
+The panel has the same thing under **Displays -> Send monitor details**, one
+card for the whole desk: **Collect** reads every display and writes both the
+report and a record per monitor, **View** shows the exact text that would be
+published, and **Submit** opens one prefilled issue per monitor. It used to be a
+Review button per display inside an expander, which charged the user a press per
+monitor for a distinction — one record describes one model — that the button
+could not explain.
 
 Committed records live in `devices/`, one file per model, keyed on EDID
 manufacturer and product code (`DEL-A234.md`). See `devices/README.md`.
@@ -177,8 +239,11 @@ interim; MSIX `windows.startupTask` replaces it.
 dotnet run --project tools/presetcheck/presetcheck.csproj -c Release
 ```
 
-39 assertions over preset store edge cases, the diff, night-light schedules,
-app-rule matching and the physical arrangement layout. Exit code is the failure
+Assertions over preset store edge cases, the diff, night-light schedules,
+app-rule matching, the physical arrangement layout, and the drag's slot
+geometry — the last of those matters because **synthetic pointer input does not
+reach a WinUI canvas**, so a drag cannot be tested through automation at all.
+What runs during one has to be pure geometry, or it is not covered. Exit code is the failure
 count. **Add to this rather than writing throwaway probes** — several probes in
 this project's history should have been checks here.
 
@@ -287,6 +352,32 @@ Every one of these was a real bug. Do not reintroduce them.
   during the drag so an invalid layout is never drawn.
 - Windows sizes its own arrangement tiles by **raw pixel count**. DisplCtrl
   deliberately does not — see `PhysicalLayout`.
+- **The arrangement drag is discrete, and has to be.** Windows takes an
+  arrangement only when every display is flush against another, so the legal
+  positions for one display are a countable set — each side of each neighbour,
+  at each of three alignments. `ArrangementSlots` enumerates them, the drag
+  moves the display to whichever the pointer is nearest, and the others are
+  drawn as dashed outlines so the set is discoverable rather than learned by
+  trying. Two continuous attempts came first and both failed:
+  - Free movement corrected on drop meant the whole drag was spent aiming at
+    positions that were going to be rejected.
+  - Correcting on every move — push clear, re-attach — made the display *cling*
+    to whatever it had last been pushed against, and moving it anywhere else was
+    a fight with a solver answering the previous question.
+- **The diagram must be frozen for the length of a drag.** Every move changes
+  the bounding box; re-fitting that box to the surface recomputed the scale and
+  the centring from it, and `PhysicalLayout` normalises its millimetre map to
+  its own origin, so that moved too. The grab offset is measured once, at the
+  old scale, and stopped meaning anything the moment the drag began: the diagram
+  breathed under the pointer and the tile did not stay under the cursor.
+  `ArrangeCanvas.Freeze` takes a copy on press and only the dragged tile is
+  recomputed; the drop re-fits. Pinning one non-moving tile was an earlier,
+  weaker fix for the same thing.
+- **Rank the slots in millimetres, not desktop pixels.** A pixel is a different
+  real size on each panel, so the pixel-nearest slot is not the one the eye is
+  aiming at — on this desk a laptop pixel is under half the width of a Dell one.
+  The surface asks `PhysicalLayout.Hang` where each slot would draw, which is
+  why that method is public.
 - `IDesktopWallpaper` is a **local** COM server: `CLSCTX_ALL`, not
   `CLSCTX_INPROC_SERVER`.
 - The **primary taskbar cannot be moved** — `SetWindowPos` returns true and
@@ -335,9 +426,49 @@ unrecallable.
   monitor serial, `\\?\DISPLAY#...` device paths, and wallpaper paths with the
   user's account name in them. `DeviceSubmission` is a separate type built by
   choosing fields, not by filtering the report. Keep it that way.
+- A record carries **everything that describes the model** — the whole EDID,
+  every mode with every rate, every VCP code with its kind, range and accepted
+  values, and the capabilities string. What stays out is what describes a desk
+  or a person: the serial, the device path, any file path, the user name, and
+  every current setting. That line, not the volume, is what makes it publishable.
+- **`EdidDetails` has no field for a serial number.** Deliberately: there is then
+  none to forget to remove. The serial lives in `DisplayKey`, beside the identity
+  token that must never be published.
+- **Never publish the raw EDID blob.** `Edid.Raw` exists for the decoder. Bytes
+  12-15 and descriptor 0xFF are the serial, and a hex dump of them matches none
+  of the patterns `Redact.Scrub` looks for — the scrub would pass it straight
+  through.
+- **A full record usually overruns the prefill budget**, and that is expected
+  rather than a regression: the Dell's is ~6,200 characters, which encodes well
+  past 7,000. `MainViewModel.Submit` puts a single over-long record on the
+  clipboard and opens the empty form, so the gap is one paste.
 - **The test for a field**: would it be identical on someone else's monitor of
   the same model? Current settings fail it. Brightness 62 describes an evening
   at a desk, so controls are recorded by range, never by current value.
+- **The scrub is now the whole safety margin, not a second line.** A record
+  carries the full report and every preset, so it is no longer true that nothing
+  sensitive can reach `Redact.Scrub`. Everything sensitive reaches it. Two leaks
+  were found the day that changed, and both had been latent:
+  - **An account name with a space in it split the profile-path match.**
+    `C:\Users\Jesvi Jonathan\...` matched only as far as `C:\Users\Jesvi`,
+    publishing the surname, the folder tree, and a device instance id baked into
+    a wallpaper file name. Most Windows account names have a space. `UserPath`
+    now consumes spaces and stops at end of line, quote, pipe or angle bracket.
+  - **Identity tokens are not serials, and were not being scrubbed.** A panel
+    with no EDID serial still has a token whose suffix is an FNV-1a hash of its
+    device path - unique to that unit on that port. The laptop is that case, and
+    its token went out inside the presets. `DeviceContribution.Identifiers` now
+    scrubs tokens *and* serials, for **every attached panel** rather than the one
+    being submitted: a preset names the whole desk, and
+    `dispctrl contribute --display 2` narrows the caller's list to one.
+- **A device instance id does not need its path prefix to identify a machine.**
+  `5&1af48b2f&0&UID256` on its own does it, and this laptop's wallpaper tool
+  writes it into file names. `InstanceId` catches the bare form.
+- **Check for fragments, not just whole strings.** Both leaks survived checks
+  that looked for `Jesvi Jonathan` and the full device path, because what
+  escaped was a piece of each. `presetcheck` now asserts that no *word* of the
+  account name and no instance id appears, and builds a record with the list
+  narrowed to one display as well as with all of them.
 - **`Redact.Scrub` runs over the finished text**, not the fields, so a field
   added later cannot quietly reintroduce a leak. It removes attached panels'
   serials, device paths, `C:\Users\...` paths, bare GUIDs and the account name.

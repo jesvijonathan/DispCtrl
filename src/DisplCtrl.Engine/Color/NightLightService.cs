@@ -32,12 +32,27 @@ internal sealed class NightLightService : IDisposable
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(20);
 
     private readonly Lock _gate = new();
+    private readonly Lock _reconcileGate = new();
     private readonly Timer _timer;
+    private readonly List<RegistryValueWatcher> _watchers = [];
 
     private DisplCtrlSettings _settings;
     private bool _warm;
     private int _appliedStrength = -1;
     private bool _disposed;
+
+    /// <summary>
+    /// What each side was last seen holding, so a tick can tell which one moved.
+    /// </summary>
+    /// <remarks>
+    /// Without this the two would chase each other: adopting Windows' state
+    /// writes the settings file, the watcher reloads it, the reload looks like a
+    /// local change, and that pushes straight back to Windows. Comparing against
+    /// what was last seen rather than against each other is what makes a tick
+    /// able to say "nobody moved" and do nothing at all.
+    /// </remarks>
+    private WindowsNightLightState? _lastWindows;
+    private (bool Enabled, int Strength)? _lastLocal;
 
     public NightLightService(DisplCtrlSettings settings)
     {
@@ -45,6 +60,11 @@ internal sealed class NightLightService : IDisposable
 
         RecoverFromAbandonedRamps();
         _timer = new Timer(_ => Tick(), null, TimeSpan.Zero, Interval);
+
+        // The tick re-asserts the ramp; this is what makes Windows' own toggle
+        // felt here at once rather than at the next one.
+        foreach (string path in WindowsNightLight.WatchPaths)
+            _watchers.Add(new RegistryValueWatcher(path, Tick));
     }
 
     /// <summary>
@@ -92,6 +112,86 @@ internal sealed class NightLightService : IDisposable
         Tick();
     }
 
+    /// <summary>
+    /// Brings this toggle and Windows' own night light back into agreement.
+    /// </summary>
+    /// <remarks>
+    /// Whichever side moved since the last tick is the one that wins, which is
+    /// the only rule that makes both the panel and the Quick Settings flyout
+    /// feel like they are driving the same switch. When neither moved, nothing
+    /// is written at all — Windows' store is a roaming one and a write costs a
+    /// sync, so re-asserting a value every twenty seconds would be rude.
+    /// </remarks>
+    /// <returns>True when Windows is the one applying the warmth.</returns>
+    private bool Reconcile(DisplCtrlSettings settings)
+    {
+        // Serialised against itself, because a tick now arrives from three
+        // places: the timer and a watcher on each of the two keys. Two running
+        // at once would both read the state before either recorded it, so a
+        // push would be read back by the other as somebody else's change and
+        // written to the settings file a second time.
+        lock (_reconcileGate)
+        {
+            return ReconcileCore(settings);
+        }
+    }
+
+    private bool ReconcileCore(DisplCtrlSettings settings)
+    {
+        NightLightSettings config = settings.Global.NightLight;
+
+        if (!config.FollowWindows)
+        {
+            _lastWindows = null;
+            _lastLocal = null;
+            return false;
+        }
+
+        WindowsNightLightState? read = WindowsNightLight.Read();
+        if (read is null)
+        {
+            // A Windows build that has moved this data leaves the feature
+            // looking absent. Owning the ramp again is the safe answer: the
+            // alternative is a night light that silently stops working.
+            return false;
+        }
+
+        WindowsNightLightState windows = read.Value;
+        (bool Enabled, int Strength) local = (config.Enabled, Math.Clamp(config.Strength, 0, 100));
+
+        bool windowsMoved = _lastWindows is not null && _lastWindows.Value != windows;
+        bool localMoved = _lastLocal is not null && _lastLocal.Value != local;
+
+        if (windowsMoved)
+        {
+            config.Enabled = windows.Enabled;
+            config.Strength = windows.Strength;
+            SettingsStore.Save(settings);
+
+            local = (windows.Enabled, windows.Strength);
+            Log.Write($"night light followed Windows: {(windows.Enabled ? "on" : "off")} at {windows.Strength}%");
+        }
+        else if (localMoved || _lastLocal is null)
+        {
+            // The first tick after a start counts as a local change, so the
+            // settings file is what a fresh engine imposes rather than silently
+            // inheriting whatever Windows happened to be left on.
+            bool wrote = false;
+            if (windows.Enabled != local.Enabled) wrote |= WindowsNightLight.SetEnabled(local.Enabled);
+            if (windows.Strength != local.Strength) wrote |= WindowsNightLight.SetStrength(local.Strength);
+
+            if (wrote)
+            {
+                windows = WindowsNightLight.Read() ?? windows;
+                Log.Write($"night light pushed to Windows: {(local.Enabled ? "on" : "off")} at {local.Strength}%");
+            }
+        }
+
+        _lastWindows = windows;
+        _lastLocal = local;
+        return true;
+    }
+
     private void Tick()
     {
         try
@@ -104,6 +204,12 @@ internal sealed class NightLightService : IDisposable
             }
 
             NightLightSettings config = settings.Global.NightLight;
+
+            // Before anything is applied: if this toggle and Windows' own are
+            // meant to be one setting, settle which of them moved since the last
+            // tick and bring the other across.
+            bool delegated = Reconcile(settings);
+
             bool warmNow = config.ActiveAt(DateTime.Now);
 
             // Warmth and software dimming share one ramp, so the decision to
@@ -114,7 +220,10 @@ internal sealed class NightLightService : IDisposable
 
             foreach (DisplayInfo d in DisplayRegistry.Enumerate())
             {
-                int warmth = warmNow ? settings.NightLightStrengthFor(d.Token) : 0;
+                // Delegated means Windows is warming these panels, so writing a
+                // warm ramp here would stack on top of its own. Dimming still
+                // belongs to this process either way.
+                int warmth = warmNow && !delegated ? settings.NightLightStrengthFor(d.Token) : 0;
                 int dim = settings.SoftwareBrightnessFor(d.Token);
 
                 wanted.Add((d, warmth, dim));
@@ -169,6 +278,7 @@ internal sealed class NightLightService : IDisposable
         }
 
         _timer.Dispose();
+        foreach (RegistryValueWatcher watcher in _watchers) watcher.Dispose();
 
         try
         {

@@ -1,6 +1,7 @@
 <UserControl x:Class="DisplCtrl.App.Views.ArrangeCanvas"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             SizeChanged="OnControlSizeChanged">
 
   <!-- MinHeight rather than Height, and stretched: a fixed height collapsed the
        surface when the card was narrow, and left it stranded at 220px when the
@@ -22,24 +23,36 @@
         <RowDefinition Height="Auto"/>
       </Grid.RowDefinitions>
 
-      <Canvas x:Name="Surface" Grid.Row="0" SizeChanged="OnSurfaceSizeChanged"/>
+      <!-- Transparent, not unset. A panel with no brush is not hit-testable
+           where it is empty, so a press on blank canvas reached nothing and
+           middle-drag panning only worked with the pointer over a display. -->
+      <Canvas x:Name="Surface" Grid.Row="0" Background="Transparent"
+              SizeChanged="OnSurfaceSizeChanged"
+              PointerPressed="OnSurfacePointerPressed"
+              PointerMoved="OnSurfacePointerMoved"
+              PointerReleased="OnSurfacePointerReleased"
+              PointerCaptureLost="OnSurfacePointerCaptureLost"
+              PointerWheelChanged="OnSurfacePointerWheelChanged"/>
 
-      <Grid Grid.Row="1" ColumnSpacing="8">
+      <Grid Grid.Row="1" ColumnSpacing="12">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
+        <!-- Text set in the constructor, so the resting wording has one source
+             and Reset can put the same words back. -->
         <TextBlock x:Name="Hint" Grid.Column="0"
                    VerticalAlignment="Center"
                    TextWrapping="Wrap"
-                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="Drag a display to move it. It snaps flush against its neighbour."/>
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
 
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
           <Button Content="Identify" Click="OnIdentify"
+                  ToolTipService.ToolTip="Flash each display's number on it — changes nothing"
                   AutomationProperties.Name="Identify"/>
-          <Button Content="Reset" Click="OnReset"/>
+          <Button x:Name="ResetButton" Content="Reset" Click="OnReset"
+                  ToolTipService.ToolTip="Arrange displays side by side with their top edges aligned"/>
           <Button x:Name="ApplyButton" Content="Apply"
                   Style="{StaticResource AccentButtonStyle}"
                   IsEnabled="False" Click="OnApply"

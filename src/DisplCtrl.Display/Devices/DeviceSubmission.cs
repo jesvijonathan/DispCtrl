@@ -35,6 +35,17 @@ public sealed record DeviceSubmission
     public required string Connector { get; init; }
     public required string PanelTechnology { get; init; }
 
+    /// <summary>
+    /// The machine a built-in panel is part of, e.g. <c>ASUSTeK Vivobook M7400QC</c>.
+    /// </summary>
+    /// <remarks>
+    /// Empty for an external monitor, which is attached to a PC rather than
+    /// built into one. For a laptop screen it is the most useful line in the
+    /// record: the panel reports no name of its own, so the machine's model is
+    /// the only thing anyone would search for.
+    /// </remarks>
+    public string BuiltInto { get; init; } = "";
+
     public int WidthMm { get; init; }
     public int HeightMm { get; init; }
     public double DiagonalInches { get; init; }
@@ -43,8 +54,56 @@ public sealed record DeviceSubmission
     public uint NativeHeight { get; init; }
     public uint HighestRefreshHz { get; init; }
 
-    /// <summary>Distinct resolutions the panel offers, with the best refresh of each.</summary>
+    /// <summary>Every resolution the driver reports, with all of its rates.</summary>
+    /// <remarks>
+    /// The whole list, not a summary. Which rates a model offers at which
+    /// resolutions is exactly the kind of thing someone reads a device record to
+    /// find out, and it is identical on every unit of the model.
+    /// </remarks>
     public IReadOnlyList<string> Modes { get; init; } = [];
+
+    /// <summary>
+    /// The panel's own EDID, decoded.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="EdidDetails"/> is publishable by construction: it has no field
+    /// for a serial number, so there is none to forget to remove. That is
+    /// deliberate — the serial lives in <see cref="DisplayKey"/>, where the
+    /// identity code that must never be published already is.
+    /// </remarks>
+    public EdidDetails Edid { get; init; } = EdidDetails.None;
+
+    /// <summary>Low-level DDC/CI commands the monitor says it accepts.</summary>
+    public IReadOnlyList<string> Commands { get; init; } = [];
+
+    /// <summary>
+    /// This display's whole report section, verbatim.
+    /// </summary>
+    /// <remarks>
+    /// Everything DisplCtrl can read, including the parts that describe a desk
+    /// rather than a model: where the display sits, what it is set to right now,
+    /// what each of its controls currently reads. Carried because the owner of
+    /// this project asked for records to hold everything available rather than a
+    /// chosen subset.
+    /// <para>
+    /// <b>It is <see cref="Redact.Scrub"/> that makes this publishable, not the
+    /// choice of fields.</b> That inverts the rule the rest of this type was
+    /// built on, and it is the whole safety margin now: the scrub removes the
+    /// serials of attached panels, device paths, any path under a user profile,
+    /// bare GUIDs and the account name, and nothing else is standing between
+    /// this text and a public issue. A field of a shape none of those catch
+    /// would go out.
+    /// </para>
+    /// </remarks>
+    public string FullReport { get; init; } = "";
+
+    /// <summary>Every preset saved on this machine, in full.</summary>
+    /// <remarks>
+    /// Asked for alongside the report: a preset says how a desk is actually
+    /// used, which the rest of a record cannot. Carries wallpaper paths and
+    /// per-monitor serials, so the same scrub applies.
+    /// </remarks>
+    public string Presets { get; init; } = "";
 
     public string BitDepth { get; init; } = "";
     public string ColorFormat { get; init; } = "";
@@ -109,7 +168,14 @@ public sealed record DeviceSubmission
 
         foreach (VcpControl c in capability.Controls)
         {
-            var line = new StringBuilder($"`{c.Hex}` {c.Name}");
+            string kind = c.Kind switch
+            {
+                VcpKind.Continuous => "range",
+                VcpKind.Discrete => "list",
+                _ => "read-only",
+            };
+
+            var line = new StringBuilder($"`{c.Hex}` {c.Name} ({kind})");
 
             if (c.Values.Count > 0)
             {
@@ -123,7 +189,9 @@ public sealed record DeviceSubmission
                 line.Append(": 0 to ").Append(c.Maximum);
             }
 
-            if (c.Settable) { line.Append(" **(settable)**"); settable++; }
+            if (c.Settable) { line.Append(" **(DisplCtrl writes this)**"); settable++; }
+            else if (c.Kind != VcpKind.Information && !VcpControl.IsAllowed(c.Code))
+                line.Append(" _(recorded, never written)_");
 
             controls.Add(line.ToString());
         }
@@ -138,6 +206,9 @@ public sealed record DeviceSubmission
             Model = model,
             Product = Redact.Product(display.Key.Model),
             Connector = display.Connector.ToString(),
+            BuiltInto = display.IsInternal && MachineInfo.Read() is { Present: true } machine
+                ? machine.Label
+                : "",
             PanelTechnology = ReadPanelTechnology(capability, isOled),
             WidthMm = display.PhysicalWidthMm,
             HeightMm = display.PhysicalHeightMm,
@@ -156,6 +227,10 @@ public sealed record DeviceSubmission
             MccsVersion = capability.MccsVersion ?? "",
             Capabilities = capability.Raw,
             Controls = controls,
+            Commands = capability.Commands,
+            FullReport = Safely(() => DisplayReport.For(display), ""),
+            Presets = Safely(DisplayReport.Presets, ""),
+            Edid = Safely(() => EdidReader.Describe(display.Key.DevicePath), EdidDetails.None),
             SettableCount = settable,
         };
     }
@@ -208,7 +283,7 @@ public sealed record DeviceSubmission
     private static (uint Width, uint Height, uint Refresh, List<string> Modes) ReadModes(DisplayInfo display)
     {
         uint w = (uint)display.Bounds.Width, h = (uint)display.Bounds.Height, hz = display.RefreshHz;
-        var best = new Dictionary<(uint Width, uint Height), uint>();
+        var rates = new Dictionary<(uint Width, uint Height), SortedSet<uint>>();
 
         try
         {
@@ -217,8 +292,13 @@ public sealed record DeviceSubmission
                 if ((long)m.Width * m.Height > (long)w * h) (w, h) = (m.Width, m.Height);
                 if (m.RefreshHz > hz) hz = m.RefreshHz;
 
-                if (!best.TryGetValue((m.Width, m.Height), out uint top) || m.RefreshHz > top)
-                    best[(m.Width, m.Height)] = m.RefreshHz;
+                if (!rates.TryGetValue((m.Width, m.Height), out SortedSet<uint>? set))
+                {
+                    set = [];
+                    rates[(m.Width, m.Height)] = set;
+                }
+
+                set.Add(m.RefreshHz);
             }
         }
         catch (Exception)
@@ -226,11 +306,15 @@ public sealed record DeviceSubmission
             // The current mode is a reasonable answer on its own.
         }
 
-        var sizes = new List<(uint Width, uint Height)>(best.Keys);
+        var sizes = new List<(uint Width, uint Height)>(rates.Keys);
         sizes.Sort(static (a, b) => ((long)b.Width * b.Height).CompareTo((long)a.Width * a.Height));
 
+        // Grouped by resolution and carrying every rate. A monitor reporting 163
+        // modes is a dozen resolutions at several rates each, and "what can this
+        // resolution run at" is the question a record is read to answer.
         var lines = new List<string>(sizes.Count);
-        foreach ((uint mw, uint mh) in sizes) lines.Add($"{mw} x {mh} @ {best[(mw, mh)]} Hz");
+        foreach ((uint mw, uint mh) in sizes)
+            lines.Add($"{mw} x {mh} @ {string.Join(", ", rates[(mw, mh)].Reverse())} Hz");
 
         return (w, h, hz, lines);
     }
@@ -251,7 +335,13 @@ public sealed record DeviceSubmission
     /// and asking the person to paste a file.
     /// </para>
     /// </remarks>
-    public string ToMarkdown()
+    /// <param name="includeReport">
+    /// False when the caller is going to append the whole report itself. A
+    /// desk-wide issue carries <c>displays.log</c> once at the end, so repeating
+    /// each display's slice of it inside its own section would say everything
+    /// twice.
+    /// </param>
+    public string ToMarkdown(bool includeReport = true)
     {
         var sb = new StringBuilder();
 
@@ -262,6 +352,8 @@ public sealed record DeviceSubmission
         sb.AppendLine("| | |");
         sb.AppendLine("|---|---|");
         sb.AppendLine($"| Connector | {Connector} |");
+
+        if (BuiltInto.Length > 0) sb.AppendLine($"| Built into | {BuiltInto} |");
         sb.AppendLine($"| Panel technology | {PanelTechnology} |");
 
         if (WidthMm > 0)
@@ -289,6 +381,14 @@ public sealed record DeviceSubmission
             sb.AppendLine();
         }
 
+        if (Commands.Count > 0)
+        {
+            sb.AppendLine($"Low-level commands it accepts: {string.Join(" ", Commands)}");
+            sb.AppendLine();
+        }
+
+        AppendEdid(sb);
+
         if (Capabilities.Length > 0)
         {
             sb.AppendLine("#### Capabilities string");
@@ -299,22 +399,134 @@ public sealed record DeviceSubmission
             sb.AppendLine();
         }
 
-        if (Modes.Count > 0)
+        if (includeReport)
         {
-            sb.AppendLine("<details><summary>Modes it offers</summary>");
-            sb.AppendLine();
-            foreach (string m in Modes) sb.AppendLine($"- {m}");
-            sb.AppendLine();
-            sb.AppendLine("</details>");
-            sb.AppendLine();
+            FoldText(sb, "The full report for this display, as DisplCtrl writes it locally", FullReport);
+            if (DisplCtrl.Core.FeatureFlags.Presets)
+                FoldText(sb, "Presets saved on this machine", Presets);
         }
+
+        Fold(sb, "Modes the driver reports", Modes);
+        Fold(sb, "Detailed timings, as the panel gives them", Edid.DetailedTimings);
+        Fold(sb, "Standard timings", Edid.StandardTimings);
+        Fold(sb, "Established timings", Edid.EstablishedTimings);
 
         sb.AppendLine("---");
         sb.AppendLine();
-        sb.AppendLine("Submitted from DisplCtrl. Serial number, device path, file paths, user name and "
-            + "current settings are not collected - only what is true of every unit of this model.");
+        sb.AppendLine("Submitted from DisplCtrl. This is everything DisplCtrl can read about this "
+            + "display, including its current settings"
+            + (DisplCtrl.Core.FeatureFlags.Presets ? " and the presets on this machine" : "") + ". Removed before "
+            + "sending: monitor serial numbers, Windows device paths, anything under a user profile "
+            + "folder, bare GUIDs and the account name.");
 
         return sb.ToString();
+    }
+
+    /// <summary>The EDID, in full, minus the parts that identify a unit.</summary>
+    /// <remarks>
+    /// A table rather than a hex dump. The raw blob would be more complete still
+    /// and must never be published: bytes 12-15 and descriptor 0xFF carry the
+    /// serial number, and a hex dump of them matches none of the patterns
+    /// <see cref="Redact.Scrub"/> looks for.
+    /// </remarks>
+    private void AppendEdid(StringBuilder sb)
+    {
+        if (!Edid.Present) return;
+
+        sb.AppendLine("#### What the panel says about itself (EDID)");
+        sb.AppendLine();
+        sb.AppendLine("| | |");
+        sb.AppendLine("|---|---|");
+
+        Row(sb, "Manufacturer", Edid.ManufacturerName.Length > 0
+            ? $"{Edid.ManufacturerName} ({Edid.ManufacturerCode})"
+            : Edid.ManufacturerCode);
+
+        Row(sb, "Product code", Edid.ProductCode);
+        Row(sb, "Monitor name", Edid.MonitorName);
+        Row(sb, "Free text", Edid.FreeText);
+        Row(sb, "Made", Edid.Made);
+        Row(sb, "EDID version", Edid.Version);
+        Row(sb, "Extension blocks", Edid.Extensions.ToString());
+        Row(sb, "Checksum", Edid.ChecksumValid ? "valid" : "does not add up");
+
+        Row(sb, "Signal", Edid.Digital
+            ? "digital"
+              + (Edid.BitsPerColour > 0 ? $", {Edid.BitsPerColour} bits per colour" : "")
+              + (Edid.Interface.Length > 0 ? $", {Edid.Interface}" : "")
+              + (Edid.BitsPerColour == 0 && Edid.Interface.Length == 0
+                 ? " (EDID 1.3 records no depth or interface)" : "")
+            : $"analogue, {Edid.AnalogueSignal}");
+
+        Row(sb, "Colour encodings", Edid.ColourEncodings);
+        Row(sb, "Declared size", Edid.WidthCm > 0
+            ? $"{Edid.WidthCm} x {Edid.HeightCm} cm"
+            : Edid.AspectRatio.Length > 0 ? $"aspect {Edid.AspectRatio}" : null);
+
+        Row(sb, "Gamma", Edid.Gamma > 0 ? $"{Edid.Gamma:0.00}" : "deferred to a descriptor");
+        Row(sb, "sRGB is the default", Edid.SrgbDefault ? "yes" : "no");
+        Row(sb, "Preferred timing is native", Edid.PreferredTimingIsNative ? "yes" : "no");
+        Row(sb, "Continuous frequency", Edid.ContinuousFrequency ? "yes" : "no");
+
+        var power = new List<string>();
+        if (Edid.Standby) power.Add("standby");
+        if (Edid.Suspend) power.Add("suspend");
+        if (Edid.ActiveOff) power.Add("active off");
+        Row(sb, "DPMS", power.Count > 0 ? string.Join(", ", power) : "none advertised");
+
+        Row(sb, "Red primary", Edid.Red.ToString());
+        Row(sb, "Green primary", Edid.Green.ToString());
+        Row(sb, "Blue primary", Edid.Blue.ToString());
+        Row(sb, "White point", Edid.White.ToString());
+
+        if (Edid.MaxVerticalHz > 0)
+        {
+            Row(sb, "Vertical range", $"{Edid.MinVerticalHz}-{Edid.MaxVerticalHz} Hz");
+            Row(sb, "Horizontal range", $"{Edid.MinHorizontalKHz}-{Edid.MaxHorizontalKHz} kHz");
+            Row(sb, "Max pixel clock", Edid.MaxPixelClockMHz > 0 ? $"{Edid.MaxPixelClockMHz} MHz" : null);
+        }
+
+        Row(sb, "Descriptor blocks", string.Join(", ", Edid.Descriptors));
+
+        sb.AppendLine();
+    }
+
+    private static void Row(StringBuilder sb, string label, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)) sb.AppendLine($"| {label} | {value} |");
+    }
+
+    /// <summary>A block of preformatted text, folded away.</summary>
+    /// <remarks>
+    /// Fenced as well as folded. The report is column-aligned text, and GitHub
+    /// would otherwise reflow it into one paragraph and lose the alignment that
+    /// makes it readable.
+    /// </remarks>
+    private static void FoldText(StringBuilder sb, string title, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        sb.AppendLine($"<details><summary>{title}</summary>");
+        sb.AppendLine();
+        sb.AppendLine("```");
+        sb.AppendLine(text.TrimEnd());
+        sb.AppendLine("```");
+        sb.AppendLine();
+        sb.AppendLine("</details>");
+        sb.AppendLine();
+    }
+
+    /// <summary>A long list, folded away so the issue stays readable.</summary>
+    private static void Fold(StringBuilder sb, string title, IReadOnlyList<string> lines)
+    {
+        if (lines.Count == 0) return;
+
+        sb.AppendLine($"<details><summary>{title} ({lines.Count})</summary>");
+        sb.AppendLine();
+        foreach (string line in lines) sb.AppendLine($"- {line}");
+        sb.AppendLine();
+        sb.AppendLine("</details>");
+        sb.AppendLine();
     }
 
     /// <summary>
@@ -325,10 +537,19 @@ public sealed record DeviceSubmission
     /// happens on panels that report no name of their own and fall back to the
     /// EDID key: "SDC SDC-4154" reads like a mistake.
     /// </remarks>
-    public string IssueTitle =>
-        Model.StartsWith(Manufacturer, StringComparison.OrdinalIgnoreCase)
-            ? Model
-            : $"{Manufacturer} {Model}";
+    public string IssueTitle
+    {
+        get
+        {
+            string name = Model.StartsWith(Manufacturer, StringComparison.OrdinalIgnoreCase)
+                ? Model
+                : $"{Manufacturer} {Model}";
+
+            // A laptop panel's own name is usually nothing at all, so the
+            // machine goes in the title where it can be searched for.
+            return BuiltInto.Length > 0 ? $"{name} in {BuiltInto}" : name;
+        }
+    }
 }
 
 /// <summary>
@@ -359,26 +580,45 @@ public static partial class Redact
     /// The last line of defence over text about to be published.
     /// </summary>
     /// <remarks>
-    /// Everything in a submission is chosen field by field, so in principle
-    /// nothing sensitive can reach here. It runs anyway, over the finished text,
-    /// against the four things known to be dangerous: the serials of the
-    /// attached panels, Windows device instance paths, any path under a user
-    /// profile — which carries the account name, very often the person's real
-    /// name — and the account name itself.
+    /// A submission used to be chosen field by field, so in principle nothing
+    /// sensitive could reach here and this was a second line. It is now the
+    /// first: a record carries the whole report and the presets, so what makes
+    /// it publishable <em>is</em> this. It runs over the finished text,
+    /// against the things known to be dangerous: the serials <em>and identity
+    /// tokens</em> of every attached panel, Windows device instance paths, any
+    /// path under a user profile — which carries the account name, very often
+    /// the person's real name — bare GUIDs, and the account name itself.
     /// <para>
     /// The point is that a field added later cannot quietly reintroduce a leak.
     /// It would have to be sensitive <em>and</em> of a shape none of these
     /// catch before anything escaped.
     /// </para>
     /// </remarks>
-    public static string Scrub(string text, IEnumerable<string>? serials = null)
+    public static string Scrub(string text, IEnumerable<string>? identifiers = null)
     {
-        foreach (string serial in serials ?? [])
-            if (serial.Length >= 4)
-                text = text.Replace(serial, Removed, StringComparison.OrdinalIgnoreCase);
+        foreach (string id in identifiers ?? [])
+            if (id.Length >= 4)
+                text = text.Replace(id, Removed, StringComparison.OrdinalIgnoreCase);
+
+        // Whole paths first, so a profile path goes in one piece rather than
+        // leaving the tail of itself behind.
+        text = UserPath().Replace(text, Removed);
+
+        // Then the profile directory by name, for a profile that does not live
+        // under C:\Users at all - a redirected or roamed one.
+        try
+        {
+            string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (profile.Length >= 4)
+                text = text.Replace(profile, Removed, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            // The patterns either side still apply.
+        }
 
         text = DevicePath().Replace(text, Removed);
-        text = UserPath().Replace(text, Removed);
+        text = InstanceId().Replace(text, Removed);
         text = Guid().Replace(text, Removed);
 
         // Short account names are skipped: a two-letter name would match inside
@@ -389,9 +629,59 @@ public static partial class Redact
         return text;
     }
 
+    /// <summary>
+    /// Folds this project's typography down to ASCII.
+    /// </summary>
+    /// <remarks>
+    /// A submission is plain ASCII and the rest of DisplCtrl is not. The report
+    /// and the preset text are written to be read on this machine, with em
+    /// dashes and multiplication signs in them; a record built out of them
+    /// inherits those, and the body is the one place in DisplCtrl that cannot
+    /// have them.
+    /// <para>
+    /// It began as a URL-length rule — an em dash costs nine characters
+    /// percent-encoded and <c>x</c> costs one — and a full record is far past
+    /// prefilling now whatever it is spelled with. It is kept because a device
+    /// record is read and diffed by whoever maintains the folder, and a file
+    /// that is ASCII everywhere is one they can grep.
+    /// </para>
+    /// <para>
+    /// Only the characters this project actually emits are mapped. Anything else
+    /// is left alone rather than replaced: mangling an accented monitor name into
+    /// a question mark would be a worse answer than carrying it, and
+    /// <c>presetcheck</c> asserting the result is ASCII is what would report it.
+    /// </para>
+    /// </remarks>
+    public static string Ascii(string text)
+    {
+        var sb = new StringBuilder(text.Length);
+
+        foreach (char c in text)
+        {
+            switch (c)
+            {
+                case '—':                 // em dash
+                case '–':                 // en dash
+                case '·':                 // middle dot
+                case '•': sb.Append('-'); break;
+                case '×': sb.Append('x'); break;
+                case '…': sb.Append("..."); break;
+                case '°': sb.Append(" deg"); break;
+                case '‘':
+                case '’': sb.Append('\''); break;
+                case '“':
+                case '”': sb.Append('"'); break;
+                case ' ': sb.Append(' '); break;   // non-breaking space
+                default: sb.Append(c); break;
+            }
+        }
+
+        return sb.ToString();
+    }
+
     /// <summary>True when nothing sensitive survived into the text.</summary>
-    public static bool IsClean(string text, IEnumerable<string>? serials = null) =>
-        Scrub(text, serials) == text;
+    public static bool IsClean(string text, IEnumerable<string>? identifiers = null) =>
+        Scrub(text, identifiers) == text;
 
     private const string Removed = "[removed]";
 
@@ -399,9 +689,32 @@ public static partial class Redact
     [GeneratedRegex(@"\\\\[?.]\\[A-Za-z0-9#&{}\-]+", RegexOptions.None, 200)]
     private static partial Regex DevicePath();
 
-    // Any path under a user profile, which carries the account name.
-    [GeneratedRegex(@"[A-Za-z]:\\Users\\[^\s""'|)\]]*", RegexOptions.IgnoreCase, 200)]
+    /// <summary>
+    /// Any path under a user profile, which carries the account name.
+    /// </summary>
+    /// <remarks>
+    /// Spaces are consumed, not treated as the end. Stopping at whitespace is
+    /// what let a wallpaper path under <c>C:\Users\Ada Lovelace</c> through: the
+    /// match ended at "Ada", and the surname, the whole folder tree and a device
+    /// instance id baked into the file name all survived into a record. Paths
+    /// contain spaces; the terminators are a quote, a pipe, an angle bracket or
+    /// the end of the line, and a value sits last on its line in both the report
+    /// and a markdown table cell.
+    /// </remarks>
+    [GeneratedRegex(@"[A-Za-z]:\\Users\\[^\r\n""'|<>]*", RegexOptions.IgnoreCase, 200)]
     private static partial Regex UserPath();
+
+    /// <summary>
+    /// A Windows device instance id, with or without its path prefix.
+    /// </summary>
+    /// <remarks>
+    /// <c>5&amp;1af48b2f&amp;0&amp;UID256</c> identifies one panel on one port of one
+    /// machine. It normally arrives inside a <c>\\?\DISPLAY#...</c> path that
+    /// <see cref="DevicePath"/> catches, but this laptop's wallpaper tool bakes
+    /// it into a file name, where nothing was looking for it.
+    /// </remarks>
+    [GeneratedRegex(@"[0-9a-f]+&[0-9a-f]{4,}&[0-9a-f]+&UID[0-9]+", RegexOptions.IgnoreCase, 200)]
+    private static partial Regex InstanceId();
 
     [GeneratedRegex(@"\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}?",
         RegexOptions.None, 200)]

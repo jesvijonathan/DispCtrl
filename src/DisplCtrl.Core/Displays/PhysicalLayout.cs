@@ -138,25 +138,40 @@ public static class PhysicalLayout
     /// extent rather than as an absolute distance, because the two panels
     /// measure that distance in different numbers of pixels. A display centred
     /// on its neighbour stays centred; one aligned to the top stays at the top.
+    /// <para>
+    /// Public because the arrangement surface asks the same question of a
+    /// position nothing is standing in yet: where would the dragged display be
+    /// drawn if it landed in <em>that</em> slot? Answering it with this rather
+    /// than a copy of it is what keeps the slot the pointer is nearest and the
+    /// place the tile is drawn from disagreeing.
+    /// </para>
     /// </remarks>
-    private static Placed Hang(Panel a, Panel b, Placed anchor)
+    public static Placed Hang(Panel a, Panel b, Placed anchor)
     {
         bool toTheRight = b.X == a.Right;
         bool toTheLeft = b.Right == a.X;
 
         if (toTheRight || toTheLeft)
         {
-            double fraction = (b.Y - a.Y) / (double)a.Height;
+            double offset = AlignedOffset(b.Y - a.Y, a.Height, b.Height, anchor.Height, b.HeightMm);
             double x = toTheRight ? anchor.X + anchor.Width : anchor.X - b.WidthMm;
 
-            return new Placed(b.Token, x, anchor.Y + (fraction * anchor.Height), b.WidthMm, b.HeightMm);
+            return new Placed(b.Token, x, anchor.Y + offset, b.WidthMm, b.HeightMm);
         }
 
         bool below = b.Y == a.Bottom;
-        double across = (b.X - a.X) / (double)a.Width;
+        double across = AlignedOffset(b.X - a.X, a.Width, b.Width, anchor.Width, b.WidthMm);
         double y = below ? anchor.Y + anchor.Height : anchor.Y - b.HeightMm;
 
-        return new Placed(b.Token, anchor.X + (across * anchor.Width), y, b.WidthMm, b.HeightMm);
+        return new Placed(b.Token, anchor.X + across, y, b.WidthMm, b.HeightMm);
+    }
+
+    private static double AlignedOffset(int delta, int extent, int size, double physicalExtent, double physicalSize)
+    {
+        if (delta == 0) return 0;
+        if (delta == extent - size) return physicalExtent - physicalSize;
+        if (delta == (extent - size) / 2) return (physicalExtent - physicalSize) / 2;
+        return delta / (double)extent * physicalExtent;
     }
 
     private static List<Placed> Normalise(IReadOnlyList<Panel> panels, Dictionary<string, Placed> placed)

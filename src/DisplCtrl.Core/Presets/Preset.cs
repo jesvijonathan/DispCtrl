@@ -13,23 +13,37 @@ namespace DisplCtrl.Core.Presets;
 /// pulled and swapped.
 /// </para>
 /// <para>
-/// A preset holds <em>everything</em>, and applying one restores everything it
-/// holds. There is no per-preset list of what it is allowed to touch: a preset
-/// that silently left some of the desk alone was a preset whose behaviour you
-/// had to remember, and "why didn't it change the brightness" is a worse
-/// question than "why did it". What a preset does not carry is what could not
-/// be read from the hardware at the time, and those fields say so.
+/// Capture records supported display state. IncludeGlobal and IncludeLayout
+/// declare whether shared settings and layout are restored. Monitor-only
+/// presets restore values for their named displays without changing these groups.
 /// </para>
 /// </remarks>
 public sealed class Preset
 {
     /// <summary>Schema version, so a later format change can migrate.</summary>
     /// <remarks>
-    /// Version 2 dropped the scope object. Files written by version 1 still
-    /// load — the unknown property is ignored — and gain the fields they lack
-    /// as defaults, which for every one of them means "not recorded".
+    /// Version 3 adds explicit global/layout scope and capture diagnostics.
+    /// Versions 1 and 2 retain their existing whole-desk interpretation.
     /// </remarks>
-    public int Version { get; set; } = 2;
+    public int Version { get; set; } = 3;
+
+    public Preset Copy()
+    {
+        var copy = (Preset)MemberwiseClone();
+        copy.Global = Global.Copy();
+        copy.CaptureNotes = [.. CaptureNotes];
+        copy.Monitors = Monitors.ToDictionary(pair => pair.Key, pair => pair.Value.Copy());
+        return copy;
+    }
+
+    /// <summary>Restore shared desktop settings. False for monitor-only snapshots.</summary>
+    public bool IncludeGlobal { get; set; } = true;
+
+    /// <summary>Restore topology, positions and primary display.</summary>
+    public bool IncludeLayout { get; set; } = true;
+
+    /// <summary>Read failures or values that could not be captured.</summary>
+    public List<string> CaptureNotes { get; set; } = [];
 
     public string Name { get; set; } = "Untitled";
 
@@ -47,6 +61,13 @@ public sealed class Preset
 /// <summary>Everything that belongs to the desk rather than to one monitor.</summary>
 public sealed class PresetGlobal
 {
+    public PresetGlobal Copy()
+    {
+        var copy = (PresetGlobal)MemberwiseClone();
+        copy.Taskbar = Taskbar?.Copy();
+        return copy;
+    }
+
     /// <summary>Extend, Duplicate, InternalOnly or ExternalOnly.</summary>
     public string Topology { get; set; } = "Extend";
 
@@ -97,6 +118,8 @@ public sealed class PresetGlobal
 /// </remarks>
 public sealed class PresetTaskbar
 {
+    public PresetTaskbar Copy() => (PresetTaskbar)MemberwiseClone();
+
     public int HideDelayMs { get; set; } = 350;
     public int AnimMs { get; set; } = 180;
     public int RevealPx { get; set; } = 2;
@@ -110,6 +133,13 @@ public sealed class PresetTaskbar
 /// <summary>One monitor's whole state, as a preset carries it.</summary>
 public sealed class PresetMonitor
 {
+    public PresetMonitor Copy()
+    {
+        var copy = (PresetMonitor)MemberwiseClone();
+        copy.MonitorControls = new(MonitorControls);
+        return copy;
+    }
+
     /// <summary>
     /// Last known friendly name.
     /// </summary>
@@ -118,6 +148,9 @@ public sealed class PresetMonitor
     /// wants when that monitor is not currently attached. Never used to match.
     /// </remarks>
     public string? Label { get; set; }
+
+    /// <summary>User-defined monitor name, distinct from hardware identity.</summary>
+    public string? CustomLabel { get; set; }
 
     // ---------------------------------------------------------- identity --
     // Recorded, never applied. A preset file is something people send each

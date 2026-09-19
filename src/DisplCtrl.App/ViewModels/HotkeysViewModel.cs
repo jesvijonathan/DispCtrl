@@ -22,31 +22,21 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     /// </remarks>
     public string[] ActionNames => AllActionNames;
 
-    private static readonly string[] AllActionNames =
-    [
-        "Brightness up",
-        "Brightness down",
-        "Unison brightness up",
-        "Unison brightness down",
-        "Night light on or off",
-        "Night light warmer",
-        "Night light cooler",
-        "Apply a preset",
-        "Next input source",
-    ];
+    private static readonly (HotkeyAction Action, string Name)[] AvailableActions = new (HotkeyAction, string)[]
+    {
+        (HotkeyAction.BrightnessUp, "Brightness up"),
+        (HotkeyAction.BrightnessDown, "Brightness down"),
+        (HotkeyAction.UnisonUp, "Unison brightness up"),
+        (HotkeyAction.UnisonDown, "Unison brightness down"),
+        (HotkeyAction.NightLightToggle, "Night light on or off"),
+        (HotkeyAction.NightLightWarmer, "Night light warmer"),
+        (HotkeyAction.NightLightCooler, "Night light cooler"),
+        (HotkeyAction.ApplyPreset, "Apply a preset (Beta)"),
+        (HotkeyAction.NextInput, "Next input source"),
+    }.Where(item => DisplCtrl.Core.FeatureFlags.Presets || item.Item1 != HotkeyAction.ApplyPreset).ToArray();
 
-    private static readonly HotkeyAction[] Actions =
-    [
-        HotkeyAction.BrightnessUp,
-        HotkeyAction.BrightnessDown,
-        HotkeyAction.UnisonUp,
-        HotkeyAction.UnisonDown,
-        HotkeyAction.NightLightToggle,
-        HotkeyAction.NightLightWarmer,
-        HotkeyAction.NightLightCooler,
-        HotkeyAction.ApplyPreset,
-        HotkeyAction.NextInput,
-    ];
+    private static readonly string[] AllActionNames = AvailableActions.Select(item => item.Name).ToArray();
+    private static readonly HotkeyAction[] Actions = AvailableActions.Select(item => item.Action).ToArray();
 
     /// <summary>
     /// The action, as an index into <see cref="ActionNames"/>.
@@ -201,13 +191,15 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
     {
         Items.Clear();
         foreach (Hotkey h in _settings().Hotkeys)
-            Items.Add(new HotkeyViewModel(h, _persist, PresetNames));
+            if (DisplCtrl.Core.FeatureFlags.Presets || h.Action != HotkeyAction.ApplyPreset)
+                Items.Add(new HotkeyViewModel(h, _persist, PresetNames));
 
         Raise(nameof(EmptyVisibility));
     }
 
     private static IReadOnlyList<string> PresetNames()
     {
+        if (!DisplCtrl.Core.FeatureFlags.Presets) return [];
         var names = new List<string>();
         foreach (Preset p in PresetStore.Load()) names.Add(p.Name);
 

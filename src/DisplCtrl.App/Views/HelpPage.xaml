@@ -2,127 +2,45 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:tk="using:CommunityToolkit.WinUI.Controls">
-
   <ScrollViewer Padding="0,0,0,32">
-    <!-- Stretch with no MaxWidth. The cap was the problem: a Stretch panel
-           with a MaxWidth centres itself once the window exceeds that width,
-           which is what pushed content off to one side. Pinning it Left instead
-           fixed the drift but made the panel size to its content, so cards
-           stopped filling. Filling at every width is what Windows Settings
-           does, and the side padding already keeps line length sane. -->
-      <StackPanel Padding="36,12,36,0" Spacing="0"
-                  HorizontalAlignment="Stretch">
-
+    <StackPanel Padding="36,12,36,0" Spacing="0" HorizontalAlignment="Stretch">
       <TextBlock Text="Help" Style="{StaticResource TitleTextBlockStyle}"/>
-      <TextBlock Text="How DisplCtrl works, and what it cannot do"
-                 Style="{StaticResource BodyTextBlockStyle}"
-                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                 Margin="0,4,0,28"/>
+      <TextBlock Text="Quick answers, troubleshooting and ways to contribute."
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,28"/>
 
-      <tk:SettingsExpander Header="Why hide a taskbar per monitor?"
-                           Description="Windows 11 only offers one global auto-hide switch.">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE7C4;"/>
-        </tk:SettingsExpander.HeaderIcon>
+      <TextBlock Text="Project" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,0,0,8"/>
+      <tk:SettingsCard Header="Source code" Description="Read the code, documentation and current work on GitHub.">
+        <Button Content="Open GitHub" Click="OnSource"/>
+      </tk:SettingsCard>
+      <tk:SettingsCard Header="Report a problem or request a feature" Description="Open an issue with what happened and what you expected.">
+        <Button Content="Open issue" Click="OnIssue"/>
+      </tk:SettingsCard>
+      <tk:SettingsCard Header="Contribute code" Description="Compare a branch or fork and open a pull request.">
+        <Button Content="Open pull request" Click="OnPullRequest"/>
+      </tk:SettingsCard>
+
+      <TextBlock Text="Common help" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,28,0,8"/>
+      <tk:SettingsExpander Header="A taskbar is stuck off-screen" Description="Restart Windows Explorer to restore it after a forced engine exit.">
         <tk:SettingsExpander.Items>
           <tk:SettingsCard ContentAlignment="Left">
-            <TextBlock TextWrapping="Wrap" MaxWidth="720"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-              The auto-hide checkbox in Settings applies to every taskbar at once. DisplCtrl
-              repositions the taskbar windows directly instead, so one monitor can stay
-              clean while another keeps a normal bar.
-              <LineBreak/><LineBreak/>
-              On an OLED panel this matters beyond tidiness. A taskbar is static, bright
-              and always in the same place, which is the exact recipe for burn-in.
-            </TextBlock>
+            <TextBlock Text="Open Task Manager, select Windows Explorer, then choose Restart. Stopping the engine normally restores managed taskbars first." TextWrapping="Wrap"/>
           </tk:SettingsCard>
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
-
-      <tk:SettingsExpander Header="Why is it fully off-screen, not a thin sliver?"
-                           Description="Native auto-hide leaves a lit line. DisplCtrl does not.">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE7B3;"/>
-        </tk:SettingsExpander.HeaderIcon>
+      <tk:SettingsExpander Header="The primary taskbar will not hide" Description="Explorer restores the primary taskbar when another process moves it.">
         <tk:SettingsExpander.Items>
           <tk:SettingsCard ContentAlignment="Left">
-            <TextBlock TextWrapping="Wrap" MaxWidth="720"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-              Windows' own auto-hide keeps a one-pixel strip on screen, because the
-              window itself has to catch the hover that brings it back. On the panel
-              this was built against, that strip measured #434343 across three quarters
-              of the width — a permanently lit line.
-              <LineBreak/><LineBreak/>
-              DisplCtrl watches the cursor position instead, so the bar can go completely
-              off the panel and light nothing at all.
-            </TextBlock>
+            <TextBlock Text="Use Windows auto-hide, or make another display primary. Per-display hiding is intended for secondary taskbars." TextWrapping="Wrap"/>
           </tk:SettingsCard>
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
-
-      <tk:SettingsExpander Header="Why can't I hide the primary monitor's taskbar?"
-                           Description="Windows actively restores it. This is a hard limit.">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE7BA;"/>
-        </tk:SettingsExpander.HeaderIcon>
+      <tk:SettingsExpander Header="A monitor forgot its settings" Description="Settings follow the monitor identity reported by its hardware.">
         <tk:SettingsExpander.Items>
           <tk:SettingsCard ContentAlignment="Left">
-            <TextBlock TextWrapping="Wrap" MaxWidth="720"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-              Moving the primary taskbar reports success, and then Explorer puts it
-              straight back — measured within about 120 milliseconds. Only a tool that
-              injects code into Explorer can override that, which DisplCtrl deliberately
-              does not do.
-              <LineBreak/><LineBreak/>
-              If you want a particular panel clean, make a different display primary in
-              Settings › System › Display, then enable hiding here.
-            </TextBlock>
+            <TextBlock Text="A panel without a serial number may look new after moving to another port. Reconnect it to the original port or configure it again." TextWrapping="Wrap"/>
           </tk:SettingsCard>
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
-
-      <tk:SettingsExpander Header="The taskbar is stuck off-screen"
-                           Description="What to do if the engine dies unexpectedly.">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE7BA;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <tk:SettingsExpander.Items>
-          <tk:SettingsCard ContentAlignment="Left">
-            <TextBlock TextWrapping="Wrap" MaxWidth="720"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-              Stopping the engine from this app always restores the taskbars first, so
-              this should not happen. If a bar is ever stranded — after a forced kill,
-              say — restarting Explorer brings it back: open Task Manager, find Windows
-              Explorer, and choose Restart.
-              <LineBreak/><LineBreak/>
-              The log on the Engine page records every start, stop, layout change and
-              error, which is the place to look first.
-            </TextBlock>
-          </tk:SettingsCard>
-        </tk:SettingsExpander.Items>
-      </tk:SettingsExpander>
-
-      <tk:SettingsExpander Header="Do my settings survive unplugging a monitor?"
-                           Description="Yes — they follow the panel, not the port order.">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE8A5;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <tk:SettingsExpander.Items>
-          <tk:SettingsCard ContentAlignment="Left">
-            <TextBlock TextWrapping="Wrap" MaxWidth="720"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-              Settings are keyed on what the panel reports about itself — its
-              manufacturer, model and serial number — rather than on names like
-              "Display 1", which Windows reassigns whenever the set of attached
-              monitors changes.
-              <LineBreak/><LineBreak/>
-              A monitor that reports no serial number falls back to its port, so its
-              settings survive a reboot but not being moved to a different socket.
-            </TextBlock>
-          </tk:SettingsCard>
-        </tk:SettingsExpander.Items>
-      </tk:SettingsExpander>
-
     </StackPanel>
   </ScrollViewer>
 </Page>

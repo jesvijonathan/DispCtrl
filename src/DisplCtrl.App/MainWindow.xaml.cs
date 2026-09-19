@@ -9,6 +9,9 @@ namespace DisplCtrl.App;
 
 public sealed partial class MainWindow : Window
 {
+    public ViewModels.MainViewModel ViewModel => App.ViewModel;
+
+    public bool PresetsEnabled => DisplCtrl.Core.FeatureFlags.Presets;
     /// <summary>
     /// How often the engine's state and the display layout are re-read.
     /// </summary>
@@ -67,6 +70,8 @@ public sealed partial class MainWindow : Window
         ContentFrame.Navigate(typeof(DisplaysPage), null, new EntranceNavigationTransitionInfo());
     }
 
+    private void OnToggleEngine(object sender, RoutedEventArgs e) => ViewModel.ToggleEngine();
+
     private void OnNavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         string? tag = (args.SelectedItem as NavigationViewItem)?.Tag as string;
@@ -76,9 +81,8 @@ public sealed partial class MainWindow : Window
             : tag switch
             {
                 "taskbar" => typeof(TaskbarPage),
-                "presets" => typeof(PresetsPage),
+                "presets" => PresetsEnabled ? typeof(PresetsPage) : typeof(PresetsPreviewPage),
                 "hotkeys" => typeof(HotkeysPage),
-                "engine" => typeof(EnginePage),
                 "help" => typeof(HelpPage),
                 "about" => typeof(AboutPage),
                 _ => typeof(DisplaysPage),
@@ -88,4 +92,5 @@ public sealed partial class MainWindow : Window
 
         ContentFrame.Navigate(target, null, new EntranceNavigationTransitionInfo());
     }
+
 }

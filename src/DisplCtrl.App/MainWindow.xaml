@@ -10,15 +10,13 @@
     <MicaBackdrop Kind="BaseAlt"/>
   </Window.SystemBackdrop>
 
-  <Grid RowDefinitions="Auto,*">
+  <Grid RowDefinitions="Auto,*,Auto">
 
-    <!-- The window's own chrome is extended into the client area and this
-         stands in for it, so the Mica runs all the way to the top. The left
-         inset clears NavigationView's own back/menu buttons. -->
+    <!-- Navigation occupies the next row, so the title needs only the normal
+         window-edge padding. -->
     <Grid x:Name="TitleBar" Grid.Row="0" Height="44" ColumnDefinitions="Auto,*">
-      <TextBlock Grid.Column="0"
-                 Text="DisplCtrl"
-                 Margin="96,0,0,0"
+      <TextBlock Text="DisplCtrl" Margin="16,0,0,0"
+                 AutomationProperties.AutomationId="ApplicationTitle"
                  VerticalAlignment="Center"
                  Style="{StaticResource CaptionTextBlockStyle}"/>
     </Grid>
@@ -26,6 +24,7 @@
     <muxc:NavigationView x:Name="Nav"
                          Grid.Row="1"
                          PaneDisplayMode="Auto"
+                         PaneTitle="Menu"
                          IsPaneToggleButtonVisible="True"
                          CompactModeThresholdWidth="0"
                          ExpandedModeThresholdWidth="1100"
@@ -47,7 +46,7 @@
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
 
-        <muxc:NavigationViewItem Content="Presets" Tag="presets">
+        <muxc:NavigationViewItem x:Name="PresetsNavigation" Content="Presets" Tag="presets">
           <muxc:NavigationViewItem.Icon>
             <FontIcon Glyph="&#xE8FD;"/>
           </muxc:NavigationViewItem.Icon>
@@ -59,14 +58,9 @@
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
 
-        <muxc:NavigationViewItem Content="Engine" Tag="engine">
-          <muxc:NavigationViewItem.Icon>
-            <FontIcon Glyph="&#xE945;"/>
-          </muxc:NavigationViewItem.Icon>
-        </muxc:NavigationViewItem>
+      </muxc:NavigationView.MenuItems>
 
-        <muxc:NavigationViewItemSeparator/>
-
+      <muxc:NavigationView.FooterMenuItems>
         <muxc:NavigationViewItem Content="Help" Tag="help">
           <muxc:NavigationViewItem.Icon>
             <FontIcon Glyph="&#xE897;"/>
@@ -78,9 +72,43 @@
             <FontIcon Glyph="&#xE946;"/>
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
-      </muxc:NavigationView.MenuItems>
+      </muxc:NavigationView.FooterMenuItems>
 
       <Frame x:Name="ContentFrame"/>
     </muxc:NavigationView>
+
+    <!-- Outside the page and navigation scroll regions: visible at every
+         window width, including when the navigation pane is collapsed. -->
+    <Border Grid.Row="2" Padding="16,8"
+            BorderThickness="0,1,0,0"
+            BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="Engine" Style="{StaticResource CaptionTextBlockStyle}"/>
+          <TextBlock Text="·" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          <TextBlock Text="{x:Bind ViewModel.EngineStateText, Mode=OneWay}"
+                     AutomationProperties.AutomationId="EngineStatus"
+                     AutomationProperties.LiveSetting="Polite"
+                     Style="{StaticResource CaptionTextBlockStyle}"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+        <Grid Grid.Column="1">
+          <Button Content="Start" MinWidth="72"
+                  AutomationProperties.AutomationId="StartEngine"
+                  AutomationProperties.Name="Start engine"
+                  ToolTipService.ToolTip="Start the background engine"
+                  Style="{StaticResource AccentButtonStyle}"
+                  Visibility="{x:Bind ViewModel.StartVisibility, Mode=OneWay}"
+                  IsEnabled="{x:Bind ViewModel.CanToggleEngine}"
+                  Click="OnToggleEngine"/>
+          <Button Content="Stop" MinWidth="72"
+                  AutomationProperties.AutomationId="StopEngine"
+                  AutomationProperties.Name="Stop engine"
+                  ToolTipService.ToolTip="Stop the background engine"
+                  Visibility="{x:Bind ViewModel.StopVisibility, Mode=OneWay}"
+                  Click="OnToggleEngine"/>
+        </Grid>
+      </Grid>
+    </Border>
   </Grid>
 </Window>

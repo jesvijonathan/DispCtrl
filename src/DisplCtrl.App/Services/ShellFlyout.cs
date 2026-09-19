@@ -54,12 +54,14 @@ public static partial class ShellFlyout
 
     private const ushort VkLWin = 0x5B;
     private const ushort VkK = 0x4B;
+    private const ushort VkP = 0x50;
 
     [LibraryImport("user32.dll")]
     private static partial uint SendInput(uint count, [In] INPUT[] inputs, int size);
 
     /// <summary>Opens the Cast pane — the same one Win+K raises.</summary>
     public static bool OpenCast() => SendChord(VkLWin, VkK);
+    public static bool OpenProject() => SendChord(VkLWin, VkP);
 
     private static bool SendChord(ushort modifier, ushort key)
     {

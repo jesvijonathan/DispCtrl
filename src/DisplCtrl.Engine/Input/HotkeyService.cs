@@ -116,6 +116,7 @@ internal sealed class HotkeyService : IDisposable
         foreach (Hotkey hotkey in settings.Hotkeys)
         {
             if (!hotkey.Enabled || !hotkey.IsComplete) continue;
+            if (!DisplCtrl.Core.FeatureFlags.Presets && hotkey.Action == HotkeyAction.ApplyPreset) continue;
 
             // MOD_NOREPEAT: holding the combination fires once, not forty times.
             // Without it a held shortcut walks brightness to an end stop.
@@ -205,6 +206,7 @@ internal sealed class HotkeyService : IDisposable
 
             case HotkeyAction.ApplyPreset:
             {
+                if (!DisplCtrl.Core.FeatureFlags.Presets) break;
                 Preset? preset = PresetStore.Read(PresetStore.PathFor(hotkey.Preset!));
                 if (preset is null)
                 {

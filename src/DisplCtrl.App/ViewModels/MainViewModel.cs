@@ -1,3 +1,4 @@
+using System.Text;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -11,7 +12,7 @@ using DisplCtrl.Core.Settings;
 
 namespace DisplCtrl.App.ViewModels;
 
-public sealed class MainViewModel : INotifyPropertyChanged
+public sealed partial class MainViewModel : INotifyPropertyChanged
 {
     private readonly EngineController _engine = new();
     private DisplCtrlSettings _settings = SettingsStore.Load();
@@ -20,8 +21,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public MainViewModel()
     {
-        Presets = new PresetsViewModel(() => _settings, CurrentDisplays, Persist, Refresh);
         Hotkeys = new HotkeysViewModel(() => _settings, Persist);
+        if (PresetsEnabled)
+        {
+            DispatcherQueue ui = DispatcherQueue.GetForCurrentThread();
+            DisplCtrl.Display.Presets.PresetService.HardwareChanged += () => ui.TryEnqueue(ScheduleDriftCheck);
+        }
         Refresh();
     }
 
@@ -44,8 +49,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// save writes stale values back over whatever changed in between, so the
     /// window reloads whenever it is activated.
     /// </remarks>
+    private (DateTime Modified, long Length) _settingsStamp;
+    private static (DateTime Modified, long Length) SettingsStamp()
+    {
+        var file = new FileInfo(SettingsStore.Path_);
+        return file.Exists ? (file.LastWriteTimeUtc, file.Length) : default;
+    }
+    private Task _activationRefresh = Task.CompletedTask;
+
+    private async Task RefreshExistingReadingsAsync()
+    {
+        try { await Task.WhenAll(Displays.Select(display => display.RefreshReadingsAsync())); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Display refresh failed: {ex.Message}"); }
+        Raise(nameof(BrightnessSummary));
+        if (PresetsEnabled) Presets.Reload();
+    }
+
     public void ReloadFromDisk()
     {
+        if (SettingsStamp() == _settingsStamp && DisplayRegistry.CheapSignature() == _layoutSignature)
+        {
+            if (_activationRefresh.IsCompleted) _activationRefresh = RefreshExistingReadingsAsync();
+            return;
+        }
         Refresh();
         Raise(nameof(HideDelayMs));
         Raise(nameof(AnimMs));
@@ -53,6 +79,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Raise(nameof(AnimMsEnabled));
         Raise(nameof(RevealPx));
         Raise(nameof(Logging));
+        RaiseProtectionSettings();
     }
 
     /// <summary>
@@ -91,6 +118,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         _layoutSignature = DisplayRegistry.CheapSignature();
         _settings = SettingsStore.Load();
+        _settingsStamp = SettingsStamp();
+        DisplCtrl.Display.Presets.PresetService.InvalidateHardware();
+        foreach (DisplayViewModel existing in Displays) MonitorCapabilities.Forget(existing.Info);
         Displays.Clear();
 
         List<DisplayInfo> found = DisplayRegistry.Enumerate();
@@ -128,6 +158,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         // only whichever panel happened to be fast.
         _ = RefreshSummaryWhenReadyAsync();
         Raise(nameof(HasDisplays));
+        if (PresetsEnabled) Presets.Reload();
     }
 
     public bool HasDisplays => Displays.Count > 0;
@@ -195,10 +226,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void Persist()
     {
         SettingsStore.Save(_settings);
+        _settingsStamp = SettingsStamp();
 
         // Settings-driven changes count as desk changes too — night light and
         // taskbar hiding live here rather than in the hardware.
         ScheduleDriftCheck();
+
+        // Marking a panel as OLED, or turning its protection off, changes which
+        // displays the shared rest settings cover. That is stated on the card
+        // above them, and it lands here.
+        Raise(nameof(OledCoverage));
     }
 
     /// <summary>
@@ -216,6 +253,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void ScheduleDriftCheck()
     {
+        if (!PresetsEnabled) return;
         DispatcherQueue? ui = DispatcherQueue.GetForCurrentThread();
         if (ui is null) return;
 
@@ -286,7 +324,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// the selected preset survives leaving the page and coming back. A picker
     /// that forgets what was selected is not a picker anyone trusts.
     /// </remarks>
-    public PresetsViewModel Presets { get; }
+    public bool PresetsEnabled => DisplCtrl.Core.FeatureFlags.Presets;
+    private PresetsViewModel? _presets;
+    // x:Bind reads this even when the footer is not loaded. The disabled model
+    // stays empty and performs no disk reads, captures or background work.
+    public PresetsViewModel Presets => _presets ??=
+        new PresetsViewModel(() => _settings, CurrentDisplays, Persist, Refresh);
 
     /// <summary>The Hotkeys page's state, shared for the same reason presets are.</summary>
     public HotkeysViewModel Hotkeys { get; }
@@ -386,100 +429,212 @@ public sealed class MainViewModel : INotifyPropertyChanged
         foreach (DisplayViewModel d in Displays) d.RaiseNightLight();
     }
 
-    // --------------------------------------------------------------- report --
+    // ----------------------------------------------------- monitor details --
 
-    private string _reportStatus =
-        "Everything each display reports about itself, including the controls only the monitor "
-        + "knows about. Written to a text file on this PC; nothing is sent anywhere.";
-
-    public string ReportStatus
-    {
-        get => _reportStatus;
-        private set { _reportStatus = value; Raise(); }
-    }
-
-    /// <summary>Writes the display report and says where it went.</summary>
+    /// <summary>
+    /// The records prepared by the last collect, one per attached monitor.
+    /// </summary>
     /// <remarks>
-    /// Off the UI thread: the report enumerates every mode and asks each
-    /// external monitor over DDC/CI what it supports, which is seconds of
-    /// blocking calls on a busy desk.
+    /// Held rather than rebuilt so that View and Submit work on exactly what was
+    /// read. A capabilities sweep is around a hundred DDC/CI round trips per
+    /// monitor at 40 ms apiece, so asking twice for the same answer costs seconds
+    /// and gives the channel a second chance to come back empty.
     /// </remarks>
-    public async Task WriteReportAsync()
+    private readonly List<Contribution> _collected = [];
+
+    /// <remarks>
+    /// Says what is actually published, which is now a great deal more than it
+    /// was: the whole report for each display, what it is set to at this moment,
+    /// and every preset. Consent to "device details" would not be consent to
+    /// that, so the sentence had to change with the payload.
+    /// </remarks>
+    private static readonly string DetailsPrompt =
+        "Everything your displays report about themselves — the controls only the monitor knows "
+        + "about and what each display is set to right now"
+        + (DisplCtrl.Core.FeatureFlags.Presets ? ", plus the presets on this machine" : "") + ". Collecting "
+        + "reads every panel and writes the full report to this PC. Serial numbers, device paths, file "
+        + "paths and your user name are removed before anything is sent. View shows the exact text, "
+        + "and nothing leaves until you submit it.";
+
+    private string _detailsStatus = DetailsPrompt;
+
+    public string DetailsStatus
     {
-        ReportStatus = "Reading every display\u2026";
-
-        List<DisplayInfo> displays = CurrentDisplays();
-
-        try
-        {
-            string path = await Task.Run(() => DisplayReport.Write(displays));
-            ReportStatus = $"Written to {path}";
-        }
-        catch (Exception ex)
-        {
-            ReportStatus = $"Could not write the report: {ex.Message}";
-        }
-    }
-
-    public static string ReportPath => DisplayReport.Path_;
-
-    // ---------------------------------------------------------- contributing --
-
-    private string _contributeStatus =
-        "DisplCtrl can only offer a control it knows a monitor has. Sending what yours report teaches it "
-        + "about hardware nobody here owns. You see the exact text first, and submit it yourself.";
-
-    public string ContributeStatus
-    {
-        get => _contributeStatus;
-        private set { _contributeStatus = value; Raise(); }
+        get => _detailsStatus;
+        private set { _detailsStatus = value; Raise(); }
     }
 
     /// <summary>
-    /// Builds one display's device record, sending nothing.
+    /// Whether there is anything to view or submit yet.
     /// </summary>
     /// <remarks>
-    /// Off the UI thread, because it asks the monitor about every code it
-    /// advertises — seconds of blocking DDC/CI traffic. Returns null when the
-    /// display has gone away since the button was drawn, which is ordinary on a
-    /// desk where monitors get switched to another input.
+    /// Both buttons appear only once the displays have been read. Neither can do
+    /// its job before that, and a button that is always there but only sometimes
+    /// works is one whose state has to be learned by pressing it.
     /// </remarks>
-    public async Task<Contribution?> PrepareContributionAsync(string token)
+    public Visibility CollectedVisibility =>
+        _collected.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// True when the complete report cannot fit in GitHub's prefilled-issue URL.
+    /// </summary>
+    /// <remarks>
+    /// The browser can safely receive the title in that case, but not a report
+    /// that has grown to tens of thousands of encoded characters. The UI copies
+    /// the exact body before opening the browser so it is ready to paste.
+    /// </remarks>
+    public bool SubmissionNeedsPaste => _collected.Count > 0 && !_collected[0].Prefilled;
+
+    /// <summary>
+    /// Reads every display once: the full local report, and a publishable record
+    /// per monitor.
+    /// </summary>
+    /// <remarks>
+    /// One press for the whole desk. This was a button per display inside an
+    /// expander, which asked the user to understand that a device record
+    /// describes a model before they could send one — and to press it again for
+    /// every monitor they own.
+    /// <para>
+    /// Off the UI thread. Both halves enumerate every mode and ask each external
+    /// monitor over DDC/CI what it supports, which is seconds of blocking calls
+    /// per panel.
+    /// </para>
+    /// </remarks>
+    public async Task CollectAsync()
     {
         List<DisplayInfo> displays = CurrentDisplays();
 
-        DisplayInfo? display = null;
-        foreach (DisplayInfo d in displays)
-            if (d.Token == token) { display = d; break; }
+        _collected.Clear();
+        Raise(nameof(CollectedVisibility));
 
-        if (display is null)
-        {
-            ContributeStatus = "That display is no longer connected.";
-            return null;
-        }
+        DetailsStatus = "Reading every display…";
 
-        ContributeStatus = $"Asking {display.Label} what it can do\u2026";
+        string? report = null;
+        string? trouble = null;
 
         try
         {
-            Contribution c = await Task.Run(() => DeviceContribution.Prepare(display, displays));
-            ContributeStatus = $"Ready: {c.Title}. Nothing has been sent.";
-            return c;
+            report = await Task.Run(() => DisplayReport.Write(displays));
         }
         catch (Exception ex)
         {
-            ContributeStatus = $"Could not read that display: {ex.Message}";
-            return null;
+            trouble = $"the report could not be written: {ex.Message}";
+        }
+
+        DetailsStatus = "Asking each monitor what it can do…";
+
+        try
+        {
+            // One record for the desk, not one per monitor. Per monitor meant a
+            // browser tab each, and once records carried the full report every
+            // one of them was too long for GitHub to take in a link - so every
+            // tab opened empty and there was nothing to paste into any of them.
+            _collected.Add(await Task.Run(() => DeviceContribution.PrepareDesk(displays)));
+        }
+        catch (Exception ex)
+        {
+            trouble ??= $"the records could not be built: {ex.Message}";
+        }
+
+        Raise(nameof(CollectedVisibility));
+        DetailsStatus = Summarise(report, trouble);
+    }
+
+    private string Summarise(string? report, string? trouble)
+    {
+        var sb = new StringBuilder();
+
+        sb.Append(_collected.Count == 0
+            ? "None of the displays could be read."
+            : $"{_collected[0].Title} read, and nothing has been sent.");
+
+        if (report is not null) sb.Append($" The full report is at {report}.");
+        if (trouble is not null) sb.Append($" One thing went wrong — {trouble}.");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// The text that would be published, exactly as it would be published.
+    /// </summary>
+    /// <remarks>
+    /// Shown in full rather than summarised. Someone deciding whether to publish
+    /// a record of their hardware is entitled to read the record, and a dialog
+    /// saying "device details will be sent" asks them to take it on trust.
+    /// <para>
+    /// Each monitor's record stands on its own, under its own heading, because
+    /// that is how they are submitted and how the device folder is organised.
+    /// </para>
+    /// </remarks>
+    public string CollectedText
+    {
+        get
+        {
+            var sb = new StringBuilder();
+
+            foreach (Contribution c in _collected)
+            {
+                if (sb.Length > 0) sb.AppendLine().AppendLine();
+                sb.AppendLine(c.Body.TrimEnd());
+            }
+
+            return sb.ToString();
         }
     }
 
-    /// <summary>Opens the prepared issue for review. The person still presses Submit.</summary>
-    public void OpenContribution(Contribution contribution)
+    /// <summary>
+    /// Opens one prefilled issue per monitor. The person still presses Submit.
+    /// </summary>
+    /// <remarks>
+    /// One issue for the desk, titled with every display on it. Per monitor came
+    /// first, on the reasoning that a record describes a model - and it produced
+    /// a browser tab per monitor, every one of them empty, because a record that
+    /// carries the full report is always past the length GitHub takes in a link.
+    /// The per-model files are still written, so the folder can be filled from
+    /// the issue.
+    /// <para>
+    /// Opening a form is not submitting one. There is no token in this
+    /// application and it makes no request: the browser shows the exact text and
+    /// the person presses Submit there, or closes the tab.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// The one record that must be pasted by hand, for the caller to put on the
+    /// clipboard, or null when every record prefilled.
+    /// </returns>
+    public string? Submit()
     {
-        ContributeStatus = DeviceContribution.Open(contribution)
-            ? "Opened in your browser. Review it there, then press Submit."
-            : $"Could not open a browser. The text is saved at {contribution.Path}.";
+        if (_collected.Count == 0) return null;
+
+        Contribution desk = _collected[0];
+
+        if (!DeviceContribution.Open(desk))
+        {
+            DetailsStatus = "No browser would open. The record is saved at "
+                + $"{desk.Path}, ready to paste in at github.com/{DeviceContribution.Repository}.";
+            return null;
+        }
+
+        // A record carrying the whole report is always past the length GitHub
+        // takes in a link, so the form opens with a title and an empty body and
+        // the text goes on the clipboard. Always, not only when one record is
+        // over-long: that condition is what left two empty forms and an
+        // untouched clipboard.
+        if (desk.Prefilled)
+        {
+            DetailsStatus = "The issue is open in your browser, filled in. Read it through and press "
+                + "Submit there — nothing has left this PC yet.";
+            return null;
+        }
+
+        DetailsStatus = "The issue is open in your browser with the body empty — it is far too long "
+            + "for GitHub to take in a link. The whole text is on your clipboard: press Ctrl+V in the "
+            + $"body, read it through, then press Submit. It is also saved at {desk.Path}.";
+
+        return desk.Body;
     }
+
+    public static string ReportPath => DisplayReport.Path_;
 
     public static string ContributeFolder => DeviceContribution.Folder;
 
@@ -511,6 +666,56 @@ public sealed class MainViewModel : INotifyPropertyChanged
             // before the floor above existed.
             if (value && Night.Strength < MinStrength) Night.Strength = new NightLightSettings().Strength;
 
+            Persist();
+            Raise();
+            RaiseNightLight();
+            ApplyNightLightPreview();
+        }
+    }
+
+    /// <summary>
+    /// Windows' dark mode, read from the system rather than remembered here.
+    /// </summary>
+    /// <remarks>
+    /// There is no DisplCtrl copy of this and there should not be: dark mode
+    /// belongs to Windows, and a second stored answer could disagree with it.
+    /// Reading it live is what keeps the switch honest whatever changed it —
+    /// this page, Windows' own Settings, or a theme.
+    /// <para>
+    /// The app sets no <c>RequestedTheme</c>, so it follows the system like any
+    /// other app, and flipping this repaints DisplCtrl along with the desktop.
+    /// </para>
+    /// </remarks>
+    public bool DarkMode
+    {
+        get => WindowsTheme.IsDark ?? false;
+        set
+        {
+            if ((WindowsTheme.IsDark ?? false) == value) return;
+
+            WindowsTheme.SetDark(value);
+            Raise();
+        }
+    }
+
+    /// <summary>Re-reads dark mode, for when something outside this app changed it.</summary>
+    public void RaiseTheme() => Raise(nameof(DarkMode));
+
+    /// <summary>
+    /// Treat this toggle and Windows' own night light as one switch.
+    /// </summary>
+    /// <remarks>
+    /// With it on, Windows does the warming and DisplCtrl stops writing a warm
+    /// ramp of its own — one ramp, one writer. Switching it off hands the ramp
+    /// back, which is what per-display and calibrated warmth need.
+    /// </remarks>
+    public bool NightLightFollowsWindows
+    {
+        get => Night.FollowWindows;
+        set
+        {
+            if (Night.FollowWindows == value) return;
+            Night.FollowWindows = value;
             Persist();
             Raise();
             RaiseNightLight();
@@ -731,7 +936,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Night.Enabled && Night.Scheduled ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Warmth as a colour temperature, which is how it is normally described.</summary>
-    public string NightLightStrengthText => $"{Night.Strength}%  ·  {NightLight.KelvinFor(Night.Strength):0}K";
+    /// <summary>What the strength slider spans, which depends on who is warming.</summary>
+    /// <remarks>
+    /// The gamma clamp is DisplCtrl's limit, not Windows', so quoting it while
+    /// Windows is doing the warming would explain a restriction that is not in
+    /// force and understate how warm the slider actually goes.
+    /// </remarks>
+    public string NightLightStrengthDetail => Night.FollowWindows
+        ? "How far towards warm. Windows applies this, and runs the whole desk from 6500K down to 1200K."
+        : "How far towards warm. The top of the slider is as warm as Windows will accept a gamma change; past that it refuses the ramp outright.";
+
+    /// <summary>The warmth as a percentage, and the temperature it lands on.</summary>
+    /// <remarks>
+    /// The two scales do not agree, so the figure has to follow whichever is
+    /// actually doing the warming: Windows runs 6500K to 1200K, DisplCtrl 6500K to
+    /// 3300K, or to 1900K with the clamp lifted. The same percentage is a
+    /// different colour on each, and quoting the wrong one would make the panel
+    /// state a temperature the screen is not at.
+    /// </remarks>
+    public string NightLightStrengthText
+    {
+        get
+        {
+            double kelvin = Night.FollowWindows
+                ? WindowsNightLight.KelvinFor(Night.Strength)
+                : NightLight.KelvinFor(Night.Strength);
+
+            return $"{Night.Strength}%  ·  {kelvin:0}K";
+        }
+    }
 
     /// <summary>Whether the warmth is in force right now, and why or why not.</summary>
     public string NightLightStatus
@@ -783,6 +1016,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Raise(nameof(NightLightSharedVisibility));
         Raise(nameof(NightLightScheduleVisibility));
         Raise(nameof(NightLightStrengthText));
+        Raise(nameof(NightLightStrengthDetail));
         Raise(nameof(NightLightStatus));
         Raise(nameof(NightLightCalibrateVisibility));
         Raise(nameof(CalibratingWarmth));
@@ -1222,6 +1456,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         foreach (MonitorSettings ms in _settings.Monitors.Values) ms.ResetToDefaults();
         Persist();
         ReloadFromDisk();
+        RaiseProtectionSettings();
     }
 
     // ------------------------------------------------------------- tuning --

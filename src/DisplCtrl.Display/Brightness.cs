@@ -42,8 +42,13 @@ public static class Brightness
     public static BrightnessRange Read(DisplayInfo display) =>
         display.IsInternal ? ReadInternal() : ReadDdc(display);
 
-    public static bool Write(DisplayInfo display, uint value) =>
-        display.IsInternal ? WriteInternal(value) : WriteDdc(display, value);
+    public static bool Write(DisplayInfo display, uint value)
+    {
+        using var stateChange = new DisplayStateChange();
+        MonitorCapabilities.InvalidateValues(display);
+        try { return display.IsInternal ? WriteInternal(value) : WriteDdc(display, value); }
+        finally { MonitorCapabilities.InvalidateValues(display); }
+    }
 
     // ---------------------------------------------------------- internal --
 

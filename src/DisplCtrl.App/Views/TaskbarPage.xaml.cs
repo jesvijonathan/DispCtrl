@@ -24,4 +24,13 @@ public sealed partial class TaskbarPage : Page
     public TaskbarPage() => InitializeComponent();
 
     private void OnRestorePolling(object sender, RoutedEventArgs e) => ViewModel.RestorePolling();
+
+    private void OnResetTaskbarSurface(object sender, RoutedEventArgs e) => ViewModel.ResetTaskbarSurface();
+
+    private void OnResetTaskbarFeatures(object sender, RoutedEventArgs e) => ViewModel.ResetTaskbarFeatures();
+
+    private void OnResetTaskbarBehaviour(object sender, RoutedEventArgs e) => ViewModel.ResetTaskbarBehaviour();
+
+    private async void OnWindowsTaskbar(object sender, RoutedEventArgs e) =>
+        await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:taskbar"));
 }

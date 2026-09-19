@@ -10,9 +10,20 @@ using DisplCtrl.Display.Presets;
 namespace DisplCtrl.App.ViewModels;
 
 /// <summary>One app rule, as the list on the Presets page edits it.</summary>
-public sealed class AppRuleViewModel(AppRule rule, Action persist) : INotifyPropertyChanged
+public sealed class AppRuleViewModel(AppRule rule, Action persist, ObservableCollection<string> names) : INotifyPropertyChanged
 {
     public AppRule Rule { get; } = rule;
+    public ObservableCollection<string> PresetNames { get; } = names;
+    public bool RestorePrevious
+    {
+        get => Rule.RestorePrevious;
+        set { Rule.RestorePrevious = value; persist(); Raise(); Raise(nameof(Summary)); }
+    }
+    public double DwellSeconds
+    {
+        get => Rule.DwellSeconds;
+        set { Rule.DwellSeconds = double.IsFinite(value) ? Math.Clamp(value, 0.5, 60) : 2; persist(); Raise(); }
+    }
 
     public string Process
     {
@@ -23,7 +34,7 @@ public sealed class AppRuleViewModel(AppRule rule, Action persist) : INotifyProp
     public string Preset
     {
         get => Rule.Preset;
-        set { Rule.Preset = value; persist(); Raise(); Raise(nameof(Summary)); }
+        set { if (value is null) return; Rule.Preset = value; persist(); Raise(); Raise(nameof(Summary)); }
     }
 
     public string RevertTo
@@ -31,6 +42,7 @@ public sealed class AppRuleViewModel(AppRule rule, Action persist) : INotifyProp
         get => Rule.RevertTo ?? "";
         set
         {
+            if (value is null) return; // Ignore selection teardown during collection refresh.
             Rule.RevertTo = string.IsNullOrWhiteSpace(value) ? null : value;
             persist();
             Raise();
@@ -50,6 +62,8 @@ public sealed class AppRuleViewModel(AppRule rule, Action persist) : INotifyProp
         {
             if (!Rule.IsComplete) return "Incomplete — needs an app and a preset.";
 
+            if (!PresetNames.Contains(Rule.Preset)) return "The selected preset is missing. Choose an existing preset.";
+            if (Rule.RestorePrevious) return $"Use “{Rule.Preset}” while {Rule.Process} is in front, then restore the previous setup.";
             string back = string.IsNullOrWhiteSpace(Rule.RevertTo)
                 ? "and stays there afterwards"
                 : $"then back to “{Rule.RevertTo}”";
@@ -72,6 +86,8 @@ public sealed class AppRuleViewModel(AppRule rule, Action persist) : INotifyProp
 /// Save and Discard both one press away. That is the whole idea — a preset you
 /// have to remember to re-save is one that silently goes stale.
 /// </remarks>
+public sealed record PresetScopeChoice(string? Token, string Label);
+
 public sealed class PresetsViewModel : INotifyPropertyChanged
 {
     /// <summary>
@@ -124,10 +140,33 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     public const string NewEntry = "New preset\u2026";
 
     public ObservableCollection<string> Names { get; } = [];
+    public ObservableCollection<string> PresetNames { get; } = [];
+    public ObservableCollection<PresetScopeChoice> CaptureScopes { get; } = [];
+    public PresetScopeChoice? CaptureScope { get; set; }
+    public bool IsBusy { get; private set; }
+    public bool CanEdit => !IsBusy;
+    public bool LastOperationOk { get; private set; } = true;
+    public string SelectedJson => Current is { } p ? PresetStore.ToJson(p) : "";
+    public IReadOnlyList<DisplayInfo> AvailableDisplays => _displays();
+    public Preset? SelectedPreset => Current;
+
+    private async Task<string> RunAsync(Func<Task<string>> action)
+    {
+        if (!DisplCtrl.Core.FeatureFlags.Presets) return "Presets are disabled in this build.";
+        if (IsBusy) return "A preset operation is already running.";
+        IsBusy = true;
+        Raise(nameof(CanEdit));
+        LastOperationOk = true;
+        try { return await action(); }
+        catch (Exception ex) { LastOperationOk = false; return $"Preset operation failed: {ex.Message}"; }
+        finally { IsBusy = false; Raise(nameof(CanEdit)); RefreshDrift(); }
+    }
     public ObservableCollection<AppRuleViewModel> Rules { get; } = [];
 
     private readonly List<Preset> _presets = [];
+    private readonly Dictionary<string, Preset> _byName = new(StringComparer.Ordinal);
     private string? _selected;
+    private bool _reloading;
     private string _status = "";
     private List<PresetChange> _differences = [];
 
@@ -135,10 +174,21 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     public void Reload()
     {
+        if (!DisplCtrl.Core.FeatureFlags.Presets) return;
+        _reloading = true;
         _presets.Clear();
         _presets.AddRange(PresetStore.Load());
+        _byName.Clear();
+        foreach (Preset preset in _presets) _byName[preset.Name] = preset;
 
         Names.Clear();
+        PresetNames.Clear();
+        string? captureToken = CaptureScope?.Token;
+        CaptureScopes.Clear();
+        CaptureScopes.Add(new(null, "Whole desk"));
+        foreach (var display in _displays()) CaptureScopes.Add(new(display.Token, display.Label));
+        CaptureScope = CaptureScopes.FirstOrDefault(choice => choice.Token == captureToken) ?? CaptureScopes[0];
+        Raise(nameof(CaptureScope));
         foreach (Preset p in _presets)
         {
             // A preset file literally named after the sentinel would otherwise
@@ -146,6 +196,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             // a new one". Only reachable by creating the file by hand.
             if (p.Name == NewEntry) continue;
             Names.Add(p.Name);
+            PresetNames.Add(p.Name);
         }
 
         Names.Add(NewEntry);
@@ -154,9 +205,12 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         _selected ??= _presets.Count > 0 ? _presets[0].Name : NewEntry;
 
         Rules.Clear();
-        foreach (AppRule r in _settings.AppRules) Rules.Add(new AppRuleViewModel(r, _persist));
+        foreach (AppRule r in _settings.AppRules) Rules.Add(new AppRuleViewModel(r, _persist, PresetNames));
 
+        _reloading = false;
         Raise(nameof(Selected));
+        Raise(nameof(Details));
+        Raise(nameof(RulesEmptyVisibility));
         Raise(nameof(HasPresets));
         Raise(nameof(EmptyVisibility));
         Raise(nameof(PresetVisibility));
@@ -242,32 +296,21 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         get => _selected;
         set
         {
-            if (_selected == value) return;
+            if (_reloading || _selected == value) return;
             _selected = value;
             Raise();
             RefreshDrift();
-                Raise(nameof(Details));
+            Raise(nameof(Details));
             Raise(nameof(Creating));
             Raise(nameof(CreatingVisibility));
             Raise(nameof(ExistingVisibility));
-        Raise(nameof(ActionVisibility));
             Raise(nameof(ActionVisibility));
             Raise(nameof(SaveButtonText));
         }
     }
 
-    private Preset? Current
-    {
-        get
-        {
-            if (_selected is null || _selected == NewEntry) return null;
-
-            foreach (Preset p in _presets)
-                if (p.Name == _selected) return p;
-
-            return null;
-        }
-    }
+    private Preset? Current => _selected is not null && _selected != NewEntry
+        && _byName.TryGetValue(_selected, out Preset? preset) ? preset : null;
 
     // --------------------------------------------------------------- drift --
 
@@ -293,6 +336,8 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     /// </remarks>
     public async Task RefreshDriftAsync()
     {
+        if (!DisplCtrl.Core.FeatureFlags.Presets) return;
+        if (IsBusy) return;
         if (_checking)
         {
             _checkAgain = true;
@@ -326,13 +371,16 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             return;
         }
 
-        DisplCtrlSettings settings = _settings;
+        // Snapshot settings on the UI thread; background reads must not race slider edits.
+        DisplCtrlSettings settings = System.Text.Json.JsonSerializer.Deserialize(
+            System.Text.Json.JsonSerializer.Serialize(_settings, SettingsJsonContext.Default.DisplCtrlSettings),
+            SettingsJsonContext.Default.DisplCtrlSettings)!;
         IReadOnlyList<DisplayInfo> displays = _displays();
 
         try
         {
             Preset live = await Task.Run(
-                () => PresetService.Capture(saved.Name, displays, settings)).ConfigureAwait(true);
+                () => PresetService.Capture(saved.Name, displays, settings, useCache: true)).ConfigureAwait(true);
 
             // The selection can change while a slow capture is in flight, and
             // reporting the old preset's drift against the new one would be
@@ -386,8 +434,14 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     private void RaiseDrift()
     {
         // Mutated in place rather than replaced, so an open flyout survives.
-        Changes.Clear();
-        foreach (PresetChange c in _differences) Changes.Add(c);
+        // Preserve existing rows and bindings when the comparison has not changed.
+        if (!Changes.SequenceEqual(_differences))
+        {
+            for (int i = 0; i < _differences.Count; i++)
+                if (i >= Changes.Count) Changes.Add(_differences[i]);
+                else if (Changes[i] != _differences[i]) Changes[i] = _differences[i];
+            while (Changes.Count > _differences.Count) Changes.RemoveAt(Changes.Count - 1);
+        }
 
         Raise(nameof(DriftTooltip));
         Raise(nameof(DriftCount));
@@ -401,7 +455,9 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     // ------------------------------------------------------------- actions --
 
     /// <summary>Writes the selected preset onto the desk.</summary>
-    public async Task<string> ApplyAsync()
+    public Task<string> ApplyAsync() => RunAsync(ApplyCoreAsync);
+
+    private async Task<string> ApplyCoreAsync()
     {
         if (Current is not Preset preset) return "No preset selected.";
 
@@ -409,12 +465,13 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         IReadOnlyList<DisplayInfo> displays = _displays();
 
         PresetResult result = await Task.Run(() => PresetService.Apply(preset, displays, settings));
-        _persist();
+        if (result.Attempted) SettingsStore.Save(PresetSettings.Merge(preset, settings, SettingsStore.Load()));
 
         _refreshDisplays();
         RefreshDrift();
 
-        if (!result.Ok) return string.Join("  ", result.Notes);
+        LastOperationOk = result.Ok;
+        if (!result.Ok) return "Not fully restored: " + string.Join("  ", result.Notes);
 
         return result.Notes.Count == 0
             ? $"Applied “{preset.Name}”."
@@ -427,7 +484,9 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     /// display's hardware, and a Save button that freezes the window for half a
     /// second reads as the app having hung.
     /// </remarks>
-    public async Task<string> SaveAsync()
+    public Task<string> SaveAsync() => RunAsync(SaveCoreAsync);
+
+    private async Task<string> SaveCoreAsync()
     {
         if (Current is not Preset preset) return "No preset selected.";
 
@@ -435,7 +494,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
         // The description belongs to the preset, not to the desk, so it
         // survives a re-capture.
-        fresh.Description = preset.Description;
+        fresh = PresetValidation.RetainScope(fresh, preset);
 
         PresetStore.Save(fresh);
         Reload();
@@ -464,16 +523,21 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     private Task<Preset> CaptureAsync(string name)
     {
-        DisplCtrlSettings settings = _settings;
+        DisplCtrlSettings settings = System.Text.Json.JsonSerializer.Deserialize(
+            System.Text.Json.JsonSerializer.Serialize(_settings, SettingsJsonContext.Default.DisplCtrlSettings),
+            SettingsJsonContext.Default.DisplCtrlSettings)!;
         IReadOnlyList<DisplayInfo> displays = _displays();
 
         return Task.Run(() => PresetService.Capture(name, displays, settings));
     }
 
     /// <summary>Captures the desk under a new name.</summary>
-    public async Task<string> SaveAsAsync(string name)
+    public Task<string> SaveAsAsync(string name) => RunAsync(() => SaveAsCoreAsync(name));
+
+    private async Task<string> SaveAsCoreAsync(string name)
     {
-        name = name.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return "Give the preset a name first.";
+        name = Path.GetFileNameWithoutExtension(PresetStore.PathFor(name.Trim()));
         if (name.Length == 0) return "Give the preset a name first.";
 
         if (name == NewEntry) return "That name is reserved. Pick another.";
@@ -484,7 +548,17 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         if (Names.Contains(name) || PresetStore.Exists(name))
             return $"“{name}” already exists — pick another name, or use Save to overwrite it.";
 
-        PresetStore.Save(await CaptureAsync(name).ConfigureAwait(true));
+        string? monitorToken = CaptureScope?.Token;
+        Preset fresh = await CaptureAsync(name).ConfigureAwait(true);
+        if (monitorToken is not null)
+        {
+            fresh.IncludeGlobal = false;
+            fresh.IncludeLayout = false;
+            foreach (string token in fresh.Monitors.Keys.Where(token => token != monitorToken).ToList())
+                fresh.Monitors.Remove(token);
+            if (fresh.Monitors.Count == 0) return "The selected display is no longer attached.";
+        }
+        PresetStore.Save(fresh);
         Reload();
         Selected = name;
 
@@ -494,11 +568,15 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     /// <summary>Puts the desk back to the selected preset, discarding the drift.</summary>
     public Task<string> DiscardAsync() => ApplyAsync();
 
-    public string Rename(string name)
+    public string Rename(string name) => RunFileAction(() => RenameCore(name));
+
+    private string RenameCore(string name)
     {
+        if (IsBusy) return "Wait for the preset operation to finish.";
         if (Current is not Preset preset) return "No preset selected.";
 
-        name = name.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return "Give the preset a name first.";
+        name = Path.GetFileNameWithoutExtension(PresetStore.PathFor(name.Trim()));
         if (name.Length == 0) return "Give the preset a name first.";
         if (name == preset.Name) return "That is already its name.";
         if (name == NewEntry) return "That name is reserved. Pick another.";
@@ -511,25 +589,43 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             return $"“{name}” already exists.";
         }
 
-        PresetStore.Rename(preset.Name, name);
+        string oldName = preset.Name;
+        PresetStore.Rename(oldName, name);
+        foreach (AppRule rule in _settings.AppRules)
+        {
+            if (PresetStore.SameFile(rule.Preset, oldName)) rule.Preset = name;
+            if (rule.RevertTo is not null && PresetStore.SameFile(rule.RevertTo, oldName)) rule.RevertTo = name;
+        }
+        _persist();
         Reload();
         Selected = name;
 
         return $"Renamed to “{name}”.";
     }
 
-    public string Delete()
+    public string Delete() => RunFileAction(() => DeleteCore());
+
+    private string DeleteCore()
     {
+        if (IsBusy) return "Wait for the preset operation to finish.";
         if (Current is not Preset preset) return "No preset selected.";
 
         PresetStore.Delete(preset.Name);
+        foreach (AppRule rule in _settings.AppRules)
+        {
+            if (PresetStore.SameFile(rule.Preset, preset.Name)) rule.Enabled = false;
+            if (rule.RevertTo is not null && PresetStore.SameFile(rule.RevertTo, preset.Name)) rule.RevertTo = null;
+        }
+        _persist();
         _selected = null;
         Reload();
 
         return $"Deleted “{preset.Name}”.";
     }
 
-    public string Export(string destination)
+    public string Export(string destination) => RunFileAction(() => ExportCore(destination));
+
+    private string ExportCore(string destination)
     {
         if (Current is not Preset preset) return "No preset selected.";
 
@@ -537,7 +633,9 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         return $"Exported to {destination}.";
     }
 
-    public string Import(string source)
+    public string Import(string source) => RunFileAction(() => ImportCore(source));
+
+    private string ImportCore(string source)
     {
         string? name = PresetStore.Import(source);
         if (name is null) return "That file is not a preset DisplCtrl can read.";
@@ -546,6 +644,41 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         Selected = name;
 
         return $"Imported as “{name}”.";
+    }
+
+    private string RunFileAction(Func<string> action)
+    {
+        if (!DisplCtrl.Core.FeatureFlags.Presets) return "Presets are disabled in this build.";
+        if (IsBusy) return "Wait for the preset operation to finish.";
+        try { LastOperationOk = true; return action(); }
+        catch (Exception ex) { LastOperationOk = false; return ex.Message; }
+    }
+
+    public string SaveJson(string json)
+    {
+        if (Current is not { } current) return "No preset selected.";
+        Preset edited = PresetStore.Parse(json);
+        // Renaming is a separate operation so app-rule references stay valid.
+        edited.Name = current.Name;
+        PresetStore.Save(edited);
+        Reload();
+        return "Saved preset values. Apply to restore them to the displays.";
+    }
+
+    public string MapDisplays(IReadOnlyDictionary<string, string> mapping)
+    {
+        if (Current is not { } current) return "No preset selected.";
+        Preset mapped = PresetStore.Parse(PresetStore.ToJson(current));
+        var states = new Dictionary<string, PresetMonitor>();
+        foreach (var (token, state) in mapped.Monitors)
+        {
+            string target = mapping.TryGetValue(token, out string? replacement) ? replacement : token;
+            if (!states.TryAdd(target, state)) throw new FormatException("Choose a different target for each saved display.");
+        }
+        mapped.Monitors = states;
+        PresetStore.Save(mapped);
+        Reload();
+        return "Display mapping saved. Review the values before applying to different hardware.";
     }
 
     public static string Folder => PresetStore.Directory;
@@ -571,7 +704,10 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
                 lines.Add($"{m.Label ?? token} — {m.Width} x {m.Height}{rate} at {m.X},{m.Y}{primary}  ({state})");
             }
 
-            return lines.Count == 0 ? "This preset has no monitors in it." : string.Join("\n", lines);
+            string scope = preset.IncludeGlobal ? "Whole desk" : "Selected displays only";
+            string notes = preset.CaptureNotes.Count == 0 ? "" : "\nCapture notes: " + string.Join("; ", preset.CaptureNotes);
+            return scope + (preset.IncludeLayout ? " · restores layout" : " · keeps the current layout")
+                + "\n" + string.Join("\n", lines) + notes;
         }
     }
 
@@ -579,11 +715,11 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     public void AddRule()
     {
-        var rule = new AppRule();
+        var rule = new AppRule { RestorePrevious = true, Preset = Current?.Name ?? "" };
         _settings.AppRules.Add(rule);
         _persist();
 
-        Rules.Add(new AppRuleViewModel(rule, _persist));
+        Rules.Add(new AppRuleViewModel(rule, _persist, PresetNames));
         Raise(nameof(RulesEmptyVisibility));
     }
 

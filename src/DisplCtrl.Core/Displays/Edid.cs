@@ -151,6 +151,15 @@ public static class Edid
         return blob is null || blob.Length < 128 ? null : ReadDescriptorString(blob, 0xFC);
     }
 
+    /// <summary>The raw blob Windows has cached for a display, if any.</summary>
+    /// <remarks>
+    /// For <see cref="EdidReader"/>, which decodes the whole of it. <b>Never
+    /// publish this.</b> Bytes 12-15 and descriptor 0xFF carry the unit's serial
+    /// number, and a hex dump of them matches none of the patterns
+    /// <c>Redact.Scrub</c> looks for — the scrub would pass it straight through.
+    /// </remarks>
+    public static byte[]? Raw(string devicePath) => ReadBlob(devicePath);
+
     private static byte[]? ReadBlob(string devicePath)
     {
         string? sub = ToEnumSubKey(devicePath);

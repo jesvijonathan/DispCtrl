@@ -43,6 +43,13 @@ timeEndPeriod
 // on a timer cannot slow anything else down.
 GetWindowThreadProcessId
 
+// ---- Windows' own night light ----
+// Its state lives in a registry value, and polling for it would make a toggle
+// pressed in Quick Settings take up to a tick to show here. The key signals
+// instead, so the two switches move together.
+RegNotifyChangeKeyValue
+REG_NOTIFY_FILTER
+
 // ---- global hotkeys ----
 // WM_HOTKEY goes to the queue of the thread that registered it, and the engine
 // polls rather than pumping, so the hotkey service owns a thread of its own.
@@ -56,3 +63,41 @@ HOT_KEY_MODIFIERS
 WM_HOTKEY
 WM_APP
 WM_QUIT
+
+// ---- tray icon ----
+// The panel is summoned from the notification area, which needs a real window
+// to receive the callback: Shell_NotifyIcon posts to an HWND, not to a thread.
+// Hidden and top-level rather than message-only, because Explorer restarting
+// broadcasts TaskbarCreated and a message-only window does not hear broadcasts.
+Shell_NotifyIcon
+NOTIFYICONDATAW
+NOTIFY_ICON_MESSAGE
+NOTIFY_ICON_DATA_FLAGS
+RegisterClassEx
+UnregisterClass
+WNDCLASSEXW
+CreateWindowEx
+DestroyWindow
+DefWindowProc
+DispatchMessage
+TranslateMessage
+RegisterWindowMessage
+GetModuleHandle
+ExtractIconEx
+DestroyIcon
+PostMessage
+SetForegroundWindow
+WINDOW_EX_STYLE
+WINDOW_STYLE
+CreatePopupMenu
+AppendMenu
+TrackPopupMenu
+DestroyMenu
+MENU_ITEM_FLAGS
+TRACK_POPUP_MENU_FLAGS
+WM_LBUTTONUP
+WM_RBUTTONUP
+WM_CONTEXTMENU
+WM_COMMAND
+WM_DESTROY
+WM_CLOSE

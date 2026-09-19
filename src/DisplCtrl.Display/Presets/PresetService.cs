@@ -1,4 +1,5 @@
 using DisplCtrl.Core.Displays;
+using DisplCtrl.Core.Caching;
 using DisplCtrl.Core.Presets;
 using DisplCtrl.Core.Settings;
 
@@ -11,9 +12,9 @@ namespace DisplCtrl.Display.Presets;
 /// own. Collapsing that to one boolean would throw away the only information
 /// the user can act on.
 /// </remarks>
-public sealed record PresetResult(bool Ok, List<string> Notes)
+public sealed record PresetResult(bool Ok, List<string> Notes, bool Attempted = true)
 {
-    public static PresetResult Nothing(string why) => new(false, [why]);
+    public static PresetResult Nothing(string why) => new(false, [why], false);
 }
 
 /// <summary>
@@ -27,6 +28,18 @@ public sealed record PresetResult(bool Ok, List<string> Notes)
 /// </remarks>
 public static class PresetService
 {
+    private readonly record struct HardwareKey(string Token, string Path, nint Handle, DisplayRect Bounds,
+        uint Dpi, uint Rate, int Orientation, bool Primary);
+    private static readonly BoundedCache<HardwareKey, PresetMonitor> Hardware = new(32);
+    public static void InvalidateHardware() => Hardware.Clear();
+    public static event Action? HardwareChanged;
+    internal static void NotifyHardwareChanged()
+    {
+        Hardware.Clear();
+        MonitorCapabilities.InvalidateAllValues();
+        HardwareChanged?.Invoke();
+    }
+
     /// <summary>Takes a snapshot of the desk as it is right now.</summary>
     /// <remarks>
     /// Everything, with no filter: what a preset holds is what applying it
@@ -36,7 +49,7 @@ public static class PresetService
     /// Blocks on DDC/CI, so not from the UI thread.
     /// </para>
     /// </remarks>
-    public static Preset Capture(string name, IReadOnlyList<DisplayInfo> displays, DisplCtrlSettings settings)
+    public static Preset Capture(string name, IReadOnlyList<DisplayInfo> displays, DisplCtrlSettings settings, bool useCache = false)
     {
         NightLightSettings night = settings.Global.NightLight;
 
@@ -72,24 +85,48 @@ public static class PresetService
             },
         };
 
-        foreach (DisplayInfo d in displays)
+        var states = new PresetMonitor[displays.Count];
+        Parallel.For(0, displays.Count, new ParallelOptions { MaxDegreeOfParallelism = 4 }, i =>
         {
+            DisplayInfo d = displays[i];
+            var key = new HardwareKey(d.Token, d.Key.DevicePath, d.Handle, d.Bounds, d.Dpi,
+                d.RefreshHz, d.OrientationDegrees, d.IsPrimary);
+            if (!useCache) Hardware.Remove(key);
+            states[i] = Hardware.Get(key, TimeSpan.FromSeconds(5), () => ReadHardware(d, useCache)).Copy();
+        });
+        for (int i = 0; i < displays.Count; i++)
+        {
+            DisplayInfo d = displays[i];
             MonitorSettings ms = settings.For(d.Token);
-            BrightnessRange brightness = Brightness.Read(d);
-            HdrState hdr = AdvancedDisplay.ReadHdr(d);
-            ScalingState scaling = AdvancedDisplay.ReadScaling(d);
+            PresetMonitor state = states[i];
+            state.CustomLabel = ms.Label;
+            state.NightLightStrength = ms.NightLightStrength;
+            state.NightLightFloor = ms.NightLightFloor;
+            state.NightLightCeiling = ms.NightLightCeiling;
+            state.BrightnessBaseline = ms.BrightnessBaseline;
+            state.BrightnessFloor = ms.BrightnessFloor;
+            state.BrightnessCeiling = ms.BrightnessCeiling;
+            state.SoftwareBrightness = ms.SoftwareBrightness;
+            state.IsOled = ms.IsOled;
+            state.HideTaskbar = ms.HideTaskbar;
+            state.ReclaimWorkArea = ms.ReclaimWorkArea;
+            if (state.Brightness < 0) preset.CaptureNotes.Add($"{d.Label}: hardware brightness unavailable.");
+            if (state.ScalePercent == 0) preset.CaptureNotes.Add($"{d.Label}: scaling unavailable.");
+            preset.Monitors[d.Token] = state;
+        }
 
-            string? profile = null;
-            try
-            {
-                profile = DisplayDetails.Read(d).ColorProfile;
-            }
-            catch (Exception)
-            {
-                // Recorded for the reader, never applied. Not worth failing over.
-            }
+        return preset;
+    }
 
-            preset.Monitors[d.Token] = new PresetMonitor
+    private static PresetMonitor ReadHardware(DisplayInfo d, bool useCache)
+    {
+        BrightnessRange brightness = Brightness.Read(d);
+        HdrState hdr = AdvancedDisplay.ReadHdr(d);
+        ScalingState scaling = AdvancedDisplay.ReadScaling(d);
+        string? profile = null;
+        try { profile = ColorProfile.ReadName(d) ?? "System default"; }
+        catch (Exception) { }
+        return new PresetMonitor
             {
                 Label = d.Label,
                 Model = d.Key.Model,
@@ -109,22 +146,9 @@ public static class PresetService
                 OrientationDegrees = d.OrientationDegrees,
                 Hdr = hdr.Enabled,
                 Brightness = brightness.Supported ? (int)brightness.Current : -1,
-                NightLightStrength = ms.NightLightStrength,
-                NightLightFloor = ms.NightLightFloor,
-                NightLightCeiling = ms.NightLightCeiling,
-                BrightnessBaseline = ms.BrightnessBaseline,
-                BrightnessFloor = ms.BrightnessFloor,
-                BrightnessCeiling = ms.BrightnessCeiling,
                 WallpaperPath = Wallpaper.Read(d),
-                SoftwareBrightness = ms.SoftwareBrightness,
-                IsOled = ms.IsOled,
-                HideTaskbar = ms.HideTaskbar,
-                ReclaimWorkArea = ms.ReclaimWorkArea,
-                MonitorControls = CaptureMonitorControls(d),
+                MonitorControls = CaptureMonitorControls(d, useCache),
             };
-        }
-
-        return preset;
     }
 
     /// <summary>
@@ -161,14 +185,14 @@ public static class PresetService
     /// <summary>VCP 10h, which brightness already owns.</summary>
     private const byte BrightnessCode = 0x10;
 
-    private static Dictionary<string, int> CaptureMonitorControls(DisplayInfo display)
+    private static Dictionary<string, int> CaptureMonitorControls(DisplayInfo display, bool useCache)
     {
         var result = new Dictionary<string, int>();
         if (display.IsInternal) return result;
 
         try
         {
-            foreach (VcpControl c in MonitorCapabilities.ReadSettable(display).Controls)
+            foreach (VcpControl c in MonitorCapabilities.ReadSettable(display, useCache).Controls)
             {
                 if (!c.Settable || c.CurrentValue < 0) continue;
 
@@ -234,48 +258,78 @@ public static class PresetService
     /// </remarks>
     public static PresetResult Apply(Preset preset, IReadOnlyList<DisplayInfo> displays, DisplCtrlSettings settings)
     {
+        if (!DisplCtrl.Core.FeatureFlags.Presets)
+            return PresetResult.Nothing("Presets are an unavailable beta feature in this build.");
+        try { PresetValidation.Validate(preset); }
+        catch (FormatException ex) { return PresetResult.Nothing(ex.Message); }
+        using var gate = new Mutex(false, @"Local\DisplCtrl.PresetApply");
+        bool acquired;
+        try { acquired = gate.WaitOne(0); }
+        catch (AbandonedMutexException) { acquired = true; }
+        if (!acquired) return PresetResult.Nothing("Another preset is being applied. Try again when it finishes.");
+        InvalidateHardware();
+        try { return ApplyCore(preset, settings); }
+        catch (Exception ex) { return new PresetResult(false, [$"Preset application stopped: {ex.Message}"]); }
+        finally { InvalidateHardware(); gate.ReleaseMutex(); }
+    }
+
+    private static PresetResult ApplyCore(Preset preset, DisplCtrlSettings settings)
+    {
         var notes = new List<string>();
-
-        // Matched by token, so a preset follows the physical panel across
-        // replugs rather than landing on whatever holds that slot today.
-        var matched = new List<(DisplayInfo Display, PresetMonitor State)>();
-        foreach (DisplayInfo d in displays)
-            if (preset.Monitors.TryGetValue(d.Token, out PresetMonitor? m)) matched.Add((d, m));
-
-        if (matched.Count == 0)
-            return new PresetResult(false, ["None of this preset's displays are attached."]);
-
-        int missing = preset.Monitors.Count - matched.Count;
-        if (missing > 0) notes.Add($"{missing} display(s) in this preset are not attached, and were skipped.");
-
-        // Order matters. Arrangement and modes blank the screen, so they go
-        // first and everything else lands on the layout the preset asked for
-        // rather than on the one being replaced.
-        ApplyArrangement(preset, displays, matched, notes);
-        ApplyModes(matched, notes);
-        ApplyHdr(matched, notes);
-        ApplyVrr(preset, notes);
-        ApplyBrightness(preset, matched, settings, notes);
-        ApplyNightLight(preset, matched, settings);
-        ApplyWallpaper(preset, matched, notes);
-        ApplyTaskbar(matched, settings);
-        ApplyTaskbarBehaviour(preset, settings);
-        ApplyMonitorControls(matched, notes);
-
-        return new PresetResult(true, notes);
+        void Step(string label, Action work)
+        {
+            try { work(); }
+            catch (Exception ex) { notes.Add($"{label}: {ex.Message}"); }
+        }
+        IReadOnlyList<DisplayInfo> displays = DisplayRegistry.Enumerate();
+        if (preset.IncludeLayout)
+            Step("Topology", () =>
+            {
+                if (Enum.TryParse(preset.Global.Topology, out DesktopArrangement topology)
+                    && topology.ToString() != CurrentTopology(displays) && !DesktopLayout.Apply(topology))
+                    notes.Add($"Windows refused the {topology} topology.");
+            });
+        // A topology change invalidates HMONITOR handles and can enable previously absent panels.
+        displays = DisplayRegistry.Enumerate();
+        List<(DisplayInfo Display, PresetMonitor State)> Match() => displays
+            .Where(d => preset.Monitors.ContainsKey(d.Token)).Select(d => (d, preset.Monitors[d.Token])).ToList();
+        var matched = Match();
+        if (matched.Count == 0) return new PresetResult(false, ["None of this preset's displays are attached. Use Map displays to choose targets."]);
+        foreach (string token in preset.Monitors.Keys.Where(token => !matched.Any(pair => pair.Display.Token == token)))
+            notes.Add($"{preset.Monitors[token].Label ?? token}: display is missing; its values were not restored.");
+        // Modes determine rectangle sizes. Positions are restored after those sizes are final.
+        foreach (var pair in matched)
+            Step(pair.Display.Label, () => ApplyModes([pair], notes));
+        displays = DisplayRegistry.Enumerate();
+        matched = Match();
+        if (preset.IncludeLayout && preset.Global.Topology != "Duplicate") Step("Layout", () => ApplyArrangement(preset, displays, matched, notes));
+        displays = DisplayRegistry.Enumerate();
+        matched = Match();
+        if (preset.IncludeGlobal) Step("Variable refresh", () => ApplyVrr(preset, notes));
+        foreach (var pair in matched)
+        {
+            Step(pair.Display.Label + " HDR", () => ApplyHdr([pair], notes));
+            Step(pair.Display.Label + " monitor controls", () => ApplyMonitorControls([pair], notes));
+            Step(pair.Display.Label + " brightness", () => ApplyBrightness(preset, [pair], settings, notes));
+            Step(pair.Display.Label + " warmth", () => ApplyNightLight(preset, [pair], settings));
+            Step(pair.Display.Label + " wallpaper", () => ApplyWallpaper(preset, [pair], notes));
+            ApplyTaskbar(preset, [pair], settings);
+            Step(pair.Display.Label + " input and power", () => ApplyMonitorControls([pair], notes, disruptive: true));
+        }
+        if (preset.IncludeGlobal) ApplyTaskbarBehaviour(preset, settings);
+        Step("Verification", () =>
+        {
+            Preset live = Capture("Verification", DisplayRegistry.Enumerate(), settings);
+            foreach (PresetChange difference in PresetDiff.Describe(preset, live))
+                notes.Add("Not restored: " + difference.Line);
+        });
+        return new PresetResult(notes.Count == 0, notes.Distinct().ToList());
     }
 
     private static void ApplyArrangement(Preset preset, IReadOnlyList<DisplayInfo> displays,
                                          List<(DisplayInfo Display, PresetMonitor State)> matched,
                                          List<string> notes)
     {
-        if (Enum.TryParse(preset.Global.Topology, out DesktopArrangement topology)
-            && topology.ToString() != CurrentTopology(displays)
-            && !DesktopLayout.Apply(topology))
-        {
-            notes.Add($"Windows refused the {topology} topology.");
-        }
-
         // Primary first, then positions. The desktop origin *is* the primary
         // display's top-left, so promoting a display re-bases every other
         // display's coordinates — positions written before it came out shifted
@@ -291,6 +345,9 @@ public static class PresetService
         var positions = new Dictionary<string, (int X, int Y)>(matched.Count);
         foreach ((DisplayInfo d, PresetMonitor m) in matched) positions[d.Token] = (m.X, m.Y);
 
+        displays = DisplayRegistry.Enumerate();
+        if (matched.All(pair => positions[pair.Display.Token] == (pair.Display.Bounds.Left, pair.Display.Bounds.Top))
+            && matched.All(pair => pair.State.Primary == pair.Display.IsPrimary)) return;
         if (!DisplayArrangement.SetPositions(positions, displays, out string? why))
             notes.Add($"Arrangement not applied — {why}.");
     }
@@ -299,7 +356,17 @@ public static class PresetService
     {
         foreach ((DisplayInfo d, PresetMonitor m) in matched)
         {
-            bool sizeDiffers = m.Width > 0 && (m.Width != d.Bounds.Width || m.Height != d.Bounds.Height);
+            // Orientation was captured but never written, so a rotated display
+            // silently came back the wrong way up. The scope text promised it.
+            if (m.OrientationDegrees != d.OrientationDegrees)
+            {
+                var wanted = (ScreenOrientation)((m.OrientationDegrees / 90) % 4);
+                if (!DisplayArrangement.SetOrientation(d, wanted))
+                    notes.Add($"{d.Label}: could not rotate to {m.OrientationDegrees} degrees.");
+            }
+
+            DisplayMode? currentMode = DisplayModes.Current(d.GdiName);
+            bool sizeDiffers = m.Width > 0 && (m.Width != currentMode?.Width || m.Height != currentMode?.Height);
 
             if (sizeDiffers)
             {
@@ -321,19 +388,11 @@ public static class PresetService
                     notes.Add($"{d.Label}: {m.RefreshHz} Hz was refused.");
             }
 
-            // Orientation was captured but never written, so a rotated display
-            // silently came back the wrong way up. The scope text promised it.
-            if (m.OrientationDegrees != d.OrientationDegrees)
-            {
-                var wanted = (ScreenOrientation)((m.OrientationDegrees / 90) % 4);
-                if (!DisplayArrangement.SetOrientation(d, wanted))
-                    notes.Add($"{d.Label}: could not rotate to {m.OrientationDegrees} degrees.");
-            }
-
             if (m.ScalePercent <= 0) continue;
 
             ScalingState scaling = AdvancedDisplay.ReadScaling(d);
-            if (!scaling.Supported || scaling.Current == m.ScalePercent) continue;
+            if (!scaling.Supported) { notes.Add($"{d.Label}: scaling is unavailable."); continue; }
+            if (scaling.Current == m.ScalePercent) continue;
 
             if (!AdvancedDisplay.WriteScaling(d, m.ScalePercent))
                 notes.Add($"{d.Label}: {m.ScalePercent}% scaling was refused.");
@@ -345,7 +404,8 @@ public static class PresetService
         foreach ((DisplayInfo d, PresetMonitor m) in matched)
         {
             HdrState state = AdvancedDisplay.ReadHdr(d);
-            if (!state.Supported || state.Enabled == m.Hdr) continue;
+            if (!state.Supported) { if (m.Hdr) notes.Add($"{d.Label}: HDR is unavailable."); continue; }
+            if (state.Enabled == m.Hdr) continue;
 
             if (!AdvancedDisplay.WriteHdr(d, m.Hdr))
                 notes.Add($"{d.Label}: HDR could not be switched {(m.Hdr ? "on" : "off")}.");
@@ -355,9 +415,12 @@ public static class PresetService
     private static void ApplyBrightness(Preset preset, List<(DisplayInfo Display, PresetMonitor State)> matched,
                                         DisplCtrlSettings settings, List<string> notes)
     {
+        if (preset.IncludeGlobal)
+        {
         settings.Global.UnisonBrightness = preset.Global.UnisonBrightness;
         settings.Global.UnisonLevel = preset.Global.UnisonLevel;
         settings.Global.UnisonCalibrated = preset.Global.UnisonCalibrated;
+        }
 
         foreach ((DisplayInfo d, PresetMonitor m) in matched)
         {
@@ -367,9 +430,7 @@ public static class PresetService
             ms.BrightnessCeiling = m.BrightnessCeiling;
             ms.SoftwareBrightness = m.SoftwareBrightness;
 
-            // Only when the preset has an opinion. A preset saved before anyone
-            // marked the panel must not un-mark it.
-            if (m.IsOled is not null) ms.IsOled = m.IsOled;
+            if (preset.Version >= 3 || m.IsOled is not null) ms.IsOled = m.IsOled;
 
             if (m.Brightness < 0) continue;
 
@@ -427,6 +488,8 @@ public static class PresetService
     {
         NightLightSettings n = settings.Global.NightLight;
 
+        if (preset.IncludeGlobal)
+        {
         n.Enabled = preset.Global.NightLightEnabled;
         n.Strength = preset.Global.NightLightStrength;
         n.Unison = preset.Global.NightLightUnison;
@@ -434,6 +497,7 @@ public static class PresetService
         n.Scheduled = preset.Global.NightLightScheduled;
         n.FromMinutes = preset.Global.NightLightFrom;
         n.ToMinutes = preset.Global.NightLightTo;
+        }
 
         foreach ((DisplayInfo d, PresetMonitor m) in matched)
         {
@@ -447,7 +511,8 @@ public static class PresetService
     private static void ApplyWallpaper(Preset preset, List<(DisplayInfo Display, PresetMonitor State)> matched,
                                        List<string> notes)
     {
-        _ = Wallpaper.WriteFit((WallpaperFit)preset.Global.WallpaperFit);
+        if (preset.IncludeGlobal && !Wallpaper.WriteFit((WallpaperFit)preset.Global.WallpaperFit))
+            notes.Add("Wallpaper fit could not be restored.");
 
         foreach ((DisplayInfo d, PresetMonitor m) in matched)
         {
@@ -474,11 +539,13 @@ public static class PresetService
     /// traffic at all.
     /// </remarks>
     private static void ApplyMonitorControls(List<(DisplayInfo Display, PresetMonitor State)> matched,
-                                             List<string> notes)
+                                             List<string> notes, bool disruptive = false)
     {
         foreach ((DisplayInfo d, PresetMonitor m) in matched)
         {
             if (m.MonitorControls.Count == 0 || d.IsInternal) continue;
+            if (!m.MonitorControls.Keys.Any(hex => TryParseCode(hex, out byte code)
+                && code != BrightnessCode && disruptive == (code is 0x60 or 0xD6))) continue;
 
             Dictionary<byte, int> live = [];
             try
@@ -492,17 +559,19 @@ public static class PresetService
                 continue;
             }
 
-            foreach ((string hex, int want) in m.MonitorControls)
+            foreach ((string hex, int want) in m.MonitorControls.OrderBy(pair =>
+                TryParseCode(pair.Key, out byte c) ? c switch { 0xDC => -2, 0x14 => -1, 0x60 => 1000, 0xD6 => 1001, _ => c } : 0))
             {
                 if (!TryParseCode(hex, out byte code)) continue;
 
                 // Presets written before brightness was excluded still name it.
-                if (code == BrightnessCode) continue;
+                if (code == BrightnessCode || disruptive != (code is 0x60 or 0xD6)) continue;
 
                 // Only controls the monitor still offers. A preset from another
                 // machine, or from before a firmware change, can name codes this
                 // panel does not have.
-                if (!live.TryGetValue(code, out int have)) continue;
+                if (!live.TryGetValue(code, out int have))
+                { notes.Add($"{d.Label}: control {hex} is unavailable; value {want} was not restored."); continue; }
                 if (have == want) continue;
 
                 if (!MonitorCapabilities.Write(d, code, (uint)want))
@@ -519,11 +588,12 @@ public static class PresetService
         return byte.TryParse(text, System.Globalization.NumberStyles.HexNumber, null, out code);
     }
 
-    private static void ApplyTaskbar(List<(DisplayInfo Display, PresetMonitor State)> matched, DisplCtrlSettings settings)
+    private static void ApplyTaskbar(Preset preset, List<(DisplayInfo Display, PresetMonitor State)> matched, DisplCtrlSettings settings)
     {
         foreach ((DisplayInfo d, PresetMonitor m) in matched)
         {
             MonitorSettings ms = settings.For(d.Token);
+            if (preset.Version >= 3) ms.Label = m.CustomLabel;
             ms.HideTaskbar = m.HideTaskbar;
             ms.ReclaimWorkArea = m.ReclaimWorkArea;
         }

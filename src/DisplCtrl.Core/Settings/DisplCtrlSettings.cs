@@ -99,6 +99,19 @@ public sealed class DisplCtrlSettings
 
 public sealed class GlobalSettings
 {
+    public FocusSettings Focus { get; set; } = new();
+    public OledCareSettings OledCare { get; set; } = new();
+
+    /// <summary>The tray icon and what its panel shows.</summary>
+    public QuickPanelSettings QuickPanel { get; set; } = new();
+    /// <summary>Whole taskbar opacity, including icons. 100 leaves Explorer untouched.</summary>
+    public int TaskbarOpacity { get; set; } = 100;
+    /// <summary>Use Explorer's compositor-backed XAML taskbar blur.</summary>
+    public bool TaskbarGlassEnabled { get; set; }
+    /// <summary>Gaussian blur radius in XAML/compositor pixels.</summary>
+    public int TaskbarGlassRadius { get; set; } = 36;
+    /// <summary>Dark acrylic tint opacity applied after blur.</summary>
+    public int TaskbarGlassTint { get; set; } = 8;
     /// <summary>How long the bar stays out after the cursor leaves.</summary>
     public int HideDelayMs { get; set; } = 350;
 
@@ -181,6 +194,13 @@ public sealed class GlobalSettings
     {
         var fresh = new GlobalSettings();
 
+        Focus = new();
+        OledCare = new();
+        TaskbarOpacity = fresh.TaskbarOpacity;
+        TaskbarGlassEnabled = fresh.TaskbarGlassEnabled;
+        TaskbarGlassRadius = fresh.TaskbarGlassRadius;
+        TaskbarGlassTint = fresh.TaskbarGlassTint;
+
         HideDelayMs = fresh.HideDelayMs;
         AnimMs = fresh.AnimMs;
         RevealPx = fresh.RevealPx;
@@ -235,6 +255,29 @@ public sealed class NightLightSettings
     /// position has to mean different numbers on each to look like one desk.
     /// </remarks>
     public bool Calibrated { get; set; }
+
+    /// <summary>
+    /// Keep this toggle and Windows' own night light as one setting.
+    /// </summary>
+    /// <remarks>
+    /// With this on, the two are the same switch: turning night light on here
+    /// turns Windows' on, and using Windows' own toggle — in Settings or the
+    /// Quick Settings flyout — moves this one. The strength travels with it.
+    /// <para>
+    /// Windows then does the warming, and DisplCtrl stops writing a warm ramp of
+    /// its own. That is not a detail: a display has one gamma ramp, and two
+    /// things warming it at once is both twice as orange as either asked for and
+    /// the exact arrangement that once left the screens permanently tinted.
+    /// Delegating means there is only ever one writer.
+    /// </para>
+    /// <para>
+    /// The cost is the warmth DisplCtrl can reach that Windows cannot: per-display
+    /// warmth, calibrated warmth, and anything below Windows' own floor of
+    /// 1200K. Switch this off to get those back and have DisplCtrl own the ramp
+    /// again.
+    /// </para>
+    /// </remarks>
+    public bool FollowWindows { get; set; } = true;
 
     /// <summary>Only warm between <see cref="FromMinutes"/> and <see cref="ToMinutes"/>.</summary>
     /// <remarks>
@@ -302,6 +345,13 @@ public sealed class AppRule
     /// </summary>
     public string? RevertTo { get; set; }
 
+    /// <summary>Restore an in-memory snapshot when leaving this app.</summary>
+    public bool RestorePrevious { get; set; }
+
+    /// <summary>Seconds the app must remain foreground before switching.</summary>
+    public double DwellSeconds { get; set; } = 2;
+
+
     /// <summary>True when the rule has both halves filled in.</summary>
     [JsonIgnore]
     public bool IsComplete =>
@@ -333,8 +383,8 @@ public sealed class MonitorSettings
     public bool HideTaskbar { get; set; }
 
     /// <summary>
-    /// Expand this monitor's work area to the full panel once its bar is
-    /// hidden, so maximized windows fill the screen.
+    /// Expand this monitor's work area to the full panel while its taskbar
+    /// is managed. Revealing the bar overlays maximized windows without resizing them.
     /// </summary>
     public bool ReclaimWorkArea { get; set; } = true;
 
@@ -422,6 +472,22 @@ public sealed class MonitorSettings
     /// </para>
     /// </remarks>
     public bool? IsOled { get; set; }
+    /// <summary>Last reported panel technology, so the engine never polls DDC for protection.</summary>
+    public bool OledDetected { get; set; }
+    public bool OledProtection { get; set; } = true;
+
+    /// <summary>Whether focus dimming touches this display at all.</summary>
+    /// <remarks>
+    /// Separate from the shared "dim other monitors" switch, which is about
+    /// where the active window is rather than about the panel. A display that
+    /// should never be dimmed - a second screen holding a video, a reference
+    /// monitor - is a property of that display, so it is set on the display.
+    /// </remarks>
+    public bool FocusDimming { get; set; } = true;
+    /// <summary>Temporary screen-rest request consumed by the engine.</summary>
+    public DateTimeOffset? OledRestUntilUtc { get; set; }
+    [JsonIgnore]
+    public bool TreatAsOled => IsOled ?? OledDetected;
 
     [JsonIgnore]
     public bool ManagesTaskbar => HideTaskbar;
@@ -440,6 +506,9 @@ public sealed class MonitorSettings
         NightLightFloor = fresh.NightLightFloor;
         NightLightCeiling = fresh.NightLightCeiling;
         IsOled = fresh.IsOled;
+        OledProtection = fresh.OledProtection;
+        FocusDimming = fresh.FocusDimming;
+        OledRestUntilUtc = null;
         SoftwareBrightness = fresh.SoftwareBrightness;
         // Label is descriptive, not a setting; keeping it leaves the file readable.
     }

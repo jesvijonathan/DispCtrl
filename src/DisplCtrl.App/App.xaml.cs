@@ -12,6 +12,8 @@ public partial class App : Application
     /// ambient parent window the way UWP did.
     /// </summary>
     public static Window MainWindow { get; private set; } = null!;
+    public static bool HasMainWindow => MainWindow is not null;
+    public static void ShowMainWindow() => MainWindow?.Activate();
 
     /// <summary>
     /// The one view model, shared by every page.

@@ -47,8 +47,10 @@ dispctrl contribute --display 2 --open
 until you press Submit there. The same text is saved to
 `%LOCALAPPDATA%\DisplCtrl\devices\` either way.
 
-The panel has the same thing under **Displays → Help DisplCtrl support more
-monitors**, which shows the full text before it opens anything.
+The panel has the same thing under **Displays → Send monitor details**:
+**Collect** reads every attached monitor, **View** shows the full text, and
+**Submit** opens one prefilled issue per monitor. Nothing is sent until you
+press Submit in the browser.
 
 There is no access token in DisplCtrl and it makes no network requests. A token
 shipped inside an application is a token handed to everyone who installs it,

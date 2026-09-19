@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DisplCtrl.Core.Caching;
 using System.Text.Json.Serialization;
 using DisplCtrl.Core.Settings;
 
@@ -7,6 +8,8 @@ namespace DisplCtrl.Core.Presets;
 /// <summary>Source-generated JSON for presets. See <c>SettingsJsonContext</c>.</summary>
 [JsonSourceGenerationOptions(
     WriteIndented = true,
+    AllowTrailingCommas = true,
+    ReadCommentHandling = JsonCommentHandling.Skip,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     UseStringEnumConverter = true)]
@@ -24,6 +27,8 @@ public partial class PresetJsonContext : JsonSerializerContext;
 /// </remarks>
 public static class PresetStore
 {
+    private static readonly BoundedCache<(string Path, long Modified, long Length, long Created), Preset> Cache = new(128);
+
     public static string Directory { get; } = Path.Combine(SettingsStore.Directory, "presets");
 
     /// <summary>Every preset on disk, by name.</summary>
@@ -52,21 +57,37 @@ public static class PresetStore
     {
         try
         {
-            string json = File.ReadAllText(path);
-            Preset? p = JsonSerializer.Deserialize(json, PresetJsonContext.Default.Preset);
-            if (p is null) return null;
-
-            // A file renamed on disk should win over the name inside it, so
-            // what the folder shows and what the app shows never disagree.
-            string stem = Path.GetFileNameWithoutExtension(path);
-            if (!string.IsNullOrWhiteSpace(stem)) p.Name = stem;
-
-            return p;
+            var file = new FileInfo(path);
+            if (!file.Exists) return null;
+            var key = (file.FullName.ToUpperInvariant(), file.LastWriteTimeUtc.Ticks, file.Length, file.CreationTimeUtc.Ticks);
+            Preset cached = Cache.Get(key, TimeSpan.FromSeconds(2), () =>
+            {
+                Preset p = Parse(File.ReadAllText(file.FullName));
+                p.Name = Path.GetFileNameWithoutExtension(file.FullName);
+                return p;
+            });
+            // The store's cached graph is never exposed to mutable callers.
+            return cached.Copy();
         }
         catch (Exception)
         {
             return null;
         }
+    }
+
+    public static string ToJson(Preset preset) => JsonSerializer.Serialize(preset, PresetJsonContext.Default.Preset);
+
+    public static Preset Parse(string json)
+    {
+        using var document = JsonDocument.Parse(json, new JsonDocumentOptions
+        { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+        if (document.RootElement.ValueKind != JsonValueKind.Object
+            || !document.RootElement.TryGetProperty("monitors", out _))
+            throw new FormatException("A preset must contain a monitors object.");
+        Preset p = document.RootElement.Deserialize(PresetJsonContext.Default.Preset)
+            ?? throw new FormatException("The preset is empty.");
+        PresetValidation.Validate(p);
+        return p;
     }
 
     public static string PathFor(string name) => Path.Combine(Directory, FileName(name));
@@ -88,6 +109,7 @@ public static class PresetStore
 
     public static void Save(Preset preset)
     {
+        PresetValidation.Validate(preset);
         System.IO.Directory.CreateDirectory(Directory);
         preset.SavedUtc = DateTimeOffset.UtcNow;
 
@@ -97,16 +119,18 @@ public static class PresetStore
         // full disk mid-write leaves the previous preset intact rather than a
         // truncated file that will not parse.
         string target = PathFor(preset.Name);
-        string temp = target + ".tmp";
+        string temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
 
         File.WriteAllText(temp, json);
         File.Move(temp, target, overwrite: true);
+        Cache.Clear();
     }
 
     public static void Delete(string name)
     {
         string path = PathFor(name);
         if (File.Exists(path)) File.Delete(path);
+        Cache.Clear();
     }
 
     /// <remarks>
@@ -120,6 +144,7 @@ public static class PresetStore
         Preset? p = Read(PathFor(from));
         if (p is null) return;
 
+        if (!SameFile(from, to) && Exists(to)) throw new IOException("A preset with that name already exists.");
         p.Name = to;
         Save(p);
 

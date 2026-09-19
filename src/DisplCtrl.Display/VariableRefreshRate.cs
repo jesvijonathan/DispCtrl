@@ -76,6 +76,7 @@ public static class VariableRefreshRate
     /// </remarks>
     public static bool SetEnabled(bool enabled)
     {
+        using var stateChange = new DisplayStateChange();
         try
         {
             using RegistryKey key = Registry.CurrentUser.CreateSubKey(GpuPreferencesKey);

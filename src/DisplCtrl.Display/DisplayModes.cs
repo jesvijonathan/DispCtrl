@@ -94,6 +94,7 @@ public static class DisplayModes
     /// </remarks>
     public static unsafe ModeChangeResult Apply(string gdiName, DisplayMode target)
     {
+        using var stateChange = new DisplayStateChange();
         if (!TryEnumCurrent(gdiName, out DEVMODEW dm)) return ModeChangeResult.Failed;
 
         bool rateOnly = dm.dmPelsWidth == target.Width && dm.dmPelsHeight == target.Height;

@@ -508,6 +508,8 @@ public static class CommandLine
 
     private static int Preset(string[] args)
     {
+        if (!DisplCtrl.Core.FeatureFlags.Presets)
+            return Fail("Presets are an unavailable beta feature in this build.");
         string? action = Positional(args);
         if (action is null) return Usage("preset needs list, apply, save or delete");
 
@@ -783,12 +785,7 @@ public static class CommandLine
           refresh [<hz>]
           primary [<n|token>]
 
-        Presets
-          preset list
-          preset apply  <name>
-          preset save   <name>
-          preset delete <name>
-
+        Diagnostics
           report                   write the display report, print its path
 
         Contributing
@@ -813,7 +810,6 @@ public static class CommandLine
           dispctrl brightness -10 --all
           dispctrl nightlight 60 --from 20:00 --to 07:00
           dispctrl input "DisplayPort 1" --display 2
-          dispctrl preset apply Evening
           dispctrl contribute --display 2 --open
         """;
 

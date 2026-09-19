@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml;
+using DisplCtrl.App.Services;
 
 namespace DisplCtrl.App.Views;
 
@@ -14,4 +16,9 @@ public sealed partial class AboutPage : Page
     public string OsVersion => $"{Environment.OSVersion.Version} ({RuntimeInformation.OSArchitecture})";
 
     public AboutPage() => InitializeComponent();
+
+    private void OnWebsite(object sender, RoutedEventArgs e) => ProjectLinks.Open(ProjectLinks.Website);
+    private void OnAuthorGitHub(object sender, RoutedEventArgs e) => ProjectLinks.Open(ProjectLinks.AuthorGitHub);
+    private void OnRepository(object sender, RoutedEventArgs e) => ProjectLinks.Open(ProjectLinks.Repository);
+    private void OnSponsor(object sender, RoutedEventArgs e) => ProjectLinks.Open(ProjectLinks.Sponsor);
 }

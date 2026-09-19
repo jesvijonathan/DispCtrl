@@ -88,4 +88,12 @@
     <ProjectReference Include="..\DisplCtrl.Display\DisplCtrl.Display.csproj" />
   </ItemGroup>
 
+  <Target Name="BuildTaskbarGlassBridge" AfterTargets="Build">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\native\DisplCtrl.TaskbarGlass\build.ps1&quot; -OutputDirectory &quot;$(TargetDir)taskbar-glass&quot;" />
+  </Target>
+
+  <Target Name="BuildTaskbarGlassBridgeForPublish" AfterTargets="Publish">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\native\DisplCtrl.TaskbarGlass\build.ps1&quot; -OutputDirectory &quot;$(PublishDir)taskbar-glass&quot;" />
+  </Target>
+
 </Project>

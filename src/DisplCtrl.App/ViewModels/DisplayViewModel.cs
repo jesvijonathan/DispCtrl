@@ -75,7 +75,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         // are slow enough to stall the window visibly if done inline. Mode
         // enumeration alone walks every mode the driver reports, which is 163
         // on the external monitor this was built against.
-        _ = LoadEverythingAsync();
+        ReadingsReady = LoadEverythingAsync();
     }
 
     /// <summary>
@@ -87,8 +87,17 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// time is what keeps the window responsive while a second monitor's
     /// DDC/CI channel takes its time answering.
     /// </remarks>
+    public Task ReadingsReady { get; private set; } = Task.CompletedTask;
+    public Task RefreshReadingsAsync()
+    {
+        if (!ReadingsReady.IsCompleted) return ReadingsReady;
+        return ReadingsReady = LoadEverythingAsync();
+    }
+
+    private IReadOnlyDictionary<(uint Width, uint Height), uint[]> _modeRates = new Dictionary<(uint, uint), uint[]>();
     private async Task LoadEverythingAsync()
     {
+        _modesReady = _fitReady = _brightnessReady = _hdrReady = _orientationReady = _scalingReady = false;
         DisplayInfo d = _display;
 
         // Started first and awaited last. The information table is the first
@@ -102,15 +111,16 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Task monitorControls = LoadMonitorControlsAsync();
         LoadMachineSettings();
 
-        (List<(uint, uint)> resolutions, DisplayMode? current, string? wallpaper, WallpaperFit fit) =
+        (List<DisplayMode> modes, string? wallpaper, WallpaperFit fit) =
             await Task.Run(() => (
-                DisplayModes.Resolutions(d.GdiName),
-                DisplayModes.Current(d.GdiName),
+                DisplayModes.Available(d.GdiName),
                 Wallpaper.Read(d),
                 Wallpaper.ReadFit())).ConfigureAwait(true);
 
         Resolutions.Clear();
-        foreach ((uint w, uint h) in resolutions) Resolutions.Add($"{w} × {h}");
+        _modeRates = modes.GroupBy(mode => (mode.Width, mode.Height))
+            .ToDictionary(group => group.Key, group => group.Select(mode => mode.RefreshHz).Distinct().Order().ToArray());
+        foreach (var (w, h) in _modeRates.Keys) Resolutions.Add($"{w} × {h}");
 
         _selectedResolution = $"{d.Bounds.Width} × {d.Bounds.Height}";
         PopulateRefreshRates();
@@ -133,9 +143,10 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         _fitReady = true;
         Raise(nameof(SelectedWallpaperFit));
 
+        bool wallpaperChanged = _wallpaperPath != wallpaper;
         _wallpaperPath = wallpaper;
         Raise(nameof(WallpaperName));
-        if (_wallpaperPath is not null && File.Exists(_wallpaperPath))
+        if (wallpaperChanged && _wallpaperPath is not null && File.Exists(_wallpaperPath))
             _ = DecodeWallpaperAsync(_wallpaperPath);
 
         await Task.WhenAll(advanced, brightness, monitorControls);
@@ -152,14 +163,17 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     {
         DisplayInfo d = _display;
 
-        (HdrState hdr, ScalingState scaling, DisplayDetail detail, VrrState vrr) = await Task.Run(
-            () => (AdvancedDisplay.ReadHdr(d), AdvancedDisplay.ReadScaling(d),
-                   DisplayDetails.Read(d), VariableRefreshRate.Read(d)))
+        (HdrState hdr, ScalingState scaling, DisplayDetail detail, VrrState vrr, EdidDetails edid) =
+            await Task.Run(
+                () => (AdvancedDisplay.ReadHdr(d), AdvancedDisplay.ReadScaling(d),
+                       DisplayDetails.Read(d), VariableRefreshRate.Read(d),
+                       EdidReader.Describe(d.Key.DevicePath)))
             .ConfigureAwait(false);
 
         _ui.TryEnqueue(() =>
         {
             _hdrReady = true;
+            _edid = edid;
 
             _vrr = vrr;
             Raise(nameof(VrrEnabled));
@@ -209,7 +223,21 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// <summary>Position in the list, matching the badge shown on the card.</summary>
     public int Number { get; }
 
-    public string Name => _display.Label;
+    /// <summary>
+    /// The display's name, with the machine's model beside it when it is built in.
+    /// </summary>
+    /// <remarks>
+    /// A built-in panel has no name of its own — no DDC/CI, and usually no EDID
+    /// name descriptor either — so "Internal 2880x1800" is all there was, and it
+    /// says nothing about which laptop. The firmware knows: this one is an ASUS
+    /// M7400QC, and that is what someone looking for their own machine would
+    /// recognise.
+    /// </remarks>
+    public string Name => _display.IsInternal && Machine.Model.Length > 0
+        ? $"{_display.Label}  ({Machine.Model})"
+        : _display.Label;
+
+    private static MachineInfo Machine => MachineInfo.Read();
 
     /// <summary>
     /// The one-line summary under the display's name.
@@ -243,9 +271,6 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     public string Token => _display.Token;
 
-    /// <summary>Distinct per display, so a test can name which button it means.</summary>
-    public string ContributeAutomationName => $"Contribute {Number}";
-
     public string ScaleText => $"{_display.Scale * 100:0}%";
 
     public bool IsPrimary => _display.IsPrimary;
@@ -267,7 +292,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// </summary>
     public double PreviewScale { get; set; } = 1.0;
 
-    private const double MaxPreviewWidth = 240;
+    private const double MaxPreviewWidth = 340;
 
     /// <summary>
     /// Preview width. Deliberately the same for every display.
@@ -313,7 +338,27 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         ? $"{_display.PhysicalPpi:0} PPI  ·  Windows renders at {_display.Scale * 100:0}%"
         : $"Windows renders at {_display.Scale * 100:0}%";
 
-    public string PreviewCaption => $"{_display.Bounds.Width} × {_display.Bounds.Height}";
+    /// <summary>
+    /// The essentials beneath the display drawing. Keep these in the same order
+    /// people use to describe a panel: pixels, rate, shape, then physical size.
+    /// </summary>
+    public string PreviewCaption
+    {
+        get
+        {
+            var parts = new List<string>
+            {
+                ResolutionText,
+                RefreshText,
+                AspectRatioText,
+            };
+
+            if (_display.HasPhysicalSize)
+                parts.Add($"{_display.DiagonalInches:0.0}\u2033");
+
+            return string.Join("  |  ", parts);
+        }
+    }
 
     // -------------------------------------------------------------- taskbar --
 
@@ -555,23 +600,12 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     public Visibility ModeStatusVisibility =>
         string.IsNullOrEmpty(_modeStatus) ? Visibility.Collapsed : Visibility.Visible;
 
-    private void LoadModes()
-    {
-        Resolutions.Clear();
-        foreach ((uint w, uint h) in DisplayModes.Resolutions(_display.GdiName))
-            Resolutions.Add($"{w} × {h}");
-
-        _selectedResolution = $"{_display.Bounds.Width} × {_display.Bounds.Height}";
-        PopulateRefreshRates();
-        _selectedRefreshRate = $"{_display.RefreshHz} Hz";
-    }
-
     private void PopulateRefreshRates()
     {
         if (!TryParseResolution(_selectedResolution, out uint w, out uint h)) return;
 
         RefreshRates.Clear();
-        foreach (uint hz in DisplayModes.RefreshRatesAt(_display.GdiName, w, h))
+        foreach (uint hz in _modeRates.TryGetValue((w, h), out uint[]? rates) ? rates : [])
             RefreshRates.Add($"{hz} Hz");
 
         // Keep the current rate selected when it survives the resolution change.
@@ -647,6 +681,16 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     private DisplayDetail _detail = new();
 
+    /// <summary>
+    /// The panel's own EDID, decoded.
+    /// </summary>
+    /// <remarks>
+    /// Read once with the other slow values and kept. It cannot change while the
+    /// monitor is attached at the same path, and it is the only source for most
+    /// of what the information table shows about the panel itself.
+    /// </remarks>
+    private EdidDetails _edid = EdidDetails.None;
+
     public string ActiveSignalMode => _detail.ActiveSignalMode;
     public string DesktopModeText => _detail.DesktopMode;
     public string ColorFormat => _detail.ColorFormat;
@@ -688,6 +732,20 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     public string ResolutionText => $"{_display.Bounds.Width} \u00d7 {_display.Bounds.Height}";
 
+    /// <summary>The current pixel aspect ratio, reduced to the familiar form.</summary>
+    public string AspectRatioText
+    {
+        get
+        {
+            uint width = (uint)Math.Max(0, _display.Bounds.Width);
+            uint height = (uint)Math.Max(0, _display.Bounds.Height);
+            if (width == 0 || height == 0) return "Not reported";
+
+            uint divisor = GreatestCommonDivisor(width, height);
+            return $"{width / divisor}:{height / divisor}";
+        }
+    }
+
     /// <summary>The largest mode this panel offers, which is its native one.</summary>
     public string NativeResolutionText
     {
@@ -701,6 +759,18 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     }
 
     public string RefreshText => $"{_display.RefreshHz} Hz";
+
+    private static uint GreatestCommonDivisor(uint left, uint right)
+    {
+        while (right != 0)
+        {
+            uint remainder = left % right;
+            left = right;
+            right = remainder;
+        }
+
+        return left;
+    }
 
     public string PositionText => $"{_display.Bounds.Left}, {_display.Bounds.Top}";
 
@@ -745,6 +815,166 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         }
     }
 
+    // ------------------------------------------------ what the panel says --
+    // Straight from the EDID. Windows surfaces almost none of this, and several
+    // of them are the only answer there is: when the panel was built, what its
+    // glass actually is, and what it will take on its cable.
+
+    private const string Unstated = "Not stated by the panel";
+
+    /// <summary>The machine a built-in panel is part of, or why the row is blank.</summary>
+    /// <remarks>
+    /// Only meaningful for an internal display: an external monitor is attached
+    /// to this PC, not built into it, and saying "built into an M7400QC" about a
+    /// Dell on the end of a cable would be false.
+    /// </remarks>
+    public string BuiltIntoText
+    {
+        get
+        {
+            if (!_display.IsInternal) return "Not a built-in panel";
+            if (!Machine.Present) return "The firmware does not say";
+
+            string label = Machine.Label;
+            return Machine.BiosVersion.Length > 0
+                ? $"{label}  ·  BIOS {Machine.BiosVersion}"
+                  + (Machine.BiosDate.Length > 0 ? $" ({Machine.BiosDate})" : "")
+                : label;
+        }
+    }
+
+    public string ManufacturerText => !_edid.Present
+        ? Unstated
+        : _edid.ManufacturerName.Length > 0
+            ? $"{_edid.ManufacturerName}  ·  {_edid.ManufacturerCode}"
+            : $"{_edid.ManufacturerCode}  ·  no name on record for this code";
+
+    /// <remarks>
+    /// Week and year, or a model year. EDID 1.4 lets a panel give either, and
+    /// the two say different things: one is when this unit was built, the other
+    /// when the design was current.
+    /// </remarks>
+    public string MadeText => _edid.Present ? _edid.Made : Unstated;
+
+    /// <summary>The free-text descriptor, which is usually the panel's part number.</summary>
+    public string PanelPartText => _edid.FreeText ?? Unstated;
+
+    public string EdidSignalText
+    {
+        get
+        {
+            if (!_edid.Present) return Unstated;
+            if (!_edid.Digital) return $"Analogue  ·  {_edid.AnalogueSignal}";
+
+            var parts = new List<string> { "Digital" };
+            if (_edid.BitsPerColour > 0) parts.Add($"{_edid.BitsPerColour} bits per colour");
+            if (_edid.Interface.Length > 0) parts.Add(_edid.Interface);
+
+            return parts.Count > 1
+                ? string.Join("  ·  ", parts)
+                : "Digital  ·  EDID 1.3 records no depth or interface";
+        }
+    }
+
+    public string ColourEncodingsText =>
+        _edid.Present && _edid.ColourEncodings.Length > 0 ? _edid.ColourEncodings : Unstated;
+
+    public string GammaText => _edid.Gamma > 0 ? $"{_edid.Gamma:0.00}" : Unstated;
+
+    public string SrgbText => _edid.Present ? (_edid.SrgbDefault ? "Yes" : "No") : Unstated;
+
+    public string ContinuousFrequencyText => !_edid.Present
+        ? Unstated
+        : _edid.ContinuousFrequency
+            ? "Yes  ·  accepts rates it was not given"
+            : "No  ·  only the modes it lists";
+
+    public string DpmsText
+    {
+        get
+        {
+            if (!_edid.Present) return Unstated;
+
+            var modes = new List<string>(3);
+            if (_edid.Standby) modes.Add("standby");
+            if (_edid.Suspend) modes.Add("suspend");
+            if (_edid.ActiveOff) modes.Add("active off");
+
+            return modes.Count > 0 ? string.Join(", ", modes) : "None advertised";
+        }
+    }
+
+    /// <summary>The panel's preferred detailed timing, which is its native mode.</summary>
+    public string NativeTimingText =>
+        _edid.DetailedTimings.Count > 0 ? _edid.DetailedTimings[0] : Unstated;
+
+    public string VerticalRangeText =>
+        _edid.MaxVerticalHz > 0 ? $"{_edid.MinVerticalHz}–{_edid.MaxVerticalHz} Hz" : Unstated;
+
+    public string HorizontalRangeText =>
+        _edid.MaxHorizontalKHz > 0 ? $"{_edid.MinHorizontalKHz}–{_edid.MaxHorizontalKHz} kHz" : Unstated;
+
+    public string MaxPixelClockText =>
+        _edid.MaxPixelClockMHz > 0 ? $"{_edid.MaxPixelClockMHz} MHz" : Unstated;
+
+    public string EdidVersionText => _edid.Present
+        ? $"{_edid.Version}  ·  checksum {(_edid.ChecksumValid ? "valid" : "does not add up")}"
+        : "Windows has none cached for this display";
+
+    public string EdidBlocksText => _edid.Present
+        ? $"{_edid.Bytes} bytes  ·  {_edid.Extensions} extension block(s) declared"
+        : Unstated;
+
+    public string DescriptorsText =>
+        _edid.Descriptors.Count > 0 ? string.Join(", ", _edid.Descriptors) : Unstated;
+
+    // ----------------------------------------------- what DDC/CI reports --
+
+    /// <summary>The value a read-only VCP code answered, in words.</summary>
+    private string FromVcp(byte code)
+    {
+        if (_display.IsInternal) return "Built-in panels have no DDC/CI channel";
+        if (!_capabilitiesRead) return "Asking…";
+
+        foreach (VcpControl c in _allControls)
+            if (c.Code == code) return c.Display;
+
+        return "Not reported by this monitor";
+    }
+
+    /// <remarks>
+    /// VCP 0xC9. The only place a monitor states its own firmware level, and the
+    /// thing to quote when a panel misbehaves in a way a later revision fixed.
+    /// </remarks>
+    public string FirmwareText => FromVcp(0xC9);
+
+    public string HoursInUseText => FromVcp(0xC0);
+
+    public string ControllerText => FromVcp(0xC8);
+
+    public string MccsText
+    {
+        get
+        {
+            if (_display.IsInternal) return "Built-in panels have no DDC/CI channel";
+            if (!_capabilitiesRead) return "Asking…";
+
+            return _mccsVersion is { Length: > 0 } v ? v : "Not reported by this monitor";
+        }
+    }
+
+    /// <summary>The low-level DDC/CI opcodes the monitor says it accepts.</summary>
+    public string CommandsText
+    {
+        get
+        {
+            if (_display.IsInternal) return "Built-in panels have no DDC/CI channel";
+            if (!_capabilitiesRead) return "Asking…";
+
+            return _commands.Count > 0 ? string.Join("  ", _commands) : "None listed";
+        }
+    }
+
     /// <summary>Everything above, raised together after a rescan.</summary>
     private void RaiseInformation()
     {
@@ -756,6 +986,8 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(ResolutionText));
         Raise(nameof(NativeResolutionText));
         Raise(nameof(RefreshText));
+        Raise(nameof(AspectRatioText));
+        Raise(nameof(PreviewCaption));
         Raise(nameof(PositionText));
         Raise(nameof(WorkAreaText));
         Raise(nameof(OrientationText));
@@ -768,7 +1000,123 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(ScreenSizeText));
         Raise(nameof(PixelDensityText));
         Raise(nameof(ColorProfileName));
+
+        // The table reads from these, so it is rebuilt by the same signal that
+        // says any of them changed. One raise rather than a row apiece: a value
+        // arriving late is the normal case here, and every field lands in the
+        // same pass anyway.
+        Raise(nameof(Information));
     }
+
+    /// <summary>
+    /// Everything the panel, its EDID and Windows will say about it, as a table.
+    /// </summary>
+    /// <remarks>
+    /// Assembled here rather than written out in markup so that what the copy
+    /// button puts on the clipboard is what the screen shows, by construction.
+    /// The order is the order someone reads it in: what the panel is, how it is
+    /// attached, what it is showing, then the identifiers that only matter when
+    /// something has gone wrong.
+    /// </remarks>
+    public IReadOnlyList<InfoRow> Information =>
+    [
+        InfoRow.Heading("The panel"),
+        InfoRow.Of("Model", ProductName),
+        InfoRow.Of("Manufacturer", ManufacturerText),
+        InfoRow.Of("Manufacturer and product", ModelCode),
+        InfoRow.Identifier("Serial", SerialText),
+        InfoRow.Of("Made", MadeText),
+        InfoRow.Of("Panel part", PanelPartText),
+        InfoRow.Of("Screen size", ScreenSizeText),
+        InfoRow.Of("Pixel density", PixelDensityText),
+        InfoRow.Of("Panel technology", PanelTechnology),
+        InfoRow.Of("Built into", BuiltIntoText),
+        InfoRow.Of("Firmware", FirmwareText),
+        InfoRow.Of("Hours in use", HoursInUseText),
+        InfoRow.Of("Controller", ControllerText),
+
+        InfoRow.Heading("Connection"),
+        InfoRow.Of("Connector", ConnectorText),
+        InfoRow.Of("Panel declares", EdidSignalText),
+        InfoRow.Of("Main display", PrimaryText),
+        InfoRow.Of("Active signal mode", ActiveSignalMode),
+        InfoRow.Of("Pixel clock", PixelClock),
+        InfoRow.Of("Scan type", ScanLineOrdering),
+        InfoRow.Of("DDC/CI", DdcText),
+        InfoRow.Of("MCCS version", MccsText),
+        InfoRow.Of("Low-level commands", CommandsText),
+
+        InfoRow.Heading("Picture"),
+        InfoRow.Of("Resolution", ResolutionText),
+        InfoRow.Of("Aspect ratio", AspectRatioText),
+        InfoRow.Of("Native resolution", NativeResolutionText),
+        InfoRow.Of("Refresh rate", RefreshText),
+        InfoRow.Of("Variable refresh", VrrRangeText),
+        InfoRow.Of("Scaling", DpiText),
+        InfoRow.Of("Orientation", OrientationText),
+        InfoRow.Of("Desktop mode", DesktopModeText),
+
+        InfoRow.Heading("Picture, as the panel describes it"),
+        InfoRow.Of("Native timing", NativeTimingText),
+        InfoRow.Of("Vertical range", VerticalRangeText),
+        InfoRow.Of("Horizontal range", HorizontalRangeText),
+        InfoRow.Of("Max pixel clock", MaxPixelClockText),
+        InfoRow.Of("Continuous frequency", ContinuousFrequencyText),
+        InfoRow.Of("Power saving", DpmsText),
+
+        InfoRow.Heading("Colour"),
+        InfoRow.Of("Bit depth", BitDepth),
+        InfoRow.Of("Colour depth", ColorDepthText),
+        InfoRow.Of("Colour format", ColorFormat),
+        InfoRow.Of("Colour space", ColorSpace),
+        InfoRow.Of("Colour profile", ColorProfileName),
+        InfoRow.Of("HDR status", HdrStatus),
+        InfoRow.Of("Colour encodings", ColourEncodingsText),
+        InfoRow.Of("Gamma", GammaText),
+        InfoRow.Of("sRGB is the default", SrgbText),
+        InfoRow.Of("Red primary", _edid.Red.ToString()),
+        InfoRow.Of("Green primary", _edid.Green.ToString()),
+        InfoRow.Of("Blue primary", _edid.Blue.ToString()),
+        InfoRow.Of("White point", _edid.White.ToString()),
+
+        InfoRow.Heading("Placement"),
+        InfoRow.Of("Position", PositionText),
+        InfoRow.Of("Work area", WorkAreaText),
+
+        InfoRow.Heading("How DisplCtrl knows it"),
+        InfoRow.Identifier("Windows name", WindowsName),
+        InfoRow.Identifier("Identity", Token),
+        InfoRow.Of("EDID version", EdidVersionText),
+        InfoRow.Of("EDID blocks", EdidBlocksText),
+        InfoRow.Of("Descriptor blocks", DescriptorsText),
+    ];
+
+    /// <summary>The whole table as plain text, for the copy button.</summary>
+    /// <remarks>
+    /// Headed by the display's name, because a block of values pasted into a
+    /// message says nothing about which monitor answered them.
+    /// </remarks>
+    public string InformationText
+    {
+        get
+        {
+            var sb = new System.Text.StringBuilder();
+
+            sb.AppendLine($"{Name}  ({Details})");
+            sb.AppendLine();
+
+            foreach (InfoRow row in Information)
+            {
+                if (row.IsSection) sb.AppendLine();
+                sb.AppendLine(row.AsText);
+            }
+
+            return sb.ToString();
+        }
+    }
+
+    /// <summary>Distinct per display, so a test can name which button it means.</summary>
+    public string CopyInfoAutomationName => $"Copy details {Number}";
 
     /// <summary>
     /// The at-a-glance line on the collapsed card.
@@ -1508,6 +1856,21 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     private int _reportedControls;
 
     /// <summary>
+    /// Every control the monitor listed, not only the ones offered as controls.
+    /// </summary>
+    /// <remarks>
+    /// The information table reads firmware level, hours in use and controller
+    /// type out of here. All three are read-only codes, so none of them reaches
+    /// <see cref="MonitorControls"/> — and they are among the most useful things
+    /// a monitor will tell you.
+    /// </remarks>
+    private IReadOnlyList<VcpControl> _allControls = [];
+
+    private string? _mccsVersion;
+
+    private IReadOnlyList<string> _commands = [];
+
+    /// <summary>
     /// Asks the monitor what it supports, once.
     /// </summary>
     /// <remarks>
@@ -1522,7 +1885,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         MonitorCapability cap;
         try
         {
-            cap = await Task.Run(() => MonitorCapabilities.Read(d)).ConfigureAwait(true);
+            cap = await Task.Run(() => MonitorCapabilities.ReadForUi(d)).ConfigureAwait(true);
         }
         catch (Exception)
         {
@@ -1546,6 +1909,9 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         }
 
         _reportedControls = cap.Controls.Count;
+        _allControls = cap.Controls;
+        _mccsVersion = cap.MccsVersion;
+        _commands = cap.Commands;
 
         // VCP B6 is the only thing that ever says what the panel is made of,
         // and only an external monitor can answer it.
@@ -1561,6 +1927,14 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         RaiseInformation();
         Raise(nameof(PanelTechnology));
         Raise(nameof(OledSummary));
+        bool detectedOled = _panelTechnology?.Contains("OLED", StringComparison.OrdinalIgnoreCase) == true;
+        if (_settings.OledDetected != detectedOled && _panelTechnology is not null)
+        {
+            _settings.OledDetected = detectedOled;
+            _persist();
+        }
+        Raise(nameof(IsOled));
+        Raise(nameof(OledProtectionVisibility));
 
         Raise(nameof(MonitorControlsVisibility));
         Raise(nameof(NoMonitorControlsVisibility));
@@ -1639,7 +2013,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// </remarks>
     public bool IsOled
     {
-        get => _settings.IsOled ?? _panelTechnology?.Contains("OLED", StringComparison.OrdinalIgnoreCase) ?? false;
+        get => _settings.TreatAsOled;
         set
         {
             if (IsOled == value) return;
@@ -1647,6 +2021,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             _persist();
             Raise();
             Raise(nameof(OledSummary));
+            Raise(nameof(OledProtectionVisibility));
         }
     }
 
@@ -1663,6 +2038,33 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             return "Nothing reports this. Set it yourself if this panel is OLED \u2014 "
                  + "it is what the burn-in protection will key off.";
         }
+    }
+
+    /// <summary>Whether focus mode may dim this panel at all.</summary>
+    /// <remarks>
+    /// A display, not a mode, so it lives here rather than with the shared focus
+    /// settings: a second screen kept at full brightness for a video should stay
+    /// that way whichever window happens to have focus.
+    /// </remarks>
+    public bool FocusDimming
+    {
+        get => _settings.FocusDimming;
+        set { if (_settings.FocusDimming == value) return; _settings.FocusDimming = value; _persist(); Raise(); }
+    }
+
+    public string FocusDimmingAutomationName => $"FocusDimming {Number}";
+
+    public Visibility OledProtectionVisibility => IsOled ? Visibility.Visible : Visibility.Collapsed;
+    public bool OledProtectionEnabled
+    {
+        get => _settings.OledProtection;
+        set { if (_settings.OledProtection == value) return; _settings.OledProtection = value; _persist(); Raise(); }
+    }
+
+    public void RequestOledRest(int minutes)
+    {
+        _settings.OledRestUntilUtc = DateTimeOffset.UtcNow.AddMinutes(Math.Clamp(minutes, 1, 30));
+        _persist();
     }
 
     /// <summary>Where this display's captured warmth limits stand.</summary>

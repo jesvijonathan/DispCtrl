@@ -2,8 +2,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using DisplCtrl.App.ViewModels;
 using DisplCtrl.Core.Displays;
+using DisplCtrl.Core.Settings;
 using DisplCtrl.Display;
-using DisplCtrl.Display.Devices;
 using WinRT.Interop;
 
 namespace DisplCtrl.App.Views;
@@ -12,12 +12,40 @@ public sealed partial class DisplaysPage : Page
 {
     public MainViewModel ViewModel => App.ViewModel;
 
-    public DisplaysPage() => InitializeComponent();
+    public DisplaysPage()
+    {
+        InitializeComponent();
+
+        // Dark mode is read from Windows rather than stored here, so the switch
+        // has to be told when something else moves it - Windows' own Settings,
+        // a theme, or its sunset schedule. This is the notification WinUI
+        // already raises for exactly that.
+        ActualThemeChanged += (_, _) => ViewModel.RaiseTheme();
+    }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         LoadArrangement();
-        ViewModel.Presets.RefreshDrift();
+        if (ViewModel.PresetsEnabled) ViewModel.Presets.RefreshDrift();
+    }
+
+    private void OnOpenWindowsColours(object sender, RoutedEventArgs e) =>
+        WindowsTheme.OpenSettings();
+
+    private void OnResetFocus(object sender, RoutedEventArgs e) => ViewModel.ResetFocusSettings();
+
+    private void OnResetOled(object sender, RoutedEventArgs e) => ViewModel.ResetOledSettings();
+
+    /// <remarks>
+    /// Tagged rather than read from the DataContext, which is how every other
+    /// per-display button on this page finds its display. The two are the same
+    /// object here, but one of them stays true if this card is ever moved
+    /// inside another template.
+    /// </remarks>
+    private void OnScreenRest(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is DisplayViewModel display)
+            display.RequestOledRest((int)Math.Round(ViewModel.OledRestMinutes));
     }
 
     private async void OnPresetApply(object sender, RoutedEventArgs e) => await RunPreset(sender);
@@ -75,14 +103,22 @@ public sealed partial class DisplaysPage : Page
         ArrangeSurface.Load(displays);
     }
 
-    private async void OnWriteReport(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Reads every display: the report for this PC, and a record per monitor.
+    /// </summary>
+    /// <remarks>
+    /// Disabled while it runs. The sweep is seconds of DDC/CI traffic per
+    /// external panel, and a second press part way through would start a second
+    /// conversation on a channel that serves only one.
+    /// </remarks>
+    private async void OnCollect(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
 
         button.IsEnabled = false;
         try
         {
-            await ViewModel.WriteReportAsync();
+            await ViewModel.CollectAsync();
         }
         finally
         {
@@ -90,52 +126,26 @@ public sealed partial class DisplaysPage : Page
         }
     }
 
-    /// <remarks>
-    /// Written on demand if it is not there yet, so Open never dead-ends on a
-    /// missing file.
-    /// </remarks>
-    private async void OnOpenReport(object sender, RoutedEventArgs e)
-    {
-        if (!File.Exists(MainViewModel.ReportPath)) await ViewModel.WriteReportAsync();
-        if (!File.Exists(MainViewModel.ReportPath)) return;
-
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = MainViewModel.ReportPath,
-            UseShellExecute = true,
-        });
-    }
-
     /// <summary>
-    /// Shows exactly what would be published, then opens it for review.
+    /// Shows exactly what would be published, and nothing but.
     /// </summary>
     /// <remarks>
     /// The text is shown in full rather than summarised. Someone deciding
     /// whether to publish a record of their hardware is entitled to read the
     /// record, and a dialog saying "device details will be sent" asks them to
-    /// take it on trust. The text is selectable, so it can be checked or copied
-    /// before anything leaves the machine.
+    /// take it on trust. It is selectable as well as copyable, so it can be
+    /// checked line by line before anything leaves the machine.
+    /// <para>
+    /// The full local report is offered from here too, because it is the other
+    /// half of what was collected — and it is the half that is never published,
+    /// carrying serials and device paths that the records above do not.
+    /// </para>
     /// </remarks>
-    private async void OnContribute(object sender, RoutedEventArgs e)
+    private async void OnViewDetails(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button button || button.Tag is not string token) return;
-
-        button.IsEnabled = false;
-        Contribution? prepared;
-        try
-        {
-            prepared = await ViewModel.PrepareContributionAsync(token);
-        }
-        finally
-        {
-            button.IsEnabled = true;
-        }
-
-        if (prepared is not { } contribution) return;
-
         var body = new TextBlock
         {
-            Text = contribution.Body,
+            Text = ViewModel.CollectedText,
             IsTextSelectionEnabled = true,
             TextWrapping = TextWrapping.Wrap,
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
@@ -145,43 +155,92 @@ public sealed partial class DisplaysPage : Page
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "Send this to the DisplCtrl project?",
+            Title = "What would be sent, in full",
             Content = new ScrollViewer
             {
                 Content = body,
-                MaxHeight = 420,
+                MaxHeight = 460,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             },
-            PrimaryButtonText = "Review on GitHub",
-            SecondaryButtonText = "Copy",
-            CloseButtonText = "Cancel",
+            PrimaryButtonText = "Copy",
+            SecondaryButtonText = "Open the full report",
+            CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
         };
 
         ContentDialogResult result = await dialog.ShowAsync();
 
-        if (result == ContentDialogResult.Primary)
-        {
-            ViewModel.OpenContribution(contribution);
-        }
-        else if (result == ContentDialogResult.Secondary)
-        {
-            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(contribution.Body);
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-        }
+        if (result == ContentDialogResult.Primary) Copy(ViewModel.CollectedText);
+        else if (result == ContentDialogResult.Secondary) OpenReport();
     }
 
-    private void OnIdentify(object sender, RoutedEventArgs e) => ViewModel.Identify();
-
-    private void OnDetect(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Opens GitHub with the complete report already on the clipboard when the
+    /// report is too large for a prefilled URL.
+    /// </summary>
+    private async void OnSubmitDetails(object sender, RoutedEventArgs e)
     {
-        ViewModel.DetectDisplays();
-        LoadArrangement();
+        if (!ViewModel.SubmissionNeedsPaste)
+        {
+            if (ViewModel.Submit() is { } paste) Copy(paste);
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Paste the full report into GitHub",
+            Content = "The complete report is too large for GitHub to accept in an issue link. "
+                + "Copy it now, then GitHub will open with the correct title. Click the issue body "
+                + "and press Ctrl+V to include the entire report exactly as collected.",
+            PrimaryButtonText = "Copy and open GitHub",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        // Copy before opening the browser. This is both more reliable than a
+        // post-launch copy and makes the full body explicitly visible in the
+        // handoff instead of looking like GitHub received an empty report.
+        Copy(ViewModel.CollectedText);
+        _ = ViewModel.Submit();
+    }
+
+    /// <remarks>
+    /// Nothing is written on demand here: the report only exists because
+    /// Collect wrote it, and this is only reachable from the dialog Collect
+    /// unlocks.
+    /// </remarks>
+    private static void OpenReport()
+    {
+        if (!File.Exists(MainViewModel.ReportPath)) return;
+
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = MainViewModel.ReportPath,
+            UseShellExecute = true,
+        });
+    }
+
+    private void OnCopyInfo(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is DisplayViewModel display)
+            Copy(display.InformationText);
+    }
+
+    private static void Copy(string text)
+    {
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(text);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
     }
 
     private void OnConnectWireless(object sender, RoutedEventArgs e) =>
         MainViewModel.ConnectWirelessDisplay();
+
+    private void OnOpenWindowsNightLight(object sender, RoutedEventArgs e) =>
+        WindowsNightLight.OpenSettings();
 
     private void OnRescan(object sender, RoutedEventArgs e)
     {

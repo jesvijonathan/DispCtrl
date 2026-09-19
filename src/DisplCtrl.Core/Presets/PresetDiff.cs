@@ -44,7 +44,9 @@ public static class PresetDiff
     {
         var diffs = new List<PresetChange>();
 
-        if (saved.Global.Topology != live.Global.Topology)
+        if (saved.IncludeGlobal)
+        {
+        if (saved.IncludeLayout && saved.Global.Topology != live.Global.Topology)
             diffs.Add(new("", "Topology", live.Global.Topology, saved.Global.Topology));
 
         CompareNightLight(saved, live, diffs);
@@ -61,6 +63,7 @@ public static class PresetDiff
         }
 
         CompareTaskbar(saved.Global.Taskbar, live.Global.Taskbar, diffs);
+        }
 
         foreach ((string token, PresetMonitor want) in saved.Monitors)
         {
@@ -69,7 +72,7 @@ public static class PresetDiff
             // reported where the preset is applied.
             if (!live.Monitors.TryGetValue(token, out PresetMonitor? have)) continue;
 
-            CompareMonitor(want.Label ?? token, want, have, diffs);
+            CompareMonitor(want.Label ?? token, want, have, diffs, saved.IncludeLayout, saved.Version >= 3);
         }
 
         return diffs;
@@ -90,9 +93,11 @@ public static class PresetDiff
 
         if (a.NightLightEnabled != b.NightLightEnabled)
             diffs.Add(new("", "Night light", OnOff(b.NightLightEnabled), OnOff(a.NightLightEnabled)));
-        else if (a.NightLightEnabled && a.NightLightStrength != b.NightLightStrength)
+        if (a.NightLightStrength != b.NightLightStrength)
             diffs.Add(new("", "Night light strength", $"{b.NightLightStrength}%", $"{a.NightLightStrength}%"));
 
+        if (a.NightLightCalibrated != b.NightLightCalibrated)
+            diffs.Add(new("", "Night light calibration", OnOff(b.NightLightCalibrated), OnOff(a.NightLightCalibrated)));
         if (a.NightLightUnison != b.NightLightUnison)
         {
             diffs.Add(new("", "Night light mode",
@@ -102,7 +107,7 @@ public static class PresetDiff
 
         if (a.NightLightScheduled != b.NightLightScheduled)
             diffs.Add(new("", "Night light schedule", OnOff(b.NightLightScheduled), OnOff(a.NightLightScheduled)));
-        else if (a.NightLightScheduled && (a.NightLightFrom != b.NightLightFrom || a.NightLightTo != b.NightLightTo))
+        if (a.NightLightFrom != b.NightLightFrom || a.NightLightTo != b.NightLightTo)
             diffs.Add(new("", "Night light hours", Span(b.NightLightFrom, b.NightLightTo), Span(a.NightLightFrom, a.NightLightTo)));
     }
 
@@ -110,9 +115,11 @@ public static class PresetDiff
     {
         PresetGlobal a = saved.Global, b = live.Global;
 
+        if (a.UnisonCalibrated != b.UnisonCalibrated)
+            diffs.Add(new("", "Brightness calibration", OnOff(b.UnisonCalibrated), OnOff(a.UnisonCalibrated)));
         if (a.UnisonBrightness != b.UnisonBrightness)
             diffs.Add(new("", "Unison brightness", OnOff(b.UnisonBrightness), OnOff(a.UnisonBrightness)));
-        else if (a.UnisonBrightness && a.UnisonLevel != b.UnisonLevel)
+        if (a.UnisonLevel != b.UnisonLevel)
             diffs.Add(new("", "Unison level", $"{b.UnisonLevel}%", $"{a.UnisonLevel}%"));
     }
 
@@ -140,12 +147,12 @@ public static class PresetDiff
         }
     }
 
-    private static void CompareMonitor(string name, PresetMonitor want, PresetMonitor have, List<PresetChange> diffs)
+    private static void CompareMonitor(string name, PresetMonitor want, PresetMonitor have, List<PresetChange> diffs, bool layout, bool modern)
     {
-        if (want.X != have.X || want.Y != have.Y)
+        if (layout && (want.X != have.X || want.Y != have.Y))
             diffs.Add(new(name, "Position", $"{have.X}, {have.Y}", $"{want.X}, {want.Y}"));
 
-        if (want.Primary != have.Primary)
+        if (layout && want.Primary != have.Primary)
         {
             diffs.Add(new(name, "Main display",
                 have.Primary ? "yes" : "no", want.Primary ? "yes" : "no"));
@@ -192,17 +199,23 @@ public static class PresetDiff
                 Range(want.BrightnessFloor, want.BrightnessCeiling)));
         }
 
-        if (!string.Equals(want.WallpaperPath, have.WallpaperPath, StringComparison.OrdinalIgnoreCase))
+        if (want.BrightnessBaseline != have.BrightnessBaseline)
+            diffs.Add(new(name, "Brightness baseline", Level(have.BrightnessBaseline), Level(want.BrightnessBaseline)));
+        if (want.NightLightFloor != have.NightLightFloor || want.NightLightCeiling != have.NightLightCeiling)
+            diffs.Add(new(name, "Warmth range", Range(have.NightLightFloor, have.NightLightCeiling), Range(want.NightLightFloor, want.NightLightCeiling)));
+        if (want.WallpaperPath is not null && !string.Equals(want.WallpaperPath, have.WallpaperPath, StringComparison.OrdinalIgnoreCase))
             diffs.Add(new(name, "Wallpaper", FileName(have.WallpaperPath), FileName(want.WallpaperPath)));
 
+        if (modern && want.CustomLabel != have.CustomLabel)
+            diffs.Add(new(name, "Custom name", have.CustomLabel ?? "default", want.CustomLabel ?? "default"));
         if (want.HideTaskbar != have.HideTaskbar)
             diffs.Add(new(name, "Hide the taskbar", OnOff(have.HideTaskbar), OnOff(want.HideTaskbar)));
 
         if (want.ReclaimWorkArea != have.ReclaimWorkArea)
             diffs.Add(new(name, "Reclaim the work area", OnOff(have.ReclaimWorkArea), OnOff(want.ReclaimWorkArea)));
 
-        if (want.IsOled is { } wantOled && have.IsOled is { } haveOled && wantOled != haveOled)
-            diffs.Add(new(name, "OLED panel", haveOled ? "yes" : "no", wantOled ? "yes" : "no"));
+        if ((modern || want.IsOled is not null) && want.IsOled != have.IsOled)
+            diffs.Add(new(name, "OLED panel", have.IsOled?.ToString() ?? "automatic", want.IsOled?.ToString() ?? "automatic"));
 
         // Only codes both sides know about. A preset naming a control this
         // monitor no longer reports is not drift — it is a preset from

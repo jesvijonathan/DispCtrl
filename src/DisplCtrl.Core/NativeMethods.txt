@@ -39,5 +39,13 @@ DeleteDC
 SetDeviceGammaRamp
 GetDeviceGammaRamp
 
+// ---- dark mode ----
+// Writing the registry value changes the setting; it does not tell anything
+// already running that it changed. Windows' own Settings page broadcasts, and
+// without doing the same an app keeps its old colours until it restarts.
+SendMessageTimeout
+SEND_MESSAGE_TIMEOUT_FLAGS
+WM_SETTINGCHANGE
+
 // ---- error codes ----
 WIN32_ERROR

@@ -106,6 +106,12 @@ internal sealed class TaskbarManager
         public long AnimStart { get; set; }
         public double AnimFrom { get; set; }
 
+        // Explorer normally keeps a visible taskbar above ordinary windows,
+        // but a foreground app can temporarily disturb that order while the
+        // bar is being revealed. Reassert it at a low cadence while visible;
+        // doing it every cursor tick would churn the shell's z-order.
+        public long NextZOrderTick { get; set; }
+
         public bool Horizontal => Edge is Edge.Bottom or Edge.Top;
     }
 
@@ -137,6 +143,8 @@ internal sealed class TaskbarManager
 
     public void Run(CancellationToken ct)
     {
+        using var appearance = new TaskbarAppearance();
+        using var glass = new TaskbarGlassController();
         var clock = Stopwatch.StartNew();
         long nextRescan = 0;
 
@@ -157,6 +165,8 @@ internal sealed class TaskbarManager
 
                 if (now >= nextRescan)
                 {
+                    appearance.Update(_settings.Global.TaskbarOpacity);
+                    glass.Update(_settings.Global);
                     nextRescan = now + RescanIntervalMs;
                     Rescan();
                 }
@@ -350,6 +360,8 @@ internal sealed class TaskbarManager
 
         int want = b.Shown ? shownPos : hiddenPos;
         int currentPos = b.Horizontal ? r.top : r.left;
+        bool reassertZOrder = b.Shown && now >= b.NextZOrderTick;
+        if (reassertZOrder) b.NextZOrderTick = now + 500;
 
         bool raise = false;
         if (!b.Placed)
@@ -386,7 +398,9 @@ internal sealed class TaskbarManager
             newPos = b.TargetPos;
         }
 
-        if (newPos != currentPos) Move(b, r, newPos, raise);
+        // The first animation frame can still have the hidden position. Raise
+        // immediately even when that frame does not move by a pixel yet.
+        if (newPos != currentPos || raise || reassertZOrder) Move(b, r, newPos, raise || reassertZOrder);
 
         TrackStubbornness(b, currentPos);
     }
@@ -425,8 +439,8 @@ internal sealed class TaskbarManager
                                    | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE;
         if (!raise) flags |= SET_WINDOW_POS_FLAGS.SWP_NOZORDER;
 
-        // Z-order is only forced on the frame the bar starts appearing;
-        // re-asserting topmost every frame churns the z-order for nothing.
+        // Raise on reveal and at the low-cadence visible check. Intermediate
+        // animation frames preserve z-order and never activate the taskbar.
         var after = raise ? new HWND(-1) : HWND.Null;   // HWND_TOPMOST
         _ = PInvoke.SetWindowPos(b.Hwnd, after, x, y, 0, 0, flags);
     }
@@ -540,7 +554,7 @@ internal sealed class TaskbarManager
         }
 
         foreach (Bar b in _bars)
-            if (b.ReclaimWorkArea && !b.Unmanageable) EnsureWorkArea(b);
+            if (!b.Unmanageable) EnsureWorkArea(b);
     }
 
     private List<Bar> Discover(List<DisplayInfo> displays)
@@ -679,8 +693,8 @@ internal sealed class TaskbarManager
     // ----------------------------------------------------------- work area --
 
     /// <summary>
-    /// Expands the monitor's work area to the full panel so maximized windows
-    /// fill the screen once its bar is parked.
+    /// Keeps the full monitor available when reclaim is enabled. Revealing
+    /// the taskbar overlays the application without resizing its work area.
     /// </summary>
     /// <remarks>
     /// Reads the current work area straight from <c>GetMonitorInfo</c> rather
@@ -699,17 +713,26 @@ internal sealed class TaskbarManager
         var mi = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFO) };
         if (!PInvoke.GetMonitorInfo(hmon, ref mi)) return;
 
-        // Already reclaimed — the common case, and the cheap way out.
-        if (mi.rcWork.left == mi.rcMonitor.left && mi.rcWork.top == mi.rcMonitor.top &&
-            mi.rcWork.right == mi.rcMonitor.right && mi.rcWork.bottom == mi.rcMonitor.bottom)
-            return;
+        RECT desired = b.ReclaimWorkArea
+            ? mi.rcMonitor
+            : new RECT
+            {
+                left = mi.rcMonitor.left + (b.Edge == Edge.Left ? b.Thickness : 0),
+                top = mi.rcMonitor.top + (b.Edge == Edge.Top ? b.Thickness : 0),
+                right = mi.rcMonitor.right - (b.Edge == Edge.Right ? b.Thickness : 0),
+                bottom = mi.rcMonitor.bottom - (b.Edge == Edge.Bottom ? b.Thickness : 0),
+            };
 
-        RECT full = mi.rcMonitor;
+        // Already in the desired state — the common case, and the cheap way
+        // out of the one-second rescan path.
+        if (mi.rcWork.left == desired.left && mi.rcWork.top == desired.top &&
+            mi.rcWork.right == desired.right && mi.rcWork.bottom == desired.bottom)
+            return;
 
         // fWinIni = 0 deliberately: broadcasting WM_SETTINGCHANGE makes
         // explorer recompute the work area and fight back in a flicker loop.
         _ = PInvoke.SystemParametersInfo(
-            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETWORKAREA, 0, &full, 0);
+            SYSTEM_PARAMETERS_INFO_ACTION.SPI_SETWORKAREA, 0, &desired, 0);
     }
 
     // ------------------------------------------------------------- shutdown --
@@ -734,7 +757,7 @@ internal sealed class TaskbarManager
             if (!PInvoke.IsWindow(b.Hwnd)) return;
             if (!PInvoke.GetWindowRect(b.Hwnd, out RECT r)) return;
 
-            Move(b, r, ShownPosition(b), raise: false);
+            Move(b, r, ShownPosition(b), raise: true);
 
             if (!b.ReclaimWorkArea) return;
 

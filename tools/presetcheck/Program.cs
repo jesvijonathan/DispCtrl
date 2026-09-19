@@ -2,6 +2,7 @@ using DisplCtrl.Core.Displays;
 using DisplCtrl.Display.Devices;
 using DisplCtrl.Core.Presets;
 using DisplCtrl.Core.Settings;
+using DisplCtrl.Core;
 
 // Exercises the preset store's edge cases directly, in a scratch folder, so the
 // awkward name cases can be checked without a real desk in the way.
@@ -243,6 +244,168 @@ Console.WriteLine("physical arrangement layout");
         Math.Abs(fallback[0].Width - 1920) < 0.01);
 }
 
+Console.WriteLine();
+Console.WriteLine("where a dragged display may land");
+{
+    // The same desk, as the solver sees it: pixels, and which one is primary.
+    var dell = new ArrangementSolver.Panel("dell", 0, 0, 1920, 1080, true);
+    var oled = new ArrangementSolver.Panel("oled", 1920, 0, 2880, 1800);
+
+    var slots = ArrangementSlots.For([dell, oled], "oled");
+    Console.WriteLine($"    {slots.Count} places for the laptop beside one monitor");
+
+    Check("there are places to put it", slots.Count > 0);
+
+    // Four sides, three alignments, less whatever coincides or overlaps. The
+    // laptop is taller and wider than the Dell, so nothing coincides here.
+    Check("every side of the neighbour is offered",
+        slots.Select(s => s.Side).Distinct().Count() == 4);
+    Check("each side offers more than one alignment",
+        slots.Where(s => s.Side == ArrangementSlots.Side.Right).Select(s => s.Align).Distinct().Count() == 3);
+
+    Check("no two slots are the same position",
+        slots.Select(s => (s.X, s.Y)).Distinct().Count() == slots.Count);
+
+    // The point of the whole exercise: Windows takes every one of them.
+    bool allLegal = slots.All(s =>
+        ArrangementSolver.IsValid([dell, oled with { X = s.X, Y = s.Y }]));
+    Check("every slot is an arrangement Windows accepts", allLegal);
+
+    // Centre alignment is what makes a small panel beside a big one look
+    // deliberate rather than snapped to an edge it does not share.
+    var centred = slots.First(s => s.Side == ArrangementSlots.Side.Right
+                                && s.Align == ArrangementSlots.Align.Centre);
+    Check("a centred slot centres it on the neighbour",
+        centred.Y + (1800 / 2) == 1080 / 2);
+
+    // A third display standing in the way removes the slot, rather than
+    // offering a position that would be refused without saying why.
+    var blocker = new ArrangementSolver.Panel("block", 1920, 0, 1920, 1080);
+    var crowded = ArrangementSlots.For([dell, blocker, oled], "oled");
+
+    Check("a slot occupied by a third display is not offered",
+        !crowded.Any(s => s.X == 1920 && s.Y == 0));
+    Check("and the rest still are", crowded.Count > 0);
+    Check("all of those are legal too",
+        crowded.All(s => ArrangementSolver.IsValid([dell, blocker, oled with { X = s.X, Y = s.Y }])));
+
+    // Identical panels put three alignments in the same place; one is enough.
+    var twinA = new ArrangementSolver.Panel("a", 0, 0, 1920, 1080, true);
+    var twinB = new ArrangementSolver.Panel("b", 1920, 0, 1920, 1080);
+    var twins = ArrangementSlots.For([twinA, twinB], "b");
+    Check("identical panels collapse their three alignments into one",
+        twins.Count == 4);
+
+    // One display has nowhere to be; its position is the origin by definition.
+    Check("a lone display is offered nothing",
+        ArrangementSlots.For([dell], "dell").Count == 0);
+
+    var nearest = ArrangementSlots.Nearest(slots, 1920, 0);
+    Check("the nearest slot to a corner is that corner",
+        nearest is { X: 1920, Y: 0 });
+
+    // What the surface actually draws. It asks PhysicalLayout where a slot would
+    // put the panel, and ranks the slots by that rather than by pixel distance,
+    // because a pixel is a different real size on each display. This is the path
+    // a drag runs through, and a drag cannot be tested through a pointer:
+    // synthetic input does not reach a WinUI canvas.
+    var dellMm = new PhysicalLayout.Panel("dell", 0, 0, 1920, 1080, 527.0 / 1920, 296.0 / 1080);
+    var oledMm = new PhysicalLayout.Panel("oled", 1920, 0, 2880, 1800, 302.0 / 2880, 189.0 / 1800);
+    var dellAt = PhysicalLayout.Resolve([dellMm, oledMm]).First(x => x.Token == "dell");
+
+    bool flushInMm = slots.All(s =>
+    {
+        PhysicalLayout.Placed at = PhysicalLayout.Hang(dellMm, oledMm with { X = s.X, Y = s.Y }, dellAt);
+
+        return s.Side switch
+        {
+            ArrangementSlots.Side.Right => Math.Abs(at.X - (dellAt.X + dellAt.Width)) < 0.01,
+            ArrangementSlots.Side.Left => Math.Abs(at.X + at.Width - dellAt.X) < 0.01,
+            ArrangementSlots.Side.Below => Math.Abs(at.Y - (dellAt.Y + dellAt.Height)) < 0.01,
+            _ => Math.Abs(at.Y + at.Height - dellAt.Y) < 0.01,
+        };
+    });
+
+    Check("every slot is drawn flush in millimetres as well as in pixels", flushInMm);
+
+    // Drawn at the panel's real size wherever it lands, not the neighbour's.
+    bool realSize = slots.All(s =>
+    {
+        PhysicalLayout.Placed at = PhysicalLayout.Hang(dellMm, oledMm with { X = s.X, Y = s.Y }, dellAt);
+        return Math.Abs(at.Width - 302) < 1 && Math.Abs(at.Height - 189) < 1;
+    });
+
+    Check("and at its real size in every one of them", realSize);
+
+    bool alignedInMm = slots.All(s =>
+    {
+        var at = PhysicalLayout.Hang(dellMm, oledMm with { X = s.X, Y = s.Y }, dellAt);
+        bool vertical = s.Side is ArrangementSlots.Side.Left or ArrangementSlots.Side.Right;
+        double offset = vertical ? at.Y - dellAt.Y : at.X - dellAt.X;
+        double remaining = vertical ? dellAt.Height - at.Height : dellAt.Width - at.Width;
+        double expected = s.Align switch
+        {
+            ArrangementSlots.Align.Start => 0,
+            ArrangementSlots.Align.Centre => remaining / 2,
+            _ => remaining,
+        };
+        return Math.Abs(offset - expected) < 0.01;
+    });
+    Check("unequal-density panels preserve top, centre and bottom alignment physically", alignedInMm);
+    Check("physical aspect ratios are preserved",
+        Math.Abs(dellAt.Width / dellAt.Height - 527.0 / 296) < 0.0001);
+
+}
+
+Console.WriteLine();
+Console.WriteLine("EDID, decoded from the panels actually attached");
+{
+    foreach (DisplayInfo d in DisplayRegistry.Enumerate())
+    {
+        EdidDetails edid = EdidReader.Describe(d.Key.DevicePath);
+
+        Console.WriteLine($"  {d.Label}");
+
+        if (!edid.Present)
+        {
+            Check($"{d.Label} has a readable EDID", false);
+            continue;
+        }
+
+        Console.WriteLine($"    {edid.ManufacturerCode} ({edid.ManufacturerName}) {edid.ProductCode}"
+            + $", EDID {edid.Version}, {edid.Bytes} bytes, made {edid.Made}");
+        Console.WriteLine($"    {(edid.Digital ? $"digital, {edid.BitsPerColour}-bit, {edid.Interface}" : "analogue")}"
+            + $", {edid.WidthCm} x {edid.HeightCm} cm, gamma {edid.Gamma:0.00}");
+        Console.WriteLine($"    {edid.ColourEncodings}; white {edid.White}, red {edid.Red}");
+        Console.WriteLine($"    {edid.EstablishedTimings.Count} established, {edid.StandardTimings.Count} standard, "
+            + $"{edid.DetailedTimings.Count} detailed, {edid.Extensions} extension block(s)");
+
+        foreach (string t in edid.DetailedTimings) Console.WriteLine($"      {t}");
+
+        Check($"{d.Label}: the checksum adds up", edid.ChecksumValid);
+        Check($"{d.Label}: the manufacturer code is three letters", edid.ManufacturerCode.Length == 3);
+        Check($"{d.Label}: the code matches the one identity is keyed on",
+            d.Key.Model.StartsWith(edid.ManufacturerCode, StringComparison.Ordinal));
+        Check($"{d.Label}: EDID version is 1.x or better", edid.Version.Length >= 3);
+        Check($"{d.Label}: it says when it was made", edid.Year is > 1990 and < 2100);
+
+        // A decoded size that disagrees with the one the layout is drawn from
+        // would put the arrangement diagram out by centimetres.
+        if (d.HasPhysicalSize && edid.WidthCm > 0)
+            Check($"{d.Label}: the decoded size agrees with the one the diagram uses",
+                Math.Abs((edid.WidthCm * 10) - d.PhysicalWidthMm) <= 10);
+
+        // The preferred timing is the panel's native mode, so it should be at
+        // least as large as whatever Windows has it running at.
+        if (edid.DetailedTimings.Count > 0)
+            Check($"{d.Label}: the first detailed timing is marked preferred",
+                edid.DetailedTimings[0].Contains("(preferred)", StringComparison.Ordinal));
+
+        Check($"{d.Label}: chromaticity is inside the CIE diagram",
+            edid.White.X is > 0 and < 1 && edid.White.Y is > 0 and < 1);
+    }
+}
+
 // ---------------------------------------------------------------- redaction --
 // The part that has to be right. Everything below asks the same question: can
 // anything that identifies this machine or this person reach a public issue?
@@ -263,6 +426,22 @@ Check("a device path is removed",
 
 Check("a user profile path is removed",
     !Redact.Scrub(@"wallpaper C:\Users\Jesvi Jonathan\Pictures\a.jpg").Contains("Users"));
+
+// The one that got through. An account name with a space in it used to end the
+// match at the forename, leaving the surname, the folder tree and whatever the
+// file name carried. Most Windows account names have a space in them.
+Check("a profile path survives no part of a spaced account name",
+    Redact.Scrub(@"wallpaper C:\Users\Ada Lovelace\Pictures\a.jpg") is string spaced
+    && !spaced.Contains("Lovelace") && !spaced.Contains("Pictures") && !spaced.Contains(".jpg"));
+
+// And the fragment it was hiding: an instance id does not need its path prefix
+// to identify one panel on one port of one machine.
+Check("a bare device instance id is removed",
+    !Redact.Scrub("Shift-SDC4154#5&1af48b2f&0&UID256-2.jpg").Contains("1af48b2f"));
+
+Check("an instance id inside a file name is removed",
+    !Redact.Scrub(@"C:\x\Shift-DELA234#5&1af48b2f&0&UID257#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}-2.jpg")
+        .Contains("UID257"));
 
 Check("a bare GUID is removed",
     !Redact.Scrub("{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}").Contains("e6f07b5f"));
@@ -296,9 +475,29 @@ foreach (DisplayInfo d in attached)
 {
     if (d.Key.HasSerial) secrets.Add(d.Key.Serial);
     secrets.Add(d.Key.DevicePath);
+
+    // The token too, and for every panel rather than the one being submitted.
+    // A record carries the presets, a preset names every display on the desk,
+    // and a panel with no EDID serial still has a token whose suffix is a hash
+    // of its device path - unique to that unit on that port, and invisible to a
+    // check that only looks for serials. That is exactly what leaked.
+    secrets.Add(d.Token);
 }
 
 secrets.Add(Environment.UserName);
+
+// A record is built for one display at a time, and the narrowed list is what
+// `dispctrl contribute --display 2` passes. Submitting one monitor must not
+// publish the other one's identifiers, so both forms are checked.
+foreach (DisplayInfo d in attached)
+{
+    Contribution narrowed = DeviceContribution.Prepare(d, [d]);
+
+    foreach (string secret in secrets)
+        if (secret.Length >= 4)
+            Check($"{narrowed.Key}, built for one display alone, does not carry \"{Shorten(secret)}\"",
+                !narrowed.Body.Contains(secret, StringComparison.OrdinalIgnoreCase));
+}
 
 foreach (DisplayInfo d in attached)
 {
@@ -310,12 +509,273 @@ foreach (DisplayInfo d in attached)
             Check($"{c.Key} does not carry \"{Shorten(secret)}\"",
                 !c.Body.Contains(secret, StringComparison.OrdinalIgnoreCase));
 
+    // What the whole change was for: a record now carries the report and the
+    // presets, so it has to actually contain them.
+    // Fragments, not only whole strings. Both leaks that got this far survived
+    // as pieces of something the check was looking for in one piece.
+    foreach (string word in Environment.UserName.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        if (word.Length >= 4)
+            Check($"{c.Key} does not carry \"{word}\", a part of the account name",
+                !c.Body.Contains(word, StringComparison.OrdinalIgnoreCase));
+
+    Check($"{c.Key} carries no device instance id", !c.Body.Contains("UID2", StringComparison.OrdinalIgnoreCase));
+
+    Check($"{c.Key} carries the full report for its display", c.Body.Contains("Current mode"));
+    // Presets are behind a build flag, and the record follows it: with the flag
+    // off they are absent by design, not missing by accident. Asserting the
+    // published shape either way is what keeps this honest when the flag moves.
+    Check($"{c.Key} matches the preset flag",
+        FeatureFlags.Presets
+            ? c.Body.Contains("preset(s) saved") || c.Body.Contains("No presets are saved")
+            : !c.Body.Contains("preset(s) saved") && !c.Body.Contains("Presets saved on this machine"));
+
     Check($"{c.Key} says something about the monitor", c.Body.Length > 200);
     Check($"{c.Key} is filed under the model, not the unit", !c.Key.Contains('_') && c.Key.Length <= 12);
     Check($"{c.Key} is plain ASCII, so the URL stays short", c.Body.All(char.IsAscii));
 }
 
+Console.WriteLine();
+Console.WriteLine("the desk-wide record, which is what Submit actually opens");
+{
+    Contribution desk = DeviceContribution.PrepareDesk(attached);
+
+    Console.WriteLine($"    title: {desk.Title}");
+    Console.WriteLine($"    {desk.Body.Length} characters, {(desk.Prefilled ? "prefills" : "needs pasting")}");
+
+    // The title is the index entry for the issue, so every distinct display has
+    // to be in it - that was the complaint that prompted the desk-wide form.
+    foreach (DisplayInfo d in attached)
+    {
+        string name = string.IsNullOrWhiteSpace(d.Label) ? d.Key.Model : d.Label;
+        Check($"the title names {name}", desk.Title.Contains(name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // The whole file, not a per-display slice of it. Asked for by name.
+    Check("it carries displays.log entire", desk.Body.Contains("DisplCtrl display report"));
+    Check("including every display's section",
+        desk.Body.Split("Modes the driver reports").Length - 1 >= attached.Count);
+    Check("and the presets, when the flag is on",
+        FeatureFlags.Presets
+            ? desk.Body.Contains("preset(s) saved") || desk.Body.Contains("No presets are saved")
+            : !desk.Body.Contains("preset(s) saved"));
+
+    // A built-in panel has no name of its own; the machine's model is what
+    // anyone would search for.
+    bool anyInternal = attached.Any(d => d.IsInternal);
+    MachineInfo machine = MachineInfo.Read();
+
+    if (anyInternal && machine.Present)
+        Check($"a built-in panel is tied to the machine ({machine.Model})",
+            desk.Body.Contains(machine.Model, StringComparison.OrdinalIgnoreCase));
+
+    Check("it is plain ASCII", desk.Body.All(char.IsAscii));
+
+    foreach (string secret in secrets)
+        if (secret.Length >= 4)
+            Check($"the desk record does not carry \"{Shorten(secret)}\"",
+                !desk.Body.Contains(secret, StringComparison.OrdinalIgnoreCase));
+
+    foreach (string word in Environment.UserName.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        if (word.Length >= 4)
+            Check($"the desk record does not carry \"{word}\"",
+                !desk.Body.Contains(word, StringComparison.OrdinalIgnoreCase));
+
+    Check("the desk record carries no device instance id",
+        !desk.Body.Contains("UID2", StringComparison.OrdinalIgnoreCase));
+
+    // It will not prefill, and the panel relies on knowing that to put the text
+    // on the clipboard instead. A record that quietly started fitting would
+    // leave that path untested rather than broken, so this is worth asserting.
+    Check("it is too long to prefill, as expected", !desk.Prefilled);
+}
+
+
 static string Shorten(string s) => s.Length <= 24 ? s : s[..24] + "...";
+
+// ---- Windows' own night light ----------------------------------------------
+//
+// The scale was measured rather than documented: the slider in Settings was
+// swept through all 101 positions and the stored value read back at each. These
+// assert the curve that sweep produced, so a wrong constant is caught here
+// instead of by a desk that ends up the wrong colour. Nothing here writes: the
+// live read is allowed to be unavailable, because a Windows build that moves
+// the data should fail the feature, not the test run.
+{
+    Console.WriteLine();
+    Console.WriteLine("Windows night light");
+
+    Check("neutral at zero", WindowsNightLight.KelvinFor(0) == 6500);
+    Check("1200K at full", WindowsNightLight.KelvinFor(100) == 1200);
+    Check("53K a step", WindowsNightLight.KelvinFor(50) == 6500 - (53 * 50));
+
+    bool monotonic = true;
+    for (int i = 1; i <= 100; i++)
+        if (WindowsNightLight.KelvinFor(i) >= WindowsNightLight.KelvinFor(i - 1)) monotonic = false;
+
+    Check("warmer at every step", monotonic);
+
+    // Out of range is clamped rather than extrapolated: a strength of -5 must
+    // not read as bluer than neutral, which no display can be asked for.
+    Check("clamped below", WindowsNightLight.KelvinFor(-5) == 6500);
+    Check("clamped above", WindowsNightLight.KelvinFor(400) == 1200);
+
+    WindowsNightLightState? reported = WindowsNightLight.Read();
+    Check("the live state reads, or says it cannot",
+        reported is null || (reported.Value.Strength >= 0 && reported.Value.Strength <= 100));
+
+    // Dark mode is a plain registry value with none of the night light's
+    // encoding, so there is little to get wrong beyond reading the wrong one of
+    // the two. Asserting it answers at all catches a renamed value, which is the
+    // way this would actually break.
+    Check("dark mode answers", WindowsTheme.IsDark is not null);
+}
+
+// ---- focus dimming and OLED screen rest ------------------------------------
+//
+// Synthetic pointer input never reaches an overlay, and a check that blacked a
+// panel would be one nobody runs twice, so what is asserted here is the
+// arithmetic the engine decides with rather than the dimming itself.
+{
+    Console.WriteLine();
+    Console.WriteLine("Focus and OLED rest");
+
+    const long grace = FocusGeometry.ManualRestGraceMs;
+
+    Check("no rest when none was asked for",
+        !FocusGeometry.RestingByHand(false, 60_000, 0, true));
+
+    // The press that starts a rest is input, so it must not end it.
+    Check("the starting press does not end it",
+        FocusGeometry.RestingByHand(true, 0, 0, true));
+    Check("still resting just inside the grace",
+        FocusGeometry.RestingByHand(true, grace - 1, grace - 1, true));
+
+    // Left alone, idle time keeps pace with the rest, so it stays black.
+    Check("an untouched rest keeps going",
+        FocusGeometry.RestingByHand(true, 300_000, 300_000, true));
+
+    // Input well after the start leaves idle time trailing the rest.
+    Check("input after the grace ends it",
+        !FocusGeometry.RestingByHand(true, 60_000, 0, true));
+    Check("a nudge mid-rest ends it",
+        !FocusGeometry.RestingByHand(true, 60_000, 60_000 - grace - 1, true));
+
+    // Without a usable idle reading, the rest is honoured rather than dropped:
+    // the duration still bounds it, so the failure cannot leave a stuck screen.
+    Check("an unreadable idle timer keeps the rest",
+        FocusGeometry.RestingByHand(true, 300_000, 0, false));
+
+    // The idle rest, which is the one that blacks a panel nobody asked it to.
+    const long minute = 60_000;
+    Check("idle rest waits for the whole spell",
+        !FocusGeometry.RestingWhenIdle(true, true, 4 * minute, 5, false, false));
+    Check("and comes on once it is up",
+        FocusGeometry.RestingWhenIdle(true, true, 5 * minute, 5, false, false));
+
+    Check("switched off it never rests",
+        !FocusGeometry.RestingWhenIdle(false, true, 60 * minute, 5, false, false));
+
+    // Fails closed: a broken idle clock must not black a screen being watched.
+    Check("an unreadable idle clock rests nothing",
+        !FocusGeometry.RestingWhenIdle(true, false, 60 * minute, 5, false, false));
+
+    Check("a suspended machine rests nothing",
+        !FocusGeometry.RestingWhenIdle(true, true, 60 * minute, 5, true, false));
+    Check("fullscreen holds it off",
+        !FocusGeometry.RestingWhenIdle(true, true, 60 * minute, 5, false, true));
+
+    // The minutes come from a hand-edited file.
+    Check("nonsense minutes are clamped, not trusted",
+        FocusGeometry.RestingWhenIdle(true, true, 2 * minute, -5, false, false)
+        && !FocusGeometry.RestingWhenIdle(true, true, 100 * minute, 9999, false, false));
+
+    Check("no dimming at zero", FocusGeometry.Alpha(0) == 0);
+    Check("black at full", FocusGeometry.Alpha(100) == 255);
+    Check("dimming is clamped", FocusGeometry.Alpha(400) == 255 && FocusGeometry.Alpha(-5) == 0);
+
+    var monitor = new DisplayRect(0, 0, 1920, 1080);
+    Check("a maximised window covers its monitor",
+        FocusGeometry.Covers(new DisplayRect(0, 0, 1920, 1080), monitor));
+    Check("a window short of the edge does not",
+        !FocusGeometry.Covers(new DisplayRect(0, 0, 1920, 1000), monitor));
+
+    // A window on the next monitor along must not count as being on this one,
+    // or the focus hole would be cut out of the wrong panel.
+    DisplayRect off = FocusGeometry.Intersect(new DisplayRect(2000, 0, 2600, 400), monitor);
+    Check("a window elsewhere intersects nothing", off.Width == 0 || off.Height == 0);
+
+    DisplayRect overlap = FocusGeometry.Intersect(new DisplayRect(-100, -100, 300, 300), monitor);
+    Check("an overlapping window is clipped to the monitor",
+        overlap.Left == 0 && overlap.Top == 0 && overlap.Right == 300 && overlap.Bottom == 300);
+
+    // The hole has to cover where a dragged window was as well as where it is,
+    // or the dim flickers along the edge it just left.
+    var was = new DisplayRect(100, 100, 500, 400);
+    var isNow = new DisplayRect(160, 100, 560, 400);
+    DisplayRect swept = FocusGeometry.Sweep(was, isNow, 300);
+    Check("a drag sweeps from where it was", swept.Left == 100 && swept.Right == 560);
+    Check("and keeps the other edges", swept.Top == 100 && swept.Bottom == 400);
+
+    Check("standing still sweeps nothing extra",
+        FocusGeometry.Sweep(isNow, isNow, 300) == isNow);
+
+    // A snap across the desk is a jump, not a drag: sweeping it would undim a
+    // band the width of the screen for a frame.
+    Check("a jump is not swept",
+        FocusGeometry.Sweep(was, new DisplayRect(1500, 100, 1900, 400), 300) == new DisplayRect(1500, 100, 1900, 400));
+
+    Check("a first frame with no history is left alone",
+        FocusGeometry.Sweep(default, isNow, 300) == isNow);
+
+    // One overlay alpha is not one amount of dimming: it is far heavier over a
+    // panel already running dim, so the figure is scaled by where the panel sits
+    // between its own limits.
+    Check("a panel at full brightness keeps the whole dim",
+        FocusGeometry.ScaledDim(80, 100) == 80);
+    Check("a panel at its floor keeps half",
+        FocusGeometry.ScaledDim(80, 0) == 40);
+    Check("and half way sits between",
+        FocusGeometry.ScaledDim(80, 50) is > 40 and < 80);
+    Check("scaling never inverts the order",
+        FocusGeometry.ScaledDim(80, 20) <= FocusGeometry.ScaledDim(80, 80));
+    Check("no dim stays no dim", FocusGeometry.ScaledDim(0, 100) == 0);
+
+    // Switching windows moves the hole without changing the dim, so the slide is
+    // the only thing the fade setting can act on there.
+    var fromWin = new DisplayRect(100, 100, 500, 400);
+    var toWin = new DisplayRect(900, 100, 1300, 400);
+    Check("a slide starts at the old window",
+        FocusGeometry.Between(fromWin, toWin, 0, 300) == fromWin);
+    Check("and finishes on the new one",
+        FocusGeometry.Between(fromWin, toWin, 300, 300) == toWin);
+    Check("past the end it stays put",
+        FocusGeometry.Between(fromWin, toWin, 5000, 300) == toWin);
+
+    DisplayRect half = FocusGeometry.Between(fromWin, toWin, 150, 300);
+    Check("half way is between the two", half.Left > 100 && half.Left < 900);
+    Check("and keeps the window's size", half.Width == fromWin.Width);
+
+    Check("no duration means no slide",
+        FocusGeometry.Between(fromWin, toWin, 10, 0) == toWin);
+    Check("nothing to slide from lands straight away",
+        FocusGeometry.Between(default, toWin, 10, 300) == toWin);
+
+    // Two layers compose as 1-(1-a)(1-b), so fading them independently would
+    // lighten the whole surround mid-switch. The arriving layer is solved for.
+    Check("nothing leaving means the layer carries the dim on its own",
+        Math.Abs(FocusGeometry.Overlay(166, 0) - 166) < 1);
+    Check("a layer still at full dim needs nothing from the other",
+        FocusGeometry.Overlay(166, 166) < 1);
+
+    double mid = FocusGeometry.Overlay(166, 83);
+    Check("half way it takes up part of the load", mid > 0 && mid < 166);
+    Check("and the two together still read as the chosen dim",
+        Math.Abs((1 - ((1 - (mid / 255.0)) * (1 - (83 / 255.0)))) - (166 / 255.0)) < 0.01);
+
+    Check("no dim needs no layer", FocusGeometry.Overlay(0, 0) < 1);
+    Check("out of range brightness is clamped",
+        FocusGeometry.ScaledDim(80, 400) == 80 && FocusGeometry.ScaledDim(80, -50) == 40);
+}
 
 Console.WriteLine();
 Console.WriteLine(failures == 0 ? "all checks passed" : $"{failures} FAILED");

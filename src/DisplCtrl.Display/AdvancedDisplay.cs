@@ -69,6 +69,7 @@ public static class AdvancedDisplay
 
     public static unsafe bool WriteHdr(DisplayInfo display, bool enable)
     {
+        using var stateChange = new DisplayStateChange();
         if (!TryResolvePath(display, out LUID adapter, out uint sourceId, out uint targetId))
             return false;
 
@@ -181,6 +182,7 @@ public static class AdvancedDisplay
     /// <summary>Sets scaling to <paramref name="percent"/>, which must be one of the reported steps.</summary>
     public static unsafe bool WriteScaling(DisplayInfo display, int percent)
     {
+        using var stateChange = new DisplayStateChange();
         if (!TryResolvePath(display, out LUID adapter, out uint sourceId, out uint targetId))
             return false;
 

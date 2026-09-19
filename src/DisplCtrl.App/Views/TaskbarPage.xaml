@@ -13,9 +13,89 @@
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
       </StackPanel>
 
-      <TextBlock Text="Reveal behaviour"
+      <TextBlock Text="Appearance"
                  Style="{StaticResource BodyStrongTextBlockStyle}"
                  Margin="0,0,0,8"/>
+
+      <tk:SettingsExpander Header="Taskbar surface" Description="Windows transparency and whole-bar opacity.">
+        <Button Content="Restore defaults" Click="OnResetTaskbarSurface" AutomationProperties.Name="ResetTaskbarSurface"/>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Windows transparency" Description="Windows' translucency effect for the taskbar, Start and other system surfaces.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.WindowsTransparency, Mode=TwoWay}" AutomationProperties.Name="TaskbarTransparency"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Aero glass blur"
+                           Description="Uses Explorer's compositor and keeps the taskbar icons sharp.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=TwoWay}" OnContent="On" OffContent="Off" AutomationProperties.Name="TaskbarGlassEnabled"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Blur radius" Description="How far the background is softened behind the taskbar.">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Slider Value="{x:Bind ViewModel.TaskbarGlassRadius, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="160" IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassRadius"/>
+              <TextBlock Text="{x:Bind ViewModel.TaskbarGlassRadius, Mode=OneWay}" VerticalAlignment="Center"/>
+              <TextBlock Text="px" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Acrylic tint" Description="Adds a subtle dark tint after the blur.">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Slider Value="{x:Bind ViewModel.TaskbarGlassTint, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="160" IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassTint"/>
+              <TextBlock Text="{x:Bind ViewModel.TaskbarGlassTint, Mode=OneWay}" VerticalAlignment="Center"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard ContentAlignment="Left">
+            <TextBlock Text="{x:Bind ViewModel.TaskbarGlassStatus, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Taskbar opacity" Description="100% leaves the taskbar unchanged. Lower values fade the whole bar, including icons. Requires the engine.">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Slider Value="{x:Bind ViewModel.TaskbarOpacity, Mode=TwoWay}" Minimum="30" Maximum="100" StepFrequency="5" Width="160" AutomationProperties.Name="TaskbarOpacity"/>
+              <TextBlock Text="{x:Bind ViewModel.TaskbarOpacity, Mode=OneWay}" VerticalAlignment="Center"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard ContentAlignment="Left">
+            <TextBlock Text="{x:Bind ViewModel.AppearanceStatus, Mode=OneWay}" TextWrapping="Wrap"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Windows taskbar features" Description="Size, alignment, labels, indicators and built-in taskbar buttons.">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Open Windows settings" Click="OnWindowsTaskbar"/>
+          <Button Content="Restore defaults" Click="OnResetTaskbarFeatures" AutomationProperties.Name="ResetTaskbarFeatures"/>
+        </StackPanel>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Smaller taskbar buttons" Description="Uses Windows' compact button preference. Availability depends on your Windows build.">
+            <ComboBox ItemsSource="{x:Bind ViewModel.SmallButtonChoices}" SelectedIndex="{x:Bind ViewModel.SmallTaskbarButtons, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.SmallButtonsSupported}" AutomationProperties.Name="SmallTaskbarButtons"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Alignment" Description="Place Start and pinned apps on the left or in the centre.">
+            <ComboBox ItemsSource="{x:Bind ViewModel.TaskbarAlignmentChoices}" SelectedIndex="{x:Bind ViewModel.TaskbarAlignment, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.Windows11TaskbarSupported}" AutomationProperties.Name="TaskbarAlignment"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Combine buttons and hide labels" Description="Choose how windows from the same app are grouped on the primary taskbar.">
+            <ComboBox ItemsSource="{x:Bind ViewModel.TaskbarCombineChoices}" SelectedIndex="{x:Bind ViewModel.TaskbarCombineButtons, Mode=TwoWay}" AutomationProperties.Name="TaskbarCombineButtons"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Combine on other taskbars" Description="Use a separate grouping preference on additional displays.">
+            <ComboBox ItemsSource="{x:Bind ViewModel.TaskbarCombineChoices}" SelectedIndex="{x:Bind ViewModel.OtherTaskbarCombineButtons, Mode=TwoWay}" AutomationProperties.Name="OtherTaskbarCombineButtons"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Task View button">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarShowTaskView, Mode=TwoWay}" AutomationProperties.Name="TaskbarShowTaskView"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Widgets button">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarShowWidgets, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.Windows11TaskbarSupported}" AutomationProperties.Name="TaskbarShowWidgets"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="App badges" Description="Show status counters and indicators on taskbar buttons.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarShowBadges, Mode=TwoWay}" AutomationProperties.Name="TaskbarShowBadges"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Flashing apps" Description="Let apps flash their taskbar button when they need attention.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarAllowFlashing, Mode=TwoWay}" AutomationProperties.Name="TaskbarAllowFlashing"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Show desktop corner" Description="Click the far edge of the taskbar to show the desktop.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarShowDesktopCorner, Mode=TwoWay}" AutomationProperties.Name="TaskbarShowDesktopCorner"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <TextBlock Text="Reveal behaviour"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,8"/>
 
       <tk:SettingsCard Header="Hide delay"
                        Description="How long the taskbar stays out after the cursor leaves.">
@@ -81,6 +161,11 @@
           <TextBlock Text="px" VerticalAlignment="Center"
                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
         </StackPanel>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Reset reveal behaviour"
+                       Description="Restore the hide delay, animation duration and edge sensitivity.">
+        <Button Content="Restore defaults" Click="OnResetTaskbarBehaviour" AutomationProperties.Name="ResetTaskbarBehaviour"/>
       </tk:SettingsCard>
 
       <TextBlock Text="Responsiveness"
