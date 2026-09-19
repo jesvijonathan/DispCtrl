@@ -19,7 +19,7 @@ internal static class Program
             s.Bounds.Left == barRect.Left && s.Bounds.Right == barRect.Right);
         if (screen is null) { Console.Error.WriteLine("Cannot resolve the secondary monitor."); return 1; }
 
-        string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DisplCtrl", "settings.json");
+        string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DispCtrl", "settings.json");
         using var settings = JsonDocument.Parse(File.ReadAllText(settingsPath));
         var global = settings.RootElement.GetProperty("global");
         int settle = global.GetProperty("hideDelayMs").GetInt32() + global.GetProperty("animMs").GetInt32() + 1200;
@@ -31,7 +31,7 @@ internal static class Program
         int result = 1;
         using var form = new Form
         {
-            Text = "DisplCtrl taskbar reveal test", StartPosition = FormStartPosition.Manual,
+            Text = "DispCtrl taskbar reveal test", StartPosition = FormStartPosition.Manual,
             Bounds = new Rectangle(screen.Bounds.Left + 120, screen.Bounds.Top + 120, 800, 500),
             BackColor = Color.FromArgb(25, 75, 115)
         };
@@ -53,7 +53,7 @@ internal static class Program
             {
                 int overlays = 0;
                 nint mask = 0;
-                while ((mask = Native.FindWindowEx(0, mask, "DisplCtrl.ProtectionOverlay", "DisplCtrl dim overlay")) != 0)
+                while ((mask = Native.FindWindowEx(0, mask, "DispCtrl.ProtectionOverlay", "DispCtrl dim overlay")) != 0)
                 {
                     Assert(Native.GetProp(mask, "NonRudeHWND") == 1, "Dim overlay must opt out of shell fullscreen detection");
                     overlays++;

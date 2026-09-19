@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-// Hardware rendering check. Stop DisplCtrl.Engine first so its hide/focus
+// Hardware rendering check. Stop DispCtrl.Engine first so its hide/focus
 // settings do not change the test scene. The helper restores on process exit.
 internal static class Program
 {
@@ -22,7 +22,7 @@ internal static class Program
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         string dir = Path.GetFullPath(args[0]);
-        string output = args.Length > 1 ? Path.GetFullPath(args[1]) : Path.Combine(Path.GetTempPath(), "DisplCtrl-GlassCheck");
+        string output = args.Length > 1 ? Path.GetFullPath(args[1]) : Path.Combine(Path.GetTempPath(), "DispCtrl-GlassCheck");
         Directory.CreateDirectory(output);
         nint lib = NativeLibrary.Load(Path.Combine(dir, File.ReadAllText(Path.Combine(dir, "TaskbarGlass.version")).Trim()));
         var attach = Marshal.GetDelegateForFunctionPointer<Attach>(NativeLibrary.GetExport(lib, "GlassAttach"));

@@ -1,4 +1,4 @@
-param([string]$NativeDirectory = "$PSScriptRoot/../../native/DisplCtrl.TaskbarGlass/bin")
+param([string]$NativeDirectory = "$PSScriptRoot/../../native/DispCtrl.TaskbarGlass/bin")
 $ErrorActionPreference = 'Stop'
 $nativeDir = (Resolve-Path -LiteralPath $NativeDirectory).Path
 $dll = Join-Path $nativeDir (Get-Content -LiteralPath (Join-Path $nativeDir 'TaskbarGlass.version'))
@@ -25,4 +25,4 @@ public static class GlassProbe {
 }
 '@
 [GlassProbe]::Run($dll, [uint32](Get-Process explorer | Select-Object -First 1).Id)
-Get-Content "$env:LOCALAPPDATA/DisplCtrl/taskbar-glass-native.log" -Tail 12
+Get-Content "$env:LOCALAPPDATA/DispCtrl/taskbar-glass-native.log" -Tail 12

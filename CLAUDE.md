@@ -1,4 +1,4 @@
-# DisplCtrl
+# DispCtrl
 
 Per-monitor display management for Windows 11. A resident engine plus an
 on-demand WinUI 3 panel.
@@ -21,7 +21,7 @@ Two displays, and nearly every hard-won lesson below comes from one of them.
 | True density | 242 PPI, 302x189 mm, 14.0" | 93 PPI, 527x296 mm, 23.8" |
 | Position | secondary, right of the Dell | **primary**, at 0,0 |
 | Brightness | WMI (no DDC/CI) | DDC/CI |
-| Taskbar | hidden by DisplCtrl | Windows' own auto-hide |
+| Taskbar | hidden by DispCtrl | Windows' own auto-hide |
 | DDC/CI | none — built-in panels have no channel | 37 VCP controls, 11 offered |
 
 Token identities: `SDC-4154-E2387367` (internal), `DEL-A234-3QQQ2X3` (Dell).
@@ -35,30 +35,30 @@ by tests that changed hardware state and did not restore it.
 ## Architecture
 
 ```
-DisplCtrl.Core      no hardware writes. Display enumeration, EDID, settings,
+DispCtrl.Core      no hardware writes. Display enumeration, EDID, settings,
                 presets (model + diff), gamma ramps, arrangement geometry.
-DisplCtrl.Display   every call that changes something: DDC/CI, CCD writes, modes,
+DispCtrl.Display   every call that changes something: DDC/CI, CCD writes, modes,
                 wallpaper COM, power scheme. Referenced by BOTH app and engine.
-DisplCtrl.Engine    resident. Taskbar hiding, night light + software dimming,
+DispCtrl.Engine    resident. Taskbar hiding, night light + software dimming,
                 per-app preset rules. Native AOT intended (see debt below).
-DisplCtrl.App       WinUI 3 panel, launched on demand, exits after.
-DisplCtrl.Cli       `dispctrl.exe`, console subsystem. Every feature, scriptable.
+DispCtrl.App       WinUI 3 panel, launched on demand, exits after.
+DispCtrl.Cli       `dispctrl.exe`, console subsystem. Every feature, scriptable.
 ```
 
 The two processes share **only** `settings.json`. The engine watches it with a
 `FileSystemWatcher` (120 ms debounce). There is no IPC.
 
-`DisplCtrl.Display` used to be the app's alone, on the reasoning that every call in
+`DispCtrl.Display` used to be the app's alone, on the reasoning that every call in
 it is a deliberate user action. Per-app preset rules made those same calls
 background work, so the engine references it too.
 
 ### State on disk
 
 ```
-%LOCALAPPDATA%\DisplCtrl\settings.json     shared, engine watches it
-%LOCALAPPDATA%\DisplCtrl\engine.log        engine's rolling log
-%LOCALAPPDATA%\DisplCtrl\displays.log      display report, rewritten whole
-%LOCALAPPDATA%\DisplCtrl\presets\*.json    one file per preset, name = file stem
+%LOCALAPPDATA%\DispCtrl\settings.json     shared, engine watches it
+%LOCALAPPDATA%\DispCtrl\engine.log        engine's rolling log
+%LOCALAPPDATA%\DispCtrl\displays.log      display report, rewritten whole
+%LOCALAPPDATA%\DispCtrl\presets\*.json    one file per preset, name = file stem
 ```
 
 ---
@@ -69,10 +69,10 @@ Run everything from the repo root. There is no solution file; build projects
 individually, in dependency order when several changed.
 
 ```bash
-dotnet build src/DisplCtrl.Core/DisplCtrl.Core.csproj       -c Release -v q --nologo
-dotnet build src/DisplCtrl.Display/DisplCtrl.Display.csproj -c Release -v q --nologo
-dotnet build src/DisplCtrl.Engine/DisplCtrl.Engine.csproj   -c Release -v q --nologo
-dotnet build src/DisplCtrl.App/DisplCtrl.App.csproj         -c Release -v q --nologo
+dotnet build src/DispCtrl.Core/DispCtrl.Core.csproj       -c Release -v q --nologo
+dotnet build src/DispCtrl.Display/DispCtrl.Display.csproj -c Release -v q --nologo
+dotnet build src/DispCtrl.Engine/DispCtrl.Engine.csproj   -c Release -v q --nologo
+dotnet build src/DispCtrl.App/DispCtrl.App.csproj         -c Release -v q --nologo
 ```
 
 **A running process locks its DLLs and the build fails with MSB3027.** Stop both
@@ -80,8 +80,8 @@ first — and stop the engine *gracefully*, or it leaves a taskbar parked
 off-screen:
 
 ```powershell
-& ".\src\DisplCtrl.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\DisplCtrl.Engine.exe" stop
-Get-Process DisplCtrl.App -EA SilentlyContinue | ForEach-Object { $_.Kill() }
+& ".\src\DispCtrl.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\DispCtrl.Engine.exe" stop
+Get-Process DispCtrl.App -EA SilentlyContinue | ForEach-Object { $_.Kill() }
 ```
 
 The engine unwinds asynchronously; wait for the process to disappear before
@@ -91,7 +91,7 @@ app may be killed outright.
 Restart the engine through its scheduled task, which is how it normally runs:
 
 ```powershell
-Start-ScheduledTask -TaskName 'DisplCtrl.Engine'
+Start-ScheduledTask -TaskName 'DispCtrl.Engine'
 ```
 
 **That task does not exist on this machine and this command fails.** The rename
@@ -101,10 +101,10 @@ the engine does not come back on its own, and the only way to restart it is
 directly:
 
 ```powershell
-Start-Process ".\src\DisplCtrl.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\DisplCtrl.Engine.exe" run
+Start-Process ".\src\DispCtrl.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\DispCtrl.Engine.exe" run
 ```
 
-Re-registering it is `tools/DisplCtrl.ps1 -Install`, which has not been run since
+Re-registering it is `tools/DispCtrl.ps1 -Install`, which has not been run since
 the rename. Until it is, **a reboot leaves the desk with no engine**: no taskbar
 hiding, no night light schedule, no per-app rules.
 
@@ -149,7 +149,7 @@ Windows removed the *Pin to taskbar* verb in 10 1903 and it has not returned;
 an application cannot pin itself. The script checks the shell verbs and says so
 rather than pretending. Pinning is one right-click on the Start entry.
 
-Both exes carry `Assets\DisplCtrl.ico` via `<ApplicationIcon>`. Setting it only
+Both exes carry `Assets\DispCtrl.ico` via `<ApplicationIcon>`. Setting it only
 on the shortcut would leave the taskbar button and alt-tab generic.
 
 ### What a monitor will tell you
@@ -203,7 +203,7 @@ dispctrl contribute --display 2        # one of them
 dispctrl contribute --display 2 --open # prefills a GitHub issue for review
 ```
 
-Writes `%LOCALAPPDATA%\DisplCtrl\devices\<KEY>.md` and, with `--open`, opens
+Writes `%LOCALAPPDATA%\DispCtrl\devices\<KEY>.md` and, with `--open`, opens
 `github.com/jesvijonathan/Display-Control/issues/new` with the body filled in.
 The panel has the same thing under **Displays -> Send monitor details**, one
 card for the whole desk: **Collect** reads every display and writes both the
@@ -229,7 +229,7 @@ must both happen on that thread; releasing from elsewhere silently does nothing
 and leaves the combination held until the process exits. `MOD_NOREPEAT` is set,
 or holding a shortcut walks brightness to an end stop.
 
-Autostart and the Start menu entry are managed by `tools/DisplCtrl.ps1`
+Autostart and the Start menu entry are managed by `tools/DispCtrl.ps1`
 (`-Install`, `-Uninstall`, `-Status`, `-AddShortcut`, `-RemoveLegacy`). It is
 interim; MSIX `windows.startupTask` replaces it.
 
@@ -350,7 +350,7 @@ Every one of these was a real bug. Do not reintroduce them.
 - Windows requires every display flush against at least one other: no gap, no
   overlap, and a corner touch does not count. `ArrangementSolver` enforces it
   during the drag so an invalid layout is never drawn.
-- Windows sizes its own arrangement tiles by **raw pixel count**. DisplCtrl
+- Windows sizes its own arrangement tiles by **raw pixel count**. DispCtrl
   deliberately does not — see `PhysicalLayout`.
 - **The arrangement drag is discrete, and has to be.** Windows takes an
   arrangement only when every display is flush against another, so the legal
@@ -381,7 +381,7 @@ Every one of these was a real bug. Do not reintroduce them.
 - `IDesktopWallpaper` is a **local** COM server: `CLSCTX_ALL`, not
   `CLSCTX_INPROC_SERVER`.
 - The **primary taskbar cannot be moved** — `SetWindowPos` returns true and
-  Explorer restores it in ~120 ms. DisplCtrl uses Windows' own global auto-hide
+  Explorer restores it in ~120 ms. DispCtrl uses Windows' own global auto-hide
   there instead.
 
 ### Presets
@@ -477,7 +477,7 @@ unrecallable.
 - **No token, no network call from the app.** It opens a prefilled issue in the
   browser the person is already signed into and they press Submit. A token in a
   Store app is a token given to everyone who installs it.
-- **The body is plain ASCII** - the only place in DisplCtrl without proper
+- **The body is plain ASCII** - the only place in DispCtrl without proper
   typography. It travels percent-encoded, where an em dash costs nine characters
   and `x` costs one. With typography the Dell's record was 6200 characters and
   overran the URL; without it, 5760 and it prefills. Budget is 7000, under the
@@ -522,7 +522,7 @@ What does not work, and cost time discovering:
   `SetForegroundWindow` nor `AppActivate`. To test per-app rules, match on
   whatever genuinely holds the foreground instead of trying to create it.
 - **Gamma ramp reads fail from PowerShell** P/Invoke. Verify gamma through the
-  engine log or a small console project referencing `DisplCtrl.Core`.
+  engine log or a small console project referencing `DispCtrl.Core`.
 - Nested `SettingsExpander` children realise lazily: scroll the page top to
   bottom, expanding at each step, or UIA will not find inner controls.
 - A capabilities sweep takes ~30 s (37 round trips at 40 ms plus reads). Wait for
@@ -609,7 +609,7 @@ Cloned outside the repo at `../refs/` (not tracked, re-clone with
 
 Two ideas from these are worth knowing even before implementing them:
 
-- **A shade overlay dims further than gamma can.** DisplCtrl's software dimming is
+- **A shade overlay dims further than gamma can.** DispCtrl's software dimming is
   capped at ~50% by Windows' gamma clamp; a click-through translucent window has
   no such limit. MonitorControl keeps both and picks per display.
 - **Ambient light is not "one monitor's sensor drives the others".** It is one
@@ -625,4 +625,4 @@ Two ideas from these are worth knowing even before implementing them:
 - [linuxhw/EDID](https://github.com/linuxhw/EDID) — ~175,000 real EDIDs by
   vendor and model.
 - There is **no** comprehensive public database of manufacturer-specific VCP
-  codes. ddcutil's position, and DisplCtrl's: record them, never write them blind.
+  codes. ddcutil's position, and DispCtrl's: record them, never write them blind.

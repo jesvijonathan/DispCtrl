@@ -16,7 +16,7 @@ Device key: `DEL-A234`
 | Brightness over DDC/CI | yes |
 | MCCS version | 2.1 |
 
-#### Controls it lists (37, 12 DisplCtrl will drive)
+#### Controls it lists (37, 12 DispCtrl will drive)
 
 - `0x02` New control value: 0 to 255
 - `0x04` Restore factory defaults: 0 to 1
@@ -82,4 +82,21 @@ Device key: `DEL-A234`
 
 ---
 
-Submitted from DisplCtrl. Serial number, device path, file paths, user name and current settings are not collected - only what is true of every unit of this model.
+Submitted from DispCtrl. Serial number, device path, file paths, user name and current settings are not collected - only what is true of every unit of this model.
+
+
+model U2424H
+Manufacturer              Dell  ·  DEL
+Manufacturer and product  DEL-A234
+Screen size               23.8 inches  (527 × 296 mm)
+Pixel density             93 PPI  ·  Windows renders at 100
+Controller                type 0x09
+Active signal mode        1920 × 1080 @ 120 Hz
+Pixel clock               297 MHz
+DDC/CI                    Answers  ·  37 controls reported, 10 offered here
+MCCS version              2.1
+Low-level commands        0x01  0x02  0x03  0x07  0x0C  0xE3  0xF3
+Bit depth                 8-bit per channel
+and yk, other usefull details.. capture it into our report... see how much github issues support attaching into body without having user intervention... and work accordingly...
+
+also now i can see it collects but does not submit 

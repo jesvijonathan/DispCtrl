@@ -1,5 +1,5 @@
-using DisplCtrl.Core.Caching;
-using DisplCtrl.Core.Presets;
+using DispCtrl.Core.Caching;
+using DispCtrl.Core.Presets;
 
 internal static class CacheChecks
 {
@@ -43,7 +43,7 @@ internal static class CacheChecks
         check(newer == 2 && cache.Get("inflight", TimeSpan.FromMinutes(1), () => 3) == 2,
             "an invalidated in-flight read cannot replace newer data");
 
-        string path = Path.Combine(Path.GetTempPath(), $"DisplCtrl-cache-check-{Guid.NewGuid():N}.json");
+        string path = Path.Combine(Path.GetTempPath(), $"DispCtrl-cache-check-{Guid.NewGuid():N}.json");
         try
         {
             var preset = new Preset

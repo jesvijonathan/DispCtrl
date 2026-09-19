@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <AssemblyName>DispCtrl.App</AssemblyName>
+    <RootNamespace>DispCtrl.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- So the exe carries the icon itself. Without it a pinned shortcut, the
+         taskbar button and alt-tab all show the generic .NET icon, and setting
+         it on the shortcut alone fixes only the first of the three. -->
+    <ApplicationIcon>Assets\DispCtrl.ico</ApplicationIcon>
+
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+
+    <!-- Unpackaged while developing. The MSIX build sets this back so the app
+         runs with package identity and can register its startup task. -->
+    <WindowsPackageType>None</WindowsPackageType>
+
+    <!-- Compiled bindings only. x:Bind resolves at compile time, which keeps
+         the UI honest about what it depends on and leaves the door open for
+         AOT later; reflection-based Binding would close it. -->
+    <WinUIXamlOptimization>true</WinUIXamlOptimization>
+
+    <!-- LibraryImport's generated marshalling is unsafe code. Required for
+         SendInput, which is the only way to raise a shell flyout. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+
+    <!-- SettingsCard / SettingsExpander: the same controls Windows 11 Settings
+         and PowerToys use. Worth the dependency — hand-rolling them is how an
+         app ends up looking almost-but-not-quite native. -->
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DispCtrl.Core\DispCtrl.Core.csproj" />
+    <ProjectReference Include="..\DispCtrl.Display\DispCtrl.Display.csproj" />
+  </ItemGroup>
+
+</Project>

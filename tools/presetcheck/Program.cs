@@ -1,8 +1,8 @@
-using DisplCtrl.Core.Displays;
-using DisplCtrl.Display.Devices;
-using DisplCtrl.Core.Presets;
-using DisplCtrl.Core.Settings;
-using DisplCtrl.Core;
+using DispCtrl.Core.Displays;
+using DispCtrl.Display.Devices;
+using DispCtrl.Core.Presets;
+using DispCtrl.Core.Settings;
+using DispCtrl.Core;
 
 // Exercises the preset store's edge cases directly, in a scratch folder, so the
 // awkward name cases can be checked without a real desk in the way.
@@ -509,10 +509,9 @@ foreach (DisplayInfo d in attached)
             Check($"{c.Key} does not carry \"{Shorten(secret)}\"",
                 !c.Body.Contains(secret, StringComparison.OrdinalIgnoreCase));
 
-    // What the whole change was for: a record now carries the report and the
-    // presets, so it has to actually contain them.
-    // Fragments, not only whole strings. Both leaks that got this far survived
-    // as pieces of something the check was looking for in one piece.
+    // Public records describe a model. The complete machine report stays local;
+    // this is what keeps serials/current settings private and the browser issue
+    // fully prefilled rather than opening with an empty body.
     foreach (string word in Environment.UserName.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         if (word.Length >= 4)
             Check($"{c.Key} does not carry \"{word}\", a part of the account name",
@@ -520,14 +519,10 @@ foreach (DisplayInfo d in attached)
 
     Check($"{c.Key} carries no device instance id", !c.Body.Contains("UID2", StringComparison.OrdinalIgnoreCase));
 
-    Check($"{c.Key} carries the full report for its display", c.Body.Contains("Current mode"));
-    // Presets are behind a build flag, and the record follows it: with the flag
-    // off they are absent by design, not missing by accident. Asserting the
-    // published shape either way is what keeps this honest when the flag moves.
-    Check($"{c.Key} matches the preset flag",
-        FeatureFlags.Presets
-            ? c.Body.Contains("preset(s) saved") || c.Body.Contains("No presets are saved")
-            : !c.Body.Contains("preset(s) saved") && !c.Body.Contains("Presets saved on this machine"));
+    Check($"{c.Key} keeps the private full report out of the issue", !c.Body.Contains("Current mode"));
+    Check($"{c.Key} keeps personal presets out of the issue",
+        !c.Body.Contains("preset(s) saved") && !c.Body.Contains("Presets saved on this machine"));
+    Check($"{c.Key} opens with its body prefilled", c.Prefilled);
 
     Check($"{c.Key} says something about the monitor", c.Body.Length > 200);
     Check($"{c.Key} is filed under the model, not the unit", !c.Key.Contains('_') && c.Key.Length <= 12);
@@ -551,7 +546,7 @@ Console.WriteLine("the desk-wide record, which is what Submit actually opens");
     }
 
     // The whole file, not a per-display slice of it. Asked for by name.
-    Check("it carries displays.log entire", desk.Body.Contains("DisplCtrl display report"));
+    Check("it carries displays.log entire", desk.Body.Contains("DispCtrl display report"));
     Check("including every display's section",
         desk.Body.Split("Modes the driver reports").Length - 1 >= attached.Count);
     Check("and the presets, when the flag is on",
@@ -692,6 +687,27 @@ static string Shorten(string s) => s.Length <= 24 ? s : s[..24] + "...";
     Check("no dimming at zero", FocusGeometry.Alpha(0) == 0);
     Check("black at full", FocusGeometry.Alpha(100) == 255);
     Check("dimming is clamped", FocusGeometry.Alpha(400) == 255 && FocusGeometry.Alpha(-5) == 0);
+
+    var stagedCare = new OledCareSettings
+    {
+        IdleMinutes = 5,
+        DimPercent = 50,
+        SecondStageEnabled = true,
+        SecondStageMinutes = 10,
+        SecondStageDimPercent = 95,
+    };
+    Check("first OLED stage keeps its configured level",
+        stagedCare.DimAtIdle(14 * 60_000) == 50);
+    Check("second OLED stage starts after its extra interval",
+        stagedCare.DimAtIdle(15 * 60_000) == 95);
+    stagedCare.DimPercent = 100;
+    Check("a fully black first stage has no redundant second stage",
+        stagedCare.DimAtIdle(uint.MaxValue) == 100);
+
+    DateTimeOffset awakeNow = DateTimeOffset.UtcNow;
+    var awake = new AwakeSettings { Mode = AwakeMode.Timed, TimedUntilUtc = awakeNow.AddMinutes(1) };
+    Check("timed keep-awake is active before its deadline", awake.ActiveAt(awakeNow));
+    Check("timed keep-awake expires at its deadline", !awake.ActiveAt(awake.TimedUntilUtc));
 
     var monitor = new DisplayRect(0, 0, 1920, 1080);
     Check("a maximised window covers its monitor",

@@ -4,7 +4,7 @@
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/DisplCtrl.Core/DisplCtrl.Core.csproj" />
-    <ProjectReference Include="../../src/DisplCtrl.Display/DisplCtrl.Display.csproj" />
+    <ProjectReference Include="../../src/DispCtrl.Core/DispCtrl.Core.csproj" />
+    <ProjectReference Include="../../src/DispCtrl.Display/DispCtrl.Display.csproj" />
   </ItemGroup>
 </Project>

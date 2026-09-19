@@ -24,7 +24,7 @@ Only state exposed by the app's supported control APIs can be restored. Serial n
 
 ## Read, edit and share
 
-Each preset is an indented JSON file in `%LOCALAPPDATA%\DisplCtrl\presets`. **View / edit JSON** validates before saving; saving a file does not apply it. Comments and trailing commas are accepted, and saving normalizes formatting. Reopen the Presets page to load external file edits. Use Rename for a new filename so app-rule references update too.
+Each preset is an indented JSON file in `%LOCALAPPDATA%\DispCtrl\presets`. **View / edit JSON** validates before saving; saving a file does not apply it. Comments and trailing commas are accepted, and saving normalizes formatting. Reopen the Presets page to load external file edits. Use Rename for a new filename so app-rule references update too.
 
 Schema version 3 adds:
 

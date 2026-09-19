@@ -7,4 +7,4 @@ blank_issues_enabled: true
 contact_links:
   - name: Contribute a monitor
     url: https://github.com/jesvijonathan/Display-Control/blob/master/devices/README.md
-    about: Run `dispctrl contribute --open` and DisplCtrl fills this in for you.
+    about: Run `dispctrl contribute --open` and DispCtrl fills this in for you.

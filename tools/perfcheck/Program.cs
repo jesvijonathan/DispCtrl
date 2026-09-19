@@ -1,9 +1,9 @@
 using System.Diagnostics;
-using DisplCtrl.Core.Displays;
-using DisplCtrl.Core.Presets;
-using DisplCtrl.Core.Settings;
-using DisplCtrl.Display;
-using DisplCtrl.Display.Presets;
+using DispCtrl.Core.Displays;
+using DispCtrl.Core.Presets;
+using DispCtrl.Core.Settings;
+using DispCtrl.Display;
+using DispCtrl.Display.Presets;
 var displays = DisplayRegistry.Enumerate();
 var external = displays.FirstOrDefault(d => !d.IsInternal);
 void Measure(string name, Action action, int count = 1)
@@ -39,7 +39,7 @@ if (external is not null)
 var settings = SettingsStore.Load();
 Measure("Preset capture", () => PresetService.Capture("Benchmark", displays, settings));
 Measure("Preset drift capture, repeated", () => PresetService.Capture("Benchmark", displays, settings, useCache: true));
-string scratch = Path.Combine(Path.GetTempPath(), $"DisplCtrl-performance-{Guid.NewGuid():N}.json");
+string scratch = Path.Combine(Path.GetTempPath(), $"DispCtrl-performance-{Guid.NewGuid():N}.json");
 try
 {
     File.WriteAllText(scratch, PresetStore.ToJson(new Preset { Monitors = new() { ["test"] = new() } }));

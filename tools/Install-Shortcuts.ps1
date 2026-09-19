@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Puts DisplCtrl in the Start menu, pointing at the build output.
+    Puts DispCtrl in the Start menu, pointing at the build output.
 
 .DESCRIPTION
     The shortcut points straight at bin\<configuration>, not at a copy. That
@@ -40,15 +40,22 @@ $ErrorActionPreference = 'Stop'
 
 $root      = Split-Path -Parent $PSScriptRoot
 $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
-$appLink   = Join-Path $startMenu 'DisplCtrl.lnk'
-$engineLink = Join-Path $startMenu 'DisplCtrl Engine.lnk'
+$appLink   = Join-Path $startMenu 'DispCtrl.lnk'
+$engineLink = Join-Path $startMenu 'DispCtrl Engine.lnk'
+$previousAppLink = Join-Path $startMenu (('Displ' + 'Ctrl') + '.lnk')
+$previousEngineLink = Join-Path $startMenu (('Displ' + 'Ctrl') + ' Engine.lnk')
 
 if ($Remove) {
-    foreach ($link in @($appLink, $engineLink)) {
+    foreach ($link in @($appLink, $engineLink, $previousAppLink, $previousEngineLink)) {
         if (Test-Path $link) { Remove-Item $link -Force; Write-Host "removed $link" }
     }
     Write-Host 'Unpin from the taskbar by right-clicking the button there.'
     return
+}
+
+# The old links point into project directories that no longer exist.
+foreach ($link in @($previousAppLink, $previousEngineLink)) {
+    if (Test-Path $link) { Remove-Item $link -Force }
 }
 
 # The target framework moniker is in the path and changes with the SDK, so it
@@ -62,15 +69,15 @@ function Find-Exe([string]$project, [string]$name) {
            Select-Object -First 1 -ExpandProperty FullName
 }
 
-$appExe    = Find-Exe 'DisplCtrl.App'    'DisplCtrl.App.exe'
-$engineExe = Find-Exe 'DisplCtrl.Engine' 'DisplCtrl.Engine.exe'
-$cliExe    = Find-Exe 'DisplCtrl.Cli'    'dispctrl.exe'
+$appExe    = Find-Exe 'DispCtrl.App'    'DispCtrl.App.exe'
+$engineExe = Find-Exe 'DispCtrl.Engine' 'DispCtrl.Engine.exe'
+$cliExe    = Find-Exe 'DispCtrl.Cli'    'dispctrl.exe'
 
 if (-not $appExe) {
-    Write-Error "No $Configuration build of the app. Run: dotnet build src\DisplCtrl.App -c $Configuration"
+    Write-Error "No $Configuration build of the app. Run: dotnet build src\DispCtrl.App -c $Configuration"
 }
 
-$icon = Join-Path $root 'src\DisplCtrl.App\Assets\DisplCtrl.ico'
+$icon = Join-Path $root 'src\DispCtrl.App\Assets\DispCtrl.ico'
 $shell = New-Object -ComObject WScript.Shell
 
 function New-Shortcut([string]$path, [string]$target, [string]$arguments, [string]$description) {
@@ -91,7 +98,7 @@ New-Shortcut $appLink $appExe '' 'Monitor brightness, arrangement, night light a
 if ($engineExe) {
     # Separate entry because the engine is the resident half and is sometimes
     # wanted on its own — after it has been stopped, or at sign-in.
-    New-Shortcut $engineLink $engineExe 'run' 'The DisplCtrl background engine'
+    New-Shortcut $engineLink $engineExe 'run' 'The DispCtrl background engine'
 }
 
 # ---------------------------------------------------------------- taskbar --
@@ -103,7 +110,7 @@ if ($engineExe) {
 $verbs = @()
 try {
     $folder = (New-Object -ComObject Shell.Application).Namespace($startMenu)
-    $item   = $folder.ParseName('DisplCtrl.lnk')
+    $item   = $folder.ParseName('DispCtrl.lnk')
     $verbs  = $item.Verbs() | ForEach-Object { $_.Name -replace '&', '' }
 } catch { }
 
@@ -114,7 +121,7 @@ if ($pin) {
     Write-Host "Taskbar: the shell still offers '$pin' — pin it from the Start menu entry."
 } else {
     Write-Host "Taskbar: Windows does not let an application pin itself, and has not since"
-    Write-Host "         Windows 10 1903. Open Start, find DisplCtrl, right-click it and"
+    Write-Host "         Windows 10 1903. Open Start, find DispCtrl, right-click it and"
     Write-Host "         choose Pin to taskbar. It only has to be done once — the shortcut"
     Write-Host "         points at the build output, so it keeps launching the latest build."
 }

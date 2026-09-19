@@ -6,7 +6,7 @@ labels: device
 ---
 
 <!--
-  DisplCtrl writes this for you:
+  DispCtrl writes this for you:
 
       dispctrl contribute --display 2 --open
 

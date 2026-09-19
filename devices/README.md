@@ -2,7 +2,7 @@
 
 What real monitors report about themselves.
 
-DisplCtrl can only offer a control it knows a monitor has. It learns that by asking
+DispCtrl can only offer a control it knows a monitor has. It learns that by asking
 the panel over DDC/CI — but only about the panel in front of it. Every record
 here comes from someone who owned a monitor this project does not, ran
 `dispctrl contribute`, read what it produced, and submitted it.
@@ -17,7 +17,7 @@ SDC-4154.md      the Samsung panel in a Zenbook
 ```
 
 That key is what every unit of a model carries. It is deliberately not the
-identifier DisplCtrl uses internally, which ends in the serial number.
+identifier DispCtrl uses internally, which ends in the serial number.
 
 A record holds the connector, the physical size, the modes, the panel
 technology, the verbatim MCCS capabilities string, and every VCP code the
@@ -45,14 +45,16 @@ dispctrl contribute --display 2 --open
 
 `--open` fills in a GitHub issue and opens it in your browser. Nothing is sent
 until you press Submit there. The same text is saved to
-`%LOCALAPPDATA%\DisplCtrl\devices\` either way.
+`%LOCALAPPDATA%\DispCtrl\devices\` either way.
 
-The panel has the same thing under **Displays → Send monitor details**:
-**Collect** reads every attached monitor, **View** shows the full text, and
-**Submit** opens one prefilled issue per monitor. Nothing is sent until you
-press Submit in the browser.
+The panel has the same thing under **Displays → Send monitor details**. **Check
+catalog** compares attached model keys with the reviewed files in this folder.
+Only a model that is absent prompts for collection. **View** shows the exact
+public model record and **Submit** opens one issue per new model with its body
+already filled. The larger machine report stays local. Nothing is sent until
+you press Submit in the browser.
 
-There is no access token in DisplCtrl and it makes no network requests. A token
+There is no access token in DispCtrl and it makes no network requests. A token
 shipped inside an application is a token handed to everyone who installs it,
 and a submission the application makes on your behalf is not one you agreed to.
 
