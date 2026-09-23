@@ -32,21 +32,41 @@ public static class ProblemReports
     private const int MaxUrlLength = 7000;
     private const int LogLines = 40;
 
+    /// <summary>Collects local diagnostics without changing the displays or publishing anything.</summary>
     public static ProblemReport Build(string? whatHappened, string? steps, string version)
     {
         List<string> identifiers = DeviceContribution.Identifiers(null);
-        string Clean(string text) => Redact.Ascii(Redact.Scrub(text, identifiers)).Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+        // Logs outlive connections. Saved tokens also identify panels that are
+        // unplugged now, so the attached-panel list alone is insufficient.
+        foreach (string token in SettingsStore.Load().Monitors.Keys)
+        {
+            identifiers.Add(token);
+            string[] parts = token.Split('-', 3);
+            if (parts.Length == 3) identifiers.Add(parts[2]);
+        }
+        string log = Tail(SettingsStore.LogPath, LogLines);
+        string crash = File.Exists(CrashLog) && File.GetLastWriteTimeUtc(CrashLog) > DateTime.UtcNow.AddDays(-7)
+            ? Tail(CrashLog, 30) : "";
+        return Prepare(whatHappened, steps, $"{version} ({InstallKind()})", WindowsVersion(), Displays(), Context(),
+            log + (crash.Length > 0 ? "\n\n--- app-crash.log ---\n" + crash : ""), identifiers);
+    }
+
+    /// <summary>Scrubs a diagnostic snapshot and fits its issue link, preserving overflow for copying.</summary>
+    public static ProblemReport Prepare(string? whatHappened, string? steps, string version, string windows,
+        string displays, string context, string logs, IEnumerable<string> identifiers)
+    {
+        // Longer identities must go first so replacing a serial cannot leave
+        // behind a partially redacted token.
+        string[] known = identifiers.Distinct(StringComparer.OrdinalIgnoreCase).OrderByDescending(s => s.Length).ToArray();
+        string Clean(string text) => Redact.Ascii(Redact.Scrub(text, known)).Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
 
         string what = Clean(whatHappened ?? "");
         string how = Clean(steps ?? "");
-        string versionLine = Clean($"{version} ({InstallKind()})");
-        string windows = Clean(WindowsVersion());
-        string displays = Clean(Displays());
-        string context = Clean(Context());
-        string log = Clean(Tail(SettingsStore.LogPath, LogLines));
-        string crash = File.Exists(CrashLog) && File.GetLastWriteTimeUtc(CrashLog) > DateTime.UtcNow.AddDays(-7)
-            ? Clean(Tail(CrashLog, 30)) : "";
-        string logs = log + (crash.Length > 0 ? "\n\n--- app-crash.log ---\n" + crash : "");
+        string versionLine = Clean(version);
+        windows = Clean(windows);
+        displays = Clean(displays);
+        context = Clean(context);
+        logs = Clean(logs);
 
         var text = new StringBuilder();
         text.Append("### What happened\n\n").Append(what.Length > 0 ? what : "_Not described._").Append("\n\n");
@@ -69,9 +89,14 @@ public static class ProblemReports
 
         string full = Link(logs);
         if (full.Length <= MaxUrlLength) return new ProblemReport(text.ToString(), new Uri(full), null);
-        // The log is what overflows; it goes to the clipboard and the field says so.
-        string placeholder = "The log was too long for the link. DispCtrl copied it: paste it here.";
-        return new ProblemReport(text.ToString(), new Uri(Link(placeholder)), logs);
+        string placeholder = "The log was too long for the link. Paste the log provided by DispCtrl here.";
+        string withoutLogs = Link(placeholder);
+        if (withoutLogs.Length <= MaxUrlLength) return new ProblemReport(text.ToString(), new Uri(withoutLogs), logs);
+        // A long description or a large desk can overflow without any log.
+        // Use a blank issue with one paste target instead of dropping fields.
+        string fallback = $"https://github.com/{DeviceContribution.Repository}/issues/new?labels=bug"
+            + $"&title={WebUtility.UrlEncode(title)}&body={WebUtility.UrlEncode("Paste the complete report provided by DispCtrl here.")}";
+        return new ProblemReport(text.ToString(), new Uri(fallback), text.ToString());
     }
 
     private static string CrashLog => Path.Combine(SettingsStore.Directory, "app-crash.log");
@@ -123,7 +148,9 @@ public static class ProblemReports
     private static string Context()
     {
         var lines = new List<string>();
-        bool engine = Process.GetProcessesByName("DispCtrl.Engine").Length > 0;
+        var processes = Process.GetProcessesByName("DispCtrl.Engine");
+        bool engine = processes.Length > 0;
+        foreach (var process in processes) process.Dispose();
         lines.Add($"- Engine: {(engine ? "running" : "not running")}");
         try
         {

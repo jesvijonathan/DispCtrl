@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using DispCtrl.Control;
 using DispCtrl.Core.Settings;
+using DispCtrl.Display.Devices;
 
 // Every mutation targets this isolated directory, never the user's live settings.
 string scratch = Path.Combine(Path.GetTempPath(), "DispCtrl-controlcheck-" + Guid.NewGuid().ToString("N"));
@@ -184,6 +185,14 @@ try
         var history = DispCtrl.Core.Devices.DeviceHistory.Load();
         Check(history.Models.Count == 1 && history.Models["DEL-A234"].Codes["0xE2"].Observed.SequenceEqual([0, 11]),
             "history keeps each value a code was seen at, and never records a unit token as a model");
+        Check(DispCtrl.Core.Devices.DeviceHistoryEdits.Forget("DEL-A234"), "removing a device clears its saved history");
+        DispCtrl.Core.Devices.DeviceHistory.Seen("DEL-A234", "Dell", "DisplayPort", false, 527, 296);
+        DispCtrl.Core.Devices.DeviceHistory.Listed("DEL-A234", "(vcp(E2))", [new(0xE2, "Unknown", "Information", [], 11)]);
+        Check(!DispCtrl.Core.Devices.DeviceHistory.Load().Models.ContainsKey("DEL-A234")
+            && !DispCtrl.Core.Devices.DeviceHistoryEdits.NeedsReading("DEL-A234"),
+            "automatic sightings and code reads cannot restore a removed device");
+        DispCtrl.Core.Devices.DeviceHistoryEdits.Remember(["DEL-A234"]);
+        Check(DispCtrl.Core.Devices.DeviceHistoryEdits.NeedsReading("DEL-A234"), "explicit sync allows a removed model to be discovered again");
     }
     finally { DispCtrl.Core.Devices.DeviceHistory.PathOverride = null; }
     // ---- quick panel folding and hotkey defaults ----
@@ -206,6 +215,54 @@ try
         "hotkey defaults are offered once, never over a binding, and a removed one stays removed");
     Check(Hotkey.Defaults().All(h => Hotkey.TryParse(h.Describe(), out uint k, out uint m) && k == h.Key && m == h.Modifiers),
         "every default shortcut reads back from how the page writes it");
+    Check(Hotkey.Defaults().Count(h => h.Enabled) == 4 && Hotkey.Defaults().All(h => h.IsComplete),
+        "four default hotkeys are enabled and the remaining shortcuts are ready to enable");
+    var upgraded = new DispCtrlSettings();
+    upgraded.Global.HotkeyDefaultsOffered = true;
+    upgraded.Hotkeys.Add(new Hotkey { Modifiers = 3, Key = 'U', Action = HotkeyAction.Identify });
+    Check(Hotkey.OfferDefaults(upgraded) && upgraded.Hotkeys[0].Action == HotkeyAction.Identify
+        && upgraded.Hotkeys.Skip(1).All(h => !h.Enabled) && !Hotkey.OfferDefaults(upgraded),
+        "upgrading hotkeys keeps existing bindings and offers new actions disabled only once");
+    var resetAll = new DispCtrlSettings();
+    resetAll.Global.QuickPanel.Simple = true;
+    resetAll.Global.UnisonFollowsWindows = true;
+    resetAll.Global.NightLight.Enabled = true;
+    resetAll.For("test-panel").Alias = "Desk";
+    resetAll.For("test-panel").SoftwareBrightness = 25;
+    resetAll.For("test-panel").OledRestUntilUtc = DateTimeOffset.UtcNow.AddMinutes(10);
+    resetAll.ResetAll();
+    Check(!resetAll.Global.UnisonFollowsWindows && !resetAll.Global.NightLight.Enabled
+        && resetAll.Global.QuickPanel.Simple == new QuickPanelSettings().Simple
+        && resetAll.For("test-panel").SoftwareBrightness == new MonitorSettings().SoftwareBrightness
+        && resetAll.For("test-panel").OledRestUntilUtc is null && resetAll.For("test-panel").Alias == "Desk"
+        && resetAll.Hotkeys.Count == Hotkey.Defaults().Count,
+        "reset all restores panel, bridge, colour, rest and hotkeys while retaining monitor names");
+
+    // A report's text, link and clipboard fallback are all publishable surfaces.
+    string[] reportSecrets = ["SECRET1234", "DEL-A234-SECRET1234"];
+    var report = ProblemReports.Prepare("DEL-A234-SECRET1234 stopped responding", "Try SECRET1234",
+        "0.1.0", "Windows 11", "DEL-A234", "Unison off", @"C:\Users\Sample Person\private\engine.log", reportSecrets);
+    string published = report.Text + System.Net.WebUtility.UrlDecode(report.Url.AbsoluteUri) + report.Paste;
+    Check(reportSecrets.All(s => !published.Contains(s)) && !published.Contains("Sample Person")
+        && !published.Contains("DEL-A234-[removed]") && report.Paste is null,
+        "short reports prefill fully and scrub every publishing surface, longest identities first");
+    string largeLog = string.Concat(Enumerable.Repeat("Long diagnostic line.\n", 500));
+    report = ProblemReports.Prepare("A problem", "One step", "0.1.0", "Windows 11", "A panel", "Unison off", largeLog, []);
+    Check(report.Url.AbsoluteUri.Length <= 7000 && report.Paste == largeLog.Trim()
+        && report.Text.Contains(largeLog.Trim()), "long logs move to the paste field without losing the full preview");
+    report = ProblemReports.Prepare(new string('界', 12000), new string('x', 12000), "0.1.0", "Windows 11", "A panel", "", "log", []);
+    Check(report.Url.AbsoluteUri.Length <= 7000 && report.Paste == report.Text && report.Text.Contains(new string('界', 12000)),
+        "long Unicode descriptions use a bounded issue link and retain the complete report for pasting");
+    var reportSettings = SettingsStore.Load();
+    reportSettings.For("DEL-A234-DISCONNECTED123").Alias = "old-monitor";
+    SettingsStore.Save(reportSettings);
+    File.WriteAllText(SettingsStore.LogPath, "DEL-A234-DISCONNECTED123 serial DISCONNECTED123");
+    var reportReply = service.Execute(Request("report", new() { ["what"] = "A problem", ["steps"] = "One step" }));
+    Check(reportReply["ok"]!.GetValue<bool>() && !reportReply["data"]!.ToJsonString().Contains("DISCONNECTED123"),
+        "report API scrubs identities from saved but disconnected monitors in old logs");
+    Check(service.Execute(Request("report", new() { ["what"] = true }))["exitCode"]!.GetValue<int>() == 2
+        && service.Execute(Request("report", new() { ["typo"] = true }))["exitCode"]!.GetValue<int>() == 2,
+        "report API rejects invalid descriptions and unknown options");
     var original = Console.Out;
     var captured = new StringWriter();
     Console.SetOut(captured);
@@ -215,6 +272,15 @@ try
     var envelope = JsonNode.Parse(captured.ToString())!;
     Check(refused == 2 && envelope["ok"]!.GetValue<bool>() == false && envelope["exitCode"]!.GetValue<int>() == 2
         && envelope["error"]!["message"] is not null, "a refusal before the broker still answers --json in the result envelope");
+    captured = new StringWriter();
+    Console.SetOut(captured);
+    int reportExit;
+    try { reportExit = await ControlTerminal.RunAsync(["report", "--what", "on", "--steps", "123", "--local", "--json"]); }
+    finally { Console.SetOut(original); }
+    envelope = JsonNode.Parse(captured.ToString())!;
+    Check(reportExit == 0 && envelope["command"]!.GetValue<string>() == "report"
+        && envelope["data"]!["body"]!.GetValue<string>().Contains("### What happened\n\non\n\n### Steps\n\n123"),
+        "report CLI keeps boolean-like and numeric descriptions as text");
     var deferred = service.Execute(Request("apply", new() { ["dryRun"] = true, ["document"] = new JsonObject
         { ["version"] = 1, ["topology"] = "extend", ["displays"] = new JsonArray(new JsonObject { ["monitor"] = "NOT-ATTACHED-0000", ["brightness"] = 50 }) } }));
     var plannedSteps = deferred["data"]!["steps"]!.AsArray().Select(s => s!["step"]!.GetValue<string>()).ToArray();

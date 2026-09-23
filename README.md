@@ -183,16 +183,22 @@ Get-FileHash .\DispCtrl-0.1.0-stable-win-x64-setup.exe -Algorithm SHA256
 4. Optionally, turn on **Replace Windows brightness**, so your brightness keys
    and the Quick Settings slider move every display.
 
-Default shortcuts, all changeable on the Hotkeys page:
+Default shortcuts, all changeable on the Hotkeys page. Four are enabled on a new
+installation; the others are set up and ready to enable:
 
-| Shortcut | Action |
-|---|---|
-| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>PgUp</kbd> / <kbd>PgDn</kbd> | Every display brighter / dimmer |
-| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>N</kbd> | Night light |
-| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> | Focus mode |
-| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>K</kbd> | Keep awake |
-| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>I</kbd> | Identify displays |
-| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>D</kbd> | Quick panel |
+| Shortcut | Action | Enabled by default |
+|---|---|---|
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>PgUp</kbd> / <kbd>PgDn</kbd> | Every display brighter / dimmer | Yes |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>N</kbd> | Night light | Yes |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>D</kbd> | Quick panel | Yes |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>U</kbd> | Unison on / off | No |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> | Focus mode | No |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>K</kbd> | Keep awake | No |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>I</kbd> | Identify displays | No |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>M</kbd> | Dark / light mode | No |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>T</kbd> | Taskbar on / off | No |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>O</kbd> | OLED care | No |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>PgUp</kbd> / <kbd>PgDn</kbd> | Contrast up / down | No |
 
 ## Command line
 

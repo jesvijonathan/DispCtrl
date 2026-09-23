@@ -240,9 +240,11 @@ ship. The app's **Devices** page sends the same
 Global shortcuts live in `settings.Hotkeys` and are registered by the **engine**,
 which also carries them out: 21 actions, from unison and night light to focus,
 OLED care, keep awake, taskbar, contrast and the quick panel. A new desk is
-offered seven defaults once (`Hotkey.OfferDefaults`, Ctrl+Alt with Page Up/Down,
-N, F, K, I, D - never the arrows, which Intel drivers take for screen rotation),
-never over an existing binding; the page and `dispctrl hotkeys reset` restore
+offered thirteen defaults (`Hotkey.OfferDefaults`), four enabled: Ctrl+Alt with
+Page Up/Down, N and D. Nine more are configured but disabled. The defaults are
+versioned: upgrades offer newly added actions disabled once, preserving existing
+bindings and removals. Never use the arrows, which Intel drivers take for screen
+rotation. The page and `dispctrl hotkeys reset` restore
 them. **Unison hotkeys write the hardware themselves** (`ApplyUnison`): they
 used to save the level and nothing else, so with the app closed no display
 moved. Registered
@@ -342,6 +344,10 @@ Every one of these was a real bug. Do not reintroduce them.
 
 ### WinUI
 
+- **Set `AcceptsReturn` before assigning multiline `TextBox.Text`.** Assigning
+  text first silently kept only the first line in the problem-report and
+  device-share previews. UI Automation must read the whole preview, not just
+  verify that its dialog exists.
 - **`SettingsExpander.Items` accepts only card-like children.** A nested
   `SettingsExpander`, or a bare `InfoBar`, does not render badly — it **takes the
   process down** when the item is realised. This has cost three crashes. Use a
@@ -806,6 +812,12 @@ What does not work, and cost time discovering:
 ---
 
 ## Pages
+
+The Help page's **Report a problem** uses the `report` control command. The
+report includes scrubbed diagnostics, previews before opening GitHub, and carries
+overflow in `paste` instead of exceeding the issue-link limit. Saved monitor
+tokens are scrubbed too because old logs can name disconnected displays. The
+CLI prints the report and link without opening a browser or touching the clipboard.
 
 `Displays`, `Taskbar`, `Presets`, `Quick panel`, `Hotkeys`, `Devices`, `Engine`,
 `Settings`, `Help`, `About`. `docs/CLI-COVERAGE.md` maps every control on every

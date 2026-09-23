@@ -22,7 +22,7 @@ public sealed partial class ControlService
         "focus.get", "focus.set", "focus.reset", "oled.get", "oled.set", "oled.reset", "oled.preview", "oled.rest",
         "awake.get", "awake.set", "awake.reset", "nightlight.get", "nightlight.set", "nightlight.reset",
         "taskbar.get", "taskbar.set", "taskbar.reset", "tray.get", "tray.set", "tray.reset", "windows.get", "windows.set",
-        "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "tray.show", "apply", "commands", "diagnostics"];
+        "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "tray.show", "apply", "commands", "diagnostics", "report"];
 
     public JsonObject Execute(JsonObject request)
     {
@@ -92,6 +92,7 @@ public sealed partial class ControlService
         if (!Commands.Contains(command, StringComparer.Ordinal)) throw new ArgumentException("Unknown command: " + command);
         if (command == "commands") return new JsonObject { ["commands"] = new JsonArray(Commands.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()) };
         if (command is "status" or "diagnostics") return Status(command == "diagnostics");
+        if (command == "report") return ReportCommand(args);
         if (command == "settings.schema") return new JsonObject { ["schema"] = SettingsDocument.Schema() };
         if (command.StartsWith("settings.", StringComparison.Ordinal)) return SettingsCommand(command[9..], args);
         if (command == "displays.list") return new JsonObject { ["displays"] = Inventory(Flag(args, "refresh")) };
@@ -336,6 +337,7 @@ public sealed partial class ControlService
         {
             "commands" or "status" or "diagnostics" or "settings.schema" or "topology.get" or "windows.get" => [],
             "displays.list" => ["refresh"],
+            "report" => ["what", "steps"],
             "settings.get" => ["path", "monitor"],
             "settings.set" => ["path", "monitor", "value", "revision", "dryRun"],
             "settings.reset" => ["path", "monitor", "revision", "dryRun"],

@@ -120,6 +120,20 @@ verification named beside them.
   default hotkeys, the night light schedule, the OLED and focus options, and
   presets marked as off in release builds.
 
+- [x] September 23 continuation: connected the problem-report builder to the
+  `report` API/CLI and Help page, with description, complete preview, copying and
+  a prefilled GitHub issue. Long logs and descriptions retain their overflow for
+  pasting; saved disconnected monitor identities are scrubbed. Fixed the pending
+  CLI-help indentation and Devices timer import that prevented builds, plus
+  WinUI truncating both report and device-share previews to their first line.
+  Release CLI, engine and app build with zero warnings. `controlcheck` passes 68
+  checks; `presetverify`, `devicecheck validate devices` and the attached-monitor
+  `presetcheck` pass. Live UI Automation verified the report's description,
+  Windows/display/log sections, a complete Dell mapping-share preview and its
+  clipboard-fallback notice, the Hotkeys page and sponsor entry. The engine is
+  restarted through its task. No issue was submitted; browser submission remains
+  a user action.
+
 Presets stay disabled; current-settings export remains available. Preserve earlier
 OLED, Focus, Awake, contribution, startup, help and layout changes. Static-content
 detection and hardware refresh/power features need working adapters before being

@@ -12,7 +12,11 @@
       <tk:SettingsCard Header="Source code" Description="Read the code, documentation and current work on GitHub.">
         <Button Content="Open GitHub" Click="OnSource"/>
       </tk:SettingsCard>
-      <tk:SettingsCard Header="Report a problem or request a feature" Description="Open an issue with what happened and what you expected.">
+      <tk:SettingsCard Header="Report a problem" Description="Describe what happened, then review a report with display details and recent logs before opening GitHub.">
+        <Button x:Name="ReportButton" Content="Prepare report" Click="OnReport" AutomationProperties.Name="Prepare problem report"/>
+      </tk:SettingsCard>
+      <InfoBar x:Name="ReportStatus" IsOpen="False" IsClosable="True" Margin="0,8,0,8"/>
+      <tk:SettingsCard Header="Request a feature" Description="Suggest an improvement on GitHub.">
         <Button Content="Open issue" Click="OnIssue"/>
       </tk:SettingsCard>
       <tk:SettingsCard Header="Contribute code" Description="Compare a branch or fork and open a pull request.">

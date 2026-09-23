@@ -33,6 +33,21 @@ Monitor numbers are temporary. Persist a token or unique alias in scripts. Alias
 characters are letters, numbers, dashes and underscores; numeric aliases and
 `all` are reserved. A monitor selector must resolve unambiguously.
 
+## Problem reports
+
+`dispctrl report --what "What happened" --steps "How to reproduce it" --json`
+prepares the same report as **Help → Report a problem**. It includes the version,
+Windows build, display models, relevant settings and recent engine/crash logs.
+Known monitor identities and user paths are scrubbed, including identities saved
+for disconnected displays. Review the result for any other personal information.
+
+The response's `data.body` is the complete report and `data.url` opens a prefilled
+GitHub issue. If `data.paste` is non-null, copy that text into the field indicated
+by the issue: long logs are supplied separately, and a long description uses a
+complete-report paste instead. The command does not open a browser, change the
+clipboard or submit anything. The Help page offers a preview, Copy report and
+Open GitHub issue; submission always happens in the browser.
+
 ## Implemented surface
 
 | Area | Operations |

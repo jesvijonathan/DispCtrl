@@ -5,6 +5,7 @@ using DispCtrl.Core.Displays;
 using DispCtrl.Display;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -508,8 +509,8 @@ public sealed partial class DevicesPage : Page
 
         var text = new TextBox
         {
-            Text = body, IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
-            FontFamily = new FontFamily("Consolas"), FontSize = 12, Height = 420, MinWidth = 560,
+            IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
+            FontFamily = new FontFamily("Consolas"), FontSize = 12, Height = 420, MinWidth = 560, Text = body,
         };
         var dialog = new ContentDialog
         {

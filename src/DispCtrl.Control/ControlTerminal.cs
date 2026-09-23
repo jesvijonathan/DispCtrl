@@ -8,7 +8,7 @@ namespace DispCtrl.Control;
 
 public static class ControlTerminal
 {
-    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys"];
+    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys"];
     public static bool Handles(string[] args) => args.Length > 0 && (Roots.Contains(args[0])
         || args[0] == "nightlight" && args.Length > 1 && args[1] is "get" or "set" or "reset"
         || args[0] == "topology" && args.Length > 1 && args[1] is "get" or "set");
@@ -32,7 +32,7 @@ public static class ControlTerminal
       devices list                          Every monitor model seen here, and what is known of it
       devices show --monitor ID|--model KEY Every code: standard, mapped, or not yet named
       devices scan                          Sync: read every attached monitor now (the engine does it by itself)
-  devices forget --monitor ID|--model KEY   Remove a model from the list until the next scan
+      devices forget --monitor ID|--model KEY   Remove a model from the list until the next scan
       devices probe --monitor ID [--codes unknown|all|0xE2,0xF0] [--seconds 120]
                                             Watch codes while you change the monitor's own menu
       devices map --monitor ID --code 0xE2 --name "Preset mode" [--values "0x0B=ComfortView"]
@@ -64,6 +64,7 @@ public static class ControlTerminal
       scripts list|run FILE                 Inspect or run local external scripts
       request FILE|-                       Send a versioned JSON API request
       commands|status|diagnostics           Discover commands and inspect local state
+      report [--what TEXT] [--steps TEXT]   Review a scrubbed bug report and its issue link
 
     Common: --json --local --dry-run --monitor ID --timeout 30000
     Settings options use kebab-case names from 'get': --dim-percent 50, --enabled on.
@@ -90,7 +91,7 @@ public static class ControlTerminal
             string root = positional[0], action = positional.Count > 1 ? positional[1] : "get";
             int maximum = root switch
             {
-                "commands" or "status" or "diagnostics" or "watch" => 1,
+                "commands" or "status" or "diagnostics" or "report" or "watch" => 1,
                 "settings" when action is "import" or "validate" => 3,
                 "scripts" when action == "run" => 3,
                 "devices" when action == "validate" => 3,
@@ -114,7 +115,7 @@ public static class ControlTerminal
             if (root == "request" && options.Count > 0) throw new ArgumentException("Place operation arguments, including dryRun, inside the request's args object.");
             string command = root switch
             {
-                "commands" or "status" or "diagnostics" or "apply" => root,
+                "commands" or "status" or "diagnostics" or "report" or "apply" => root,
                 "displays" => action is "list" or "get" ? "displays.list" : throw new ArgumentException("Use displays list."),
                 "engine" => "status",
                 _ => root + "." + (action == "export" && root == "settings" ? "get" : action),
@@ -191,7 +192,7 @@ public static class ControlTerminal
             else if (++i < words.Length && !words[i].StartsWith("--", StringComparison.Ordinal)) value = words[i];
             else throw new ArgumentException("Missing value for --" + parts[0]);
             // Selectors are strings even when the user chooses display number 2.
-            if (key is "monitor" or "path" or "output" or "resolution" or "wallpaper" or "script" or "events" or "revision") options[key] = value;
+            if (key is "monitor" or "path" or "output" or "resolution" or "wallpaper" or "script" or "events" or "revision" or "what" or "steps") options[key] = value;
             else if (value is "on" or "off") options[key] = value == "on";
             else
             {

@@ -80,8 +80,9 @@ calls it. The Devices page already works that way - it sends the same
 
 | In the app | Command |
 | --- | --- |
-| Read attached monitors | `devices scan` |
+| Sync attached monitors (new models are read automatically by the engine) | `devices scan` |
 | The list | `devices list` |
+| Remove a model until the next explicit sync | `devices forget --model DEL-A234` |
 | Map codes, watch | `devices show --monitor 2`, `devices probe --monitor 2` |
 | Name it | `devices map --monitor 2 --code 0xE2 --name "Preset mode" --values "0x00=Standard,0x0B=ComfortView"` |
 | Share with the project | `devices share --monitor 2 --open` |
@@ -97,8 +98,14 @@ calls it. The Devices page already works that way - it sends the same
 | Open the log and the settings folder | `diagnostics` prints both paths |
 | Windows Startup apps | `windows open --page startup` |
 
+## Help
+
+| In the app | Command |
+| --- | --- |
+| Prepare problem report | `report --what "What happened" --steps "How to reproduce it"` |
+
 ## Not on the command line, and why
 
 - **Presets.** Disabled in this build in the app and the CLI alike.
-- **Help and About.** Links to the repository; nothing to control.
+- **Other Help and About links.** Links to the repository; nothing to control.
 - **The arrangement drag itself.** The CLI takes the position it would end at.
