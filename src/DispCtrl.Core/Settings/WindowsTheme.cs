@@ -53,6 +53,30 @@ public static class WindowsTheme
         }
     }
 
+    /// <summary>
+    /// True when the taskbar is dark, or null when it cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// The shell's value, not the apps' one: Windows lets the taskbar be dark
+    /// while apps stay light, and an icon drawn for the apps' theme would be
+    /// black on a black taskbar in exactly that combination.
+    /// </remarks>
+    public static bool? IsShellDark
+    {
+        get
+        {
+            try
+            {
+                using RegistryKey? key = Registry.CurrentUser.OpenSubKey(KeyPath);
+                return key?.GetValue(SystemValue) is int light ? light == 0 : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+    }
+
     /// <summary>Switches Windows between light and dark.</summary>
     /// <returns>False when the value could not be written.</returns>
     public static bool SetDark(bool dark)

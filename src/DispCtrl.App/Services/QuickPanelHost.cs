@@ -76,6 +76,10 @@ public static partial class QuickPanelHost
         return Describe(monitor);
     }
 
+    /// <summary>The monitor a window is on: its bounds, its work area, and its DPI.</summary>
+    public static (DisplayRect Bounds, DisplayRect Work, uint Dpi) MonitorOf(nint hwnd) =>
+        Describe(MonitorFromWindow(hwnd, MonitorDefaultToNearest));
+
     private static (DisplayRect, DisplayRect, uint) Describe(nint monitor)
     {
         MONITORINFO info = new() { cbSize = (uint)Marshal.SizeOf<MONITORINFO>() };
@@ -113,7 +117,7 @@ public static partial class QuickPanelHost
     /// as it is. Null when another process already holds it, in which case this
     /// one has nothing to listen for.
     /// </returns>
-    public static Mutex? Listen(DispatcherQueue queue, Action summon)
+    public static Mutex? Listen(DispatcherQueue queue, Action summon, Action? identify = null)
     {
         Mutex alive = QuickPanelSignal.OpenAlive(out bool held);
         if (!held) return null;
@@ -125,15 +129,17 @@ public static partial class QuickPanelHost
             try
             {
                 using EventWaitHandle show = QuickPanelSignal.OpenShow();
+                using EventWaitHandle number = QuickPanelSignal.OpenIdentify();
+                WaitHandle[] both = [show, number];
 
                 while (true)
                 {
-                    show.WaitOne();
+                    int which = WaitHandle.WaitAny(both);
 
                     // Enqueued rather than called: this is not the UI thread,
                     // and touching a XAML tree from here is the kind of bug
                     // that shows up as a crash somewhere unrelated later.
-                    Action? handler = _onSummon;
+                    Action? handler = which == 0 ? _onSummon : identify;
                     if (handler is not null) _ = queue.TryEnqueue(() => handler());
                 }
             }
@@ -153,26 +159,11 @@ public static partial class QuickPanelHost
         return alive;
     }
 
-    /// <summary>Brings up the full window, starting it if it is not open.</summary>
-    public static void OpenMainWindow()
-    {
-        try
-        {
-            if (App.HasMainWindow)
-            {
-                App.ShowMainWindow();
-                return;
-            }
-
-            string? exe = Environment.ProcessPath;
-            if (exe is null) return;
-
-            System.Diagnostics.Process.Start(
-                new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false });
-        }
-        catch (Exception)
-        {
-            // Nothing useful to say in a panel that is about to close anyway.
-        }
-    }
+    /// <summary>Brings up the full window in this process.</summary>
+    /// <remarks>
+    /// In this process rather than a new one: the view model here already
+    /// holds every display, and a second process would enumerate them all again
+    /// and then disagree with the panel about what it had read.
+    /// </remarks>
+    public static void OpenMainWindow(string? page = null) => App.ShowMainWindow(page);
 }

@@ -33,6 +33,12 @@ public sealed partial class HotkeysPage : Page
 
     private void OnAdd(object sender, RoutedEventArgs e) => ViewModel.Add();
 
+    private void OnRestoreDefaults(object sender, RoutedEventArgs e)
+    {
+        ViewModel.RestoreDefaults();
+        Say("Restored DispCtrl's shortcuts. The engine registers them straight away.");
+    }
+
     private void OnRemove(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is HotkeyViewModel item) ViewModel.Remove(item);

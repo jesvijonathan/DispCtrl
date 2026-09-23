@@ -1,0 +1,55 @@
+name: Build and verify
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: src/**/*.csproj
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: mingw-w64-ucrt-x86_64-gcc
+      - name: Locate the native compiler
+        shell: pwsh
+        run: |
+          $gpp = (Get-ChildItem $env:RUNNER_TEMP -Filter g++.exe -Recurse | Where-Object FullName -match 'ucrt64' | Select-Object -First 1).FullName
+          if (-not $gpp) { throw 'Native compiler not found.' }
+          "DISPCTRL_CXX=$gpp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build and test without display hardware
+        shell: pwsh
+        run: ./build/Build.ps1 -Test
+      # The shipping path on every push, not only on release day: a publish or
+      # MSIX break is found by the commit that caused it.
+      - name: Publish portable bundles
+        shell: pwsh
+        run: ./build/Publish.ps1 -Version "0.1.${{ github.run_number }}" -Channel beta -SkipTests
+      - name: Pack and validate the MSIX
+        shell: pwsh
+        run: |
+          $bundle = Get-ChildItem artifacts -Directory | Where-Object Name -Like 'beta-*' | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          ./build/Package.ps1 -DesktopDirectory (Join-Path $bundle.FullName 'desktop') `
+            -IdentityName 'DispCtrl.Development' -Publisher 'CN=DispCtrl Development' -Version "0.1.${{ github.run_number }}.0"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DispCtrl-ci-${{ github.run_number }}
+          retention-days: 14
+          path: |
+            artifacts/**/*.zip
+            artifacts/**/*.msix
+            artifacts/**/SHA256SUMS.txt
+            artifacts/**/MSIX-SHA256SUMS.txt

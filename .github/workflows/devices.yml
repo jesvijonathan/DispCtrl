@@ -1,0 +1,26 @@
+name: Device library
+on:
+  pull_request:
+    paths: ['devices/**', 'src/DispCtrl.Core/Devices/**', 'tools/devicecheck/**']
+  push:
+    branches: [main, master]
+    paths: ['devices/**']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      # The same rules DispCtrl applies when it loads a definition, so nothing
+      # merged here is something the app would refuse.
+      - name: Validate every definition
+        shell: pwsh
+        run: dotnet run --project tools/devicecheck -c Release -- validate devices
+      - name: Index is current
+        shell: pwsh
+        run: dotnet run --project tools/devicecheck -c Release -- index devices --check

@@ -28,6 +28,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             DispCtrl.Display.Presets.PresetService.HardwareChanged += () => ui.TryEnqueue(ScheduleDriftCheck);
         }
         Refresh();
+        StartSettingsSync();
     }
 
     /// <summary>The live display list, for anything that needs it after a rescan.</summary>
@@ -77,9 +78,14 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
 
     public void ReloadFromDisk()
     {
-        if (SettingsStamp() == _settingsStamp && DisplayRegistry.CheapSignature() == _layoutSignature)
+        if (DisplayRegistry.CheapSignature() == _layoutSignature)
         {
-            if (_activationRefresh.IsCompleted) _activationRefresh = RefreshExistingReadingsAsync();
+            SyncExternalSettings();
+            if (_activationRefresh.IsCompleted && Environment.TickCount64 - _lastReadingsAt > 5000)
+            {
+                _lastReadingsAt = Environment.TickCount64;
+                _activationRefresh = RefreshExistingReadingsAsync();
+            }
             return;
         }
         Refresh();
@@ -91,6 +97,43 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Raise(nameof(Logging));
         RaiseProtectionSettings();
         RaiseAwakeSettings();
+    }
+
+    private FileSystemWatcher? _settingsWatcher;
+    private System.Threading.Timer? _settingsDebounce;
+    private long _lastReadingsAt;
+
+    private void StartSettingsSync()
+    {
+        var ui = DispatcherQueue.GetForCurrentThread();
+        Directory.CreateDirectory(SettingsStore.Directory);
+        _settingsDebounce = new System.Threading.Timer(_ => ui.TryEnqueue(SyncExternalSettings));
+        _settingsWatcher = new FileSystemWatcher(SettingsStore.Directory, "settings.json")
+        { NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size };
+        _settingsWatcher.Changed += (_, _) => _settingsDebounce.Change(150, Timeout.Infinite);
+        _settingsWatcher.Created += (_, _) => _settingsDebounce.Change(150, Timeout.Infinite);
+        _settingsWatcher.Renamed += (_, _) => _settingsDebounce.Change(150, Timeout.Infinite);
+        _settingsWatcher.Deleted += (_, _) => _settingsDebounce.Change(150, Timeout.Infinite);
+        _settingsWatcher.EnableRaisingEvents = true;
+    }
+
+    private void SyncExternalSettings()
+    {
+        var stamp = SettingsStamp();
+        if (stamp == _settingsStamp) return;
+        try
+        {
+            var incoming = SettingsStore.Load();
+            // Active cards retain their settings object even when an external
+            // reset removes that monitor from the file.
+            foreach (var display in Displays) incoming.For(display.Token);
+            SettingsStore.RefreshInPlace(_settings, incoming);
+            _settingsStamp = stamp;
+            foreach (var display in Displays) display.NotifySettingsReloaded();
+            Raise(string.Empty);
+            QuickPanelChanged?.Invoke();
+        }
+        catch (Exception ex) { ShowFooterStatus("Settings sync: " + ex.Message); }
     }
 
     /// <summary>
@@ -110,8 +153,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// Rebuilds the display list if, and only if, the layout actually changed.
     /// </summary>
     /// <remarks>
-    /// The check is one <c>EnumDisplayMonitors</c> sweep of data the kernel
-    /// already has — no CCD query, no registry, no DDC/CI — so it is cheap
+    /// The check reads GDI and DPI metadata — no CCD query, registry or DDC/CI — so it is cheap
     /// enough to run every couple of seconds. The rebuild behind it is not:
     /// it re-reads every monitor's capabilities over DDC/CI, which is seconds
     /// per panel. Hence the gate.
@@ -164,6 +206,14 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         RefreshTopology();
         RefreshArrangement();
         RefreshEngineStatus();
+
+        // Whether Windows has a brightness slider to follow is only known once
+        // the built-in panel has answered, which is after this returns.
+        _ = Task.WhenAll(Displays.Select(d => d.BrightnessReady)).ContinueWith(_ =>
+        {
+            Raise(nameof(UnisonFollowsWindowsAvailable));
+            Raise(nameof(UnisonFollowsWindowsDescription));
+        }, TaskScheduler.FromCurrentSynchronizationContext());
 
         // The per-display brightness line is built from values the hardware has
         // not answered for yet — DDC/CI takes far longer than WMI — so it is
@@ -238,14 +288,28 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// </summary>
     private void Persist()
     {
-        SettingsStore.Save(_settings);
-        _settingsStamp = SettingsStamp();
+        // Setters bound to sliders call this, so an exception here comes out of
+        // a XAML callback and ends the process. The value stays in memory and
+        // goes out with the next save.
+        try { SettingsStore.Save(_settings); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or TimeoutException)
+        {
+            ShowFooterStatus("Settings could not be saved yet: " + ex.Message);
+            return;
+        }
+        if (SettingsStore.HasExternalChanges(_settings))
+        {
+            _settingsStamp = default;
+            _settingsDebounce?.Change(150, Timeout.Infinite);
+        }
+        else _settingsStamp = SettingsStamp();
         ShowFooterStatus("Settings saved.");
 
         // Per-display power features are saved through DisplayViewModel rather
         // than the shared protection setters, so they must be able to bring the
         // resident engine up on their own.
-        if (_settings.Global.Awake.ActiveAt(DateTimeOffset.UtcNow)
+        if (_settings.Global.OledCare.Enabled
+            || _settings.Global.Awake.ActiveAt(DateTimeOffset.UtcNow)
             || _settings.Monitors.Values.Any(monitor => monitor.MonitorSleepEnabled
                 || monitor.OledRestUntilUtc > DateTimeOffset.UtcNow))
             _engine.Start();
@@ -432,8 +496,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             Persist();
             Raise();
             Raise(nameof(UnisonVisibility));
+            Raise(nameof(UnisonSliderEnabled));
 
-            if (value) _ = CaptureBaselinesAsync();
+            if (value && !Calibrating) _ = CaptureBaselinesAsync();
         }
     }
 
@@ -447,15 +512,90 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// display whose hardware has not answered yet — and a baseline of zero can
     /// never be scaled back up.
     /// </remarks>
+    /// <remarks>
+    /// Switching unison off leaves every display wherever it is, free to be set
+    /// by hand. Switching it on brings them all back to where unison puts them:
+    /// the slider stays where it was left, each display keeps the baseline it
+    /// had, and each is set to that baseline at that level. Only a display that
+    /// has never had a baseline gets one, worked back from where it is now so it
+    /// joins without a jump. See <see cref="UnisonResume"/>.
+    /// </remarks>
     private async Task CaptureBaselinesAsync()
     {
-        foreach (DisplayViewModel d in Displays)
-            await d.CaptureBaselineAsync();
+        var driven = new List<DisplayViewModel>();
+        var current = new List<int>();
+        var baselines = new List<int>();
 
-        _settings.Global.UnisonLevel = 100;
+        foreach (DisplayViewModel d in Displays)
+        {
+            // A display with captured limits is driven across its own range,
+            // not against a baseline, so it has nothing to remember.
+            if (d.UsesBrightnessRange) continue;
+
+            int? now = await d.ReadBrightnessAsync();
+            if (now is null) continue;
+
+            driven.Add(d);
+            current.Add(now.Value);
+            baselines.Add(d.BrightnessBaseline);
+        }
+
+        (int level, int[] kept) = UnisonResume.Enable(
+            _settings.Global.UnisonLevel, current, baselines, (int)Math.Round(UnisonMinimum));
+
+        for (int i = 0; i < driven.Count; i++)
+            if (driven[i].BrightnessBaseline != kept[i]) driven[i].BrightnessBaseline = kept[i];
+
+        _settings.Global.UnisonLevel = level;
         Persist();
         Raise(nameof(UnisonLevel));
+        Raise(nameof(UnisonPercentText));
+
+        await ApplyUnisonAsync(level / 100.0);
     }
+
+    // ------------------------------------------- Windows' brightness drives unison --
+
+    /// <summary>
+    /// Whether Windows' own brightness slider and keys drive unison.
+    /// </summary>
+    /// <remarks>
+    /// The engine does the following, because the keys must work with the app
+    /// closed. It reads the built-in panel's brightness back through that
+    /// panel's own unison range, so the keys move unison within the calibrated
+    /// limits: the built-in panel never leaves its range, and every display
+    /// stays in step with it.
+    /// </remarks>
+    public bool UnisonFollowsWindows
+    {
+        get => _settings.Global.UnisonFollowsWindows;
+        set
+        {
+            if (_settings.Global.UnisonFollowsWindows == value) return;
+            _settings.Global.UnisonFollowsWindows = value;
+            Persist();
+
+            // The engine listens; without it the switch would sit there doing nothing.
+            if (value)
+            {
+                try { _engine.Start(); }
+                catch (Exception) { }
+
+                // Puts the built-in panel inside its range before the first key press.
+                if (UnisonBrightness && !Calibrating) _ = ApplyUnisonAsync(_settings.Global.UnisonLevel / 100.0);
+            }
+
+            Raise();
+        }
+    }
+
+    /// <summary>Whether this machine has a Windows brightness slider to follow.</summary>
+    public bool UnisonFollowsWindowsAvailable =>
+        Displays.Any(d => d.IsInternalPanel && d.BrightnessSupported);
+
+    public string UnisonFollowsWindowsDescription => UnisonFollowsWindowsAvailable
+        ? "The brightness slider in Windows' Quick Settings and the keyboard's brightness keys move unison instead of the built-in screen alone. Every display, the built-in screen included, stays within its own unison range, so calibrated limits hold. Works with DispCtrl closed, through the engine."
+        : "Windows only offers a brightness slider for a built-in screen, and none was found, so there is nothing to follow.";
 
     public Visibility UnisonVisibility =>
         _settings.Global.UnisonBrightness ? Visibility.Visible : Visibility.Collapsed;
@@ -504,225 +644,6 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         foreach (DisplayViewModel d in Displays) d.RaiseNightLight();
     }
 
-    // ----------------------------------------------------- monitor details --
-
-    /// <summary>
-    /// The records prepared by the last collect, one per attached monitor.
-    /// </summary>
-    /// <remarks>
-    /// Held rather than rebuilt so that View and Submit work on exactly what was
-    /// read. A capabilities sweep is around a hundred DDC/CI round trips per
-    /// monitor at 40 ms apiece, so asking twice for the same answer costs seconds
-    /// and gives the channel a second chance to come back empty.
-    /// </remarks>
-    private readonly List<Contribution> _collected = [];
-
-    /// <remarks>
-    /// Says what is actually published, which is now a great deal more than it
-    /// was: the whole report for each display, what it is set to at this moment,
-    /// and every preset. Consent to "device details" would not be consent to
-    /// that, so the sentence had to change with the payload.
-    /// </remarks>
-    private static readonly string DetailsPrompt =
-        "Checks attached monitor models against the repository catalog. New models can be collected "
-        + "as a reviewable device record with controls, capabilities and modes. The complete diagnostic "
-        + "report stays on this PC; serial numbers, paths, current settings and your user name are never "
-        + "put in the public issue.";
-
-    private string _detailsStatus = DetailsPrompt;
-
-    public string DetailsStatus
-    {
-        get => _detailsStatus;
-        private set { _detailsStatus = value; Raise(); }
-    }
-
-    /// <summary>
-    /// Whether there is anything to view or submit yet.
-    /// </summary>
-    /// <remarks>
-    /// Both buttons appear only once the displays have been read. Neither can do
-    /// its job before that, and a button that is always there but only sometimes
-    /// works is one whose state has to be learned by pressing it.
-    /// </remarks>
-    public Visibility CollectedVisibility =>
-        _collected.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-    /// <summary>
-    /// True when the complete report cannot fit in GitHub's prefilled-issue URL.
-    /// </summary>
-    /// <remarks>
-    /// The browser can safely receive the title in that case, but not a report
-    /// that has grown to tens of thousands of encoded characters. The UI copies
-    /// the exact body before opening the browser so it is ready to paste.
-    /// </remarks>
-    public bool SubmissionNeedsPaste => _collected.Any(item => !item.Prefilled);
-
-    public List<DisplayInfo> UnknownDisplays()
-    {
-        var result = new List<DisplayInfo>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (DisplayInfo display in CurrentDisplays())
-            if (!KnownMonitorCatalog.Contains(display.Key.Model) && seen.Add(display.Key.Model))
-                result.Add(display);
-        return result;
-    }
-
-    /// <summary>
-    /// Reads every display once: the full local report, and a publishable record
-    /// per monitor.
-    /// </summary>
-    /// <remarks>
-    /// One press for the whole desk. This was a button per display inside an
-    /// expander, which asked the user to understand that a device record
-    /// describes a model before they could send one — and to press it again for
-    /// every monitor they own.
-    /// <para>
-    /// Off the UI thread. Both halves enumerate every mode and ask each external
-    /// monitor over DDC/CI what it supports, which is seconds of blocking calls
-    /// per panel.
-    /// </para>
-    /// </remarks>
-    public async Task CollectAsync(IReadOnlyList<DisplayInfo> unknown)
-    {
-        List<DisplayInfo> displays = CurrentDisplays();
-
-        _collected.Clear();
-        Raise(nameof(CollectedVisibility));
-
-        DetailsStatus = "Reading every display…";
-        ShowFooterStatus(DetailsStatus, busy: true);
-
-        string? report = null;
-        string? trouble = null;
-
-        try
-        {
-            report = await Task.Run(() => DisplayReport.Write(displays));
-        }
-        catch (Exception ex)
-        {
-            trouble = $"the report could not be written: {ex.Message}";
-        }
-
-        if (unknown.Count > 0)
-        {
-            DetailsStatus = "Reading the new monitor models…";
-            ShowFooterStatus(DetailsStatus, busy: true);
-            try
-            {
-                List<Contribution> records = await Task.Run(() =>
-                    unknown.Select(display => DeviceContribution.Prepare(display, displays)).ToList());
-                _collected.AddRange(records);
-            }
-            catch (Exception ex)
-            {
-                trouble ??= $"the records could not be built: {ex.Message}";
-            }
-        }
-
-        Raise(nameof(CollectedVisibility));
-        DetailsStatus = unknown.Count == 0
-            ? "Every attached monitor model is already present in the repository catalog."
-                + (report is null ? "" : $" The local report is at {report}.")
-            : Summarise(report, trouble);
-        ShowFooterStatus(trouble is null ? "Display report ready." : $"Display report incomplete: {trouble}");
-    }
-
-    private string Summarise(string? report, string? trouble)
-    {
-        var sb = new StringBuilder();
-
-        sb.Append(_collected.Count == 0
-            ? "None of the displays could be read."
-            : $"{_collected.Count} new monitor record{(_collected.Count == 1 ? "" : "s")} read, and nothing has been sent.");
-
-        if (report is not null) sb.Append($" The full report is at {report}.");
-        if (trouble is not null) sb.Append($" One thing went wrong — {trouble}.");
-
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// The text that would be published, exactly as it would be published.
-    /// </summary>
-    /// <remarks>
-    /// Shown in full rather than summarised. Someone deciding whether to publish
-    /// a record of their hardware is entitled to read the record, and a dialog
-    /// saying "device details will be sent" asks them to take it on trust.
-    /// <para>
-    /// Each monitor's record stands on its own, under its own heading, because
-    /// that is how they are submitted and how the device folder is organised.
-    /// </para>
-    /// </remarks>
-    public string CollectedText
-    {
-        get
-        {
-            var sb = new StringBuilder();
-
-            foreach (Contribution c in _collected)
-            {
-                if (sb.Length > 0) sb.AppendLine().AppendLine();
-                sb.AppendLine(c.Body.TrimEnd());
-            }
-
-            return sb.ToString();
-        }
-    }
-
-    /// <summary>
-    /// Opens one prefilled issue per monitor. The person still presses Submit.
-    /// </summary>
-    /// <remarks>
-    /// One issue for the desk, titled with every display on it. Per monitor came
-    /// first, on the reasoning that a record describes a model - and it produced
-    /// a browser tab per monitor, every one of them empty, because a record that
-    /// carries the full report is always past the length GitHub takes in a link.
-    /// The per-model files are still written, so the folder can be filled from
-    /// the issue.
-    /// <para>
-    /// Opening a form is not submitting one. There is no token in this
-    /// application and it makes no request: the browser shows the exact text and
-    /// the person presses Submit there, or closes the tab.
-    /// </para>
-    /// </remarks>
-    /// <returns>
-    /// The one record that must be pasted by hand, for the caller to put on the
-    /// clipboard, or null when every record prefilled.
-    /// </returns>
-    public string? Submit()
-    {
-        if (_collected.Count == 0) return null;
-
-        int opened = 0;
-        var fallback = new StringBuilder();
-        foreach (Contribution record in _collected)
-        {
-            if (!DeviceContribution.Open(record)) continue;
-            opened++;
-            if (!record.Prefilled)
-            {
-                if (fallback.Length > 0) fallback.AppendLine().AppendLine();
-                fallback.Append(record.Body);
-            }
-        }
-
-        if (opened == 0)
-        {
-            DetailsStatus = "No browser would open. The records remain in " + DeviceContribution.Folder + ".";
-            return null;
-        }
-
-        DetailsStatus = fallback.Length == 0
-            ? $"{opened} prefilled GitHub issue{(opened == 1 ? " is" : "s are")} open. Review and submit there."
-            : "A record still exceeded the browser limit and was copied for fallback.";
-        return fallback.Length == 0 ? null : fallback.ToString();
-    }
-
-    public static string ReportPath => DisplayReport.Path_;
-
-    public static string ContributeFolder => DeviceContribution.Folder;
 
     // ------------------------------------------------------------ night light --
 
@@ -1009,14 +930,14 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// True in per-display mode, and also mid-calibration whatever the mode —
     /// see <see cref="CaptureWarmthLimits"/>.
     /// </remarks>
-    public bool PerDisplayWarmth => Night.Enabled && (!Night.Unison || CalibratingWarmth);
+    public bool PerDisplayWarmth => Night.PerDisplayApplies || (Night.Enabled && CalibratingWarmth);
 
     public Visibility NightLightVisibility =>
         Night.Enabled ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>The shared slider only means anything in unison mode.</summary>
     public Visibility NightLightSharedVisibility =>
-        Night.Enabled && Night.Unison ? Visibility.Visible : Visibility.Collapsed;
+        Night.SharedApplies ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility NightLightScheduleVisibility =>
         Night.Enabled && Night.Scheduled ? Visibility.Visible : Visibility.Collapsed;
@@ -1128,6 +1049,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     }
 
     private CalibrationStep _step = CalibrationStep.None;
+    private int _calibrationGeneration;
+    private bool _capturingLimits;
+    private Task _calibrationEndpoint = Task.CompletedTask;
 
     /// <summary>
     /// Runs unison between per-display limits instead of scaling one captured
@@ -1159,21 +1083,65 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// <summary>Starts, or restarts, the two-step walkthrough.</summary>
     public void BeginCalibration()
     {
+        UnisonCalibration.SetActive(true);
         _step = CalibrationStep.Lower;
+        _calibrationEndpoint = RememberThenLowerAsync();
         RaiseCalibration();
+    }
+
+    /// <summary>Where the desk was before the walkthrough moved it, for Cancel.</summary>
+    private (int Level, List<(DisplayViewModel Display, int Percent)> Displays)? _beforeCalibration;
+
+    private async Task RememberThenLowerAsync()
+    {
+        var levels = new List<(DisplayViewModel, int)>();
+        foreach (DisplayViewModel d in Displays.ToArray())
+            if (await d.ReadBrightnessAsync() is int percent) levels.Add((d, percent));
+        _beforeCalibration = (_settings.Global.UnisonLevel, levels);
+        // Cancelled while reading: starting the endpoint now would take a new
+        // generation and strand the cancel's restore behind it.
+        if (_step == CalibrationStep.Lower) await SetCalibrationEndpointAsync(false);
     }
 
     private void ClearCalibration()
     {
         _step = CalibrationStep.None;
+        _beforeCalibration = null;
+        _ = ReleaseCalibrationAsync(++_calibrationGeneration);
         foreach (DisplayViewModel d in Displays) d.ClearLimits();
     }
 
     /// <summary>Abandons the walkthrough, leaving any limits already captured.</summary>
+    /// <remarks>
+    /// The walkthrough drove every display to an endpoint and the slider with
+    /// it. Cancelling used to leave them there, so backing out of Recalibrate
+    /// left the desk at its dimmest with the slider on zero.
+    /// </remarks>
     public void CancelCalibration()
     {
         _step = CalibrationStep.None;
+        int generation = ++_calibrationGeneration;
+        _ = RestoreThenReleaseAsync(generation);
         RaiseCalibration();
+    }
+
+    private async Task RestoreThenReleaseAsync(int generation)
+    {
+        try
+        {
+            try { await _calibrationEndpoint; }
+            catch (Exception) { }
+            if (_beforeCalibration is not { } before || generation != _calibrationGeneration) return;
+            _beforeCalibration = null;
+            _settings.Global.UnisonLevel = before.Level;
+            Persist();
+            Raise(nameof(UnisonLevel));
+            Raise(nameof(UnisonPercentText));
+            foreach ((DisplayViewModel display, int percent) in before.Displays)
+                if (Displays.Contains(display)) await display.SetBrightnessAsync(percent);
+        }
+        catch (Exception ex) { ShowFooterStatus("Calibration: " + ex.Message); }
+        finally { await ReleaseCalibrationAsync(generation); }
     }
 
     /// <summary>
@@ -1188,17 +1156,28 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public async Task CaptureLimitsAsync()
     {
-        if (_step == CalibrationStep.None) return;
+        if (_step == CalibrationStep.None || _capturingLimits) return;
+
+        int generation = _calibrationGeneration;
+        _capturingLimits = true;
+        try
+        {
+        await _calibrationEndpoint;
+        await Task.WhenAll(Displays.Select(d => d.WaitForBrightnessWriteAsync()));
+        if (generation != _calibrationGeneration || !Calibrating) return;
 
         bool upper = _step == CalibrationStep.Upper;
 
         var pending = new List<Task>(Displays.Count);
         foreach (DisplayViewModel d in Displays) pending.Add(d.CaptureLimitAsync(upper));
         await Task.WhenAll(pending);
+        if (generation != _calibrationGeneration || !Calibrating) return;
 
         if (upper)
         {
             _step = CalibrationStep.None;
+            _beforeCalibration = null;
+            _ = ReleaseCalibrationAsync(++_calibrationGeneration);
 
             // The displays are sitting at their ceilings right now, so the
             // slider belongs at the top of its travel. Writing the value
@@ -1213,12 +1192,53 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         else
         {
             _step = CalibrationStep.Upper;
+            _calibrationEndpoint = SetCalibrationEndpointAsync(true);
         }
 
         RaiseCalibration();
+        }
+        catch (Exception ex) { ShowFooterStatus("Calibration: " + ex.Message); }
+        finally { _capturingLimits = false; }
     }
 
     public bool Calibrating => _step != CalibrationStep.None;
+
+    public bool UnisonSliderEnabled => UnisonBrightness && !Calibrating;
+
+    private async Task ReleaseCalibrationAsync(int generation)
+    {
+        try
+        {
+            await Task.WhenAll(Displays.Select(d => d.WaitForBrightnessWriteAsync()));
+            // WMI can deliver a brightness notification just after a write completes.
+            await Task.Delay(500);
+        }
+        finally
+        {
+            if (generation == _calibrationGeneration && !Calibrating) UnisonCalibration.SetActive(false);
+        }
+    }
+
+    private async Task SetCalibrationEndpointAsync(bool upper)
+    {
+        int generation = ++_calibrationGeneration;
+        try
+        {
+        _settings.Global.UnisonLevel = upper ? 100 : 0;
+        Persist();
+        Raise(nameof(UnisonLevel));
+        Raise(nameof(UnisonPercentText));
+        foreach (DisplayViewModel display in Displays.ToArray())
+        {
+            await display.BrightnessReady;
+            if (_calibrationGeneration != generation || !Calibrating) return;
+            int endpoint = upper ? display.BrightnessCeiling : display.BrightnessFloor;
+            await display.SetBrightnessAsync(endpoint >= 0 ? endpoint : upper ? 100 : 0);
+        }
+        await Task.WhenAll(Displays.Select(d => d.WaitForBrightnessWriteAsync()));
+        }
+        catch (Exception ex) { ShowFooterStatus("Calibration: " + ex.Message); }
+    }
 
     public Visibility CalibrationVisibility =>
         _settings.Global.UnisonCalibrated ? Visibility.Visible : Visibility.Collapsed;
@@ -1279,6 +1299,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     private void RaiseCalibration()
     {
         Raise(nameof(Calibrating));
+        Raise(nameof(UnisonSliderEnabled));
         Raise(nameof(CalibrationVisibility));
         Raise(nameof(CalibrationStepVisibility));
         Raise(nameof(RecalibrateVisibility));
@@ -1296,6 +1317,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         get => _settings.Global.UnisonLevel;
         set
         {
+            if (Calibrating) return;
             int v = (int)value;
             if (_settings.Global.UnisonLevel == v) return;
             _settings.Global.UnisonLevel = v;
@@ -1303,7 +1325,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             Raise();
             Raise(nameof(UnisonPercentText));
 
-            _ = ApplyUnisonAsync(v / 100.0);
+            if (UnisonBrightness && !Calibrating) _ = ApplyUnisonAsync(v / 100.0);
         }
     }
 
@@ -1316,8 +1338,11 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     private async Task ApplyUnisonAsync(double factor)
     {
         var pending = new List<Task>(Displays.Count);
-        foreach (DisplayViewModel d in Displays)
-            pending.Add(d.ApplyUnisonAsync(factor));
+        // The built-in panel is driven like any other display, within its own
+        // range, including while Windows' slider drives unison: the engine reads
+        // that slider back through the same range (UnisonResume.LevelFor), so
+        // Quick Settings showing the panel's real value does not jump the level.
+        foreach (DisplayViewModel d in Displays) pending.Add(d.ApplyUnisonAsync(factor));
 
         await Task.WhenAll(pending);
         Raise(nameof(BrightnessSummary));

@@ -31,6 +31,9 @@
   <ItemGroup>
     <None Include="..\..\devices\*.md" Exclude="..\..\devices\README.md"
           Link="devices\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Reviewed device definitions, beside every executable that resolves them. -->
+    <None Include="..\..\devices\definitions\*.json"
+          Link="devices\definitions\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

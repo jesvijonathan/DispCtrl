@@ -46,7 +46,12 @@ internal static class Program
         // the engine is launched in a context that ignores the manifest.
         _ = PInvoke.SetProcessDpiAwarenessContext((DPI_AWARENESS_CONTEXT)PerMonitorAwareV2);
 
-        string command = args.Length > 0 ? args[0].ToLowerInvariant() : "status";
+        if (args.Length > 0 && args[0] == "control")
+            return DispCtrl.Control.ControlTerminal.RunAsync(args[1..]).GetAwaiter().GetResult();
+        if (args.Length > 0 && args[0] is not ("status" or "displays") && DispCtrl.Control.ControlTerminal.Handles(args))
+            return DispCtrl.Control.ControlTerminal.RunAsync(args).GetAwaiter().GetResult();
+
+        string command = args.Length > 0 ? args[0].ToLowerInvariant() : "run";
         string? arg = args.Length > 1 ? args[1] : null;
 
         return command switch
@@ -55,7 +60,9 @@ internal static class Program
             "enable" => SetHide(arg, true),
             "disable" => SetHide(arg, false),
             "status" => Status(),
-            "run" => Run(ParseDuration(args), HasFlag(args, "--trace")),
+            // No arguments at all is the packaged startup task, which cannot pass any.
+            "run" => Run(ParseDuration(args), HasFlag(args, "--trace"),
+                args.Length == 0 || HasFlag(args, DispCtrl.Display.StartupIntegration.SignInArgument)),
             "stop" => Stop(),
             "help" or "--help" or "-h" or "/?" => Usage(0),
 
@@ -110,7 +117,8 @@ internal static class Program
     private static FileSystemWatcher WatchSettings(TaskbarManager manager, NightLightService nightLight,
                                                    AppRuleService? appRules, HotkeyService hotkeys,
                                                    Protection.FocusService focus, PowerService power,
-                                                   Shell.TrayIconService tray)
+                                                   Shell.TrayIconService tray,
+                                                   Color.WindowsBrightnessBridge brightnessBridge)
     {
         Directory.CreateDirectory(SettingsStore.Directory);
 
@@ -128,6 +136,7 @@ internal static class Program
                 focus.Update(reloaded);
                 power.Update(reloaded);
                 tray.Update(reloaded);
+                brightnessBridge.Update(reloaded);
             }
             catch (Exception ex)
             {
@@ -354,7 +363,29 @@ internal static class Program
             string.Equals(d.Token, selector, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static int Run(TimeSpan? duration, bool trace)
+    /// <summary>What the engine starts besides itself, once its own work is running.</summary>
+    /// <remarks>
+    /// Off the startup path: the taskbar and tray come first, and a panel
+    /// process competing with them for the first second of sign-in would slow
+    /// the part people see.
+    /// </remarks>
+    private static void AfterStart(DispCtrlSettings settings, bool signIn)
+    {
+        try
+        {
+            if (Environment.ProcessPath is { } self && DispCtrl.Display.StartupIntegration.MigrateToTask(self))
+                Log.Write("startup: moved from the Startup folder to the DispCtrl.Engine scheduled task");
+        }
+        catch (Exception ex) { Log.Write($"startup: could not register the task ({ex.Message})"); }
+
+        Thread.Sleep(1500);
+        if (settings.Global.PreloadQuickPanel && settings.Global.QuickPanel.Enabled && QuickPanelSignal.Preload())
+            Log.Write("startup: quick panel preloaded");
+        if (signIn && settings.Global.OpenWindowAtSignIn && QuickPanelSignal.OpenWindow())
+            Log.Write("startup: window opened at sign-in");
+    }
+
+    private static int Run(TimeSpan? duration, bool trace, bool signIn = false)
     {
         // One engine at a time. A second launch exits quietly rather than
         // fighting the first over the same taskbar windows.
@@ -372,36 +403,9 @@ internal static class Program
         DispCtrlSettings settings = SettingsStore.Load();
         Log.Configure(settings.Global.Logging, echo: true);
 
-        int managed = 0;
-        foreach (MonitorSettings ms in settings.Monitors.Values)
-            if (ms.HideTaskbar) managed++;
-
-        // Taskbar hiding is no longer the only reason to be resident: night
-        // light has a schedule, and a schedule that only runs while a taskbar
-        // is also being managed is not a schedule.
-        bool dimming = false;
-        foreach (MonitorSettings ms in settings.Monitors.Values)
-            if (ms.SoftwareBrightness < 100) dimming = true;
-
-        bool appRulesEnabled = DispCtrl.Core.FeatureFlags.Presets && settings.AppRules.Any(rule => rule.Enabled);
-        bool hotkeysEnabled = settings.Hotkeys.Any(h => h.Enabled && h.IsComplete
-            && (DispCtrl.Core.FeatureFlags.Presets || h.Action != HotkeyAction.ApplyPreset));
-        if (managed == 0 && !settings.Global.NightLight.Enabled && !appRulesEnabled
-            && !dimming && !hotkeysEnabled && !settings.Global.Focus.Enabled
-            && !settings.Global.OledCare.Enabled && settings.Global.TaskbarOpacity >= 100
-            && !settings.Global.TaskbarGlassEnabled
-            && !settings.Global.Awake.ActiveAt(DateTimeOffset.UtcNow)
-            && !settings.Monitors.Values.Any(monitor => monitor.MonitorSleepEnabled)
-            // An icon in the notification area is a reason to be resident all
-            // by itself: it is the only way the panel can be reached.
-            && !settings.Global.QuickPanel.Enabled)
-        {
-            Console.Error.WriteLine(
-                "nothing to do: no taskbar is managed, night light is off, nothing is software-dimmed, "
-                + "and there is no enabled automation or shortcut.");
-            Console.Error.WriteLine("run `displays`, then `enable <n>` — or turn something on in the app.");
-            return 1;
-        }
+        // The broker is useful even with every policy off: clients can enable
+        // features later without a second launch. No-argument startup also
+        // supports the MSIX startup-task entry point.
 
         using var cts = new CancellationTokenSource();
 
@@ -476,6 +480,7 @@ internal static class Program
             using var appRules = DispCtrl.Core.FeatureFlags.Presets
                 ? new AppRuleService(settings, SettingsStore.Save) : null;
 
+            if (Hotkey.OfferDefaults(settings)) SettingsStore.Save(settings);
             using var hotkeys = new HotkeyService(settings, SettingsStore.Save);
             // Constructed unconditionally, and that is the whole point: this
             // service is what notices the settings file turning these features
@@ -493,7 +498,15 @@ internal static class Program
             // engine was next restarted.
             using var tray = new Shell.TrayIconService(settings, SettingsStore.Save);
 
-            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys, focus, power, tray);
+            // Windows' brightness slider and keys driving unison. Constructed
+            // whether or not it is wanted, so switching it on in the app takes
+            // effect without restarting the engine.
+            using var brightnessBridge = new Color.WindowsBrightnessBridge(settings);
+            using var hotplug = new Color.UnisonHotplug();
+
+            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys, focus, power, tray, brightnessBridge);
+            using var control = new DispCtrl.Control.ControlServer(Log.Write);
+            _ = Task.Run(() => AfterStart(settings, signIn));
 
             manager.Run(cts.Token);
             return 0;

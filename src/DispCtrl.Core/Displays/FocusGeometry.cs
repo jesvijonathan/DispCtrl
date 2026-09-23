@@ -12,6 +12,9 @@ public static class FocusGeometry
         window.Left <= monitor.Left && window.Top <= monitor.Top && window.Right >= monitor.Right && window.Bottom >= monitor.Bottom;
     public static byte Alpha(int dim) => (byte)Math.Round(Math.Clamp(dim, 0, 100) * 2.55);
 
+    public static bool IsContentFullscreen(DisplayRect window, DisplayRect monitor, bool maximized, bool hasCaption) =>
+        !(maximized && hasCaption) && Covers(window, monitor);
+
     /// <summary>
     /// The alpha the arriving layer needs so that two stacked layers still read
     /// as exactly <paramref name="dim"/> while the leaving one fades away.

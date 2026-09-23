@@ -26,6 +26,29 @@ public static class QuickPanelSignal
 {
     private const string ShowName = @"Local\DispCtrl.QuickPanel.Show";
     private const string AliveName = @"Local\DispCtrl.QuickPanel.Alive";
+    private const string IdentifyName = @"Local\DispCtrl.Identify";
+
+    /// <summary>Opens, or creates, the event that asks the app to number the displays.</summary>
+    public static EventWaitHandle OpenIdentify() =>
+        new EventWaitHandle(false, EventResetMode.AutoReset, IdentifyName);
+
+    /// <summary>
+    /// Numbers every display: through the app that is listening, or by starting
+    /// one hidden to do it. The overlays are XAML, so they are the app's to draw.
+    /// </summary>
+    public static bool Identify()
+    {
+        if (PanelIsListening())
+        {
+            try
+            {
+                using EventWaitHandle identify = OpenIdentify();
+                return identify.Set();
+            }
+            catch (Exception) { }
+        }
+        return Start("--panel --background --identify");
+    }
 
     /// <summary>Where the panel records the executable to start it with.</summary>
     /// <remarks>
@@ -103,13 +126,44 @@ public static class QuickPanelSignal
             }
         }
 
-        string? exe = null;
+        return Start("--panel");
+    }
+
+    /// <summary>
+    /// Starts a panel process that listens without showing anything, so the
+    /// first summons finds it warm.
+    /// </summary>
+    /// <returns>False when one is already listening or there is no app to start.</returns>
+    public static bool Preload() => !PanelIsListening() && Start("--panel --background");
+
+    /// <summary>Starts the app with the full window.</summary>
+    public static bool OpenWindow() => Start("");
+
+    private static bool Start(string arguments)
+    {
+        string? exe = AppExecutable();
+        if (exe is null) return false;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(exe, arguments) { UseShellExecute = false });
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Where the app is: as it last recorded, or beside this executable.</summary>
+    public static string? AppExecutable()
+    {
         try
         {
             if (System.IO.File.Exists(AppPathFile))
             {
                 string recorded = System.IO.File.ReadAllText(AppPathFile).Trim();
-                if (System.IO.File.Exists(recorded)) exe = recorded;
+                if (System.IO.File.Exists(recorded)) return recorded;
             }
         }
         catch (Exception) { }
@@ -117,18 +171,7 @@ public static class QuickPanelSignal
         // A deployed layout has both executables in one folder, so the sibling
         // is worth a look before giving up on a desk where the app has not been
         // run since the path file was last cleared.
-        exe ??= Sibling();
-        if (exe is null) return false;
-
-        try
-        {
-            Process.Start(new ProcessStartInfo(exe, "--panel") { UseShellExecute = false });
-            return true;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
+        return Sibling();
     }
 
     private static string? Sibling()

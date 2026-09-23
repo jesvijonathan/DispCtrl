@@ -84,6 +84,7 @@ TranslateMessage
 RegisterWindowMessage
 GetModuleHandle
 ExtractIconEx
+SHDefExtractIcon
 DestroyIcon
 PostMessage
 SetForegroundWindow
@@ -101,3 +102,40 @@ WM_CONTEXTMENU
 WM_COMMAND
 WM_DESTROY
 WM_CLOSE
+
+// ---- tray glyph ----
+// The icon is drawn at runtime from Segoe Fluent Icons, the font Windows draws
+// its own tray icons from, so it can follow the taskbar's theme and the
+// display's scale instead of being one coloured .ico for every case.
+CreateCompatibleDC
+DeleteDC
+CreateDIBSection
+CreateBitmap
+SelectObject
+DeleteObject
+CreateFontIndirect
+LOGFONTW
+SetBkMode
+SetTextColor
+DrawText
+CreateIconIndirect
+ICONINFO
+BITMAPINFO
+BITMAPINFOHEADER
+DIB_USAGE
+BI_COMPRESSION
+FONT_QUALITY
+BACKGROUND_MODE
+DRAW_TEXT_FORMAT
+GetSystemMetrics
+SYSTEM_METRICS_INDEX
+GetDpiForSystem
+WM_SETTINGCHANGE
+WM_DPICHANGED
+WM_DISPLAYCHANGE
+
+// ---- taskbar repaint after a reveal settles ----
+RedrawWindow
+GetWindowRgnBox
+SetWindowRgn
+REDRAW_WINDOW_FLAGS

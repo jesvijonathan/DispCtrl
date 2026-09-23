@@ -15,6 +15,20 @@ public enum HotkeyAction
     Identify,
     UnisonUp,
     UnisonDown,
+
+    // Appended, never inserted: settings store the name, but an older build
+    // reading a newer file should still find every name it knows where it was.
+    UnisonToggle,
+    FocusToggle,
+    OledCareToggle,
+    OledRestNow,
+    KeepAwakeToggle,
+    DarkModeToggle,
+    QuickPanel,
+    TaskbarToggle,
+    TaskbarGlassToggle,
+    ContrastUp,
+    ContrastDown,
 }
 
 /// <summary>One global keyboard shortcut.</summary>
@@ -78,6 +92,85 @@ public sealed class Hotkey
         return string.Join(" + ", parts);
     }
 
+    /// <summary>
+    /// Reads a shortcut written the way <see cref="Describe"/> writes one:
+    /// <c>Ctrl + Alt + Up</c>, <c>Win+Shift+F9</c>.
+    /// </summary>
+    /// <remarks>
+    /// The inverse of <see cref="KeyName"/> rather than a second table, so a
+    /// shortcut the page shows can always be typed back in on the command line.
+    /// Needs at least one modifier: a bare key registered globally would stop
+    /// that key working anywhere else.
+    /// </remarks>
+    public static bool TryParse(string text, out uint key, out uint modifiers)
+    {
+        key = 0;
+        modifiers = 0;
+        string[] parts = text.Split('+', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2) return false;
+        foreach (string part in parts[..^1])
+        {
+            uint flag = part.ToLowerInvariant() switch
+            {
+                "win" or "windows" => 8, "ctrl" or "control" => 2, "alt" => 1, "shift" => 4, _ => 0,
+            };
+            if (flag == 0) return false;
+            modifiers |= flag;
+        }
+        string wanted = parts[^1].Replace(" ", "", StringComparison.Ordinal);
+        for (uint code = 1; code < 256; code++)
+        {
+            string name = KeyName(code);
+            if (name.StartsWith("Key ", StringComparison.Ordinal)) continue;
+            if (!name.Replace(" ", "", StringComparison.Ordinal).Equals(wanted, StringComparison.OrdinalIgnoreCase)) continue;
+            key = code;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// The shortcuts a new desk starts with.
+    /// </summary>
+    /// <remarks>
+    /// Ctrl+Alt, the combination least likely to be taken: Win is Windows' and
+    /// Ctrl+Shift belongs to applications. Not Ctrl+Alt with the arrow keys,
+    /// which many Intel graphics drivers take to rotate the screen. Page Up and
+    /// Page Down for unison, because brightness is the thing reached for most;
+    /// a letter for each switch, named for what it does.
+    /// </remarks>
+    public static List<Hotkey> Defaults()
+    {
+        const uint CtrlAlt = 1 | 2;
+        return
+        [
+            new() { Modifiers = CtrlAlt, Key = 0x21, Action = HotkeyAction.UnisonUp, Step = 5 },      // Page Up
+            new() { Modifiers = CtrlAlt, Key = 0x22, Action = HotkeyAction.UnisonDown, Step = 5 },    // Page Down
+            new() { Modifiers = CtrlAlt, Key = 'N', Action = HotkeyAction.NightLightToggle },
+            new() { Modifiers = CtrlAlt, Key = 'F', Action = HotkeyAction.FocusToggle },
+            new() { Modifiers = CtrlAlt, Key = 'K', Action = HotkeyAction.KeepAwakeToggle },
+            new() { Modifiers = CtrlAlt, Key = 'I', Action = HotkeyAction.Identify },
+            new() { Modifiers = CtrlAlt, Key = 'D', Action = HotkeyAction.QuickPanel },
+        ];
+    }
+
+    /// <summary>
+    /// Adds the defaults once, to a desk that has never been offered them.
+    /// </summary>
+    /// <remarks>
+    /// Only combinations not already bound, and never again after the first
+    /// time - so a default somebody removed stays removed.
+    /// </remarks>
+    /// <returns>True when the settings changed and want saving.</returns>
+    public static bool OfferDefaults(DispCtrlSettings settings)
+    {
+        if (settings.Global.HotkeyDefaultsOffered) return false;
+        settings.Global.HotkeyDefaultsOffered = true;
+        foreach (Hotkey d in Defaults())
+            if (!settings.Hotkeys.Any(h => h.Key == d.Key && h.Modifiers == d.Modifiers)) settings.Hotkeys.Add(d);
+        return true;
+    }
+
     /// <summary>What the whole binding does, in words.</summary>
     public string DescribeAction()
     {
@@ -95,6 +188,17 @@ public sealed class Hotkey
             HotkeyAction.Identify => "Show the display numbers on screen",
             HotkeyAction.UnisonUp => $"Unison brightness up {Step}%",
             HotkeyAction.UnisonDown => $"Unison brightness down {Step}%",
+            HotkeyAction.UnisonToggle => "Turn unison brightness on or off",
+            HotkeyAction.FocusToggle => "Turn focus mode on or off",
+            HotkeyAction.OledCareToggle => "Turn OLED care on or off",
+            HotkeyAction.OledRestNow => $"Rest the OLED displays on {where}",
+            HotkeyAction.KeepAwakeToggle => "Keep the computer awake, or let it sleep",
+            HotkeyAction.DarkModeToggle => "Switch between dark and light mode",
+            HotkeyAction.QuickPanel => "Open or close the quick panel",
+            HotkeyAction.TaskbarToggle => $"Hide or show the taskbar on {where}",
+            HotkeyAction.TaskbarGlassToggle => "Turn taskbar glass on or off",
+            HotkeyAction.ContrastUp => $"Contrast up {Step}% on {where}",
+            HotkeyAction.ContrastDown => $"Contrast down {Step}% on {where}",
             _ => Action.ToString(),
         };
     }

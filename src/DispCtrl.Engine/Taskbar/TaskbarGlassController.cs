@@ -24,6 +24,7 @@ internal sealed class TaskbarGlassController : IDisposable
     private int _lastConfig;
     private bool _missingLogged;
     private string? _lastStatus;
+    private long _retryAt;
 
     public void Update(GlobalSettings settings)
     {
@@ -40,20 +41,24 @@ internal sealed class TaskbarGlassController : IDisposable
 
         if (!TryLoad()) return;
 
-        Process? explorer = Process.GetProcessesByName("explorer").FirstOrDefault();
-        if (explorer is null) { Log.Write("taskbar glass: Explorer is not running"); WriteStatus("Explorer is not running"); return; }
-        uint pid = unchecked((uint)explorer.Id);
+        nint taskbar = Protection.OverlayNative.FindWindowEx(0, 0, "Shell_TrayWnd", null);
+        if (taskbar == 0) { WriteStatus("Explorer taskbar is not running"); return; }
+        Protection.OverlayNative.GetWindowThreadProcessId(taskbar, out uint pid);
         if (_explorerPid != pid)
         {
+            if (Environment.TickCount64 < _retryAt) return;
             int hr = _attach!(pid);
-            _explorerPid = pid;
             _lastConfig = 0;
             if (hr < 0)
             {
                 Log.Write($"taskbar glass: Explorer attach failed (0x{hr:X8})");
-                WriteStatus($"Explorer integration failed (0x{hr:X8})");
+                _retryAt = Environment.TickCount64 + 10000;
+                WriteStatus(hr == unchecked((int)0x8007051A)
+                    ? "Explorer has an older glass helper loaded. Restart Windows Explorer to load this build."
+                    : $"Explorer integration failed (0x{hr:X8})");
                 return;
             }
+            _explorerPid = pid;
             Log.Write($"taskbar glass: attached to Explorer {pid}");
             WriteStatus("Connected to Explorer; waiting for the taskbar surface");
         }
@@ -61,7 +66,9 @@ internal sealed class TaskbarGlassController : IDisposable
         int radius = Math.Clamp(settings.TaskbarGlassRadius, 0, 100);
         int tint = Math.Clamp(settings.TaskbarGlassTint, 0, 100);
         int config = unchecked((int)(0x01000000u | (uint)radius | ((uint)tint << 8)));
-        if (config == _lastConfig) return;
+        // New taskbar XAML threads and Explorer's own visual-state changes
+        // can arrive after a successful application. The native check is cheap
+        // when its brush is still installed; keep it on the one-second rescan.
         int result = InvokeUpdate(pid, unchecked((uint)config));
         if (result < 0)
         {
@@ -71,9 +78,9 @@ internal sealed class TaskbarGlassController : IDisposable
         }
         // XAML can be injected before Explorer has created the taskbar
         // rectangles. Keep retrying until the callback reports a real target.
+        if (config != _lastConfig && result > 0)
+            Log.Write($"taskbar glass: applied to {result} taskbar background(s), radius {radius}, tint {tint}");
         _lastConfig = result > 0 ? config : 0;
-        if (result == 0) Log.Write("taskbar glass: waiting for Explorer taskbar XAML");
-        else Log.Write($"taskbar glass: applied to {result} taskbar background(s), radius {radius}, tint {tint}");
         WriteStatus(result == 0
             ? "Connected to Explorer; waiting for the taskbar surface"
             : $"Applied to {result} taskbar surface(s) · blur {radius}px · tint {tint}%");

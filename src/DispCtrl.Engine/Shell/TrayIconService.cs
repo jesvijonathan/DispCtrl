@@ -28,7 +28,7 @@ internal sealed class TrayIconService : IDisposable
     private const uint TrayCallback = PInvoke.WM_APP + 0x20;
 
     /// <summary>Menu command ids. Any value; they only travel within this window.</summary>
-    private const int CmdPanel = 1, CmdOpen = 2, CmdHide = 3;
+    private const int CmdPanel = 1, CmdOpen = 2, CmdHide = 3, CmdPromote = 4;
 
     private const string ClassName = "DispCtrl.Tray";
 
@@ -42,6 +42,12 @@ internal sealed class TrayIconService : IDisposable
     private DispCtrlSettings _settings;
     private bool _shown;
     private bool _disposed;
+
+    /// <summary>
+    /// What the current icon was drawn for, so a broadcast that changed
+    /// nothing the icon depends on does not redraw it.
+    /// </summary>
+    private (TrayIconStyle Style, bool Dark, int Size) _drawnFor = (TrayIconStyle.AppLogo, false, -1);
 
     /// <summary>
     /// Held for the life of the service so the shell's callback does not arrive
@@ -123,7 +129,7 @@ internal sealed class TrayIconService : IDisposable
                 return;
             }
 
-            _icon = LoadOwnIcon();
+            Redraw();
             Apply();
 
             MSG message;
@@ -146,32 +152,109 @@ internal sealed class TrayIconService : IDisposable
     }
 
     /// <summary>
-    /// The engine's own icon, taken from its executable.
+    /// The engine's own icon, taken from its executable at the tray's size.
     /// </summary>
     /// <remarks>
-    /// <c>ExtractIconEx</c> on the running binary rather than a resource id:
-    /// both executables carry the icon through <c>ApplicationIcon</c>, and which
-    /// id that lands on in the PE is the build system's business, not something
-    /// to hard-code and have silently break.
+    /// From the running binary rather than a resource id: which id
+    /// <c>ApplicationIcon</c> lands on in the PE is the build system's business,
+    /// not something to hard-code and have silently break.
+    /// <para>
+    /// <c>SHDefExtractIcon</c> rather than <c>ExtractIconEx</c>, because the
+    /// icon file holds a single 256-pixel image and the tray wants 16.
+    /// <c>ExtractIconEx</c>'s small icon is the system's crude resize of that;
+    /// this asks the shell for the exact size, resampled the way Explorer
+    /// resamples its own.
+    /// </para>
     /// </remarks>
-    private static unsafe HICON LoadOwnIcon()
+    private static unsafe HICON LoadOwnIcon(int size)
     {
         string? exe = Environment.ProcessPath;
         if (string.IsNullOrEmpty(exe)) return default;
 
-        Span<HICON> large = stackalloc HICON[1];
-        Span<HICON> small = stackalloc HICON[1];
-        if (PInvoke.ExtractIconEx(exe, 0, large, small) == 0) return default;
+        HICON large = default, small = default;
+        uint sizes = ((uint)size << 16) | (uint)size;
 
-        // The notification area draws at small-icon size, so the small one is
-        // the one that is not resampled.
-        if (!small[0].IsNull)
+        fixed (char* path = exe)
         {
-            if (!large[0].IsNull) PInvoke.DestroyIcon(large[0]);
-            return small[0];
+            if (PInvoke.SHDefExtractIcon(path, 0, 0, &large, &small, sizes).Failed) return default;
         }
 
-        return large[0];
+        if (!small.IsNull) PInvoke.DestroyIcon(small);
+        return large;
+    }
+
+    /// <summary>
+    /// Draws the icon for the current style, taskbar theme and size, and hands
+    /// it to the shell if it is already showing.
+    /// </summary>
+    private void Redraw()
+    {
+        TrayIconStyle style;
+        lock (_gate) { style = _settings.Global.QuickPanel.Icon; }
+
+        // A theme that cannot be read is taken as dark, the Windows 11 default,
+        // because a white glyph on a light bar is still visible and a black one
+        // on a dark bar is not.
+        bool dark = WindowsTheme.IsShellDark ?? true;
+        int size = TrayGlyph.Size;
+
+        if (_drawnFor == (style, dark, size) && !_icon.IsNull) return;
+
+        // Recorded as asked for, not as drawn: a logo that falls back to the
+        // glyph must not look like a changed setting to every later broadcast.
+        TrayIconStyle requested = style;
+
+        HICON next = default;
+        string how = "";
+
+        if (style == TrayIconStyle.AppLogo)
+        {
+            next = LoadOwnIcon(size);
+            how = $"the application icon, {size}px";
+        }
+
+        // Never an empty slot. An executable built without its icon gave a null
+        // handle here, which the shell draws as nothing at all.
+        if (next.IsNull && style == TrayIconStyle.AppLogo)
+        {
+            Log.Write("tray: the executable carries no icon, drawing the glyph instead");
+            style = TrayIconStyle.Brightness;
+        }
+
+        if (next.IsNull)
+        {
+            char glyph = style == TrayIconStyle.Display ? TrayGlyph.Display : TrayGlyph.Brightness;
+            int covered = 0;
+
+            // Caught here rather than left to the pump: an exception out of
+            // drawing ended the pump, and with it the icon, the menu, and the
+            // only way to reach the panel. A plainer icon is always better.
+            try { next = TrayGlyph.Draw(glyph, size, dark, out covered); }
+            catch (Exception ex) { Log.Write($"tray: drawing the glyph failed: {ex.Message}"); }
+
+            how = $"{style} glyph, {size}px, {(dark ? "white" : "black")}, {covered} pixels";
+
+            // A glyph that drew nothing would be an invisible icon. The logo is
+            // worse-looking and better than nothing.
+            if (next.IsNull || covered == 0)
+            {
+                if (!next.IsNull) PInvoke.DestroyIcon(next);
+                next = LoadOwnIcon(size);
+                how = "the application icon, because the glyph did not draw";
+            }
+        }
+
+        HICON previous = _icon;
+        _icon = next;
+        _drawnFor = (requested, dark, size);
+
+        if (_shown) _ = PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_MODIFY, Data());
+
+        // Released only after the shell has the new one, so there is no moment
+        // when it is asked to draw a destroyed handle.
+        if (!previous.IsNull) PInvoke.DestroyIcon(previous);
+
+        Log.Write($"tray: icon is {how}");
     }
 
     private unsafe NOTIFYICONDATAW Data()
@@ -250,8 +333,19 @@ internal sealed class TrayIconService : IDisposable
         switch (message)
         {
             case PInvoke.WM_APP:
+                Redraw();
                 Apply();
                 return new LRESULT(0);
+
+            // The taskbar switching between light and dark arrives as a setting
+            // change ("ImmersiveColorSet"), and a change of scale as a display
+            // change. Neither is filtered by its details: Redraw compares what
+            // the icon depends on and does nothing when none of it moved.
+            case PInvoke.WM_SETTINGCHANGE:
+            case PInvoke.WM_DISPLAYCHANGE:
+            case PInvoke.WM_DPICHANGED:
+                Redraw();
+                break;
 
             case TrayCallback:
                 OnTrayMessage((uint)(lParam.Value & 0xFFFF));
@@ -300,6 +394,13 @@ internal sealed class TrayIconService : IDisposable
             Item(menu, CmdPanel, "Quick panel");
             Item(menu, CmdOpen, "Open DispCtrl");
             _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_SEPARATOR, 0, default);
+
+            // Windows' own per-icon switch, offered where somebody is looking at
+            // the icon. Greyed until Windows has a record of it to change.
+            bool? promoted = TrayIconPromotion.IsPromoted(Environment.ProcessPath);
+            Item(menu, CmdPromote, "Keep on the taskbar",
+                (promoted == true ? MENU_ITEM_FLAGS.MF_CHECKED : 0)
+                | (promoted is null ? MENU_ITEM_FLAGS.MF_GRAYED : 0));
             Item(menu, CmdHide, "Hide this icon");
 
             if (!PInvoke.GetCursorPos(out System.Drawing.Point point)) return;
@@ -315,10 +416,10 @@ internal sealed class TrayIconService : IDisposable
                 TRACK_POPUP_MENU_FLAGS.TPM_RIGHTALIGN | TRACK_POPUP_MENU_FLAGS.TPM_BOTTOMALIGN,
                 point.X, point.Y, 0, _window, null);
 
-            static unsafe void Item(HMENU menu, int id, string text)
+            static unsafe void Item(HMENU menu, int id, string text, MENU_ITEM_FLAGS extra = 0)
             {
                 fixed (char* label = text)
-                    _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_STRING, (nuint)id, label);
+                    _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_STRING | extra, (nuint)id, label);
             }
 
             // The other half of the same quirk: the window has to be given a
@@ -341,6 +442,12 @@ internal sealed class TrayIconService : IDisposable
 
             case CmdOpen:
                 OpenApp();
+                break;
+
+            case CmdPromote:
+                bool now = TrayIconPromotion.IsPromoted(Environment.ProcessPath) == true;
+                if (!TrayIconPromotion.SetPromoted(Environment.ProcessPath, !now))
+                    Log.Write("tray: Windows has no record of the icon to move yet");
                 break;
 
             case CmdHide:

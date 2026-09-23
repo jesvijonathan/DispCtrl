@@ -185,6 +185,35 @@ public sealed class GlobalSettings
     /// </remarks>
     public bool UnisonCalibrated { get; set; }
 
+    /// <summary>
+    /// Let Windows' own brightness - the Quick Settings slider and the
+    /// keyboard's brightness keys - drive the unison level.
+    /// </summary>
+    /// <remarks>
+    /// Those controls only ever move the built-in panel, through WMI. With this
+    /// on, the engine watches that change and carries it to every other display:
+    /// the built-in panel's brightness <em>is</em> the unison level, and each
+    /// other display follows at its own baseline. Only takes effect while
+    /// unison is on, and only on a machine whose built-in panel Windows can
+    /// dim - a desktop has no such slider to follow.
+    /// </remarks>
+    public bool UnisonFollowsWindows { get; set; }
+
+    /// <summary>Start the quick panel hidden alongside the engine, so the first click opens it at once.</summary>
+    /// <remarks>
+    /// A WinUI process takes about a second to start cold and some 20 ms to show
+    /// a panel it already has. On by default: the first click is the one that
+    /// decides whether the panel feels part of Windows. The cost is one resident
+    /// process, which the panel's own design already keeps after first use.
+    /// </remarks>
+    public bool PreloadQuickPanel { get; set; } = true;
+
+    /// <summary>Open the DispCtrl window too when the engine starts at sign-in.</summary>
+    public bool OpenWindowAtSignIn { get; set; }
+
+    /// <summary>Whether the default hotkeys have been added; see <see cref="Hotkey.OfferDefaults"/>.</summary>
+    public bool HotkeyDefaultsOffered { get; set; }
+
     /// <summary>Warmth applied to every display together.</summary>
     public NightLightSettings NightLight { get; set; } = new();
 
@@ -280,6 +309,28 @@ public sealed class NightLightSettings
     /// </para>
     /// </remarks>
     public bool FollowWindows { get; set; } = true;
+
+    /// <summary>
+    /// Whether each display's own warmth is what gets applied.
+    /// </summary>
+    /// <remarks>
+    /// Only with night light on, out of unison, and not handed to Windows.
+    /// Windows' night light warms every display by the same amount, so while it
+    /// is doing the warming a per-display value has nowhere to go - and both the
+    /// Displays page and the quick panel used to offer per-display sliders in
+    /// exactly that state, which moved nothing.
+    /// </remarks>
+    [JsonIgnore]
+    public bool PerDisplayApplies => Enabled && !Unison && !FollowWindows;
+
+    /// <summary>Whether the one shared strength is what gets applied.</summary>
+    /// <remarks>
+    /// Following Windows counts as shared whatever the unison switch says,
+    /// because Windows has only one strength. Hiding the shared slider in that
+    /// state left the desk with no working warmth control at all.
+    /// </remarks>
+    [JsonIgnore]
+    public bool SharedApplies => Enabled && (Unison || FollowWindows);
 
     /// <summary>Only warm between <see cref="FromMinutes"/> and <see cref="ToMinutes"/>.</summary>
     /// <remarks>
@@ -477,6 +528,10 @@ public sealed class MonitorSettings
     /// <summary>Last reported panel technology, so the engine never polls DDC for protection.</summary>
     public bool OledDetected { get; set; }
     public bool OledProtection { get; set; } = true;
+    /// <summary>Optional unique script-friendly monitor name.</summary>
+    public string Alias { get; set; } = "";
+    /// <summary>Keep an idle panel dimmed until the pointer moves on that panel.</summary>
+    public bool OledWakeOnPointerReturn { get; set; }
     public int OledRestMinutes { get; set; } = 5;
 
     /// <summary>Turn this external monitor off through MCCS power mode after inactivity.</summary>
@@ -514,6 +569,7 @@ public sealed class MonitorSettings
         NightLightCeiling = fresh.NightLightCeiling;
         IsOled = fresh.IsOled;
         OledProtection = fresh.OledProtection;
+        OledWakeOnPointerReturn = fresh.OledWakeOnPointerReturn;
         OledRestMinutes = fresh.OledRestMinutes;
         MonitorSleepEnabled = fresh.MonitorSleepEnabled;
         MonitorSleepMinutes = fresh.MonitorSleepMinutes;

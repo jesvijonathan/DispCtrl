@@ -118,32 +118,15 @@
                Visibility="{x:Bind ViewModel.ArrangementStatusVisibility, Mode=OneWay}"
                Message="{x:Bind ViewModel.ArrangementStatus, Mode=OneWay}"/>
 
-      <!-- One card, and not an expander. Writing the report and preparing what
-           could be published are the same sweep of the same hardware, and
-           splitting them charged the user for it twice: once for the file, then
-           once more per monitor, behind an expander, for a button whose label
-           could not explain why it was per monitor in the first place.
-
-           Collect reads every display. View shows exactly what would leave the
-           machine. Submit opens it for the final press, which happens on
-           GitHub and not here. -->
-      <tk:SettingsCard Header="Send monitor details"
-                       Description="{x:Bind ViewModel.DetailsStatus, Mode=OneWay}">
+      <!-- The device library has its own page: every monitor seen, mapping the
+           codes nobody has named, and sharing one model at a time. -->
+      <tk:SettingsCard Header="Monitor library"
+                       Description="Every monitor this PC has seen, what each of its controls does, and sharing that with the project so the same model works for everyone."
+                       IsClickEnabled="True" Click="OnOpenDevices"
+                       AutomationProperties.Name="OpenDevicesPage">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE9F9;"/>
         </tk:SettingsCard.HeaderIcon>
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="Check catalog" Click="OnCollect"
-                  AutomationProperties.Name="CollectMonitorDetails"/>
-          <Button Content="View&#x2026;" Click="OnViewDetails"
-                  Visibility="{x:Bind ViewModel.CollectedVisibility, Mode=OneWay}"
-                  AutomationProperties.Name="ViewMonitorDetails"/>
-          <Button Content="Submit" Click="OnSubmitDetails"
-                  Style="{StaticResource AccentButtonStyle}"
-                  ToolTipService.ToolTip="Opens one prefilled issue per monitor — you read it and press Submit in the browser"
-                  Visibility="{x:Bind ViewModel.CollectedVisibility, Mode=OneWay}"
-                  AutomationProperties.Name="SubmitMonitorDetails"/>
-        </StackPanel>
       </tk:SettingsCard>
 
       <tk:SettingsCard Header="Connect to a wireless display"
@@ -169,6 +152,7 @@
           <Slider Value="{x:Bind ViewModel.UnisonLevel, Mode=TwoWay}"
                   Minimum="{x:Bind ViewModel.UnisonMinimum, Mode=OneWay}"
                   Maximum="100" StepFrequency="1"
+                  IsEnabled="{x:Bind ViewModel.UnisonSliderEnabled, Mode=OneWay}"
                   Width="200" VerticalAlignment="Center"
                   Visibility="{x:Bind ViewModel.UnisonVisibility, Mode=OneWay}"
                   AutomationProperties.Name="UnisonLevelSliderInline"/>
@@ -181,12 +165,24 @@
         </StackPanel>
 
         <tk:SettingsExpander.Items>
+          <!-- First, because it changes what unison is: from a slider in this
+               app to the brightness control every Windows user already reaches
+               for. The engine does the following, so it works with the app shut. -->
+          <tk:SettingsCard Header="Replace Windows brightness"
+                           Description="{x:Bind ViewModel.UnisonFollowsWindowsDescription, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE793;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.UnisonFollowsWindows, Mode=TwoWay}"
+                          IsEnabled="{x:Bind ViewModel.UnisonFollowsWindowsAvailable, Mode=OneWay}"
+                          AutomationProperties.Name="UnisonFollowsWindows"/>
+          </tk:SettingsCard>
+
           <!-- Calibration is a walkthrough rather than two number boxes: the
                limits are a judgement made by looking at the panels side by
                side, which no amount of typing reproduces. -->
           <tk:SettingsCard Header="Use captured limits"
-                           Description="Ask each display how dim and how bright it should go, then run the slider between those levels instead of scaling one captured value."
-                           Visibility="{x:Bind ViewModel.UnisonVisibility, Mode=OneWay}">
+                           Description="Choose how dim and bright each display should go, then run the slider between those limits.">
             <tk:SettingsCard.HeaderIcon>
               <FontIcon Glyph="&#xE9E9;"/>
             </tk:SettingsCard.HeaderIcon>
@@ -470,7 +466,7 @@
           <tk:SettingsCard Header="Dim after inactivity" Description="Minutes without keyboard or mouse input. Input restores the display automatically.">
             <NumberBox Value="{x:Bind ViewModel.OledIdleMinutes, Mode=TwoWay}" Minimum="1" Maximum="120" SmallChange="1" Width="135" SpinButtonPlacementMode="Compact" AutomationProperties.Name="OledIdleMinutes"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Idle dimming" Description="100% gives the panel a black screen. This does not run a hardware compensation cycle.">
+          <tk:SettingsCard Header="Idle dimming" Description="With protection enabled, changes preview for two seconds. 100% is black; this does not run a hardware compensation cycle.">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Slider Value="{x:Bind ViewModel.OledIdleDim, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="160" AutomationProperties.Name="OledIdleDim"/>
               <TextBlock Text="{x:Bind ViewModel.OledIdleDim, Mode=OneWay}" VerticalAlignment="Center"/>
@@ -608,15 +604,16 @@
                      deliberate rather than a gap. -->
                 <tk:SettingsCard ContentAlignment="Vertical"
                                  HorizontalContentAlignment="Stretch">
-                  <Grid ColumnSpacing="24" Padding="0,4,0,8">
+                  <Grid ColumnSpacing="24" RowSpacing="16" Padding="0,4,0,8"
+                        SizeChanged="OnDisplayOverviewSizeChanged" RowDefinitions="Auto,Auto">
                     <Grid.ColumnDefinitions>
                       <!-- The preview takes whatever the table does not, and
                            centres itself in it. Pinned left it sat alone against
                            the icon gutter with the whole gap to its right; in
                            the middle of its own share it reads as the other half
                            of the card rather than as something left over. -->
-                      <ColumnDefinition Width="Auto"/>
                       <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- The panel itself, drawn at its real aspect ratio with
@@ -624,7 +621,9 @@
                          in Windows' Display settings. -->
                     <!-- Centred on both axes, so it sits in the middle of the
                          space between the card edge and the table beside it. -->
-                    <StackPanel Grid.Column="1" Spacing="8"
+                    <Viewbox Grid.Column="1" MaxWidth="340" Stretch="Uniform" StretchDirection="DownOnly"
+                             HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel Spacing="8"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Center">
                       <Border Width="{x:Bind PreviewWidth}"
@@ -657,6 +656,7 @@
                                  Style="{StaticResource CaptionTextBlockStyle}"
                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                     </StackPanel>
+                    </Viewbox>
 
                     <!-- Everything the display says, as one block against the
                          right edge. Capped rather than stretched: a table that
@@ -664,7 +664,7 @@
                          nothing between each label and its value. -->
                     <Grid Grid.Column="0" RowSpacing="8"
                           HorizontalAlignment="Left" VerticalAlignment="Top"
-                          MinWidth="420" MaxWidth="660">
+                          MaxWidth="660">
                       <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -675,9 +675,13 @@
                            dragging a selection through thirty rows of a
                            scrolling list is not what someone should have to do
                            to paste their monitor into a support thread. -->
-                      <Button Grid.Row="0" Click="OnCopyInfo" Tag="{x:Bind}"
+                      <!-- On the caption's line, not a row of its own: alone,
+                           it opened a gap above the table that belonged to
+                           nothing. Drawn after the table, so it sits on top. -->
+                      <Button Grid.Row="1" Canvas.ZIndex="1" Click="OnCopyInfo" Tag="{x:Bind}"
                               Width="40" Height="36" Padding="0"
-                              HorizontalAlignment="Right"
+                              HorizontalAlignment="Right" VerticalAlignment="Top"
+                              Margin="0,-8,0,0"
                               ToolTipService.ToolTip="Copy these details"
                               AutomationProperties.Name="{x:Bind CopyInfoAutomationName}">
                         <FontIcon Glyph="&#xE8C8;" FontSize="16"/>
@@ -891,6 +895,14 @@
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                     <ToggleSwitch IsOn="{x:Bind OledProtectionEnabled, Mode=TwoWay}" AutomationProperties.Name="OledPanelProtection"/>
                   </StackPanel>
+                </tk:SettingsCard>
+
+                <tk:SettingsCard Header="Wake when the pointer returns"
+                                 Description="After idle dimming starts, activity on other screens keeps this panel dimmed. Move the pointer onto or within this screen to restore it. The second dimming stage continues while you are away. Applies to idle protection, not manual screen rest."
+                                 Visibility="{x:Bind OledProtectionVisibility, Mode=OneWay}">
+                  <ToggleSwitch IsOn="{x:Bind OledWakeOnPointerReturn, Mode=TwoWay}"
+                                IsEnabled="{x:Bind OledProtectionEnabled, Mode=OneWay}"
+                                AutomationProperties.Name="OledWakeOnPointerReturn"/>
                 </tk:SettingsCard>
 
                 <tk:SettingsCard Header="Monitor sleep"

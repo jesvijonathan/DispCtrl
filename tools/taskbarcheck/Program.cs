@@ -23,7 +23,7 @@ internal static class Program
         using var settings = JsonDocument.Parse(File.ReadAllText(settingsPath));
         var global = settings.RootElement.GetProperty("global");
         int settle = global.GetProperty("hideDelayMs").GetInt32() + global.GetProperty("animMs").GetInt32() + 1200;
-        string output = args.Length > 0 ? Path.GetFullPath(args[0]) : Path.Combine(Path.GetTempPath(), "UmbraTaskbarCheck");
+        string output = args.Length > 0 ? Path.GetFullPath(args[0]) : Path.Combine(Path.GetTempPath(), "DispCtrlTaskbarCheck");
         Directory.CreateDirectory(output);
 
         nint originalFocus = Native.GetForegroundWindow();

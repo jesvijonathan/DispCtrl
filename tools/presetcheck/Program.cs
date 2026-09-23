@@ -793,6 +793,212 @@ static string Shorten(string s) => s.Length <= 24 ? s : s[..24] + "...";
         FocusGeometry.ScaledDim(80, 400) == 80 && FocusGeometry.ScaledDim(80, -50) == 40);
 }
 
+// The quick panel is a flyout, and synthetic input reaches it no better than it
+// reaches the arrangement canvas. Where it lands is arithmetic, so that is what
+// is checked - including against this desk's two displays at their real sizes.
+{
+    Console.WriteLine();
+    Console.WriteLine("Quick panel placement");
+
+    var dell = new DisplayRect(0, 0, 1920, 1080);
+    var laptop = new DisplayRect(1920, 0, 4800, 1800);
+
+    Check("a bar along the bottom is found",
+        QuickPanelPlacement.EdgeOf(dell, dell with { Bottom = 1032 }) == ScreenEdge.Bottom);
+    Check("a bar along the top is found",
+        QuickPanelPlacement.EdgeOf(dell, dell with { Top = 48 }) == ScreenEdge.Top);
+    Check("a bar on the left is found",
+        QuickPanelPlacement.EdgeOf(dell, dell with { Left = 62 }) == ScreenEdge.Left);
+    Check("a bar on the right is found",
+        QuickPanelPlacement.EdgeOf(dell, dell with { Right = 1858 }) == ScreenEdge.Right);
+
+    // Auto-hide on the Dell and DispCtrl's own hiding on the laptop both leave
+    // the work area the size of the screen.
+    Check("a hidden bar is no bar", QuickPanelPlacement.EdgeOf(dell, dell) == ScreenEdge.None);
+
+    const int m = 12;
+    var work = dell with { Bottom = 1032 };
+
+    DisplayRect right = QuickPanelPlacement.Place(work, ScreenEdge.Bottom, 1800, 360, 400, m);
+    Check("summoned from the tray, it sits in the bottom right corner",
+        right == new DisplayRect(1920 - 360 - m, 1032 - 400 - m, 1920 - m, 1032 - m));
+
+    DisplayRect left = QuickPanelPlacement.Place(work, ScreenEdge.Bottom, 100, 360, 400, m);
+    Check("summoned from the left of the bar, it takes the left corner",
+        left.Left == m && left.Bottom == 1032 - m);
+
+    DisplayRect top = QuickPanelPlacement.Place(dell with { Top = 48 }, ScreenEdge.Top, 1800, 360, 400, m);
+    Check("under a top bar it hangs from the top", top.Top == 48 + m);
+
+    DisplayRect side = QuickPanelPlacement.Place(dell with { Left = 62 }, ScreenEdge.Left, 1800, 360, 400, m);
+    Check("beside a left bar it sits against the bar", side.Left == 62 + m);
+
+    // The laptop is right of the Dell, so every coordinate is offset. A panel
+    // placed against the origin instead of the work area would land on the Dell.
+    int m2 = QuickPanelPlacement.Scale(QuickPanelPlacement.MarginDip, 192);
+    DisplayRect onLaptop = QuickPanelPlacement.Place(laptop, ScreenEdge.None, 4700,
+        QuickPanelPlacement.Scale(360, 192), QuickPanelPlacement.Scale(400, 192), m2);
+    Check("the margin doubles at 200%", m2 == 24);
+    Check("on the second display it lands on the second display",
+        onLaptop.Left >= laptop.Left && onLaptop.Right == laptop.Right - m2);
+
+    // Four monitors and every section on is taller than any screen; the window
+    // scrolls, and must never be pushed off the top to make room.
+    DisplayRect tall = QuickPanelPlacement.Place(work, ScreenEdge.Bottom, 1800, 360, 5000, m);
+    Check("a panel taller than the screen is cut to fit",
+        tall.Top >= work.Top && tall.Bottom <= work.Bottom);
+    Check("and the scroll limit agrees with it",
+        tall.Height == QuickPanelPlacement.MaxHeight(work, m));
+
+    DisplayRect wide = QuickPanelPlacement.Place(new DisplayRect(0, 0, 300, 600), ScreenEdge.None, 10, 520, 200, m);
+    Check("a panel wider than a small screen stays on it", wide.Left >= 0 && wide.Right <= 300);
+
+    DisplayRect stray = QuickPanelPlacement.Place(work, ScreenEdge.Bottom, -50_000, 360, 400, m);
+    Check("an anchor reported off every screen still places it on this one",
+        stray.Left >= work.Left && stray.Right <= work.Right);
+}
+
+// What the panel shows is four ordered lists of ids, edited by hand as often as
+// through the page, and extended in later versions. Every one of those has to
+// come back whole.
+{
+    Console.WriteLine();
+    Console.WriteLine("Quick panel lists");
+
+    foreach (QuickPanelGroup g in Enum.GetValues<QuickPanelGroup>())
+    {
+        var ids = QuickPanelCatalog.Defaults(g).Select(i => i.Id).ToList();
+        Check($"{g}: the defaults name every item exactly once",
+            ids.Distinct().Count() == ids.Count && ids.Count == QuickPanelCatalog.For(g).Count);
+        Check($"{g}: every item has a symbol, a name and hover text",
+            QuickPanelCatalog.For(g).All(e => e.Glyph.Length == 1 && e.Label.Length > 0 && e.Hint.Length > 0));
+    }
+
+    List<QuickPanelItem> onDisk =
+    [
+        new("displays", true), new("bogus", true), new("unison", false), new("displays", false),
+    ];
+    List<QuickPanelItem> whole = QuickPanelCatalog.Normalise(QuickPanelGroup.Sections, onDisk);
+
+    Check("an id nothing knows is dropped", !whole.Any(i => i.Id == "bogus"));
+    Check("a duplicate keeps its first place and setting",
+        whole.Count(i => i.Id == "displays") == 1 && whole[0].Id == "displays" && whole[0].Visible);
+    Check("the saved order is kept", whole[1].Id == "unison" && !whole[1].Visible);
+
+    // A panel pared down to two sliders must not grow rows after an update.
+    Check("anything the file did not name is added, and hidden",
+        whole.Count == QuickPanelCatalog.Sections.Count && whole.Skip(2).All(i => !i.Visible));
+    Check("an empty list is the shipped one",
+        QuickPanelCatalog.Normalise(QuickPanelGroup.Tiles, []).Select(i => (i.Id, i.Visible))
+            .SequenceEqual(QuickPanelCatalog.Defaults(QuickPanelGroup.Tiles).Select(i => (i.Id, i.Visible))));
+
+    List<QuickPanelItem> order = QuickPanelCatalog.Defaults(QuickPanelGroup.Sections);
+    string last = order[^1].Id;
+    Check("an item moves up one place",
+        QuickPanelCatalog.Move(order, last, -1) && order[^2].Id == last);
+    Check("the first item cannot move further up",
+        !QuickPanelCatalog.Move(order, order[0].Id, -1));
+    Check("the last item cannot move further down",
+        !QuickPanelCatalog.Move(order, order[^1].Id, +1));
+
+    var panel = new QuickPanelSettings { Sections = [new("presets", true)] };
+    List<QuickPanelItem> listed = panel.List(QuickPanelGroup.Sections);
+    Check("a settings object hands out a whole list and keeps it",
+        listed.Count == QuickPanelCatalog.Sections.Count && ReferenceEquals(listed, panel.Sections));
+    Check("and says what is shown, in order",
+        panel.Shown(QuickPanelGroup.Sections).SequenceEqual(["presets"]));
+
+    // A file written before the lists existed carries flat switches and no
+    // lists at all. It has to load with the shipped panel, not an empty one.
+    QuickPanelSettings? old = System.Text.Json.JsonSerializer.Deserialize(
+        """{ "enabled": true, "showBrightness": true, "showUnison": false, "density": "Compact" }""",
+        SettingsJsonContext.Default.QuickPanelSettings);
+    Check("a file from before the lists loads",
+        old is not null && old.Density == QuickPanelDensity.Compact);
+    Check("and gets the shipped sections",
+        old is not null && old.Shown(QuickPanelGroup.Sections)
+            .SequenceEqual(QuickPanelCatalog.Sections.Where(e => e.ShownByDefault).Select(e => e.Id)));
+}
+
+// Custom tiles live in the same ordered list as the built-in ones, and a drag on
+// the page hands back only what is shown.
+{
+    Console.WriteLine();
+    Console.WriteLine("Quick panel: your tiles and reordering");
+
+    var panel = new QuickPanelSettings();
+    QuickPanelCustomTile mine = QuickPanelCustomTile.Create("Bright desk");
+    panel.CustomTiles.Add(mine);
+
+    Check("a custom tile's id can never be a built-in one",
+        mine.Id.StartsWith(QuickPanelCustomTile.Prefix) && QuickPanelCatalog.Find(QuickPanelGroup.Tiles, mine.Id) is null);
+    Check("a new custom tile joins the list, shown",
+        panel.List(QuickPanelGroup.Tiles).Any(i => i.Id == mine.Id && i.Visible));
+
+    panel.CustomTiles.Clear();
+    Check("and leaves it when deleted",
+        !panel.List(QuickPanelGroup.Tiles).Any(i => i.Id == mine.Id));
+
+    var order = new QuickPanelSettings();
+    order.Reorder(QuickPanelGroup.Sections, ["displays", "unison"]);
+    List<QuickPanelItem> after = order.List(QuickPanelGroup.Sections);
+    Check("a reorder puts what is shown first, in the order given",
+        after[0].Id == "displays" && after[1].Id == "unison" && after[0].Visible && after[1].Visible);
+    Check("and what was left out is hidden, not lost",
+        after.Count == QuickPanelCatalog.Sections.Count && after.Skip(2).All(i => !i.Visible));
+
+    Check("a symbol typed as hex is the character it names",
+        QuickPanelCustomTile.Create("x").Glyph.Length == 1);
+}
+
+// Switching unison off leaves each display where it is; switching it on brings
+// each back to its baseline at the level the slider was left at. It used to make
+// wherever the displays were the new full scale - a little dimmer every cycle.
+{
+    Console.WriteLine();
+    Console.WriteLine("Unison: switching it back on");
+
+    // Left at 60% with baselines 100 and 80; the displays moved by hand since.
+    (int level, int[] kept) = UnisonResume.Enable(60, [30, 90], [100, 80]);
+    Check("the slider stays where it was left", level == 60);
+    Check("each display keeps its baseline, whatever it was moved to while off",
+        kept[0] == 100 && kept[1] == 80);
+    Check("so each is set back to baseline times level",
+        UnisonResume.Target(kept[0], level) == 60 && UnisonResume.Target(kept[1], level) == 48);
+
+    (_, int[] joined) = UnisonResume.Enable(50, [40], [0]);
+    Check("a display with no baseline joins where it is, without a jump",
+        joined[0] == 80 && UnisonResume.Target(joined[0], 50) == 40);
+
+    // Ten cycles of off-and-on must not walk the full scale down.
+    int lvl = 60; int[] bases = [100, 80];
+    for (int i = 0; i < 10; i++) (lvl, bases) = UnisonResume.Enable(lvl, [60, 48], bases);
+    Check("ten cycles later nothing has drifted", lvl == 60 && bases[0] == 100 && bases[1] == 80);
+
+    (_, int[] zero) = UnisonResume.Enable(50, [0], [0]);
+    Check("never a baseline of zero, which could not be brought back up", zero[0] >= 1);
+}
+
+// Which night light slider does anything. Per-display warmth used to be offered
+// while Windows was doing the warming - which warms every display alike - and
+// the shared slider hidden in that same state, leaving no control that worked.
+{
+    Console.WriteLine();
+    Console.WriteLine("Night light: which strength applies");
+
+    NightLightSettings Night(bool enabled, bool unison, bool follow) =>
+        new() { Enabled = enabled, Unison = unison, FollowWindows = follow };
+
+    Check("per display, run by DispCtrl: each display's own",
+        Night(true, false, false).PerDisplayApplies && !Night(true, false, false).SharedApplies);
+    Check("per display, but through Windows: the shared one, since Windows has only one",
+        !Night(true, false, true).PerDisplayApplies && Night(true, false, true).SharedApplies);
+    Check("in unison: the shared one",
+        !Night(true, true, false).PerDisplayApplies && Night(true, true, false).SharedApplies);
+    Check("off: neither",
+        !Night(false, false, false).PerDisplayApplies && !Night(false, true, true).SharedApplies);
+}
+
 Console.WriteLine();
 Console.WriteLine(failures == 0 ? "all checks passed" : $"{failures} FAILED");
 return failures;

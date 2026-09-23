@@ -43,10 +43,14 @@ DispCtrl.Engine    resident. Taskbar hiding, night light + software dimming,
                 per-app preset rules. Native AOT intended (see debt below).
 DispCtrl.App       WinUI 3 panel, launched on demand, exits after.
 DispCtrl.Cli       `dispctrl.exe`, console subsystem. Every feature, scriptable.
+DispCtrl.Control   shared JSON command API, console frontend and named-pipe broker.
 ```
 
-The two processes share **only** `settings.json`. The engine watches it with a
-`FileSystemWatcher` (120 ms debounce). There is no IPC.
+Clients share atomic, merge-aware `settings.json`; the engine watches it with a
+`FileSystemWatcher` (120 ms debounce). The engine also hosts a user/session-scoped
+named-pipe command broker. The CLI falls back to local execution when the broker
+is absent. See `docs/CLI.md` and `docs/IMPLEMENTATION-CHECKLIST.md` for coverage and
+remaining migration work; older adapter paths still exist in the UI.
 
 `DispCtrl.Display` used to be the app's alone, on the reasoning that every call in
 it is a deliberate user action. Per-app preset rules made those same calls
@@ -94,19 +98,20 @@ Restart the engine through its scheduled task, which is how it normally runs:
 Start-ScheduledTask -TaskName 'DispCtrl.Engine'
 ```
 
-**That task does not exist on this machine and this command fails.** The rename
-left the registered task called `Umbra.Engine`, still pointing at
-`src\Umbra.Engine\bin\...\Umbra.Engine.exe` - a path that no longer exists. So
-the engine does not come back on its own, and the only way to restart it is
-directly:
+The task is `DispCtrl.Engine`: per user, a logon trigger with no delay,
+priority 4 (the scheduler's default 7 is below normal), restart on failure, no
+time limit and `AllowHardTerminate` off. `StartupIntegration.RegisterEngineTask`
+owns it; the Settings page switch and `dispctrl startup set --engine on` both go
+there. The engine migrates an old Startup-folder shortcut to it on its own and
+removes the stale `Umbra.Engine` task. Started directly, it still works:
 
 ```powershell
 Start-Process ".\src\DispCtrl.Engine\bin\Release\net10.0-windows10.0.26100.0\win-x64\DispCtrl.Engine.exe" run
 ```
 
-Re-registering it is `tools/DispCtrl.ps1 -Install`, which has not been run since
-the rename. Until it is, **a reboot leaves the desk with no engine**: no taskbar
-hiding, no night light schedule, no per-app rules.
+**Not elevated, deliberately.** An elevated engine's tray window is cut off from
+Explorer by UIPI and its command pipe from every unelevated client. The one
+machine-wide write, the gamma clamp, asks for elevation itself.
 
 Engine CLI: `displays`, `enable <n>`, `disable <n>`, `status`, `run [--for <s>]
 [--trace]`, `stop`.
@@ -149,8 +154,9 @@ Windows removed the *Pin to taskbar* verb in 10 1903 and it has not returned;
 an application cannot pin itself. The script checks the shell verbs and says so
 rather than pretending. Pinning is one right-click on the Start entry.
 
-Both exes carry `Assets\DispCtrl.ico` via `<ApplicationIcon>`. Setting it only
-on the shortcut would leave the taskbar button and alt-tab generic.
+All three exes carry `Assets\DispCtrl.ico` via `<ApplicationIcon>`. Setting it
+only on the shortcut would leave the taskbar button and alt-tab generic, and
+the engine needs it for the tray icon's logo style.
 
 ### What a monitor will tell you
 
@@ -195,30 +201,45 @@ because Detect calls Identify when it finishes.
 Windows' own Display settings carries both for the same reason. The labels
 cannot express the difference, so both carry tooltips.
 
-### Contributing a device record
+### The device library (was: contributing a device record)
 
 ```
-dispctrl contribute                    # every monitor, printed; sends nothing
-dispctrl contribute --display 2        # one of them
-dispctrl contribute --display 2 --open # prefills a GitHub issue for review
+dispctrl devices list | show | scan | probe | map | unmap | link | definitions | share | validate
 ```
 
-Writes `%LOCALAPPDATA%\DispCtrl\devices\<KEY>.md` and, with `--open`, opens
-`github.com/jesvijonathan/Display-Control/issues/new` with the body filled in.
-The panel has the same thing under **Displays -> Send monitor details**, one
-card for the whole desk: **Collect** reads every display and writes both the
-report and a record per monitor, **View** shows the exact text that would be
-published, and **Submit** opens one prefilled issue per monitor. It used to be a
-Review button per display inside an expander, which charged the user a press per
-monitor for a distinction — one record describes one model — that the button
-could not explain.
+`docs/DEVICE-LIBRARY.md` is the design. In short: every capabilities read
+records the model's codes into `%LOCALAPPDATA%\DispCtrl\devices\history.json`
+(`DeviceObserver`, no reads of its own); `devices probe` watches the codes the
+standard does not name while the owner uses the monitor's menu; `devices map`
+names one in a **definition** - per model (`DEL-A234`), brand (`DEL`) or every
+monitor (`*`), layered in that order with `extends` links - and `devices share`
+opens one prefilled issue with the record and the mappings. The repository is
+the backend: `.github/workflows/device-intake.yml` turns such an issue into a
+pull request through `tools/devicecheck intake`; `devices.yml` validates every
+change to `devices/`. Reviewed definitions live in `devices/definitions/` and
+ship beside every executable. The app's **Devices** page sends the same
+`devices.*` requests - it replaced the Collect / View / Submit card.
 
-Committed records live in `devices/`, one file per model, keyed on EDID
-manufacturer and product code (`DEL-A234.md`). See `devices/README.md`.
+- **A mapped code is writable only when its definition says so**, and only on a
+  monitor that lists it. That is the single, deliberate exception to "never
+  write a manufacturer-specific code": somebody wrote it and watched.
+- **Record in the calling thread.** History writes on a background task were
+  lost whenever a short-lived CLI process exited first.
+- **"Unnamed" means not in the MCCS table** (`MonitorCapabilities.IsNamed`), not
+  "not in DispCtrl's allow list": firmware level is named, just read-only.
+- `dispctrl contribute` still works for the Markdown record alone.
 
 ### Hotkeys
 
 Global shortcuts live in `settings.Hotkeys` and are registered by the **engine**,
+which also carries them out: 21 actions, from unison and night light to focus,
+OLED care, keep awake, taskbar, contrast and the quick panel. A new desk is
+offered seven defaults once (`Hotkey.OfferDefaults`, Ctrl+Alt with Page Up/Down,
+N, F, K, I, D - never the arrows, which Intel drivers take for screen rotation),
+never over an existing binding; the page and `dispctrl hotkeys reset` restore
+them. **Unison hotkeys write the hardware themselves** (`ApplyUnison`): they
+used to save the level and nothing else, so with the app closed no display
+moved. Registered
 because a panel that registered them would lose them on closing — the opposite
 of what a global shortcut is for. The Hotkeys page only edits the list.
 
@@ -232,6 +253,62 @@ or holding a shortcut walks brightness to an end stop.
 Autostart and the Start menu entry are managed by `tools/DispCtrl.ps1`
 (`-Install`, `-Uninstall`, `-Status`, `-AddShortcut`, `-RemoveLegacy`). It is
 interim; MSIX `windows.startupTask` replaces it.
+
+### Quick panel (the tray icon)
+
+The **engine** owns the notification-area icon (`Shell/TrayIconService`), for
+the same reason it owns hotkeys: it is the resident process. A click sets the
+named event `Local\DispCtrl.QuickPanel.Show`; whichever `DispCtrl.App` holds
+`Local\DispCtrl.QuickPanel.Alive` shows `QuickPanelWindow`, or the engine starts
+`DispCtrl.App.exe --panel` from the path the app records in `app.path`. That
+event carries no data; the control broker separately handles structured requests.
+
+- **What the panel shows is four ordered id lists** in `settings.Global.QuickPanel`
+  (sections, quick toggles, rows per display, switches per display), plus
+  `customTiles` people make. `QuickPanelCatalog` is the only place an id's
+  label, glyph and hover text live; `Normalise` drops unknown ids and appends
+  new ones **hidden**. Never rename an id. `docs/QUICK-PANEL.md` is the
+  contributor's guide: adding a tile is one catalogue line plus one line in
+  `QuickPanelContent.Registry.cs`.
+- `QuickPanelSettings.Reorder` **hides** whatever it is not handed. The page's
+  remove button works by leaving an item out; keeping its old visibility made
+  that button do nothing, and a `presetcheck` assertion caught it.
+- The tray icon **toggles**. Clicking it while the panel is open takes focus
+  first, closing the panel, and then asks for it again - so a summons within
+  500 ms of a focus-loss close is treated as the same click.
+- **Unison off leaves displays alone; unison on snaps them back** to their
+  remembered baselines at the level the slider was left (`UnisonResume.Enable`).
+  Switching it on used to record the current levels as new baselines and put the
+  slider back to 100, which shrank the full scale every off-on cycle.
+- **"Replace Windows brightness"** (`UnisonFollowsWindows`): the engine's
+  `Color/WindowsBrightnessBridge` listens for `WmiMonitorBrightnessEvent` - the
+  Quick Settings slider and the brightness keys, which only ever move the
+  built-in panel - and reads the panel's value back as a unison level through
+  the panel's own range (`UnisonResume.LevelFor`), then moves every other
+  display there. The panel is driven like any other display; the engine writes
+  it only to pull it back inside its range, after the others have moved. Events
+  equal to where unison already has the panel are dropped (the app's own slider
+  and that correction cause them), and settings are re-read from disk per burst,
+  because the file watcher lags the event. See "Unison calibration" below.
+- The panel rises from behind the taskbar and sinks back into it - see "Quick
+  panel window" below. It obeys Windows' "Animation effects" setting
+  (`UISettings.AnimationsEnabled`) and `quickPanel.animate`.
+- Rows are **built in code** (`QuickPanelContent`): value set before handler,
+  toggles on `Click`. Every row subscribes to the view model and is released on
+  rebuild - the view model outlives the rows. Rows stay attached while the
+  panel is hidden, so the next opening does not rebuild them.
+- Support flags (HDR, scaling, brightness, the monitor's controls) arrive
+  seconds after start. Rows gated on them rebuild when the gate **changes**, not
+  on every notification, or a drag is torn out from under the pointer.
+- Per-display warmth only applies with night light on, **not** in unison and
+  **not** following Windows (`NightLightSettings.PerDisplayApplies`). Windows
+  has one strength; the Displays page used to offer dead per-display sliders.
+- The tray glyph is drawn from Segoe Fluent at `SM_CXSMICON`, white on a dark
+  taskbar and black on a light one (`WindowsTheme.IsShellDark` - the shell's
+  value, not the apps'). "Keep it on the taskbar" writes
+  `HKCU\Control Panel\NotifyIconSettings\<id>\IsPromoted`, which Explorer
+  applies live. `Shell_NotifyIconGetRect` cannot tell you whether it worked: a
+  promoted icon and the `^` it replaced report the same rectangle. Screenshot.
 
 ### Tests
 
@@ -263,6 +340,13 @@ Every one of these was a real bug. Do not reintroduce them.
   `SettingsExpander`, or a bare `InfoBar`, does not render badly — it **takes the
   process down** when the item is realised. This has cost three crashes. Use a
   `SettingsCard` with `ContentAlignment="Vertical"`.
+- **Items added to a `SettingsExpander` from code after it is built are never
+  drawn.** No error, just an empty expander. Declare a `SettingsCard` host in
+  the XAML `Items` and fill a panel inside it instead (`QuickPanelPage` does).
+- **UIA name searches collide.** A list item and an expander header can share a
+  name ("Quick toggles"); find expanders by class
+  `Microsoft.UI.Xaml.Controls.Expander` *and* name, or a script expands the
+  wrong one and reports the right one missing.
 - **`ItemsRepeater` virtualises.** Expanding a card near the bottom grew the
   extent, scrolled it out of the realisation window, recycled and collapsed it,
   shrank the extent — a self-feeding open/close flicker. Use `ItemsControl` with
@@ -280,6 +364,23 @@ Every one of these was a real bug. Do not reintroduce them.
 - A rounded `Border` inside a square window shows chopped corners. Round the
   window with `DwmSetWindowAttribute(DWMWA_WINDOW_CORNER_PREFERENCE)` and match
   the Border's radius to DWM's (8 DIP).
+- **Even `Move()`-then-`Resize()` is not enough for a window created on one
+  display and placed on another.** The rescale can arrive *after* the resize:
+  the quick panel opened at 180 px instead of 360. `QuickPanelWindow` holds its
+  intended rectangle for a second and restores it.
+- **Never resize a window from a `SizeChanged` handler synchronously.** The
+  resize lays out again inside the call; with a capped height and a scroll bar
+  the content rewraps a few pixels taller and fires again, nested, until
+  `InsufficientExecutionStackException` kills the process. Defer to the
+  dispatcher, once per pass, and skip no-op sizes.
+- **A setter bound two-way to a `TimePicker` must compare at minute
+  resolution.** The picker holds whole minutes, the stored value had seconds, so
+  every write-back differed: save, raise, write back, 3,430 frames deep. Any
+  reload with the Displays page open killed the app (`AwakeExpirationTime`).
+- A crash inside a XAML callback reaches Windows as a stowed exception
+  (`0xc000027b`, `CoreMessagingXP.dll`) with no managed stack. The app now logs
+  unhandled exceptions to `%LOCALAPPDATA%\DispCtrl\app-crash.log`; a stack
+  overflow bypasses even that, and needs a `FirstChanceException` hook to see.
 
 ### DDC/CI
 
@@ -383,6 +484,116 @@ Every one of these was a real bug. Do not reintroduce them.
 - The **primary taskbar cannot be moved** — `SetWindowPos` returns true and
   Explorer restores it in ~120 ms. DispCtrl uses Windows' own global auto-hide
   there instead.
+- **A topology change is applied alone, then everything else is planned.**
+  `dispctrl apply` used to plan the whole document against the desk before
+  the topology ran, so it validated modes for displays about to vanish and
+  rejected the ones about to appear. `SetDisplayConfig` also returns before the
+  new monitors enumerate: `Settle` waits for two identical fingerprints.
+- **Windows reports no MST topology.** Sinks behind one hub or chain are
+  separate targets on the same adapter connector instance; that is what
+  `SharingConnector` counts. `DISPLAYPORT_USB_TUNNEL` is the only Thunderbolt
+  signal and only its positive answer means anything — a dock that converts to
+  plain DisplayPort looks like DisplayPort.
+- **A monitor keeps its own brightness while unplugged**, so one reconnected
+  after unison moved came back out of step. `UnisonHotplug` writes arrivals
+  only, after 1.5 s, because the DDC/CI channel is not up when the monitor
+  enumerates.
+
+### Unison calibration
+
+- **Windows' brightness is read back through the built-in panel's own range.**
+  "Replace Windows brightness" used to take the panel's raw value as the unison
+  level and hold the panel at the level exactly, so with calibration on the
+  built-in screen ran 0-100 while the others stayed inside their limits.
+  `UnisonResume.LevelFor` is the inverse of `Target`; a value past either end is
+  pulled back to it. The correction is written **after** the other displays
+  move: it raises a WMI event of its own, and the loop that moves them stops for
+  any newer event, so written first it stopped the Dell from following at all.
+
+- The walkthrough drives the slider and every display to the endpoint being
+  captured. **Cancel must put them back** — it used to leave the desk at its
+  floors with the slider on zero. `RememberThenLowerAsync` records the levels
+  first and skips the endpoint if cancelled while reading: starting it would
+  take a new generation and strand the restore (and the calibration flag the
+  brightness bridge checks) behind it.
+
+### Quick panel window
+
+- **Cloak until the first frame, then slide the window, not its contents.**
+  Shown bare, the window drew as an empty grey block for two frames; sliding
+  only the contents left the acrylic backdrop to appear at full size in one
+  frame. `Summon` cloaks (`DWMWA_CLOAK`), waits two XAML frames, fits the height,
+  then moves the whole window its own height from behind the taskbar, placed
+  just below it in the topmost band so the taskbar clips it. DWM's own show
+  transition is disabled. Closing does not fade: faded, an empty backdrop sank
+  alone.
+- **Never slot the panel after a taskbar that is not topmost.** A bar DispCtrl
+  has hidden is off-screen and not topmost; ordering after it dropped the panel
+  behind every ordinary window. `TaskbarOf` requires `WS_EX_TOPMOST` and an
+  on-screen rectangle.
+- **Topmost belongs to the presenter.** `OverlappedPresenter.IsAlwaysOnTop` set
+  in the constructor of a window first shown later - the preloaded panel - never
+  took, and the presenter then stripped `WS_EX_TOPMOST` from every
+  `SetWindowPos`. `KeepOnTop` cycles it on each summons.
+- **Rows stay attached while hidden and are rebuilt only when stale.** Rebuilt
+  on every summons, each toggle that loads checked played its off-to-on colour
+  transition: lit tiles flashed grey for 150 ms of every opening.
+- `FrameworkElement.Parent` is null until the element reaches the live tree.
+  Find a child through its container's `Content` or `Children` instead.
+
+- **The title bar has four buttons, each with its own job**: density, lock,
+  stay open, customise. A "more" menu there only repeated the Quick panel page
+  and the icon's right-click menu. Locking sets the title bar to an empty
+  element, so the title stops being a drag handle.
+- **Detail sections start folded** (`QuickPanelSettings.FoldedByDefault`: OLED,
+  focus, display mode, taskbar, night light). A separate `Expanded` list records
+  the ones opened, so a section added later still starts folded. Section bodies
+  sit 8 DIP in from their header; each feature's rows are built once
+  (`FocusRows`, `OledRows`, `NightLightRows`) and used by both its section and
+  its tile's flyout.
+- Simple mode has no density button and always fits its height; a fixed height
+  only left space under a handful of sliders.
+- **Tiles open flyouts, not menus**, following the taskbar tile: a menu can
+  hold a tick but not a slider. The glass, auto-hide and transparency tiles were
+  removed - each was a switch already in the taskbar tile's flyout.
+
+### Windows brightness bridge pacing
+
+- **Throttle, not debounce.** Waiting for the events to stop left every other
+  display still for the whole drag and then jumped it. The first event acts at
+  once, then one pass per 90 ms with the newest value.
+- **At the floor, key presses up were lost, and only the keys showed it.** Two
+  races: the correction's own WMI echo went into the same pending slot and
+  replaced the press that followed it, and the correction compared the panel with
+  the *saved* level, so a press already on the panel but not yet read looked out
+  of place and was undone. Now the bridge remembers its own write and drops only
+  that echo, corrects only a panel outside its range, and waits for 400 ms of
+  real quiet. A press that changes nothing is logged, not silent.
+- **Correct the built-in panel only once the slider is still (400 ms).**
+  Corrected mid-drag, the panel was pulled to its floor under the pointer while
+  Windows kept moving it, and the two fought.
+
+### Command line
+
+- `taskbar get|set` work on fields that live loose in `/global`; unscoped, `set`
+  could change unison or night light by name. `TaskbarKeys` is the allow list.
+- Bare flags (`--confirm`, `--writable`, `--factory`, ...) must be listed in
+  `ControlTerminal.Parse`, or the parser takes the next word as their value.
+- Every `.reset` command passes the generic reset allow-list first; a reset with
+  options of its own (`display.reset`) needs an entry before it.
+
+### Settings file (sharing)
+
+- **Read with delete sharing, and retry the rename.** A save is a rename over
+  `settings.json`; `File.ReadAllText` opens without `FileShare.Delete`, so any
+  reader in another process made the rename throw access denied - which crashed
+  the app mid-drag of the unison slider. And a sharing violation on load was
+  treated as corruption: the good file was quarantined as `.bad` and every
+  client fell back to defaults. `SettingsStore.ReadShared`, `ReplaceWithRetry`,
+  and a load that only quarantines on a JSON error.
+- The gamma clamp state is cached for a minute, not for the process's life:
+  `Recheck` only ever ran in the app, and the engine that owns the ramp kept the
+  old limit until restarted.
 
 ### Presets
 
@@ -497,6 +708,24 @@ unrecallable.
   `IDesktopWallpaper`.
 - Native AOT publish also needs the MSVC linker, which is not installed:
   `winget install Microsoft.VisualStudio.BuildTools --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"`
+- **The taskbar glass helper's revision hashes `TaskbarGlass.cpp`, its header
+  and `build.ps1` itself**, and a helper already loaded in Explorer refuses to
+  attach over a different revision (`0x8007051A`, revision mismatch) until
+  Explorer restarts. A one-line tidy of `build.ps1` did exactly that: glass
+  stopped applying on the next engine start. Leave the script alone unless the
+  helper really changes, and expect to restart Explorer when it does.
+- **Explorer can leave a secondary taskbar with a region sized for the wrong
+  DPI** - 2880 x 48 on a 96 px bar at 200%, measured after an Explorer restart.
+  Windows clips to the region, so the lower half was never drawn.
+  `TaskbarManager.HealRegion` clears a region shorter than the bar every rescan
+  and when a reveal settles; the earlier repaint-on-settle did not help,
+  because the pixels were clipped, not stale.
+- **CsWin32's `CreateFont` cannot be called.** It marshals the byte-sized
+  charset as four bytes and the runtime refuses at the first call - which ended
+  the tray pump and removed the icon. Use `CreateFontIndirect` with a `LOGFONTW`.
+  Read `obj/generated` before trusting any generated overload.
+- The engine must carry `<ApplicationIcon>` too: the tray's logo style reads it
+  from the running binary, and without it drew an empty slot.
 
 ---
 
@@ -532,8 +761,10 @@ What does not work, and cost time discovering:
 
 ## Pages
 
-`Displays`, `Taskbar`, `Presets`, `Hotkeys`, `Engine`, `Settings`, `Help`,
-`About`. Taskbar was split out of Settings: reveal behaviour, the four polling
+`Displays`, `Taskbar`, `Presets`, `Quick panel`, `Hotkeys`, `Devices`, `Engine`,
+`Settings`, `Help`, `About`. `docs/CLI-COVERAGE.md` maps every control on every
+page to its command; a new feature lands in `DispCtrl.Control` first and the
+page calls it. Taskbar was split out of Settings: reveal behaviour, the four polling
 intervals (which had no UI at all before, only settings.json), and Windows'
 global auto-hide. What stayed in Settings is what is not about the taskbar —
 logging and the reset.
@@ -568,7 +799,11 @@ wallpaper, unison brightness (multiplier and calibrated range), night light
 (unison, per-monitor, calibrated, scheduled), software dimming, arrangement
 drag/apply, presets with per-app rules, monitor capability discovery and control,
 display report, identify overlays, hotplug re-discovery, device contribution
-(anonymised, consent-gated).
+(anonymised, consent-gated), the quick panel and tray icon, Windows' brightness
+slider and keys driving unison, the control API and `dispctrl` JSON surface.
+`docs/IMPLEMENTATION-CHECKLIST.md` records how each recent item was verified and
+what is still unverified: CI has never run on GitHub, and the MSIX has been
+packed but not installed, signed or certified.
 
 Outstanding, roughly in the order last discussed:
 

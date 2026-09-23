@@ -11,7 +11,7 @@
     Nothing here needs administrator rights.
 
 .PARAMETER Install
-    Registers a logon task plus a watchdog, and starts the engine.
+    Registers the engine's sign-in task (through dispctrl startup) and starts it.
 
 .PARAMETER Uninstall
     Asks the engine to restore the taskbars and exit, then removes the task.
@@ -127,45 +127,21 @@ function Remove-Legacy {
     }
 }
 
+# One registration, owned by StartupIntegration.RegisterEngineTask and reached
+# through the CLI, so this script, the Settings page and `dispctrl startup` can
+# never register different tasks. It used to build its own here, with a 20 s
+# logon delay, the scheduler's below-normal priority and a two-minute watchdog
+# that restarted an engine somebody had deliberately switched off.
+$Cli = Join-Path $Root 'src\DispCtrl.Cli\bin\Release\net10.0-windows10.0.26100.0\win-x64\dispctrl.exe'
+
 function Install-DispCtrl {
     Assert-Built
+    if (-not (Test-Path $Cli)) { throw "CLI not built. Run: dotnet build src\DispCtrl.Cli\DispCtrl.Cli.csproj -c Release" }
     Stop-DispCtrl
 
-    if (Get-ScheduledTask -TaskName $PreviousTaskName -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName $PreviousTaskName -Confirm:$false
-        Write-Host "Removed superseded task '$PreviousTaskName'."
-    }
-
-    $action = New-ScheduledTaskAction -Execute $Exe -Argument 'run'
-
-    $atLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-    # Explorer needs a moment after logon to create the secondary taskbars.
-    $atLogon.Delay = 'PT20S'
-
-    # A logon trigger alone means one failed start leaves the engine dead until
-    # the next logon - and a crash or a monitor replug does not produce a logon.
-    # MultipleInstances IgnoreNew plus the engine's own mutex make a redundant
-    # fire a no-op, so this costs nothing while things are healthy.
-    #
-    # Leaving Repetition.Duration unset is what Task Scheduler reads as "repeat
-    # indefinitely"; TimeSpan::MaxValue serialises out of range and makes
-    # registration fail outright.
-    $watchdog = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
-        -RepetitionInterval (New-TimeSpan -Minutes 2)
-    $watchdog.Repetition.Duration = $null
-    $watchdog.Repetition.StopAtDurationEnd = $false
-
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -RestartCount 3 `
-        -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew `
-        -StartWhenAvailable
-
-    $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" `
-        -LogonType Interactive -RunLevel Limited
-
-    Register-ScheduledTask -TaskName $TaskName -Action $action `
-        -Trigger @($atLogon, $watchdog) -Settings $settings -Principal $principal -Force | Out-Null
-    Write-Host "Registered '$TaskName' (at logon + 2-minute watchdog)."
+    & $Cli startup set --engine on --json | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Registering the startup task failed; run dispctrl startup set --engine on to see why.' }
+    Write-Host "Registered '$TaskName' (at sign-in, no delay, normal priority, restarted on failure)."
 
     if (Test-Path $AppExe) { Add-Shortcut }
 
@@ -175,6 +151,7 @@ function Install-DispCtrl {
 }
 
 function Uninstall-DispCtrl {
+    if (Test-Path $Cli) { & $Cli startup set --engine off --json | Out-Null }
     foreach ($registeredName in @($TaskName, $PreviousTaskName)) {
         if (Get-ScheduledTask -TaskName $registeredName -ErrorAction SilentlyContinue) {
             Unregister-ScheduledTask -TaskName $registeredName -Confirm:$false

@@ -6,7 +6,14 @@
 #include <map>
 #include <mutex>
 
-#define GLASS_BUILD L"DispCtrl.TaskbarGlass"
+#ifndef GLASS_REVISION
+#define GLASS_REVISION dev
+#endif
+#define GLASS_STRING_INNER(x) #x
+#define GLASS_STRING(x) GLASS_STRING_INNER(x)
+#define GLASS_WIDE_INNER(x) L##x
+#define GLASS_WIDE(x) GLASS_WIDE_INNER(x)
+#define GLASS_BUILD L"DispCtrl.TaskbarGlass." GLASS_WIDE(GLASS_STRING(GLASS_REVISION))
 
 namespace glass {
 constexpr wchar_t WindowClass[] = L"DispCtrl.TaskbarGlass.1";
@@ -87,9 +94,19 @@ struct ThreadState {
             if (!(value & 0x1000000)) { restore(); releaseOwner(); return static_cast<LRESULT>(backgrounds.size()); }
             if ((value & 0xff) > 120 || ((value >> 8) & 0xff) > 100) return E_INVALIDARG;
             setOwner(pid);
-            if (active && config == value && SUCCEEDED(error)) return static_cast<LRESULT>(backgrounds.size());
+            bool unchanged = active && config == value && SUCCEEDED(error);
             config = value;
-            for (auto& [_, bg] : backgrounds) apply(bg);
+            for (auto& [_, bg] : backgrounds) {
+                Ptr<IInspectable> current;
+                check(bg.shape->get_Fill(current.put()), "Check Fill");
+                if (unchanged && bg.applied && current.get() == bg.applied.get()) continue;
+                // Explorer can replace Fill when its auto-hide/theme state changes.
+                // Preserve that new system brush for restoration, then reuse our
+                // existing compositor effect unless its configuration changed.
+                if (current.get() != bg.applied.get()) bg.original = std::move(current);
+                if (unchanged && bg.applied) check(bg.shape->put_Fill(bg.applied.get()), "Reapply Fill");
+                else apply(bg);
+            }
             active = true; error = S_OK;
             return static_cast<LRESULT>(backgrounds.size());
         } catch (const Failure& e) { error = e.hr; log(e.operation, e.hr); }
@@ -167,7 +184,9 @@ public:
                 return S_OK;
             }
             const std::wstring_view type(element.Type ? element.Type : L""), name(element.Name ? element.Name : L"");
-            const bool frame = type == L"Taskbar.TaskbarFrame";
+            // Backgrounds are also roots: a secondary island can be announced
+            // independently of its containing frame during hide/reveal.
+            const bool frame = type == L"Taskbar.TaskbarFrame" || type == L"Taskbar.TaskbarBackground";
             if (frame && !local) {
                 local = new ThreadState(); local->diagnostics = diagnostics; local->tree = tree;
                 WNDCLASSEXW cls{sizeof(cls)}; cls.lpfnWndProc = windowProc; cls.hInstance = module; cls.lpszClassName = WindowClass;
@@ -228,6 +247,17 @@ extern "C" __declspec(dllexport) HRESULT WINAPI DllCanUnloadNow() { return S_FAL
 // Called only from the engine, on a worker. No loader-lock work in DllMain.
 extern "C" __declspec(dllexport) HRESULT WINAPI GlassAttach(DWORD pid) {
     using namespace glass;
+    HWND existing = nullptr;
+    bool same = false;
+    while ((existing = FindWindowExW(HWND_MESSAGE, existing, WindowClass, nullptr))) {
+        DWORD process; GetWindowThreadProcessId(existing, &process); if (process != pid) continue;
+        wchar_t revision[100]; GetWindowTextW(existing, revision, ARRAYSIZE(revision));
+        if (wcscmp(revision, GLASS_BUILD) != 0) return HRESULT_FROM_WIN32(ERROR_REVISION_MISMATCH);
+        same = true;
+    }
+    // Reuse the installed subscriber on engine restart. Repeated Advise calls
+    // leak diagnostic subscribers and can fail while appearing attached.
+    if (same) return S_OK;
     wchar_t path[32768];
     if (!GetModuleFileNameW(module, path, ARRAYSIZE(path))) return HRESULT_FROM_WIN32(GetLastError());
     HMODULE xaml = LoadLibraryExW(L"Windows.UI.Xaml.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);

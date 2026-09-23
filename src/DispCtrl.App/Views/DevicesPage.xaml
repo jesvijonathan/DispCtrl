@@ -1,0 +1,44 @@
+<Page x:Class="DispCtrl.App.Views.DevicesPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Loaded="OnLoaded"
+      Unloaded="OnUnloaded">
+
+  <!-- Built in code, like the quick panel: which cards exist depends on the
+       monitors this machine has seen, and every action goes through the same
+       devices.* operations the command line uses. -->
+  <ScrollViewer Padding="0,0,0,32">
+    <StackPanel Padding="36,12,36,0" Spacing="4" HorizontalAlignment="Stretch">
+
+      <StackPanel Spacing="4" Margin="0,0,0,12">
+        <TextBlock Text="Devices" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="Every monitor this PC has seen, and what each of its controls does. The standard names some codes; manufacturers add their own and document none of them. Name one here - watch which code moves while you change a setting in the monitor's own menu - and share it, and every owner of the same model, or the same brand, gets that control."/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+        <Button x:Name="ScanButton" Click="OnScan" AutomationProperties.Name="DevicesScan"
+                ToolTipService.ToolTip="Read every attached monitor's codes into this PC's history. A few seconds per monitor.">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <FontIcon FontSize="14" Glyph="&#xE895;"/>
+            <TextBlock Text="Read attached monitors"/>
+          </StackPanel>
+        </Button>
+        <Button Click="OnOpenFolder" AutomationProperties.Name="DevicesOpenFolder"
+                ToolTipService.ToolTip="The history and the definitions made on this PC">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <FontIcon FontSize="14" Glyph="&#xE838;"/>
+            <TextBlock Text="Open the folder"/>
+          </StackPanel>
+        </Button>
+        <HyperlinkButton Content="How mapping works"
+                         NavigateUri="https://github.com/jesvijonathan/Display-Control/blob/master/docs/DEVICE-LIBRARY.md"/>
+      </StackPanel>
+
+      <InfoBar x:Name="Result" IsOpen="False" IsClosable="True" Margin="0,0,0,8"/>
+
+      <StackPanel x:Name="Models" Spacing="8"/>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

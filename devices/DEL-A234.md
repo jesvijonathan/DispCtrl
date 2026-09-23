@@ -4,6 +4,10 @@ Device key: `DEL-A234`
 
 | | |
 |---|---|
+| Model | U2424H |
+| Manufacturer | Dell (DEL) |
+| Manufacturer and product | DEL-A234 |
+| Controller type | 0x09 |
 | Connector | Hdmi |
 | Panel technology | LCD (TFT) |
 | Physical size | 527 x 296 mm (23.8 in) |
@@ -82,21 +86,17 @@ Device key: `DEL-A234`
 
 ---
 
-Submitted from DispCtrl. Serial number, device path, file paths, user name and current settings are not collected - only what is true of every unit of this model.
+Low-level commands: 0x01 0x02 0x03 0x07 0x0C 0xE3 0xF3
 
+#### Observed connection (may differ between setups)
 
-model U2424H
-Manufacturer              Dell  ·  DEL
-Manufacturer and product  DEL-A234
-Screen size               23.8 inches  (527 × 296 mm)
-Pixel density             93 PPI  ·  Windows renders at 100
-Controller                type 0x09
-Active signal mode        1920 × 1080 @ 120 Hz
-Pixel clock               297 MHz
-DDC/CI                    Answers  ·  37 controls reported, 10 offered here
-MCCS version              2.1
-Low-level commands        0x01  0x02  0x03  0x07  0x0C  0xE3  0xF3
-Bit depth                 8-bit per channel
-and yk, other usefull details.. capture it into our report... see how much github issues support attaching into body without having user intervention... and work accordingly...
+| | |
+|---|---|
+| Active signal mode | 1920 x 1080 @ 120 Hz |
+| Pixel clock | 297 MHz |
+| Pixel density at current resolution | 93 PPI |
+| Windows rendering | 96 DPI (100% scaling) |
 
-also now i can see it collects but does not submit 
+Submitted from DispCtrl. Serial number, device path, file paths and user name
+are not included. Model capabilities and the observed signal/scaling are included;
+brightness, wallpaper and app settings are not.

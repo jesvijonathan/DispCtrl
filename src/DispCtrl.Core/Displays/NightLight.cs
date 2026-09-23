@@ -112,17 +112,31 @@ public static class NightLight
     private const double LowestUnlockedChannel = 0.08;
 
     /// <summary>
-    /// Whether the clamp has been lifted, cached for the life of the process.
+    /// Whether the clamp has been lifted, cached for a minute at a time.
     /// </summary>
     /// <remarks>
-    /// A registry read per gamma write would be wasteful — the engine writes a
-    /// ramp every 20 seconds — and the value cannot change without an elevated
-    /// prompt, which only happens through this app. <see cref="Recheck"/> is
-    /// called straight after that prompt.
+    /// A registry read per gamma write would be wasteful - the engine writes a
+    /// ramp every 20 seconds. It used to be cached for the life of the process,
+    /// and <see cref="Recheck"/> only ever ran in the process that lifted it:
+    /// the app. The engine, which owns the ramp, kept the old limit until it was
+    /// restarted, so lifting the clamp appeared to do nothing.
     /// </remarks>
     private static bool? _unlocked;
+    private static long _checkedAt;
 
-    private static bool IsUnlocked => _unlocked ??= GammaRange.Read().Unlocked;
+    private static bool IsUnlocked
+    {
+        get
+        {
+            long now = Environment.TickCount64;
+            if (_unlocked is null || now - _checkedAt > 60_000)
+            {
+                _unlocked = GammaRange.Read().Unlocked;
+                _checkedAt = now;
+            }
+            return _unlocked.Value;
+        }
+    }
 
     /// <summary>Re-reads the clamp state, after it has been changed.</summary>
     public static void Recheck() => _unlocked = null;

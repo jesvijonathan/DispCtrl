@@ -382,10 +382,11 @@ internal sealed class TaskbarManager
         }
 
         int newPos;
+        bool settled = false;
         if (b.Animating)
         {
             double t = (now - b.AnimStart) / (double)_settings.Global.AnimMs;
-            if (t >= 1.0) { t = 1.0; b.Animating = false; }
+            if (t >= 1.0) { t = 1.0; b.Animating = false; settled = true; }
 
             // Ease-out cubic: quick off the mark, settles gently — what the
             // native show/hide slide looks like.
@@ -396,11 +397,19 @@ internal sealed class TaskbarManager
         else
         {
             newPos = b.TargetPos;
+            settled = newPos != currentPos;
         }
 
         // The first animation frame can still have the hidden position. Raise
         // immediately even when that frame does not move by a pixel yet.
         if (newPos != currentPos || raise || reassertZOrder) Move(b, r, newPos, raise || reassertZOrder);
+
+        // Once, when a reveal comes to rest. Explorer draws the bar's content
+        // through a composition bridge child that does not always repaint after
+        // its parent is moved from outside: on the 200% panel the bar sometimes
+        // arrived with its lower half never drawn. The geometry was right every
+        // time it was measured - the pixels were stale.
+        if (settled && b.Shown) { HealRegion(b); Repaint(b); }
 
         TrackStubbornness(b, currentPos);
     }
@@ -429,6 +438,38 @@ internal sealed class TaskbarManager
             "PRIMARY monitor's taskbar, which explorer actively restores; only secondary " +
             "taskbars can be moved from outside explorer.");
     }
+
+    /// <summary>
+    /// Clears a window region that no longer covers the whole bar.
+    /// </summary>
+    /// <remarks>
+    /// Explorer gives the taskbar a region the size of the bar. On the 200%
+    /// panel it was measured holding one sized for 100% - 2880 x 48 on a bar
+    /// 96 tall - and Windows clips a window to its region, so the lower half of
+    /// the taskbar was simply never drawn: the glitch reported as "the bottom
+    /// half is gone". Explorer does not put it back once cleared (watched for
+    /// five seconds), and a region equal to the bar, which is what the primary
+    /// taskbar carries, is left alone.
+    /// </remarks>
+    private static unsafe void HealRegion(Bar b)
+    {
+        if (!PInvoke.GetWindowRect(b.Hwnd, out RECT window)) return;
+        RECT box;
+        GDI_REGION_TYPE kind = PInvoke.GetWindowRgnBox(b.Hwnd, &box);
+        if (kind is GDI_REGION_TYPE.RGN_ERROR or GDI_REGION_TYPE.NULLREGION) return;
+
+        int covered = b.Horizontal ? box.bottom - box.top : box.right - box.left;
+        int thickness = b.Horizontal ? window.bottom - window.top : window.right - window.left;
+        if (covered >= thickness) return;
+
+        if (PInvoke.SetWindowRgn(b.Hwnd, HRGN.Null, true) != 0)
+            Log.Write($"taskbar on {b.MonitorLabel}: cleared a stale {covered}px region on a {thickness}px bar");
+    }
+
+    private static unsafe void Repaint(Bar b) =>
+        _ = PInvoke.RedrawWindow(b.Hwnd, null, HRGN.Null,
+            REDRAW_WINDOW_FLAGS.RDW_INVALIDATE | REDRAW_WINDOW_FLAGS.RDW_ALLCHILDREN
+            | REDRAW_WINDOW_FLAGS.RDW_UPDATENOW | REDRAW_WINDOW_FLAGS.RDW_FRAME);
 
     private static void Move(Bar b, RECT r, int pos, bool raise)
     {
@@ -521,6 +562,7 @@ internal sealed class TaskbarManager
     /// </remarks>
     private void Rescan()
     {
+        if (!_settings.Monitors.Values.Any(m => m.ManagesTaskbar)) return;
         string signature = DisplayRegistry.CheapSignature();
         bool layoutChanged = signature != _lastSignature;
 
@@ -554,7 +596,11 @@ internal sealed class TaskbarManager
         }
 
         foreach (Bar b in _bars)
-            if (!b.Unmanageable) EnsureWorkArea(b);
+        {
+            if (b.Unmanageable) continue;
+            EnsureWorkArea(b);
+            HealRegion(b);
+        }
     }
 
     private List<Bar> Discover(List<DisplayInfo> displays)

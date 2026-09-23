@@ -148,6 +148,9 @@ public static class DisplayReport
         Line(sb, "Serial", string.IsNullOrWhiteSpace(d.Key.Serial) ? "(EDID gives none)" : d.Key.Serial);
         Line(sb, "GDI name", $"{d.GdiName}   (transient — changes across replugs)");
         Line(sb, "Connector", d.Connector.ToString());
+        Line(sb, "Connector instance", d.ConnectorInstance.ToString());
+        Line(sb, "MST / daisy chain", d.MstDescription);
+        Line(sb, "Thunderbolt", d.ThunderboltDescription);
         Line(sb, "Built in", d.IsInternal
             ? MachineInfo.Read() is { Present: true } m ? $"yes, into a {m.Label}" : "yes"
             : "no");

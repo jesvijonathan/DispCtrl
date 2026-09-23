@@ -50,11 +50,26 @@ public sealed partial class MainViewModel
     public string FocusExcludedApps { get => Focus.ExcludedApps; set { if (Focus.ExcludedApps == value) return; Focus.ExcludedApps = value; SaveProtection(); } }
     public bool OledIdleEnabled { get => Care.Enabled; set { if (Care.Enabled == value) return; Care.Enabled = value; SaveProtection(); } }
     public double OledIdleMinutes { get => Care.IdleMinutes; set { int v = Number(value, 1, 120); if (Care.IdleMinutes == v) return; Care.IdleMinutes = v; SaveProtection(); } }
-    public double OledIdleDim { get => Care.DimPercent; set { int v = Number(value, 0, 100); if (Care.DimPercent == v) return; Care.DimPercent = v; SaveProtection(); Raise(nameof(OledSecondStageVisibility)); Raise(nameof(OledSecondStageDim)); } }
+    public double OledIdleDim { get => Care.DimPercent; set { int v = Number(value, 0, 100); if (Care.DimPercent == v) return; Care.DimPercent = v; SaveProtection(); PreviewOled(v); Raise(nameof(OledSecondStageVisibility)); Raise(nameof(OledSecondStageDim)); } }
     public Visibility OledSecondStageVisibility => Care.DimPercent is > 0 and < 100 ? Visibility.Visible : Visibility.Collapsed;
     public bool OledSecondStageEnabled { get => Care.SecondStageEnabled; set { if (Care.SecondStageEnabled == value) return; Care.SecondStageEnabled = value; SaveProtection(); } }
     public double OledSecondStageMinutes { get => Care.SecondStageMinutes; set { int v = Number(value, 1, 120); if (Care.SecondStageMinutes == v) return; Care.SecondStageMinutes = v; SaveProtection(); } }
-    public double OledSecondStageDim { get => Math.Clamp(Care.SecondStageDimPercent, Care.DimPercent, 100); set { int v = Number(value, Care.DimPercent, 100); if (Care.SecondStageDimPercent == v) return; Care.SecondStageDimPercent = v; SaveProtection(); } }
+    public double OledSecondStageDim { get => Math.Clamp(Care.SecondStageDimPercent, Care.DimPercent, 100); set { int v = Number(value, Care.DimPercent, 100); if (Care.SecondStageDimPercent == v) return; Care.SecondStageDimPercent = v; SaveProtection(); PreviewOled(v); } }
+
+    private int _oledPreviewVersion;
+    private async void PreviewOled(int percent)
+    {
+        int version = ++_oledPreviewVersion;
+        if (!Care.Enabled) return;
+        // Startup may still be creating the message window. Only the latest
+        // slider value is allowed to retry; preview requests never hit disk.
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            if (version != _oledPreviewVersion || !Care.Enabled) return;
+            if (DispCtrl.Display.OledPreview.TryShow(percent)) return;
+            await Task.Delay(100);
+        }
+    }
     public double OledIdleFade { get => Care.FadeMs; set { int v = Number(value, 0, 2000); if (Care.FadeMs == v) return; Care.FadeMs = v; SaveProtection(); } }
     public bool OledPauseFullscreen { get => Care.PauseFullscreen; set { if (Care.PauseFullscreen == value) return; Care.PauseFullscreen = value; SaveProtection(); } }
     public double TaskbarOpacity { get => _settings.Global.TaskbarOpacity; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarOpacity == v) return; _settings.Global.TaskbarOpacity = v; SaveProtection(); } }

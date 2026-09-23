@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "targets": [
+    {
+      "target": "DEL-A234",
+      "name": "DELL U2424H",
+      "record": true,
+      "extends": [],
+      "codes": [
+        {
+          "code": "0x66",
+          "key": "ambient-light-sensor",
+          "kind": "information",
+          "writable": false,
+          "confidence": "verified"
+        }
+      ]
+    },
+    {
+      "target": "SDC-4154",
+      "name": null,
+      "record": true,
+      "extends": [],
+      "codes": []
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 using DispCtrl.App.Services;
+using DispCtrl.Display;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Storage;
@@ -15,35 +16,48 @@ public sealed partial class StartupSettings : UserControl
     public bool StartMenuShortcutEnabled { get; private set; }
     public bool DesktopShortcutEnabled { get; private set; }
     public bool EngineAvailable => App.ViewModel.CanToggleEngine;
+    public DispCtrl.App.ViewModels.MainViewModel ViewModel => App.ViewModel;
 
     public StartupSettings()
     {
         ReadState();
         InitializeComponent();
+        if (StartupIntegration.IsPackaged)
+        {
+            StartMenuToggle.IsEnabled = false;
+            DesktopToggle.IsEnabled = false;
+        }
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         ReadState();
+        try { EngineStartupEnabled = await StartupIntegration.ReadEngineStartupAsync(); }
+        catch (Exception ex) { ShowResult(ex.Message, InfoBarSeverity.Error); }
         Bindings.Update();
         _ready = true;
     }
 
     private void ReadState()
     {
-        EngineStartupEnabled = StartupIntegration.StartsEngineAtSignIn;
-        StartMenuShortcutEnabled = StartupIntegration.HasStartMenuShortcut;
+        if (!StartupIntegration.IsPackaged) EngineStartupEnabled = StartupIntegration.StartsEngineAtSignIn;
+        StartMenuShortcutEnabled = StartupIntegration.IsPackaged || StartupIntegration.HasStartMenuShortcut;
         DesktopShortcutEnabled = StartupIntegration.HasDesktopShortcut;
     }
 
-    private void OnEngineStartupToggled(object sender, RoutedEventArgs e) =>
-        Change(
-            () => StartupIntegration.SetEngineStartup(
-                EngineStartupToggle.IsOn,
-                EngineAvailable ? App.ViewModel.EnginePath : null),
-            EngineStartupToggle.IsOn
-                ? "The engine will start when you sign in."
-                : "Engine auto-start is off.");
+    private async void OnEngineStartupToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_ready || _updating) return;
+        _updating = true;
+        try
+        {
+            await StartupIntegration.SetEngineStartupAsync(EngineStartupToggle.IsOn, EngineAvailable ? App.ViewModel.EnginePath : null);
+            EngineStartupEnabled = await StartupIntegration.ReadEngineStartupAsync();
+            ShowResult(EngineStartupEnabled ? "The engine will start when you sign in." : "Engine auto-start is off.", InfoBarSeverity.Success);
+        }
+        catch (Exception ex) { ShowResult(ex.Message, InfoBarSeverity.Error); }
+        finally { Bindings.Update(); _updating = false; }
+    }
 
     private void OnStartMenuToggled(object sender, RoutedEventArgs e) =>
         Change(

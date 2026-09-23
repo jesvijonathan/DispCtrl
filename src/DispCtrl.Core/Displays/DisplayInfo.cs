@@ -47,7 +47,40 @@ public sealed record DisplayInfo
     public required string FriendlyName { get; init; }
 
     public required ConnectorKind Connector { get; init; }
+    /// <summary>Driver-reported connector instance, not the position in an MST chain.</summary>
+    public uint ConnectorInstance { get; init; }
+    public string AdapterId { get; init; } = "";
+    public uint TargetId { get; init; }
+
+    /// <summary>DisplayPort carried over a USB4, Thunderbolt or USB-C tunnel, as the driver reports it.</summary>
+    /// <remarks>
+    /// Only a positive answer is trustworthy: a dock that converts to plain
+    /// DisplayPort before the GPU sees it reports as ordinary DisplayPort.
+    /// </remarks>
+    public bool Tunnelled { get; init; }
+
+    /// <summary>How many other active displays share this one's DisplayPort connector.</summary>
+    /// <remarks>
+    /// Above zero means an MST hub or a daisy chain; Windows gives neither the
+    /// kind nor the order in the chain.
+    /// </remarks>
+    public int SharingConnector { get; init; }
+
+    public string MstDescription => IsInternal ? "Not applicable (internal panel)"
+        : SharingConnector > 0 ? $"Yes: shares its DisplayPort connector with {SharingConnector} other display{(SharingConnector == 1 ? "" : "s")} (hub or daisy chain; order not reported)"
+        : Connector == ConnectorKind.DisplayPort ? "No other display on this connector"
+        : "Not applicable (" + ConnectorName + ")";
+    public string ThunderboltDescription => IsInternal ? "Not applicable (internal panel)"
+        : Connector != ConnectorKind.DisplayPort && Connector != ConnectorKind.Unknown ? "Not applicable (" + ConnectorName + ")"
+        : Tunnelled ? "Yes: DisplayPort tunnelled over USB4, Thunderbolt or USB-C"
+        : "Not reported as tunnelled; a dock that converts to plain DisplayPort cannot be told apart";
     public bool IsInternal => Connector == ConnectorKind.Internal;
+
+    private string ConnectorName => Connector switch
+    {
+        ConnectorKind.Hdmi => "HDMI", ConnectorKind.DisplayPort => "DisplayPort", ConnectorKind.Dvi => "DVI",
+        ConnectorKind.Vga => "VGA", ConnectorKind.Usb => "USB", _ => Connector.ToString().ToLowerInvariant(),
+    };
     public required bool IsPrimary { get; init; }
 
     public required DisplayRect Bounds { get; init; }

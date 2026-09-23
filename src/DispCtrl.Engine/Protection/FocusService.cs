@@ -59,6 +59,8 @@ internal sealed unsafe class FocusService : IDisposable
     private long _holeStarted;
     private string _foregroundClass = "";
     private uint _timerMs;
+    private long _previewUntil;
+    private int _previewPercent;
 
     /// <summary>
     /// One display's dimming, as two interchangeable layers.
@@ -92,6 +94,7 @@ internal sealed unsafe class FocusService : IDisposable
         public nint Owner, LastOwner;
         public DateTimeOffset? RestUntil;
         public long RestSince;
+        public OledIdleState IdleState { get; } = new();
         public double Alpha, From, Target;
         public long Started;
         public int Duration;
@@ -143,15 +146,16 @@ internal sealed unsafe class FocusService : IDisposable
         }
     }
 
-    private void Configure()
+    private void Configure(bool rebuildMasks = true)
     {
         _excluded = _settings.Global.Focus.Exclusions();
         ClearHooks();
-        ClearMasks();
+        if (rebuildMasks) ClearMasks();
         bool active = _settings.Global.Focus.Enabled || _settings.Global.OledCare.Enabled
             || _settings.Monitors.Values.Any(monitor => monitor.OledRestUntilUtc > DateTimeOffset.UtcNow);
         _automaticWindow = 0;
         _automaticClass = "";
+        if (!active) { _previewUntil = 0; ClearMasks(); }
         if (active)
         {
             // Out-of-context notifications: no DLL injection, no keyboard hook.
@@ -160,7 +164,7 @@ internal sealed unsafe class FocusService : IDisposable
             AddHook(0x0016, 0x0017); // minimize start/end
             if (_settings.Global.Focus.Enabled && _settings.Global.Focus.PrioritizeNewWindows)
                 AddHook(0x8001, 0x8003); // destroy/show/hide for the temporary priority window
-            foreach (DisplayInfo d in DisplayRegistry.Enumerate())
+            foreach (DisplayInfo d in _masks.Count == 0 ? DisplayRegistry.Enumerate() : [])
             {
                 nint live = CreateWindowEx(0x080800A8, ClassName, "DispCtrl dim overlay", 0x80000000,
                     d.Bounds.Left, d.Bounds.Top, d.Bounds.Width, d.Bounds.Height, 0, 0, GetModuleHandle(null), 0);
@@ -247,7 +251,14 @@ internal sealed unsafe class FocusService : IDisposable
                 if (message == UpdateMessage)
                 {
                     if (Interlocked.Exchange(ref self._pending, null) is { } settings) self._settings = settings;
-                    self.Configure();
+                    self.Configure(rebuildMasks: false);
+                    return 0;
+                }
+                if (message == DispCtrl.Display.OledPreview.MessageId)
+                {
+                    self._previewPercent = (int)Math.Min(wparam, 100);
+                    self._previewUntil = Environment.TickCount64 + 2000;
+                    self.Tick();
                     return 0;
                 }
                 if (message == 0x7E) { self.Configure(); return 0; } // display topology/DPI change
@@ -328,7 +339,8 @@ internal sealed unsafe class FocusService : IDisposable
         // top-level window so hovering a control does not cut a hole the size of
         // a button.
         nint hovered = 0;
-        if (GetCursorPos(out Point cursor) != 0)
+        bool pointerKnown = GetCursorPos(out Point cursor) != 0;
+        if (pointerKnown)
         {
             nint under = WindowFromPoint(cursor);
             nint root = under == 0 ? 0 : GetAncestor(under, 2); // GA_ROOT
@@ -518,13 +530,25 @@ internal sealed unsafe class FocusService : IDisposable
             inputKnown = GetLastInputInfo(ref input) != 0;
             idleMs = unchecked((uint)Environment.TickCount - input.Tick);
         }
-        bool resting = FocusGeometry.RestingWhenIdle(care.Enabled, inputKnown, idleMs,
-            care.IdleMinutes, _suspended, care.PauseFullscreen && fullscreen);
+        bool preview = care.Enabled && now < _previewUntil && !_suspended;
+        bool frontMaximized = focusedUsable && IsZoomed(_foreground) != 0;
+        bool frontHasCaption = focusedUsable && (GetWindowLongPtr(_foreground, -16) & 0x00C00000) == 0x00C00000;
         bool animating = false, anyRest = false, anyRestPending = false;
         foreach (Mask mask in _masks)
         {
             _settings.Monitors.TryGetValue(mask.Display.Token, out MonitorSettings? monitor);
             bool oled = monitor?.TreatAsOled == true;
+            // A fullscreen window on a different panel must not suppress this
+            // panel's idle protection. Ordinary maximized windows are not media
+            // fullscreen, even when taskbar hiding reclaims the entire work area.
+            bool panelFullscreen = focusedUsable && FocusGeometry.IsContentFullscreen(
+                focusedRect, mask.Display.Bounds, frontMaximized, frontHasCaption);
+            uint panelIdle = mask.IdleState.Update(care.Enabled && oled && monitor?.OledProtection == true
+                && !_suspended && !(care.PauseFullscreen && panelFullscreen),
+                monitor?.OledWakeOnPointerReturn == true, now, inputKnown, idleMs, care.IdleMinutes,
+                pointerKnown, cursor.X, cursor.Y, mask.Display.Bounds);
+            bool resting = FocusGeometry.RestingWhenIdle(care.Enabled, inputKnown, panelIdle,
+                care.IdleMinutes, _suspended, care.PauseFullscreen && panelFullscreen);
 
             // Tracked per mask so a fresh request restarts the grace period
             // rather than inheriting the age of the one before it.
@@ -533,7 +557,7 @@ internal sealed unsafe class FocusService : IDisposable
 
             bool restRequested = restUntil is { } until && until > DateTimeOffset.UtcNow;
             bool manualRest = FocusGeometry.RestingByHand(restRequested, now - mask.RestSince, idleMs, inputKnown);
-            bool rest = (manualRest || resting) && oled && monitor?.OledProtection == true;
+            bool rest = (preview || manualRest || resting) && oled && monitor?.OledProtection == true;
             anyRest |= rest;
             anyRestPending |= restRequested;
             DisplayRect intersection = FocusGeometry.Intersect(active, mask.Display.Bounds);
@@ -593,7 +617,7 @@ internal sealed unsafe class FocusService : IDisposable
             int wanted = focus.ScaleWithBrightness
                 ? FocusGeometry.ScaledDim(focus.DimPercent, PanelLevel(monitor))
                 : focus.DimPercent;
-            int restDim = manualRest ? 100 : care.DimAtIdle(idleMs);
+            int restDim = preview ? _previewPercent : manualRest ? 100 : care.DimAtIdle(panelIdle);
             double target = rest ? FocusGeometry.Alpha(restDim) : dim ? FocusGeometry.Alpha(wanted) : 0;
             DisplayRect area = !rest && focus.KeepTaskbarVisible ? mask.Display.WorkArea : mask.Display.Bounds;
             // The hole has to outlive the dim it is cut from. Dropping it the
@@ -665,7 +689,7 @@ internal sealed unsafe class FocusService : IDisposable
                 mask.From = mask.Alpha;
                 mask.Target = target;
                 mask.Started = now;
-                mask.Duration = Math.Clamp(rest ? care.FadeMs : focus.FadeMs, 0, 2000);
+                mask.Duration = preview ? 120 : Math.Clamp(rest || !focus.Enabled ? care.FadeMs : focus.FadeMs, 0, 2000);
             }
 
             mask.Alpha = FocusGeometry.Fade(mask.From, mask.Target, now - mask.Started, mask.Duration);

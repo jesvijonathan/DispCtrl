@@ -11,6 +11,11 @@
     <RootNamespace>DispCtrl.Engine</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
+    <!-- The engine owns the notification area icon, and its "DispCtrl logo"
+         style is read out of this executable. Without it the style drew an
+         empty slot on the taskbar: the icon was a null handle. -->
+    <ApplicationIcon>..\DispCtrl.App\Assets\DispCtrl.ico</ApplicationIcon>
+
     <!-- Native AOT. Requires the MSVC linker at PUBLISH time only; a plain
          `dotnet build` and `dotnet run` work without it, so day-to-day
          development never depends on the C++ toolchain being present. -->
@@ -69,6 +74,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DispCtrl.Control\DispCtrl.Control.csproj" />
     <!-- Source-generated P/Invoke straight from the official Win32 metadata.
          Hand-written DllImport is where interop bugs live: a wrong struct
          packing or charset reads as a crash three layers away from the cause. -->

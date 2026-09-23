@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "topology": "extend",
+  "missingMonitor": "skip",
+  "displays": [
+    { "monitor": "office", "primary": true, "resolution": "1920x1080", "refresh": 120 }
+  ]
+}

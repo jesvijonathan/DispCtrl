@@ -5,7 +5,12 @@ using DispCtrl.Display.Cli;
 // Console front end. The engine owns the resident work; everything a script
 // wants to ask for is here, in a process that blocks the shell and returns a
 // meaningful exit code.
-if (args.Length == 0) return CommandLine.Usage(null);
+if (args.Length == 0 || args[0] is "help" or "--help" or "-h")
+{
+    Console.WriteLine(DispCtrl.Control.ControlTerminal.Help);
+    return 0;
+}
+if (DispCtrl.Control.ControlTerminal.Handles(args)) return await DispCtrl.Control.ControlTerminal.RunAsync(args);
 
 string verb = args[0].ToLowerInvariant();
 string[] rest = args.Length > 1 ? args[1..] : [];

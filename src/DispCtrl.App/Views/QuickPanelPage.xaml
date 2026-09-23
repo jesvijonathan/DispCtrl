@@ -1,0 +1,239 @@
+<Page x:Class="DispCtrl.App.Views.QuickPanelPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:tk="using:CommunityToolkit.WinUI.Controls"
+      xmlns:local="using:DispCtrl.App.Views"
+      Loaded="OnLoaded">
+
+  <ScrollViewer Padding="0,0,0,32">
+    <StackPanel Padding="36,12,36,0" Spacing="4" HorizontalAlignment="Stretch">
+
+      <StackPanel Spacing="4" Margin="0,0,0,16">
+        <TextBlock Text="Quick panel" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Text="The panel that opens from DispCtrl's icon in the notification area. Click the icon to open it and again to close it. It can be one brightness slider per display or everything DispCtrl does, in whatever order suits you - and it can carry tiles of your own. Open it beside this page and every change here shows in it straight away."
+                   Style="{StaticResource BodyTextBlockStyle}"
+                   TextWrapping="Wrap"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      </StackPanel>
+
+      <!-- First, because it decides what most of the rest of this page does. -->
+      <tk:SettingsCard Header="Simple mode"
+                       Description="Brightness and nothing else: one slider for all displays, then one for each display. The options below that only shape the full panel are greyed while it is on, and come back as they were when it is off.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE71A;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelSimple, Mode=TwoWay}"
+                      AutomationProperties.Name="QuickPanelSimple"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Show the icon in the notification area"
+                       Description="{x:Bind ViewModel.QuickPanelSummary, Mode=OneWay}">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE706;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <Button Content="Open it now" Click="OnPreview"
+                  ToolTipService.ToolTip="Open the panel as it is set up now, beside this page"
+                  AutomationProperties.Name="QuickPanelPreview"/>
+          <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelEnabled, Mode=TwoWay}"
+                        AutomationProperties.Name="QuickPanelEnabled"/>
+        </StackPanel>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Keep it on the taskbar"
+                       Description="{x:Bind ViewModel.QuickPanelOnTaskbarDescription, Mode=OneWay}">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE75A;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelOnTaskbar, Mode=TwoWay}"
+                      IsEnabled="{x:Bind ViewModel.QuickPanelCanPromote, Mode=OneWay}"
+                      AutomationProperties.Name="QuickPanelOnTaskbar"/>
+      </tk:SettingsCard>
+
+      <!-- ===================== look ===================== -->
+
+      <TextBlock Text="Look" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
+
+      <!-- Combo boxes and sliders are built in code: set first, handler second,
+           so building the page can never be read as somebody changing it. -->
+      <tk:SettingsCard Header="Icon"
+                       Description="Drawn the way Windows draws its own notification area icons: one colour, white on a dark taskbar and black on a light one, redrawn when the theme changes. The logo is DispCtrl's coloured icon.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE790;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ContentControl x:Name="IconHost"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Density" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                       Description="Comfortable, the default, labels each quick toggle underneath as Windows' quick settings do. Compact shows the toggles as symbols alone and packs the rows tight. Spacious makes the toggles larger and names every slider above itself.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE8A9;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ContentControl x:Name="DensityHost"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Width"
+                       Description="In DIP, the unit Windows' own quick settings use. 360 matches them.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE740;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel x:Name="WidthHost" Orientation="Horizontal" Spacing="12"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Quick toggles per row" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                       Description="How many toggles sit side by side. The panel never makes a toggle narrower than its label needs, so more fit only on a wider panel.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xF0E2;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel x:Name="ColumnsHost" Orientation="Horizontal" Spacing="12"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Height" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                       Description="Grow to fit what is in it, up to the height of the screen - Windows' own way. Or keep one fixed height and scroll inside it, so it opens the same size every time however much it holds.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE7FB;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel x:Name="HeightHost" Orientation="Horizontal" Spacing="12"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Stay open when it loses focus"
+                       Description="Otherwise it closes as soon as you click elsewhere, the way Windows' flyouts do. The pin in the panel's title changes this too.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE718;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelStayOpen, Mode=TwoWay}"
+                      AutomationProperties.Name="QuickPanelStayOpen"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Lock its position"
+                       Description="Keeps the panel where it opens, so its title no longer drags it. The lock in the panel's title changes this too.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE72E;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelLocked, Mode=TwoWay}"
+                      AutomationProperties.Name="QuickPanelLocked"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Link to all display settings" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                       Description="A button at the bottom that opens this window.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE8A7;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.QuickFooter, Mode=TwoWay}"
+                      AutomationProperties.Name="QuickFooter"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Animate opening and closing"
+                       Description="Rises from the taskbar and sinks back into it, as Windows' own flyouts do. Off here, or with Windows' animation effects off, it simply appears.">
+        <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelAnimate, Mode=TwoWay}"
+                      AutomationProperties.Name="QuickPanelAnimate"/>
+      </tk:SettingsCard>
+
+      <!-- ===================== layout ===================== -->
+
+      <TextBlock Text="Layout" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
+
+      <!-- Each editor sits in a SettingsCard: anything that is not card-like
+           inside a SettingsExpander takes the process down when realised. -->
+      <tk:SettingsExpander Header="Sections" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Description="The blocks the panel is made of, top to bottom. Drag to reorder."
+                           IsExpanded="True">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE8FD;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <local:QuickPanelListEditor x:Name="SectionsEditor"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Quick toggles" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Description="The grid of small switches and actions, your own tiles among them. Each shows its name when you hover over it, and the ones with an arrow have options on a right-click.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE8A9;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <local:QuickPanelListEditor x:Name="TilesEditor"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Each display" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Description="The rows under every display's name. A row a display cannot use - brightness on a monitor that does not answer, scaling it does not offer - is left out for that display alone.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE7F4;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <local:QuickPanelListEditor x:Name="RowsEditor"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Switches on each display" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Description="The strip of small switches in each display's block. Shown only where the display supports them: HDR where it has HDR, OLED care on OLED panels.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE9E9;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <local:QuickPanelListEditor x:Name="StripEditor"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <!-- Greyed until presets are finished, so the page shows where they
+           will go rather than pretending they are not coming. -->
+      <tk:SettingsCard Header="Presets in the panel"
+                       Description="Coming soon: the whole desk saved under a name - brightness, night light, layout, the lot - and applied from the panel in one click. The panel already keeps a place for them."
+                       IsEnabled="False">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE768;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <TextBlock Text="Coming soon" Foreground="{ThemeResource TextFillColorDisabledBrush}"/>
+      </tk:SettingsCard>
+
+      <!-- ===================== your tiles ===================== -->
+
+      <TextBlock Text="Your tiles" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
+
+      <tk:SettingsExpander x:Name="CustomEditor" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Header="Tiles you have made"
+                           Description="A tile can run a dispctrl command - the same words you would type in a terminal, such as brightness 40 --all - or open a program, a script, a document or a web address. New tiles appear at the end of the quick toggles."
+                           IsExpanded="True">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE710;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <!-- A host declared here, filled in code. Items added to a
+             SettingsExpander from code after it is built are never drawn. -->
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <StackPanel x:Name="CustomTilesHost" Spacing="4"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <!-- ===================== which displays ===================== -->
+
+      <TextBlock Text="Which displays" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
+      <TextBlock Text="Remembered by the display itself, so one moved to another port stays hidden rather than hiding whichever display took its place."
+                 Style="{StaticResource CaptionTextBlockStyle}"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                 TextWrapping="Wrap" Margin="1,0,0,6"/>
+
+      <StackPanel x:Name="DisplayChoices" Spacing="4"/>
+
+      <tk:SettingsCard Header="Reset the quick panel"
+                       Description="Back to the shipped sections, toggles and rows. Your own tiles, whether the icon is shown, and which displays are hidden are left as they are."
+                       Margin="0,20,0,0">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE777;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Reset" Click="OnReset" AutomationProperties.Name="QuickPanelReset"/>
+      </tk:SettingsCard>
+
+    </StackPanel>
+  </ScrollViewer>
+</Page>

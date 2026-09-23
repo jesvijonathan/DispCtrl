@@ -13,35 +13,61 @@
        trap this project has already paid for once. -->
   <Border x:Name="Root"
           CornerRadius="8"
-          BorderThickness="1"
-          BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}">
-    <Grid RowDefinitions="Auto,*,Auto">
+          BorderThickness="0">
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
 
       <!-- Title row. Doubles as the drag handle: a flyout that cannot be moved
            is fine until it lands on the display being adjusted. -->
-      <Grid x:Name="TitleRow" Grid.Row="0" Padding="16,12,8,8" ColumnDefinitions="*,Auto,Auto">
+      <!-- Four buttons, each doing one thing nothing else in the panel does:
+           cycle the density, lock its position, keep it open, customise it.
+           A "more" menu used to sit here too; everything in it was already on
+           the Quick panel page and the icon's own right-click menu. -->
+      <Grid x:Name="TitleRow" Grid.Row="0" Padding="16,12,8,8" ColumnDefinitions="*,Auto,Auto,Auto,Auto">
         <TextBlock Text="DispCtrl"
                    Style="{StaticResource BodyStrongTextBlockStyle}"
                    VerticalAlignment="Center"/>
 
+        <!-- Cycles the layout: compact, comfortable, spacious. One button rather
+             than a trip to the settings, because the right density is found by
+             looking at it. -->
         <Button Grid.Column="1"
+                x:Name="DensityButton"
+                Click="OnDensity"
+                Background="Transparent" BorderThickness="0"
+                Width="36" Height="32" Padding="0"
+                AutomationProperties.Name="QuickPanelDensityCycle">
+          <FontIcon FontSize="14" Glyph="&#xF0E2;"/>
+        </Button>
+
+        <Button Grid.Column="2"
+                x:Name="LockButton"
+                Click="OnLock"
+                Background="Transparent" BorderThickness="0"
+                Width="36" Height="32" Padding="0"
+                AutomationProperties.Name="QuickPanelLock">
+          <FontIcon x:Name="LockGlyph" FontSize="14" Glyph="&#xE785;"/>
+        </Button>
+
+        <Button Grid.Column="3"
                 x:Name="PinButton"
                 Click="OnPin"
-                Style="{StaticResource SubtleButtonStyle}"
+                Background="Transparent" BorderThickness="0"
                 Width="36" Height="32" Padding="0"
                 AutomationProperties.Name="QuickPanelPin"
                 ToolTipService.ToolTip="Keep the panel open when it loses focus">
           <FontIcon x:Name="PinGlyph" FontSize="14" Glyph="&#xE718;"/>
         </Button>
 
-        <Button Grid.Column="2"
-                Click="OnOpenApp"
-                Style="{StaticResource SubtleButtonStyle}"
+        <Button Grid.Column="4"
+                Click="OnCustomise"
+                Background="Transparent" BorderThickness="0"
                 Width="36" Height="32" Padding="0"
                 AutomationProperties.Name="QuickPanelSettings"
-                ToolTipService.ToolTip="Open DispCtrl">
+                ToolTipService.ToolTip="Choose what this panel shows">
           <FontIcon FontSize="14" Glyph="&#xE713;"/>
         </Button>
+        <!-- The drag region while the panel is locked: nothing. -->
+        <Border x:Name="NoDrag" Width="0" Height="0"/>
       </Grid>
 
       <ScrollViewer Grid.Row="1"
@@ -52,7 +78,19 @@
         <StackPanel x:Name="Sections" Padding="12,0,12,8" Spacing="4"/>
       </ScrollViewer>
 
-      <Border Grid.Row="2"
+      <!-- What a tile somebody made has just done. Its own row, so it shows
+           whether or not the link below is switched on. -->
+      <TextBlock Grid.Row="2"
+                 x:Name="Status"
+                 Visibility="Collapsed"
+                 Margin="16,2,16,6"
+                 FontSize="12"
+                 TextWrapping="Wrap"
+                 AutomationProperties.LiveSetting="Polite"
+                 AutomationProperties.AutomationId="QuickPanelStatus"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+      <Border Grid.Row="3"
               x:Name="Footer"
               Padding="12,8,12,12"
               BorderThickness="0,1,0,0"

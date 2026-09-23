@@ -185,6 +185,90 @@ internal sealed class HotkeyService : IDisposable
                 settings.Global.UnisonBrightness = true;
                 settings.Global.UnisonLevel = Math.Clamp(settings.Global.UnisonLevel + delta, 0, 100);
                 _persist(settings);
+                // Saving the level used to be all this did, so with the app
+                // closed the displays never moved.
+                ApplyUnison(settings);
+                break;
+            }
+
+            case HotkeyAction.UnisonToggle:
+                settings.Global.UnisonBrightness = !settings.Global.UnisonBrightness;
+                _persist(settings);
+                // Off leaves the displays where they are; on brings them back
+                // to where unison puts them.
+                if (settings.Global.UnisonBrightness) ApplyUnison(settings);
+                break;
+
+            case HotkeyAction.FocusToggle:
+                settings.Global.Focus.Enabled = !settings.Global.Focus.Enabled;
+                _persist(settings);
+                break;
+
+            case HotkeyAction.OledCareToggle:
+                settings.Global.OledCare.Enabled = !settings.Global.OledCare.Enabled;
+                _persist(settings);
+                break;
+
+            case HotkeyAction.OledRestNow:
+            {
+                int rested = 0;
+                foreach (DisplayInfo d in Targets(hotkey))
+                {
+                    MonitorSettings m = settings.For(d.Token);
+                    if (m.IsOled != true) continue;
+                    m.OledRestUntilUtc = DateTimeOffset.UtcNow.AddMinutes(Math.Max(1, m.OledRestMinutes));
+                    rested++;
+                }
+                if (rested > 0) _persist(settings);
+                else Log.Write("hotkey: no display marked as OLED to rest");
+                break;
+            }
+
+            case HotkeyAction.KeepAwakeToggle:
+                settings.Global.Awake.Mode = settings.Global.Awake.Mode == AwakeMode.PowerPlan ? AwakeMode.Indefinite : AwakeMode.PowerPlan;
+                _persist(settings);
+                break;
+
+            case HotkeyAction.DarkModeToggle:
+                WindowsTheme.SetDark(!(WindowsTheme.IsDark ?? false));
+                break;
+
+            case HotkeyAction.QuickPanel:
+                if (!QuickPanelSignal.Summon()) Log.Write("hotkey: the quick panel needs the app, which could not be found");
+                break;
+
+            case HotkeyAction.TaskbarToggle:
+            {
+                // One answer for every target: if any is hidden, show them all.
+                List<DisplayInfo> targets = Targets(hotkey);
+                bool anyHidden = targets.Any(d => d.IsPrimary ? GlobalTaskbar.IsAutoHide : settings.For(d.Token).HideTaskbar);
+                foreach (DisplayInfo d in targets)
+                {
+                    if (d.IsPrimary) GlobalTaskbar.SetAutoHide(!anyHidden);
+                    else settings.For(d.Token).HideTaskbar = !anyHidden;
+                }
+                _persist(settings);
+                break;
+            }
+
+            case HotkeyAction.TaskbarGlassToggle:
+                settings.Global.TaskbarGlassEnabled = !settings.Global.TaskbarGlassEnabled;
+                _persist(settings);
+                break;
+
+            case HotkeyAction.ContrastUp:
+            case HotkeyAction.ContrastDown:
+            {
+                int delta = hotkey.Action == HotkeyAction.ContrastUp ? hotkey.Step : -hotkey.Step;
+                foreach (DisplayInfo d in Targets(hotkey))
+                {
+                    if (d.IsInternal) continue;
+                    VcpControl? contrast = MonitorCapabilities.ReadSettable(d).Controls.FirstOrDefault(c => c.Code == 0x12 && c.Settable);
+                    if (contrast is null || contrast.Current < 0) continue;
+                    int max = contrast.Maximum > 0 ? contrast.Maximum : 100;
+                    int step = (int)Math.Round(max * delta / 100.0);
+                    _ = MonitorCapabilities.Write(d, 0x12, (uint)Math.Clamp(contrast.Current + step, 0, max));
+                }
                 break;
             }
 
@@ -227,12 +311,37 @@ internal sealed class HotkeyService : IDisposable
                 break;
 
             case HotkeyAction.Identify:
-                // The overlays are the panel's, and raising a window from here
-                // would mean the engine carrying XAML. Logged so the binding is
-                // at least visibly doing something until that is wired up.
-                Log.Write("hotkey: identify is only available from the panel");
+                // The overlays are XAML, so the app draws them; the engine only
+                // asks, and starts the app hidden if none is running.
+                if (!QuickPanelSignal.Identify()) Log.Write("hotkey: identify needs the app, which could not be found");
                 break;
         }
+    }
+
+    /// <summary>Puts every display where unison says, as the app's slider would.</summary>
+    /// <remarks>
+    /// The built-in panel included, through its own range: with Windows'
+    /// brightness following unison, the event this write raises matches where
+    /// unison has the panel and the bridge drops it.
+    /// </remarks>
+    private void ApplyUnison(DispCtrlSettings settings)
+    {
+        bool changed = false;
+        foreach (DisplayInfo d in Displays())
+        {
+            BrightnessRange range = Brightness.Read(d);
+            if (!range.Supported) continue;
+            MonitorSettings m = settings.For(d.Token);
+            if (!m.HasBrightnessRange && m.BrightnessBaseline <= 0)
+            {
+                // Joins without a jump: a baseline worked back from where it is.
+                m.BrightnessBaseline = UnisonResume.Enable(settings.Global.UnisonLevel, [range.Percent], [0], 0).Baselines[0];
+                changed = true;
+            }
+            int target = UnisonResume.Target(m, settings.Global.UnisonCalibrated, settings.Global.UnisonLevel);
+            _ = Brightness.Write(d, range.FromPercent(target));
+        }
+        if (changed) _persist(settings);
     }
 
     private void Step(Hotkey hotkey, DispCtrlSettings settings, int delta)

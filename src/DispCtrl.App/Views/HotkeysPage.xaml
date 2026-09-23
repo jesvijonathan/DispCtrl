@@ -76,9 +76,14 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <Button Content="Add a shortcut" Click="OnAdd" Margin="0,8,0,0"
-              Style="{StaticResource AccentButtonStyle}"
-              AutomationProperties.Name="AddHotkey"/>
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+        <Button Content="Add a shortcut" Click="OnAdd"
+                Style="{StaticResource AccentButtonStyle}"
+                AutomationProperties.Name="AddHotkey"/>
+        <Button Content="Restore the defaults" Click="OnRestoreDefaults"
+                ToolTipService.ToolTip="Replace every shortcut with DispCtrl's own: Ctrl+Alt+Page Up and Page Down for unison, N night light, F focus, K keep awake, I identify, D the quick panel."
+                AutomationProperties.Name="RestoreHotkeys"/>
+      </StackPanel>
 
       <InfoBar x:Name="Toast" IsOpen="False" IsClosable="True" Severity="Informational"
                Margin="0,16,0,0"/>

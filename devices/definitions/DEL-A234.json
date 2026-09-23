@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "target": "DEL-A234",
+  "name": "DELL U2424H",
+  "extends": [],
+  "controls": [
+    {
+      "code": "0x66",
+      "key": "ambient-light-sensor",
+      "name": "Ambient light sensor",
+      "kind": "information",
+      "writable": false,
+      "values": [],
+      "confidence": "verified",
+      "sources": [ "DEL-A234" ],
+      "notes": "Advertised with values 0F and 02, but reads A1 forever and never changes. Listed, not implemented."
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
+using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace DispCtrl.Core.Settings;
 
@@ -23,6 +27,8 @@ public partial class SettingsJsonContext : JsonSerializerContext;
 /// <summary>Loads and saves <see cref="DispCtrlSettings"/>.</summary>
 public static class SettingsStore
 {
+    private sealed class Snapshot(JsonNode json) { public JsonNode Json = json; public bool ExternalChanges; }
+    private static readonly ConditionalWeakTable<DispCtrlSettings, Snapshot> Snapshots = new();
     public static string Directory { get; } = Resolve();
 
     /// <summary>
@@ -42,6 +48,12 @@ public static class SettingsStore
     /// </remarks>
     private static string Resolve()
     {
+        string? configured = Environment.GetEnvironmentVariable("DISPCTRL_DATA_DIR");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            if (!Path.IsPathFullyQualified(configured)) throw new ArgumentException("DISPCTRL_DATA_DIR must be an absolute path.");
+            return Path.GetFullPath(configured);
+        }
         string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string current = Path.Combine(local, "DispCtrl");
 
@@ -91,19 +103,55 @@ public static class SettingsStore
     {
         try
         {
-            if (!File.Exists(Path_)) return new DispCtrlSettings();
+            if (!File.Exists(Path_)) return Track(new DispCtrlSettings());
 
-            string json = File.ReadAllText(Path_);
+            string json = ReadShared();
             DispCtrlSettings? s = JsonSerializer.Deserialize(json, SettingsJsonContext.Default.DispCtrlSettings);
-            if (s is not null) return s;
+            if (s is not null) return Track(s);
 
             Quarantine();
-            return new DispCtrlSettings();
+            return Track(new DispCtrlSettings());
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        catch (JsonException)
         {
             Quarantine();
-            return new DispCtrlSettings();
+            return Track(new DispCtrlSettings());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Unreadable is not corrupt. This used to quarantine too, so a read
+            // that lost a race with a save moved a good file aside and every
+            // client fell back to defaults.
+            return Track(new DispCtrlSettings());
+        }
+    }
+
+    /// <summary>
+    /// Reads the file without blocking a save that replaces it meanwhile.
+    /// </summary>
+    /// <remarks>
+    /// <c>File.ReadAllText</c> opens without delete sharing, and a save is a
+    /// rename over the file: while the engine, the CLI or the panel held it open
+    /// to read, the rename failed with access denied, which took the app down
+    /// in the middle of a slider drag. Sharing delete lets the rename go ahead;
+    /// the reader keeps the version it opened. A sharing violation from a writer
+    /// that does not share is retried briefly rather than reported.
+    /// </remarks>
+    private static string ReadShared()
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                using var stream = new FileStream(Path_, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                return reader.ReadToEnd();
+            }
+            catch (IOException) when (attempt < 10 && File.Exists(Path_))
+            {
+                Thread.Sleep(15);
+            }
         }
     }
 
@@ -114,13 +162,107 @@ public static class SettingsStore
     /// </remarks>
     public static void Save(DispCtrlSettings settings)
     {
-        System.IO.Directory.CreateDirectory(Directory);
+        WithWriteLock(() =>
+        {
+            System.IO.Directory.CreateDirectory(Directory);
+            JsonNode local = JsonSerializer.SerializeToNode(settings, SettingsJsonContext.Default.DispCtrlSettings)!;
+            JsonNode output = local;
+            if (Snapshots.TryGetValue(settings, out Snapshot? baseline) && File.Exists(Path_))
+            {
+                JsonNode latest = JsonNode.Parse(ReadShared())!;
+                output = MergeEdits(baseline.Json, local, latest)!;
+            }
+            string tmp = Path_ + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.WriteAllText(tmp, output.ToJsonString(SettingsJsonContext.Default.Options));
+                ReplaceWithRetry(tmp);
+            }
+            finally { if (File.Exists(tmp)) File.Delete(tmp); }
+            Snapshots.Remove(settings);
+            Snapshots.Add(settings, new(local.DeepClone()) { ExternalChanges = !JsonNode.DeepEquals(local, output) });
+            return true;
+        });
+    }
 
-        string json = JsonSerializer.Serialize(settings, SettingsJsonContext.Default.DispCtrlSettings);
-        string tmp = Path_ + ".tmp";
+    /// <summary>
+    /// Renames the new file over the old one, waiting out a reader that has it
+    /// open without delete sharing - an editor, an antivirus scan, an older build.
+    /// </summary>
+    private static void ReplaceWithRetry(string tmp)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try { File.Move(tmp, Path_, overwrite: true); return; }
+            catch (Exception ex) when (attempt < 20 && ex is IOException or UnauthorizedAccessException)
+            {
+                Thread.Sleep(10 + attempt * 5);
+            }
+        }
+    }
 
-        File.WriteAllText(tmp, json);
-        File.Move(tmp, Path_, overwrite: true);
+    /// <summary>A save merged newer disk values that this client has not adopted yet.</summary>
+    public static bool HasExternalChanges(DispCtrlSettings settings) =>
+        Snapshots.TryGetValue(settings, out var snapshot) && snapshot.ExternalChanges;
+
+    private static DispCtrlSettings Track(DispCtrlSettings settings)
+    {
+        Snapshots.Add(settings, new(JsonSerializer.SerializeToNode(settings, SettingsJsonContext.Default.DispCtrlSettings)!));
+        return settings;
+    }
+
+    /// <summary>Adopt a fresh snapshot without replacing monitor objects held by UI bindings.</summary>
+    public static void RefreshInPlace(DispCtrlSettings target, DispCtrlSettings source)
+    {
+        Copy(source.Global, target.Global, SettingsJsonContext.Default.GlobalSettings);
+        foreach (var pair in source.Monitors)
+            Copy(pair.Value, target.For(pair.Key), SettingsJsonContext.Default.MonitorSettings);
+        foreach (string key in target.Monitors.Keys.Except(source.Monitors.Keys).ToArray()) target.Monitors.Remove(key);
+        target.Hotkeys = source.Hotkeys;
+        target.AppRules = source.AppRules;
+        target.Version = source.Version;
+        Snapshots.Remove(target);
+        Track(target);
+    }
+
+    private static void Copy<T>(T source, T target, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info) where T : class
+    {
+        foreach (var property in info.Properties)
+            if (property.Get is not null && property.Set is not null) property.Set(target, property.Get(source));
+    }
+
+    /// <summary>One read-modify-write transaction shared by the UI, engine and CLI.</summary>
+    public static T WithWriteLock<T>(Func<T> operation)
+    {
+        string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path_.ToUpperInvariant())))[..24];
+        using var gate = new Mutex(false, @"Local\DispCtrl.Settings." + key);
+        bool held;
+        try { held = gate.WaitOne(TimeSpan.FromSeconds(10)); }
+        catch (AbandonedMutexException) { held = true; }
+        if (!held) throw new TimeoutException("Settings are busy; no changes were saved.");
+        try { return operation(); }
+        finally { gate.ReleaseMutex(); }
+    }
+
+    /// <summary>Preserves fields changed by other clients since this object was loaded.</summary>
+    public static JsonNode? MergeEdits(JsonNode? baseline, JsonNode? edited, JsonNode? latest)
+    {
+        if (JsonNode.DeepEquals(baseline, edited)) return latest?.DeepClone();
+        if (baseline is JsonObject before && edited is JsonObject after && latest is JsonObject current)
+        {
+            JsonObject result = (JsonObject)current.DeepClone();
+            foreach (var property in before)
+                if (!after.ContainsKey(property.Key)) result.Remove(property.Key);
+            foreach (var property in after)
+            {
+                before.TryGetPropertyValue(property.Key, out JsonNode? old);
+                current.TryGetPropertyValue(property.Key, out JsonNode? live);
+                if (!before.ContainsKey(property.Key) || !JsonNode.DeepEquals(old, property.Value))
+                    result[property.Key] = MergeEdits(old, property.Value, live);
+            }
+            return result;
+        }
+        return edited?.DeepClone();
     }
 
     private static void Quarantine()

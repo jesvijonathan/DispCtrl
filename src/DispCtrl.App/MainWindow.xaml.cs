@@ -87,7 +87,9 @@ public sealed partial class MainWindow : Window
             {
                 "taskbar" => typeof(TaskbarPage),
                 "presets" => PresetsEnabled ? typeof(PresetsPage) : typeof(PresetsPreviewPage),
+                "quickpanel" => typeof(QuickPanelPage),
                 "hotkeys" => typeof(HotkeysPage),
+                "devices" => typeof(DevicesPage),
                 "help" => typeof(HelpPage),
                 "about" => typeof(AboutPage),
                 _ => typeof(DisplaysPage),
@@ -98,4 +100,21 @@ public sealed partial class MainWindow : Window
         ContentFrame.Navigate(target, null, new EntranceNavigationTransitionInfo());
     }
 
+    /// <summary>Selects a page by its navigation tag, as though it had been clicked.</summary>
+    /// <remarks>
+    /// Through the navigation item rather than the frame, so the pane's
+    /// highlight moves with the page. Navigating the frame directly would show
+    /// the Quick panel page with Displays still selected beside it.
+    /// </remarks>
+    public void ShowPage(string tag)
+    {
+        foreach (object item in Nav.MenuItems.Concat(Nav.FooterMenuItems))
+        {
+            if (item is NavigationViewItem entry && entry.Tag as string == tag)
+            {
+                Nav.SelectedItem = entry;
+                return;
+            }
+        }
+    }
 }

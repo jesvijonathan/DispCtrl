@@ -11,7 +11,7 @@ internal sealed class TaskbarAppearance : IDisposable
 
     public void Update(int opacity)
     {
-        byte alpha = (byte)Math.Round(Math.Clamp(opacity, 30, 100) * 2.55);
+        byte alpha = (byte)Math.Round(Math.Clamp(opacity, 0, 100) * 2.55);
         if (opacity >= 100) { Dispose(); return; }
 
         foreach (string cls in new[] { "Shell_TrayWnd", "Shell_SecondaryTrayWnd" })

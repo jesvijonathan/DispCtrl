@@ -5,6 +5,7 @@ obj/
 *.suo
 
 # MSIX output
+artifacts/
 packaging/out/
 *.msix
 *.msixbundle
@@ -13,3 +14,6 @@ packaging/out/
 # Signing material must never be committed.
 *.pfx
 *.snk
+
+# Working notes and session logs: kept locally, never committed.
+.notes/

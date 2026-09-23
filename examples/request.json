@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "id": "example-1",
+  "command": "display.set",
+  "args": { "monitor": "all", "brightness": 60, "dryRun": true }
+}

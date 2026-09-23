@@ -12,13 +12,12 @@ namespace DispCtrl.Display.Devices;
 /// The report is written for the person looking at their own machine and holds
 /// things that must never leave it: the monitor's serial number, a device path
 /// carrying a machine-specific instance id, and wallpaper paths containing the
-/// user's name. This carries what is true of the <em>model</em> and nothing
-/// true of the person.
+/// user's name. The public record contains model capabilities and a separately
+/// labelled observation of signal timing and scaling on the tested connection.
 /// <para>
-/// The test for every field is: would this be identical on someone else's
-/// monitor of the same model? If not, it does not belong here. Current settings
-/// fail that test — brightness 62 says what this desk is like this evening — so
-/// controls are recorded by range and not by where they happen to be set.
+/// Controls are recorded by range, not the user's chosen value. The observed
+/// signal and DPI describe the tested setup and are not advertised as universal
+/// model properties. Serial numbers, paths and personal settings stay private.
 /// </para>
 /// </remarks>
 public sealed record DeviceSubmission
@@ -107,6 +106,11 @@ public sealed record DeviceSubmission
 
     public string BitDepth { get; init; } = "";
     public string ColorFormat { get; init; } = "";
+    public string ActiveSignalMode { get; init; } = "";
+    public string PixelClock { get; init; } = "";
+    public string ControllerType { get; init; } = "";
+    public double PixelDensity { get; init; }
+    public uint EffectiveDpi { get; init; }
     public bool HdrSupported { get; init; }
     public uint VrrMinHz { get; init; }
     public uint VrrMaxHz { get; init; }
@@ -219,6 +223,12 @@ public sealed record DeviceSubmission
             Modes = modes,
             BitDepth = Known(detail.BitDepth),
             ColorFormat = Known(detail.ColorFormat),
+            ActiveSignalMode = Known(detail.ActiveSignalMode),
+            PixelClock = Known(detail.PixelClock),
+            ControllerType = capability.Controls.FirstOrDefault(control => control.Code == 0xC8) is { Current: >= 0 } controller
+                ? $"0x{controller.Current & 0xFF:X2} (raw 0x{controller.Current:X4})" : "",
+            PixelDensity = display.PhysicalPpi,
+            EffectiveDpi = display.Dpi,
             HdrSupported = hdr.Supported,
             VrrMinHz = vrr.Capable ? vrr.MinHz : 0,
             VrrMaxHz = vrr.Capable ? vrr.MaxHz : 0,
@@ -335,12 +345,6 @@ public sealed record DeviceSubmission
     /// and asking the person to paste a file.
     /// </para>
     /// </remarks>
-    /// <param name="includeReport">
-    /// False when the caller is going to append the whole report itself. A
-    /// desk-wide issue carries <c>displays.log</c> once at the end, so repeating
-    /// each display's slice of it inside its own section would say everything
-    /// twice.
-    /// </param>
     public string ToRepositoryMarkdown()
     {
         var sb = new StringBuilder();
@@ -350,6 +354,10 @@ public sealed record DeviceSubmission
         sb.AppendLine();
         sb.AppendLine("| | |");
         sb.AppendLine("|---|---|");
+        Row(sb, "Model", Model);
+        Row(sb, "Manufacturer", Edid.ManufacturerName.Length > 0 ? $"{Edid.ManufacturerName} ({Manufacturer})" : Manufacturer);
+        Row(sb, "Manufacturer and product", Key);
+        Row(sb, "Controller type", ControllerType);
         sb.AppendLine($"| Connector | {Connector} |");
         if (BuiltInto.Length > 0) sb.AppendLine($"| Built into | {BuiltInto} |");
         sb.AppendLine($"| Panel technology | {PanelTechnology} |");
@@ -398,10 +406,19 @@ public sealed record DeviceSubmission
         }
 
         Fold(sb, "Modes the driver reports", Modes);
+        sb.AppendLine("#### Observed connection (may differ between setups)");
+        sb.AppendLine();
+        sb.AppendLine("| | |");
+        sb.AppendLine("|---|---|");
+        Row(sb, "Active signal mode", ActiveSignalMode);
+        Row(sb, "Pixel clock", PixelClock);
+        if (PixelDensity > 0) Row(sb, "Pixel density at current resolution", $"{PixelDensity:0} PPI");
+        if (EffectiveDpi > 0) Row(sb, "Windows rendering", $"{EffectiveDpi} DPI ({EffectiveDpi / 96.0 * 100:0}% scaling)");
+        sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();
         sb.AppendLine("Submitted from DispCtrl. Serial number, device path, file paths, user name "
-            + "and current settings are not included; this record describes the monitor model.");
+            + "are not included. Model capabilities and the observed signal/scaling are included; brightness, wallpaper and app settings are not.");
         return sb.ToString();
     }
 

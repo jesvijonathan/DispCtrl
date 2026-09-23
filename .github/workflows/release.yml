@@ -1,0 +1,97 @@
+name: Prepare release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Numeric package version
+        required: true
+        default: '0.1.0'
+      channel:
+        type: choice
+        options: [beta, stable]
+        default: beta
+permissions:
+  contents: write
+jobs:
+  artifacts:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      # Signing is optional: without a certificate the MSIX is unsigned, which
+      # Partner Center accepts (the Store signs it) but sideloading does not.
+      HAS_SIGNING_CERT: ${{ secrets.SIGNING_CERT_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: mingw-w64-ucrt-x86_64-gcc
+      - name: Publish tested bundles
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          REQUESTED_CHANNEL: ${{ inputs.channel }}
+          STORE_IDENTITY: ${{ vars.STORE_IDENTITY }}
+          STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+        run: |
+          $env:DISPCTRL_CXX = (Get-ChildItem $env:RUNNER_TEMP -Filter g++.exe -Recurse | Where-Object FullName -match 'ucrt64' | Select-Object -First 1).FullName
+          if (-not $env:DISPCTRL_CXX) { throw 'Native compiler not found.' }
+          $version = $env:REQUESTED_VERSION
+          $channel = $env:REQUESTED_CHANNEL
+          if (-not $version) { $version = ($env:GITHUB_REF_NAME -replace '^v','') -replace '-.*$','' }
+          if (-not $channel) { $channel = if ($env:GITHUB_REF_NAME -match '-') { 'beta' } else { 'stable' } }
+          ./build/Publish.ps1 -Version $version -Channel $channel
+          $bundle = Get-ChildItem artifacts -Directory | Where-Object Name -Like "$channel-$version-*" | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          $identity = $env:STORE_IDENTITY
+          $publisher = $env:STORE_PUBLISHER
+          if ([bool]$identity -ne [bool]$publisher) { throw 'Set both STORE_IDENTITY and STORE_PUBLISHER repository variables.' }
+          if (-not $identity) {
+            $identity = 'DispCtrl.Development'
+            $publisher = 'CN=DispCtrl Development'
+            Write-Warning 'Using development identity; this MSIX cannot be submitted to the Store.'
+          }
+          $packageVersion = if ($version.Split('.').Count -eq 3) { "$version.0" } else { $version }
+          ./build/Package.ps1 -DesktopDirectory (Join-Path $bundle.FullName 'desktop') -IdentityName $identity -Publisher $publisher -Version $packageVersion
+      - name: Sign the MSIX
+        if: env.HAS_SIGNING_CERT == 'true'
+        shell: pwsh
+        env:
+          SIGNING_CERT_BASE64: ${{ secrets.SIGNING_CERT_BASE64 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_CERT_BASE64))
+          try {
+            $signtool = (Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin') -Filter signtool.exe -Recurse | Where-Object FullName -match '[\\/]x64[\\/]' | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+            if (-not $signtool) { throw 'signtool.exe not found.' }
+            foreach ($msix in Get-ChildItem artifacts -Recurse -Filter *.msix) {
+              & $signtool sign /fd SHA256 /f $pfx /p $env:SIGNING_CERT_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $msix.FullName
+              if ($LASTEXITCODE -ne 0) { throw "Signing failed: $($msix.Name). The certificate subject must equal STORE_PUBLISHER." }
+              $sums = Join-Path $msix.DirectoryName 'MSIX-SHA256SUMS.txt'
+              Get-FileHash -LiteralPath $msix.FullName -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $($msix.Name)" } | Set-Content -LiteralPath $sums -Encoding ascii
+            }
+          } finally { Remove-Item $pfx -ErrorAction SilentlyContinue }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DispCtrl-release
+          path: |
+            artifacts/**/*.zip
+            artifacts/**/*.msix
+            artifacts/**/SHA256SUMS.txt
+            artifacts/**/MSIX-SHA256SUMS.txt
+      - name: Create reviewable GitHub release draft
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = @(Get-ChildItem artifacts -Recurse -File | Where-Object { $_.Extension -in @('.zip','.msix') -or $_.Name -in @('SHA256SUMS.txt','MSIX-SHA256SUMS.txt') } | ForEach-Object FullName)
+          $args = @('release','create',$env:GITHUB_REF_NAME,'--draft','--generate-notes')
+          if ($env:GITHUB_REF_NAME -match '-') { $args += '--prerelease' }
+          & gh @args @files
+          if ($LASTEXITCODE -ne 0) { throw 'Release draft failed.' }

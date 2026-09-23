@@ -43,7 +43,7 @@ public readonly record struct Contribution(
 /// lost if they close the tab.
 /// </para>
 /// </remarks>
-public static class DeviceContribution
+public static partial class DeviceContribution
 {
     /// <summary>Where device records are collected.</summary>
     public const string Repository = "jesvijonathan/Display-Control";
@@ -99,7 +99,8 @@ public static class DeviceContribution
         // devices/. The much larger machine report, serials and current user
         // settings stay in the local diagnostics file. Keeping those separate
         // also keeps the complete issue body within GitHub's prefill URL.
-        string body = Redact.Ascii(Redact.Scrub(submission.ToRepositoryMarkdown(), Identifiers(all)));
+        string body = Redact.Ascii(Redact.Scrub(submission.ToRepositoryMarkdown(), Identifiers(all)))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
         string path = Save(submission.Key, body);
 
         // Query-form encoding uses '+' for spaces. Uri.EscapeDataString turns

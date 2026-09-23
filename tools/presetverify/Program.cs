@@ -42,6 +42,52 @@ Check(completeRoundTrip.Settings.Global.TaskbarOpacity == 37
     && completeRoundTrip.CurrentDesk.Monitors["DEL-A234-SERIAL"].Serial == "SERIAL",
     "complete export retains shared settings, monitor identity and live state");
 Check(new FocusSettings().PrioritizeNewWindows, "new and activated windows are followed by default");
+var careCheck = new OledCareSettings { Enabled = true, IdleMinutes = 1, DimPercent = 50,
+    SecondStageEnabled = true, SecondStageMinutes = 2, SecondStageDimPercent = 95 };
+Check(DispCtrl.Core.Displays.FocusGeometry.RestingWhenIdle(careCheck.Enabled, true, 60_000, 1, false, false),
+    "OLED idle activation has no focus-mode dependency");
+Check(careCheck.DimAtIdle(60_000) == 50 && careCheck.DimAtIdle(179_999) == 50
+    && careCheck.DimAtIdle(180_000) == 95, "OLED stages use their selected levels and additional delay");
+var oledBounds = new DispCtrl.Core.Displays.DisplayRect(0, 0, 1920, 1080);
+var panelIdleState = new DispCtrl.Core.Displays.OledIdleState();
+uint PanelAge(long now, uint idle, int x, int y, bool enabled = true, bool sticky = true, bool pointer = true) =>
+    panelIdleState.Update(enabled, sticky, now, true, idle, 1, pointer, x, y, oledBounds);
+Check(PanelAge(60_000, 60_000, 2000, 100) == 60_000, "pointer-return mode enters rest after normal idle threshold");
+Check(PanelAge(90_000, 0, 2100, 100) == 90_000, "movement on another panel does not wake an idle OLED");
+Check(PanelAge(180_000, 0, 2100, 100) == 180_000, "keyboard activity elsewhere preserves the idle age for second-stage dimming");
+Check(PanelAge(181_000, 0, 100, 100) == 0, "pointer returning to the OLED wakes it");
+Check(PanelAge(182_000, 182_000, 100, 100) == 1000, "programmatic pointer return restarts the idle wait even without Windows input");
+Check(PanelAge(242_000, 60_000, 100, 100) == 60_000, "a stationary pointer does not prevent a new idle rest");
+Check(PanelAge(243_000, 0, 101, 100) == 0, "movement within an idle OLED wakes it too");
+PanelAge(303_000, 60_000, 2100, 100);
+Check(PanelAge(304_000, 0, 2101, 100, sticky: false) == 0, "turning pointer-return mode off restores normal global-input wake");
+PanelAge(364_000, 60_000, 2100, 100);
+Check(PanelAge(365_000, 0, 2100, 100, enabled: false) == 0, "disabling protection clears a held rest");
+PanelAge(425_000, 60_000, 2100, 100);
+Check(PanelAge(426_000, 0, 0, 0, pointer: false) == 0, "unreadable pointer fails open rather than trapping a dimmed panel");
+var wakeSettings = new MonitorSettings { OledWakeOnPointerReturn = true };
+completeExport.Settings.Monitors["test-panel"] = wakeSettings;
+var wakeJson = System.Text.Json.JsonSerializer.Serialize(completeExport, PresetJsonContext.Default.CurrentConfigurationExport);
+Check(System.Text.Json.JsonSerializer.Deserialize(wakeJson, PresetJsonContext.Default.CurrentConfigurationExport)!
+    .Settings.Monitors["test-panel"].OledWakeOnPointerReturn, "per-monitor wake preference survives JSON export");
+wakeSettings.ResetToDefaults();
+Check(!wakeSettings.OledWakeOnPointerReturn, "monitor reset restores the default wake behavior");
+Check(!DispCtrl.Core.Displays.FocusGeometry.IsContentFullscreen(oledBounds, oledBounds, true, true),
+    "maximized ordinary window over reclaimed taskbar space does not pause OLED protection");
+Check(DispCtrl.Core.Displays.FocusGeometry.IsContentFullscreen(oledBounds, oledBounds, true, false),
+    "borderless fullscreen still pauses protection even with maximized window state");
+Check(!DispCtrl.Core.Displays.FocusGeometry.IsContentFullscreen(oledBounds,
+    new(1920, 0, 3840, 1080), false, false), "fullscreen content on another monitor does not pause this OLED");
+var sampleRecord = new DispCtrl.Display.Devices.DeviceSubmission
+{
+    Manufacturer = "DEL", Product = "A234", Model = "U2424H", Connector = "Hdmi", PanelTechnology = "LCD",
+    ActiveSignalMode = "1920 x 1080 @ 120 Hz", PixelClock = "297 MHz", ControllerType = "0x09",
+    PixelDensity = 93, EffectiveDpi = 96, Commands = ["0x01", "0x02"]
+}.ToRepositoryMarkdown();
+Check(sampleRecord.Contains("297 MHz") && sampleRecord.Contains("0x09")
+    && sampleRecord.Contains("93 PPI") && sampleRecord.Contains("100% scaling")
+    && sampleRecord.Contains("1920 x 1080 @ 120 Hz") && sampleRecord.Contains("0x01 0x02")
+    && sampleRecord.Contains("may differ between setups"), "public report includes controller, signal, density and commands with observed-state label");
 Check(DispCtrl.Display.Devices.KnownMonitorCatalog.Contains("DEL-A234")
     && DispCtrl.Display.Devices.KnownMonitorCatalog.Contains("SDC-4154"),
     "packaged monitor catalog contains the repository models");
@@ -136,4 +182,16 @@ if (args.Contains("--capture-live"))
     Check(roundTrip.Monitors.Count == displays.Count, "live capture serializes every active display");
     Check(PresetDiff.Describe(capture, roundTrip).Count == 0, "all live captured values survive JSON round trip");
     Console.WriteLine($"Read-only capture: {displays.Count} displays, {capture.CaptureNotes.Count} capture notes. No settings applied or saved.");
+}
+
+if (args.Contains("--report-live"))
+{
+    var displays = DispCtrl.Core.Displays.DisplayRegistry.Enumerate();
+    foreach (var display in displays)
+    {
+        var record = DispCtrl.Display.Devices.DeviceContribution.Prepare(display, displays);
+        Check(record.Prefilled, $"{record.Key} report fits prefilled GitHub URL ({record.Url.AbsoluteUri.Length} characters)");
+        string queryBody = record.Url.Query.Split("&body=", 2)[1];
+        Check(System.Net.WebUtility.UrlDecode(queryBody) == record.Body, "prefilled body round-trips without manual paste");
+    }
 }

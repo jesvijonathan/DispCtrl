@@ -9,7 +9,7 @@
                Margin="0,28,0,8"/>
 
     <tk:SettingsCard Header="Start engine at sign-in"
-                     Description="Keeps taskbar, hotkey and OLED features available after you sign in.">
+                     Description="Keeps taskbar, hotkey, night light and OLED features running, and the quick panel icon in the notification area. Registered as a Windows task that starts the moment you sign in, rather than in the Startup folder, which Windows holds back for several seconds.">
       <tk:SettingsCard.HeaderIcon>
         <FontIcon Glyph="&#xE7E8;"/>
       </tk:SettingsCard.HeaderIcon>
@@ -17,6 +17,24 @@
                     IsOn="{x:Bind EngineStartupEnabled, Mode=OneTime}"
                     IsEnabled="{x:Bind EngineAvailable, Mode=OneTime}"
                     Toggled="OnEngineStartupToggled"/>
+    </tk:SettingsCard>
+
+    <tk:SettingsCard Header="Keep the quick panel ready"
+                     Description="Starts the quick panel hidden alongside the engine, so the first click on the icon opens it at once instead of after about a second. It uses the memory the panel would use once opened anyway.">
+      <tk:SettingsCard.HeaderIcon>
+        <FontIcon Glyph="&#xE945;"/>
+      </tk:SettingsCard.HeaderIcon>
+      <ToggleSwitch IsOn="{x:Bind ViewModel.PreloadQuickPanel, Mode=TwoWay}"
+                    AutomationProperties.Name="PreloadQuickPanel"/>
+    </tk:SettingsCard>
+
+    <tk:SettingsCard Header="Open DispCtrl at sign-in"
+                     Description="Opens this window when you sign in, as well as starting the engine. Needs the engine to start at sign-in.">
+      <tk:SettingsCard.HeaderIcon>
+        <FontIcon Glyph="&#xE8A7;"/>
+      </tk:SettingsCard.HeaderIcon>
+      <ToggleSwitch IsOn="{x:Bind ViewModel.OpenWindowAtSignIn, Mode=TwoWay}"
+                    AutomationProperties.Name="OpenWindowAtSignIn"/>
     </tk:SettingsCard>
 
     <tk:SettingsCard Header="Start Menu shortcut"

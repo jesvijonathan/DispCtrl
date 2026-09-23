@@ -395,10 +395,14 @@ public static class MonitorCapabilities
             (VcpControl.IsAllowed(control.Code) && control.Code != 0x10)
             || control.Code is 0xB6 or 0xC9 or 0xC0 or 0xC8).ToList();
         ReadCurrentValues(display, visible, useCache: true);
+        Devices.DeviceObserver.Listed(display, raw, visible);
         return result;
     }
 
     internal static void InvalidateAllValues() => Readings.Clear();
+
+    /// <summary>Whether the MCCS standard names this code; everything else is left to the manufacturer.</summary>
+    public static bool IsNamed(byte code) => Known.ContainsKey(code);
 
     public static void InvalidateValues(DisplayInfo display) => Readings.Remove((display.Key.DevicePath, display.Handle));
 
@@ -413,7 +417,21 @@ public static class MonitorCapabilities
         if (!readValues || parsed.Controls.Count == 0) return parsed;
 
         ReadCurrentValues(display, parsed.Controls);
+        Devices.DeviceObserver.Listed(display, raw, parsed.Controls);
         return parsed;
+    }
+
+    /// <summary>
+    /// Reads these controls' values afresh, bypassing the cache.
+    /// </summary>
+    /// <remarks>
+    /// For probing: someone changes a setting in the monitor's own menu and
+    /// wants to see which code moved, which a cached reading would hide.
+    /// </remarks>
+    public static void ReadValues(DisplayInfo display, IReadOnlyList<VcpControl> controls)
+    {
+        foreach (VcpControl c in controls) c.Current = -1;
+        ReadCurrentValues(display, controls, useCache: false);
     }
 
     /// <summary>
@@ -440,6 +458,7 @@ public static class MonitorCapabilities
             if (c.Code != 0x10 && c.Kind != VcpKind.Information && VcpControl.Settables.Contains(c.Code)) wanted.Add(c);
 
         if (wanted.Count > 0) ReadCurrentValues(display, wanted, useCache);
+        Devices.DeviceObserver.Listed(display, raw, wanted);
 
         return parsed;
     }

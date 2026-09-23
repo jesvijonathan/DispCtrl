@@ -30,6 +30,7 @@ internal static unsafe partial class OverlayNative
     [LibraryImport("user32.dll", EntryPoint = "GetMessageW")] internal static partial int GetMessage(out Message message, nint hwnd, uint min, uint max);
     [LibraryImport("user32.dll", EntryPoint = "DispatchMessageW")] internal static partial nint DispatchMessage(ref Message message);
     [LibraryImport("user32.dll")] internal static partial int DestroyWindow(nint hwnd);
+    [LibraryImport("user32.dll")] internal static partial int IsZoomed(nint hwnd);
     [LibraryImport("user32.dll", EntryPoint = "PostMessageW")] internal static partial int PostMessage(nint hwnd, uint msg, nuint wparam, nint lparam);
     [LibraryImport("user32.dll")] internal static partial void PostQuitMessage(int code);
     [LibraryImport("user32.dll")] internal static partial nuint SetTimer(nint hwnd, nuint id, uint ms, nint proc);

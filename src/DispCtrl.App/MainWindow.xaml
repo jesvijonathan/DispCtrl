@@ -48,13 +48,25 @@
 
         <muxc:NavigationViewItem x:Name="PresetsNavigation" Content="Presets" Tag="presets">
           <muxc:NavigationViewItem.Icon>
-            <FontIcon Glyph="&#xE8FD;"/>
+            <FontIcon Glyph="&#xE74E;"/>
+          </muxc:NavigationViewItem.Icon>
+        </muxc:NavigationViewItem>
+
+        <muxc:NavigationViewItem Content="Quick panel" Tag="quickpanel">
+          <muxc:NavigationViewItem.Icon>
+            <FontIcon Glyph="&#xE71D;"/>
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
 
         <muxc:NavigationViewItem Content="Hotkeys" Tag="hotkeys">
           <muxc:NavigationViewItem.Icon>
             <FontIcon Glyph="&#xE765;"/>
+          </muxc:NavigationViewItem.Icon>
+        </muxc:NavigationViewItem>
+
+        <muxc:NavigationViewItem Content="Devices" Tag="devices">
+          <muxc:NavigationViewItem.Icon>
+            <FontIcon Glyph="&#xE9F9;"/>
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
 

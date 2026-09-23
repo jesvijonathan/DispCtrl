@@ -20,6 +20,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DispCtrl.Control\DispCtrl.Control.csproj" />
     <ProjectReference Include="..\DispCtrl.Core\DispCtrl.Core.csproj" />
     <ProjectReference Include="..\DispCtrl.Display\DispCtrl.Display.csproj" />
   </ItemGroup>

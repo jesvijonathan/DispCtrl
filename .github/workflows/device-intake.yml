@@ -1,0 +1,68 @@
+name: Device share intake
+# A share made with `dispctrl devices share` or the app's Devices page arrives as
+# an issue. This turns its JSON block into files and opens a pull request for a
+# maintainer to review; nothing merges without one.
+on:
+  issues:
+    types: [opened, edited]
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+concurrency:
+  group: intake-${{ github.event.issue.number }}
+  cancel-in-progress: true
+jobs:
+  intake:
+    # Recognised by the payload, not a label: GitHub drops the labels a
+    # prefilled link asks for when the author cannot triage.
+    if: contains(github.event.issue.body, 'dispctrl-device-mapping')
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Turn the issue into files
+        id: intake
+        shell: pwsh
+        env:
+          # Untrusted text: passed through the environment, never into a script.
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          $body = Join-Path $env:RUNNER_TEMP 'issue.md'
+          [IO.File]::WriteAllText($body, $env:ISSUE_BODY)
+          dotnet run --project tools/devicecheck -c Release -- intake $body devices *> intake.log
+          $code = $LASTEXITCODE
+          Get-Content intake.log
+          "code=$code" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          if ($code -notin 0, 3, 4) { exit 0 }
+      - name: Open the pull request
+        if: steps.intake.outputs.code == '0'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          $branch = "device-share/$env:ISSUE"
+          git config user.name 'dispctrl-intake'
+          git config user.email 'dispctrl-intake@users.noreply.github.com'
+          git checkout -B $branch
+          git add devices
+          git commit -m "Device share from #$env:ISSUE"
+          git push --force origin $branch
+          $existing = gh pr list --head $branch --json number --jq '.[0].number'
+          if (-not $existing) {
+            gh pr create --head $branch --title "Device share from #$env:ISSUE" --body "Generated from #$env:ISSUE by the intake workflow. Review the names, the writable flags and the record before merging."
+          }
+          gh issue comment $env:ISSUE --body "Thanks - this share is now a pull request on branch ``$branch`` for review."
+      - name: Explain a share that could not be read
+        if: steps.intake.outputs.code != '0' && steps.intake.outputs.code != '3' && steps.intake.outputs.code != '4'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          $log = (Get-Content intake.log -Raw) -replace '```', "'''"
+          gh issue comment $env:ISSUE --body ("The intake could not read this share:`n`n``````n$log`n``````n`nEdit the JSON block and the intake runs again.")

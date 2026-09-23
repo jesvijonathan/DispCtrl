@@ -52,6 +52,11 @@ public sealed partial class MainViewModel
         set
         {
             DateTimeOffset local = Awake.ExpirationUtc.ToLocalTime();
+
+            // Unchanged is not a change. See AwakeExpirationTime: without this
+            // the picker and the setter answered each other until the stack ran out.
+            if (value.Date == local.Date) return;
+
             Awake.ExpirationUtc = new DateTimeOffset(value.Year, value.Month, value.Day,
                 local.Hour, local.Minute, 0, TimeZoneInfo.Local.GetUtcOffset(value.Date)).ToUniversalTime();
             SaveAwake();
@@ -64,6 +69,15 @@ public sealed partial class MainViewModel
         set
         {
             DateTimeOffset local = Awake.ExpirationUtc.ToLocalTime();
+
+            // Compared at the picker's own resolution. A TimePicker holds whole
+            // minutes and the stored expiry carries seconds, so every value the
+            // picker wrote back differed from the one just raised to it: the
+            // setter saved and raised again, the picker wrote back again, and a
+            // reload with the Displays page open recursed 3,430 frames deep and
+            // killed the process.
+            if ((int)local.TimeOfDay.TotalMinutes == (int)value.TotalMinutes) return;
+
             DateTime date = local.Date.Add(value);
             Awake.ExpirationUtc = new DateTimeOffset(date, TimeZoneInfo.Local.GetUtcOffset(date)).ToUniversalTime();
             SaveAwake();

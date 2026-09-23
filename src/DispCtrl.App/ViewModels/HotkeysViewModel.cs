@@ -28,11 +28,23 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         (HotkeyAction.BrightnessDown, "Brightness down"),
         (HotkeyAction.UnisonUp, "Unison brightness up"),
         (HotkeyAction.UnisonDown, "Unison brightness down"),
+        (HotkeyAction.UnisonToggle, "Unison brightness on or off"),
         (HotkeyAction.NightLightToggle, "Night light on or off"),
         (HotkeyAction.NightLightWarmer, "Night light warmer"),
         (HotkeyAction.NightLightCooler, "Night light cooler"),
-        (HotkeyAction.ApplyPreset, "Apply a preset (Beta)"),
+        (HotkeyAction.FocusToggle, "Focus mode on or off"),
+        (HotkeyAction.OledCareToggle, "OLED care on or off"),
+        (HotkeyAction.OledRestNow, "Rest the OLED displays now"),
+        (HotkeyAction.KeepAwakeToggle, "Keep awake on or off"),
+        (HotkeyAction.DarkModeToggle, "Dark or light mode"),
+        (HotkeyAction.TaskbarToggle, "Hide or show the taskbar"),
+        (HotkeyAction.TaskbarGlassToggle, "Taskbar glass on or off"),
+        (HotkeyAction.ContrastUp, "Contrast up"),
+        (HotkeyAction.ContrastDown, "Contrast down"),
         (HotkeyAction.NextInput, "Next input source"),
+        (HotkeyAction.Identify, "Show the display numbers"),
+        (HotkeyAction.QuickPanel, "Open or close the quick panel"),
+        (HotkeyAction.ApplyPreset, "Apply a preset (Beta)"),
     }.Where(item => DispCtrl.Core.FeatureFlags.Presets || item.Item1 != HotkeyAction.ApplyPreset).ToArray();
 
     private static readonly string[] AllActionNames = AvailableActions.Select(item => item.Name).ToArray();
@@ -219,6 +231,17 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
 
         Items.Add(new HotkeyViewModel(hotkey, _persist, PresetNames));
         Raise(nameof(EmptyVisibility));
+    }
+
+    /// <summary>Replaces every shortcut with the defaults.</summary>
+    public void RestoreDefaults()
+    {
+        DispCtrlSettings settings = _settings();
+        settings.Hotkeys.Clear();
+        settings.Hotkeys.AddRange(Hotkey.Defaults());
+        settings.Global.HotkeyDefaultsOffered = true;
+        _persist();
+        Reload();
     }
 
     public void Remove(HotkeyViewModel item)

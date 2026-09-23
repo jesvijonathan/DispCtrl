@@ -18,6 +18,7 @@ namespace DispCtrl.App.ViewModels;
 /// <summary>One monitor, as the panel presents it.</summary>
 public sealed class DisplayViewModel : INotifyPropertyChanged
 {
+    internal void NotifySettingsReloaded() => Raise(string.Empty);
     private readonly DisplayInfo _display;
     private readonly MonitorSettings _settings;
     private readonly DispCtrlSettings _root;
@@ -523,6 +524,15 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         });
     }
 
+    private Task _brightnessPending = Task.CompletedTask;
+
+    public async Task WaitForBrightnessWriteAsync()
+    {
+        Task pending;
+        do { pending = _brightnessPending; await pending; }
+        while (!ReferenceEquals(pending, _brightnessPending));
+    }
+
     private void QueueBrightnessWrite(int percent)
     {
         _brightnessWrite?.Cancel();
@@ -530,18 +540,29 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         var cts = new CancellationTokenSource();
         _brightnessWrite = cts;
 
-        _ = Task.Run(async () =>
+        _brightnessPending = Task.Run(async () =>
         {
             try
             {
                 await Task.Delay(120, cts.Token).ConfigureAwait(false);
-                Brightness.Write(_display, _brightness.FromPercent(percent));
+                var result = await new DispCtrl.Control.ControlClient().ExecuteAsync(new System.Text.Json.Nodes.JsonObject
+                {
+                    ["version"] = 1, ["command"] = "display.set",
+                    ["args"] = new System.Text.Json.Nodes.JsonObject { ["monitor"] = _display.Token, ["brightness"] = percent, ["coalesce"] = true },
+                }).ConfigureAwait(false);
+                if (result["ok"]?.GetValue<bool>() != true)
+                    throw new InvalidOperationException(result["error"]?["message"]?.GetValue<string>() ?? "The monitor did not confirm its brightness.");
             }
             catch (OperationCanceledException)
             {
                 // Superseded by a later drag position; nothing to do.
             }
-        }, cts.Token);
+            catch (Exception ex)
+            {
+                if (!cts.IsCancellationRequested)
+                    _ui.TryEnqueue(() => { _modeStatus = "Brightness: " + ex.Message; Raise(nameof(ModeStatus)); Raise(nameof(ModeStatusVisibility)); });
+            }
+        });
     }
 
     // ---------------------------------------------------------------- modes --
@@ -1037,6 +1058,9 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
         InfoRow.Heading("Connection"),
         InfoRow.Of("Connector", ConnectorText),
+        InfoRow.Of("Connector instance", _display.ConnectorInstance == 0 ? "Not numbered by the driver" : $"{_display.ConnectorInstance} (driver identifier, not chain order)"),
+        InfoRow.Of("MST / daisy chain", _display.MstDescription),
+        InfoRow.Of("Thunderbolt", _display.ThunderboltDescription),
         InfoRow.Of("Panel declares", EdidSignalText),
         InfoRow.Of("Main display", PrimaryText),
         InfoRow.Of("Active signal mode", ActiveSignalMode),
@@ -1499,6 +1523,24 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// level multiplies it, so a display captured at zero stays dark no matter
     /// where the unison slider goes. That is the trap this guard exists for.
     /// </remarks>
+    /// <summary>The brightness once the hardware has answered, or null when it cannot be set.</summary>
+    public async Task<int?> ReadBrightnessAsync()
+    {
+        await BrightnessReady.ConfigureAwait(true);
+        return _brightness.Supported ? _brightnessPercent : null;
+    }
+
+    /// <summary>Sets the brightness once the hardware has answered.</summary>
+    public async Task SetBrightnessAsync(int percent)
+    {
+        await BrightnessReady.ConfigureAwait(true);
+        if (!_brightness.Supported) return;
+        ApplyLevel(percent);
+    }
+
+    /// <summary>Whether unison drives this display through captured limits rather than a baseline.</summary>
+    public bool UsesBrightnessRange => _root.Global.UnisonCalibrated && _settings.HasBrightnessRange;
+
     public async Task CaptureBaselineAsync()
     {
         await BrightnessReady.ConfigureAwait(true);
@@ -1532,10 +1574,9 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         await BrightnessReady.ConfigureAwait(true);
         if (!_brightness.Supported) return;
 
-        if (_settings.HasBrightnessRange)
+        if (UsesBrightnessRange)
         {
-            ApplyLevel(_settings.BrightnessFloor
-                + (int)Math.Round((_settings.BrightnessCeiling - _settings.BrightnessFloor) * factor));
+            ApplyLevel(UnisonResume.Target(_settings, true, (int)Math.Round(factor * 100)));
             return;
         }
 
@@ -2080,6 +2121,12 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     {
         _settings.OledRestUntilUtc = DateTimeOffset.UtcNow.AddMinutes(Math.Clamp(_settings.OledRestMinutes, 1, 30));
         _persist();
+    }
+
+    public bool OledWakeOnPointerReturn
+    {
+        get => _settings.OledWakeOnPointerReturn;
+        set { if (_settings.OledWakeOnPointerReturn == value) return; _settings.OledWakeOnPointerReturn = value; _persist(); Raise(); }
     }
 
     private bool SupportsMonitorPower => _allControls.Any(control => control.Code == 0xD6 && control.Settable);

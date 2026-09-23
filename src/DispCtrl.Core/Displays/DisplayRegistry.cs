@@ -75,6 +75,10 @@ public static class DisplayRegistry
                 GdiName = t.GdiName,
                 FriendlyName = name,
                 Connector = t.Connector,
+                ConnectorInstance = t.ConnectorInstance,
+                AdapterId = t.AdapterId,
+                TargetId = t.TargetId,
+                Tunnelled = t.Tunnelled,
                 IsPrimary = primary,
                 Bounds = bounds,
                 WorkArea = work,
@@ -85,6 +89,17 @@ public static class DisplayRegistry
                 PhysicalHeightMm = physicalH,
                 Handle = (nint)hmon.Value,
             });
+        }
+
+        // Windows reports no MST topology, but every sink behind one hub or
+        // daisy chain is a separate target on the same physical connector.
+        for (int i = 0; i < result.Count; i++)
+        {
+            DisplayInfo d = result[i];
+            if (d.Connector != ConnectorKind.DisplayPort) continue;
+            int others = result.Count(o => !ReferenceEquals(o, d) && o.Connector == ConnectorKind.DisplayPort
+                && o.AdapterId == d.AdapterId && o.ConnectorInstance == d.ConnectorInstance);
+            if (others > 0) result[i] = d with { SharingConnector = others };
         }
 
         return result;
@@ -128,24 +143,21 @@ public static class DisplayRegistry
             _ = PInvoke.EnumDisplayMonitors(default, null, _enumProc, default);
 
             var sb = new StringBuilder();
-            foreach (RECT r in Scratch)
-                sb.Append(r.left).Append(',').Append(r.top).Append(',')
-                  .Append(r.right).Append(',').Append(r.bottom).Append(';');
+            Scratch.Sort(StringComparer.Ordinal);
+            foreach (string item in Scratch) sb.Append(item).Append(';');
             return sb.ToString();
         }
     }
 
-    private static readonly List<RECT> Scratch = [];
+    private static readonly List<string> Scratch = [];
     private static readonly Lock ScratchGate = new();
     private static MONITORENUMPROC? _enumProc;
 
     /// <summary>
-    /// Records each monitor's rectangle, and nothing else.
+    /// Records geometry, current mode, primary status, DPI and transient identity.
     /// </summary>
     /// <remarks>
-    /// The callback is handed the rectangle directly, so there is no
-    /// <c>GetMonitorInfo</c> call here at all — the whole probe is one
-    /// enumeration of data the kernel already has.
+    /// Uses only GDI and DPI metadata: no capabilities requests or DDC traffic.
     /// <para>
     /// The delegate is cached in a field rather than created per call: a fresh
     /// delegate each second would allocate, and the marshalled thunk must stay
@@ -154,7 +166,20 @@ public static class DisplayRegistry
     /// </remarks>
     private static unsafe BOOL CollectMonitorRect(HMONITOR monitor, HDC hdc, RECT* rect, LPARAM data)
     {
-        if (rect is not null) Scratch.Add(*rect);
+        if (rect is null) return true;
+        var info = new MONITORINFOEXW { monitorInfo = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFOEXW) } };
+        string name = "";
+        uint hz = 0, rotation = 0;
+        if (PInvoke.GetMonitorInfo(monitor, (MONITORINFO*)&info))
+        {
+            name = info.szDevice.ToString();
+            if (TryGetCurrentMode(name, out var mode))
+            {
+                hz = mode.dmDisplayFrequency;
+                rotation = (uint)mode.Anonymous1.Anonymous2.dmDisplayOrientation;
+            }
+        }
+        Scratch.Add($"{name}@{(nint)monitor.Value}:{rect->left},{rect->top},{rect->right},{rect->bottom}:{hz}:{rotation}:{info.monitorInfo.dwFlags}:{EffectiveDpi(monitor)}");
         return true;
     }
 
@@ -231,7 +256,8 @@ public static class DisplayRegistry
     // ------------------------------------------------------------------ CCD --
 
     private readonly record struct CcdTarget(
-        string GdiName, string DevicePath, string FriendlyName, ConnectorKind Connector);
+        string GdiName, string DevicePath, string FriendlyName, ConnectorKind Connector,
+        uint ConnectorInstance, string AdapterId, uint TargetId, bool Tunnelled = false);
 
     private static List<CcdTarget> QueryCcdTargets() =>
         QueryCcdTargets(activeOnly: true, allowDuplicateSources: false);
@@ -276,10 +302,11 @@ public static class DisplayRegistry
             // except when the caller is counting them to detect duplication.
             if (!allowDuplicateSources && gdi.Length > 0 && !seen.Add(gdi)) continue;
 
-            if (!TryGetTargetName(p, out string devicePath, out string friendly, out ConnectorKind kind))
+            if (!TryGetTargetName(p, out string devicePath, out string friendly, out ConnectorKind kind, out uint connectorInstance, out bool tunnelled))
                 continue;
 
-            targets.Add(new CcdTarget(gdi, devicePath, friendly, kind));
+            targets.Add(new CcdTarget(gdi, devicePath, friendly, kind, connectorInstance,
+                $"{p.targetInfo.adapterId.HighPart:X8}:{p.targetInfo.adapterId.LowPart:X8}", p.targetInfo.id, tunnelled));
         }
 
         return targets;
@@ -305,11 +332,13 @@ public static class DisplayRegistry
 
     private static unsafe bool TryGetTargetName(
         in DISPLAYCONFIG_PATH_INFO p,
-        out string devicePath, out string friendly, out ConnectorKind kind)
+        out string devicePath, out string friendly, out ConnectorKind kind, out uint connectorInstance, out bool tunnelled)
     {
         devicePath = string.Empty;
         friendly = string.Empty;
         kind = ConnectorKind.Unknown;
+        connectorInstance = 0;
+        tunnelled = false;
 
         var req = new DISPLAYCONFIG_TARGET_DEVICE_NAME
         {
@@ -328,6 +357,8 @@ public static class DisplayRegistry
         devicePath = req.monitorDevicePath.ToString();
         friendly = req.monitorFriendlyDeviceName.ToString();
         kind = MapConnector(req.outputTechnology);
+        tunnelled = req.outputTechnology == DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY.DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_USB_TUNNEL;
+        connectorInstance = req.connectorInstance;
         return devicePath.Length > 0;
     }
 
@@ -342,6 +373,7 @@ public static class DisplayRegistry
             => ConnectorKind.Hdmi,
 
         DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY.DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EXTERNAL
+            or DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY.DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_USB_TUNNEL
             => ConnectorKind.DisplayPort,
 
         DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY.DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DVI

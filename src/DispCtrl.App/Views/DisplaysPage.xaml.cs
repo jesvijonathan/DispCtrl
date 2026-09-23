@@ -29,6 +29,28 @@ public sealed partial class DisplaysPage : Page
         if (ViewModel.PresetsEnabled) ViewModel.Presets.RefreshDrift();
     }
 
+    /// <remarks>
+    /// Narrow, the picture goes first and on the table's left edge. Moved below
+    /// the table and centred, it sat under thirty rows of text, lined up with
+    /// nothing, and read as left over; first, it is what the details describe,
+    /// as in Windows' own display settings.
+    /// </remarks>
+    private void OnDisplayOverviewSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not Grid grid || grid.Children.Count < 2) return;
+        bool narrow = e.NewSize.Width < 780;
+        var preview = (FrameworkElement)grid.Children[0];
+        var table = (FrameworkElement)grid.Children[1];
+        Grid.SetRow(preview, 0);
+        Grid.SetColumn(preview, narrow ? 0 : 1);
+        Grid.SetColumnSpan(preview, narrow ? 2 : 1);
+        Grid.SetRow(table, narrow ? 1 : 0);
+        Grid.SetColumnSpan(table, narrow ? 2 : 1);
+        grid.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : GridLength.Auto;
+        preview.HorizontalAlignment = narrow ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+        preview.MaxWidth = narrow ? Math.Min(300, Math.Max(1, e.NewSize.Width)) : 340;
+    }
+
     private void OnOpenWindowsColours(object sender, RoutedEventArgs e) =>
         WindowsTheme.OpenSettings();
 
@@ -104,143 +126,11 @@ public sealed partial class DisplaysPage : Page
         ArrangeSurface.Load(displays);
     }
 
-    /// <summary>
-    /// Reads every display: the report for this PC, and a record per monitor.
-    /// </summary>
     /// <remarks>
-    /// Disabled while it runs. The sweep is seconds of DDC/CI traffic per
-    /// external panel, and a second press part way through would start a second
-    /// conversation on a channel that serves only one.
+    /// The device library replaced collect, view and submit here: its page
+    /// shares one model at a time from the history, with nothing to collect first.
     /// </remarks>
-    private async void OnCollect(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button) return;
-
-        List<DisplayInfo> unknown = ViewModel.UnknownDisplays();
-        if (unknown.Count > 0)
-        {
-            string names = string.Join("\n", unknown.Select(display => $"• {display.Label} ({display.Key.Model})"));
-            var dialog = new ContentDialog
-            {
-                XamlRoot = XamlRoot,
-                Title = unknown.Count == 1 ? "New monitor model found" : "New monitor models found",
-                Content = "These models are not in the repository catalog:\n\n" + names
-                    + "\n\nCollect a private diagnostic report and prepare public model records? "
-                    + "You can inspect everything before opening the prefilled GitHub issue.",
-                PrimaryButtonText = "Collect and review",
-                CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary,
-            };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-        }
-
-        button.IsEnabled = false;
-        try
-        {
-            await ViewModel.CollectAsync(unknown);
-        }
-        finally
-        {
-            button.IsEnabled = true;
-        }
-    }
-
-    /// <summary>
-    /// Shows exactly what would be published, and nothing but.
-    /// </summary>
-    /// <remarks>
-    /// The text is shown in full rather than summarised. Someone deciding
-    /// whether to publish a record of their hardware is entitled to read the
-    /// record, and a dialog saying "device details will be sent" asks them to
-    /// take it on trust. It is selectable as well as copyable, so it can be
-    /// checked line by line before anything leaves the machine.
-    /// <para>
-    /// The full local report is offered from here too, because it is the other
-    /// half of what was collected — and it is the half that is never published,
-    /// carrying serials and device paths that the records above do not.
-    /// </para>
-    /// </remarks>
-    private async void OnViewDetails(object sender, RoutedEventArgs e)
-    {
-        var body = new TextBlock
-        {
-            Text = ViewModel.CollectedText,
-            IsTextSelectionEnabled = true,
-            TextWrapping = TextWrapping.Wrap,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontSize = 12,
-        };
-
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "What would be sent, in full",
-            Content = new ScrollViewer
-            {
-                Content = body,
-                MaxHeight = 460,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            },
-            PrimaryButtonText = "Copy",
-            SecondaryButtonText = "Open the full report",
-            CloseButtonText = "Close",
-            DefaultButton = ContentDialogButton.Close,
-        };
-
-        ContentDialogResult result = await dialog.ShowAsync();
-
-        if (result == ContentDialogResult.Primary) Copy(ViewModel.CollectedText);
-        else if (result == ContentDialogResult.Secondary) OpenReport();
-    }
-
-    /// <summary>
-    /// Opens GitHub with the complete report already on the clipboard when the
-    /// report is too large for a prefilled URL.
-    /// </summary>
-    private async void OnSubmitDetails(object sender, RoutedEventArgs e)
-    {
-        if (!ViewModel.SubmissionNeedsPaste)
-        {
-            if (ViewModel.Submit() is { } paste) Copy(paste);
-            return;
-        }
-
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "Paste the full report into GitHub",
-            Content = "The complete report is too large for GitHub to accept in an issue link. "
-                + "Copy it now, then GitHub will open with the correct title. Click the issue body "
-                + "and press Ctrl+V to include the entire report exactly as collected.",
-            PrimaryButtonText = "Copy and open GitHub",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-        };
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-        // Copy before opening the browser. This is both more reliable than a
-        // post-launch copy and makes the full body explicitly visible in the
-        // handoff instead of looking like GitHub received an empty report.
-        Copy(ViewModel.CollectedText);
-        _ = ViewModel.Submit();
-    }
-
-    /// <remarks>
-    /// Nothing is written on demand here: the report only exists because
-    /// Collect wrote it, and this is only reachable from the dialog Collect
-    /// unlocks.
-    /// </remarks>
-    private static void OpenReport()
-    {
-        if (!File.Exists(MainViewModel.ReportPath)) return;
-
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = MainViewModel.ReportPath,
-            UseShellExecute = true,
-        });
-    }
+    private void OnOpenDevices(object sender, RoutedEventArgs e) => App.ShowMainWindow("devices");
 
     private void OnCopyInfo(object sender, RoutedEventArgs e)
     {
