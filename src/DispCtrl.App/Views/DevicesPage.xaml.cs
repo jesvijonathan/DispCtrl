@@ -35,6 +35,8 @@ public sealed partial class DevicesPage : Page
     private CancellationTokenSource? _watch;
     private FileSystemWatcher? _history;
     private DispatcherQueueTimer? _refresh;
+    private bool _sharing;
+    private bool _loaded;
 
     public DevicesPage()
     {
@@ -43,12 +45,25 @@ public sealed partial class DevicesPage : Page
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _loaded = true;
         WatchHistory();
         await RefreshAsync();
+        if (!App.ViewModel.EngineRunning)
+        {
+            // A stopped engine should not turn automatic discovery into a
+            // manual Sync requirement while the Devices page is open.
+            await Task.Run(() =>
+            {
+                foreach (DisplayInfo display in DispCtrl.Display.Devices.DeviceDiscovery.Unread(DisplayRegistry.Enumerate()))
+                    try { DispCtrl.Display.Devices.DeviceDiscovery.Learn(display); } catch (Exception) { }
+            });
+            if (_loaded) await RefreshAsync();
+        }
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        _loaded = false;
         StopWatching();
         _history?.Dispose();
         _history = null;
@@ -65,7 +80,7 @@ public sealed partial class DevicesPage : Page
             _refresh = DispatcherQueue.CreateTimer();
             _refresh.Interval = TimeSpan.FromMilliseconds(500);
             _refresh.IsRepeating = false;
-            _refresh.Tick += async (_, _) => { if (_watch is null) await RefreshAsync(); };
+            _refresh.Tick += async (_, _) => { if (_loaded && _watch is null && !_sharing) await RefreshAsync(); };
             _history = new FileSystemWatcher(folder, Path.GetFileName(DeviceHistory.PathOnDisk))
             {
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
@@ -74,6 +89,7 @@ public sealed partial class DevicesPage : Page
             // Saves are a rename over the file, so Renamed as well as Changed.
             _history.Changed += (_, _) => DispatcherQueue.TryEnqueue(() => { _refresh?.Stop(); _refresh?.Start(); });
             _history.Renamed += (_, _) => DispatcherQueue.TryEnqueue(() => { _refresh?.Stop(); _refresh?.Start(); });
+            _history.Created += (_, _) => DispatcherQueue.TryEnqueue(() => { _refresh?.Stop(); _refresh?.Start(); });
         }
         catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException) { }
     }
@@ -125,9 +141,11 @@ public sealed partial class DevicesPage : Page
     private async Task RefreshAsync()
     {
         JsonNode? data = await RunAsync("devices.list");
+        if (!_loaded || _sharing) return;
         StopWatching();
         Models.Children.Clear();
         JsonArray models = data?["models"]?.AsArray() ?? [];
+        ShareAllButton.IsEnabled = models.Count > 0;
         if (models.Count == 0)
         {
             Models.Children.Add(Muted("No monitors recorded yet. DispCtrl's engine records each monitor when it starts and whenever one is plugged in; Sync now does it at once."));
@@ -150,15 +168,19 @@ public sealed partial class DevicesPage : Page
         var head = new Grid { ColumnSpacing = 10 };
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        title.Children.Add(new TextBlock { Text = name, FontWeight = FontWeights.SemiBold, FontSize = 15, VerticalAlignment = VerticalAlignment.Center });
-        title.Children.Add(Muted(model));
-        if (attached) title.Children.Add(Badge("Attached"));
+        var title = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        title.Children.Add(new TextBlock { Text = name, FontWeight = FontWeights.SemiBold, FontSize = 15, TextWrapping = TextWrapping.Wrap });
+        var identity = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        var modelLabel = Muted($"Model: {model}");
+        modelLabel.VerticalAlignment = VerticalAlignment.Center;
+        identity.Children.Add(modelLabel);
+        identity.Children.Add(Badge(attached ? "Attached" : "Disconnected"));
+        title.Children.Add(identity);
         head.Children.Add(title);
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(buttons, 1);
-        if (!builtIn && read)
+        if (DeviceDefinitions.IsModel(model))
         {
             var share = new Button { Content = "Share", Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
             AutomationProperties.SetName(share, $"Share {model}");
@@ -168,9 +190,7 @@ public sealed partial class DevicesPage : Page
         }
         var remove = new Button { Content = new FontIcon { Glyph = "", FontSize = 14 } };
         AutomationProperties.SetName(remove, $"Remove {model}");
-        ToolTipService.SetToolTip(remove, attached
-            ? "Remove from this list. It stays off until you press Sync now, even while attached."
-            : "Remove from this list. It comes back if it is plugged in again.");
+        ToolTipService.SetToolTip(remove, "Remove from this list. It stays off until you press Sync now, including after reconnecting.");
         remove.Click += async (_, _) =>
         {
             if (await RunAsync("devices.forget", new JsonObject { ["model"] = model }) is not null)
@@ -413,7 +433,7 @@ public sealed partial class DevicesPage : Page
     {
         int[] listed = Ints(entry["listed"]);
         string[] kinds = ["choice", "range", "action", "information"];
-        string startKind = entry["mappedKind"]?.GetValue<string>() ?? (listed.Length > 0 ? "choice" : Ints(entry["observed"]).Length > 1 ? "range" : "information");
+        string startKind = entry["mappedKind"]?.GetValue<string>() ?? (listed.Length > 0 ? "choice" : "information");
         string startValues = entry["values"]?.AsArray() is { Count: > 0 } named
             ? string.Join(", ", named.Select(v => $"{v!["value"]}={v["name"]}"))
             : string.Join(", ", listed.Select(v => $"0x{v:X2}=Value {v:X2}"));
@@ -437,12 +457,22 @@ public sealed partial class DevicesPage : Page
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         var writable = new CheckBox { Content = "I have written it and seen what the monitor does - let DispCtrl write it", IsChecked = entry["writable"]?.GetValue<bool>() == true };
-        var notes = new TextBox { Header = "Notes", PlaceholderText = "Moves when the OSD's Preset Modes item changes.", AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 72 };
+        var maximum = new NumberBox { Header = "Maximum (optional, for a range)", Minimum = 0, Maximum = 65535,
+            Value = entry["maximum"]?.GetValue<int>() ?? double.NaN };
+        var notes = new TextBox { Header = "Notes", PlaceholderText = "Moves when the OSD's Preset Modes item changes.", AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 72,
+            Text = entry["notes"]?.GetValue<string>() ?? "" };
         var error = new TextBlock { Foreground = Brush("SystemFillColorCriticalBrush"), TextWrapping = TextWrapping.Wrap };
 
         var form = new StackPanel { Spacing = 10, MinWidth = 420 };
         form.Children.Add(Muted($"{code} on {model}. Saved on this PC and used at once; share it to make it everyone's."));
-        foreach (UIElement e in new UIElement[] { name, kind, values, scope, writable, notes, error }) form.Children.Add(e);
+        foreach (UIElement e in new UIElement[] { name, kind, values, maximum, scope, writable, notes, error }) form.Children.Add(e);
+        void UpdateKind()
+        {
+            values.Visibility = kind.SelectedItem as string == "choice" ? Visibility.Visible : Visibility.Collapsed;
+            maximum.Visibility = kind.SelectedItem as string == "range" ? Visibility.Visible : Visibility.Collapsed;
+        }
+        kind.SelectionChanged += (_, _) => UpdateKind();
+        UpdateKind();
 
         var dialog = new ContentDialog
         {
@@ -471,7 +501,12 @@ public sealed partial class DevicesPage : Page
                 // Values only mean something for a choice; sent for another kind
                 // they would be refused as a contradiction.
                 if (chosen == "choice" && values.Text.Trim().Length > 0) request["values"] = values.Text.Trim();
-                if (notes.Text.Trim().Length > 0) request["notes"] = notes.Text.Trim();
+                if (chosen == "range" && !double.IsNaN(maximum.Value))
+                {
+                    if (maximum.Value != Math.Truncate(maximum.Value)) throw new ArgumentException("Maximum must be a whole number.");
+                    request["maximum"] = (int)maximum.Value;
+                }
+                request["notes"] = notes.Text.Trim();
                 JsonObject result = await Task.Run(() => _service.Execute(new JsonObject { ["version"] = 1, ["command"] = "devices.map", ["args"] = request }));
                 if (result["ok"]?.GetValue<bool>() == true) saved = true;
                 else
@@ -480,6 +515,7 @@ public sealed partial class DevicesPage : Page
                     args.Cancel = true;
                 }
             }
+            catch (Exception ex) { error.Text = ex.Message; args.Cancel = true; }
             finally { deferral.Complete(); }
         };
         await dialog.ShowAsync();
@@ -499,53 +535,77 @@ public sealed partial class DevicesPage : Page
     /// line in the issue saying where to paste it. It used to open an empty form
     /// with no explanation, which looked like the button doing nothing.
     /// </remarks>
-    private async Task ShareAsync(string model)
+    private async void OnShareAll(object sender, RoutedEventArgs e) => await ShareAsync(null);
+
+    private async Task ShareAsync(string? model)
     {
-        JsonNode? data = await RunAsync("devices.share", new JsonObject { ["model"] = model });
-        if (data is null) return;
-        string body = data["body"]!.GetValue<string>();
-        string? paste = data["paste"]?.GetValue<string>();
-        string url = data["url"]!.GetValue<string>();
-
-        var text = new TextBox
+        if (_sharing) return;
+        _sharing = true;
+        StopWatching();
+        ShareAllButton.IsEnabled = ScanButton.IsEnabled = false;
+        ContentDialog? dialog = null;
+        try
         {
-            IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
-            FontFamily = new FontFamily("Consolas"), FontSize = 12, Height = 420, MinWidth = 560, Text = body,
-        };
-        var dialog = new ContentDialog
-        {
-            Title = $"Share {model}",
-            Content = new StackPanel
+            var progress = new ProgressRing { IsActive = true, Width = 32, Height = 32, HorizontalAlignment = HorizontalAlignment.Left };
+            var notice = Muted("Preparing the device details. Reading a monitor can take a few seconds; you can cancel while it finishes.");
+            var content = new StackPanel { Spacing = 12 };
+            content.Children.Add(progress);
+            content.Children.Add(notice);
+            dialog = new ContentDialog
             {
-                Spacing = 8,
-                Children =
+                XamlRoot = XamlRoot, Title = model is null ? "Share all devices" : $"Share {model}", Content = content,
+                PrimaryButtonText = "Open GitHub issue", SecondaryButtonText = "Copy all", CloseButtonText = "Cancel",
+                IsPrimaryButtonEnabled = false, IsSecondaryButtonEnabled = false, DefaultButton = ContentDialogButton.None,
+            };
+            bool closed = false;
+            dialog.Closed += (_, _) => closed = true;
+            var shown = dialog.ShowAsync();
+            JsonNode? data = await RunAsync("devices.share", model is null
+                ? new JsonObject { ["all"] = true } : new JsonObject { ["model"] = model });
+            if (closed || !_loaded) return;
+            progress.IsActive = false;
+            progress.Visibility = Visibility.Collapsed;
+            if (data is null) { notice.Text = "Could not prepare the share. Close this window to see the error and try again."; await shown; return; }
+            string body = data["body"]!.GetValue<string>();
+            string? paste = data["paste"]?.GetValue<string>();
+            content.Children.Insert(0, Muted("Review the model records and mappings below. Monitor serials and user paths are removed. Nothing is submitted until you press Submit on GitHub."));
+            content.Children.Insert(1, new TextBox
+            {
+                IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
+                FontFamily = new FontFamily("Consolas"), FontSize = 12, Height = 320, Text = body,
+            });
+            notice.Text = paste is null ? $"All {body.Length:N0} characters fit in the issue link."
+                : $"The complete share is {body.Length:N0} characters. Opening GitHub copies the text that needs pasting; replace the placeholder in the issue with it.";
+            dialog.IsPrimaryButtonEnabled = dialog.IsSecondaryButtonEnabled = true;
+            dialog.SecondaryButtonClick += (_, args) =>
+            {
+                args.Cancel = true;
+                try { Copy(body); notice.Text = "Copied the complete share."; }
+                catch (Exception ex) { notice.Text = "Could not copy: " + ex.Message; }
+            };
+            dialog.PrimaryButtonClick += async (_, args) =>
+            {
+                var deferral = args.GetDeferral();
+                try
                 {
-                    Muted("This is everything that would be published: no serial, no path, no current setting. It opens as a GitHub issue in your browser; nothing is sent until you press Submit there."),
-                    text,
-                    Muted(paste is null ? "All of it fits in the link." : "Too long for one link: the issue opens with your mappings filled in, and the rest is copied - paste it where the issue says."),
-                },
-            },
-            PrimaryButtonText = "Open GitHub issue",
-            SecondaryButtonText = "Copy all",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
-        };
-        ContentDialogResult choice = await dialog.ShowAsync();
-        if (choice == ContentDialogResult.Secondary)
-        {
-            Copy(body);
-            Show("Copied the whole share.", InfoBarSeverity.Success);
-            return;
+                    if (paste is not null) Copy(paste);
+                    if (!await Windows.System.Launcher.LaunchUriAsync(new Uri(data["url"]!.GetValue<string>())))
+                        throw new InvalidOperationException("Windows could not open the browser. Copy the share and try again.");
+                    Show(paste is null ? "Opened the prefilled issue. Review it and press Submit there."
+                        : "Opened the issue. Paste the copied text over its placeholder, then press Submit there.", InfoBarSeverity.Success);
+                }
+                catch (Exception ex) { args.Cancel = true; notice.Text = ex.Message; }
+                finally { deferral.Complete(); }
+            };
+            await shown;
         }
-        if (choice != ContentDialogResult.Primary) return;
-
-        if (paste is not null) Copy(paste);
-        bool opened = await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
-        Show(!opened ? $"Could not open the browser. The share is saved at {data["path"]}."
-            : paste is null ? "Opened the issue with everything filled in. Press Submit there."
-            : "Opened the issue with your mappings filled in; the rest is on the clipboard - paste it where the issue says, then Submit.",
-            opened ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
+        catch (Exception ex) { dialog?.Hide(); Show("Could not share: " + ex.Message, InfoBarSeverity.Error); }
+        finally
+        {
+            _sharing = false;
+            ShareAllButton.IsEnabled = ScanButton.IsEnabled = true;
+            if (_loaded) await RefreshAsync();
+        }
     }
 
     private static void Copy(string text)
@@ -553,6 +613,7 @@ public sealed partial class DevicesPage : Page
         var package = new DataPackage();
         package.SetText(text);
         Clipboard.SetContent(package);
+        Clipboard.Flush();
     }
 
     // ================================================================ bits

@@ -446,6 +446,21 @@ internal static class Program
 
         var manager = new TaskbarManager(settings, trace);
 
+        // An exception on any other thread ends the process without unwinding
+        // through the manager, which is exactly what strands a hidden taskbar.
+        // Put the bars back and say why before it goes; the sign-in task's
+        // restart-on-failure brings the engine back.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Log.Write($"FATAL (unhandled, {(e.IsTerminating ? "exiting" : "continuing")}): {e.ExceptionObject}");
+            manager.EmergencyRestore();
+        };
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Log.Write($"background task failed: {e.Exception.GetBaseException().Message}");
+            e.SetObserved();
+        };
+
         try
         {
             // Disposed before the manager unwinds, so the displays are back to

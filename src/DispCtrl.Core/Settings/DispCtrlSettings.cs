@@ -236,6 +236,10 @@ public sealed class GlobalSettings
     /// <summary>Which defaults version this desk has been offered; 0 before versions were counted.</summary>
     public int HotkeyDefaultsVersion { get; set; }
 
+    /// <summary>Engine locations whose tray icon was put on the taskbar once, by default.</summary>
+    /// <remarks>Bookkeeping, like the hotkey offers: Reset all leaves it, so a reset never re-promotes an icon the person moved.</remarks>
+    public List<string> TrayPromotedFor { get; set; } = [];
+
     /// <summary>Warmth applied to every display together.</summary>
     public NightLightSettings NightLight { get; set; } = new();
 

@@ -16,7 +16,7 @@
   #error Pass /DSourceDir=<published desktop folder>
 #endif
 #ifndef RepoRoot
-  #define RepoRoot "..\.."
+  #define RepoRoot "..\..\.."
 #endif
 #ifndef OutputDir
   #define OutputDir "."
@@ -29,7 +29,8 @@ AppName=DispCtrl
 AppVersion={#AppVersion}
 AppVerName=DispCtrl {#AppVersion}
 AppPublisher=Jesvi Jonathan
-AppPublisherURL=https://github.com/jesvijonathan/Display-Control
+AppContact=jesvi22j@gmail.com
+AppPublisherURL=https://www.jesvi.net/
 AppSupportURL=https://github.com/jesvijonathan/Display-Control/issues
 AppUpdatesURL=https://github.com/jesvijonathan/Display-Control/releases
 AppCopyright=Copyright (c) 2026 Jesvi Jonathan
@@ -63,8 +64,13 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "signin"; Description: "Start DispCtrl when I sign in (needed for the tray icon, hotkeys and taskbar hiding)"
-Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
-Name: "path"; Description: "Add dispctrl to my PATH, for the command line"; Flags: unchecked
+Name: "desktopicon"; Description: "Create a desktop shortcut"
+Name: "path"; Description: "Add dispctrl to my PATH, for the command line"
+; Maintenance, for an update or a reinstall over a copy that misbehaves. Both
+; start unticked on every run (see CurPageChanged): remembered from a previous
+; install, a reset would repeat itself on every update.
+Name: "resetsettings"; Description: "Reset DispCtrl's settings to their defaults (the old file is kept as a backup)"; GroupDescription: "Repair:"; Flags: unchecked
+Name: "clearcache"; Description: "Clear DispCtrl's logs and cached monitor data (your named codes and presets are kept)"; GroupDescription: "Repair:"; Flags: unchecked
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -160,8 +166,61 @@ begin
   RegWriteExpandStringValue(HKCU, EnvironmentKey, 'Path', Paths);
 end;
 
+// Where DispCtrl keeps its settings, logs and history: the same folder the
+// app, the engine and the CLI use (SettingsStore), whatever version installed it.
+function DataDir(): String;
+begin
+  Result := ExpandConstant('{localappdata}\DispCtrl');
+end;
+
+// The two repair boxes start unticked on every run, even when the previous
+// install had them ticked: Inno remembers task choices for an update.
+var
+  RepairTasksCleared: Boolean;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID = wpSelectTasks) and not RepairTasksCleared then
+  begin
+    WizardSelectTasks('!resetsettings,!clearcache');
+    RepairTasksCleared := True;
+  end;
+end;
+
+// Runs after PrepareToInstall has stopped the engine and before the new files
+// and the new engine arrive, so nothing holds these files.
+procedure ResetSettings();
+var
+  Settings: String;
+begin
+  Settings := DataDir() + '\settings.json';
+  if FileExists(Settings) then
+    RenameFile(Settings, DataDir() + '\settings.backup-' + GetDateTimeString('yyyymmdd-hhnnss', #0, #0) + '.json');
+end;
+
+// Logs, the display report, the engine's hotkey status and what the engine
+// learned about monitors, which it learns again by itself. Named codes
+// (devices\definitions) and presets are the person's own work and stay.
+procedure ClearCache();
+var
+  Dir: String;
+begin
+  Dir := DataDir();
+  DelTree(Dir + '\*.log', False, True, False);
+  DelTree(Dir + '\*.log.*', False, True, False);
+  DeleteFile(Dir + '\hotkeys-status.json');
+  DeleteFile(Dir + '\devices\history.json');
+  DelTree(Dir + '\devices\outbox', True, True, True);
+  DelTree(Dir + '\devices\*.md', False, True, False);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+  if CurStep = ssInstall then
+  begin
+    if WizardIsTaskSelected('resetsettings') then ResetSettings();
+    if WizardIsTaskSelected('clearcache') then ClearCache();
+  end;
   if CurStep = ssPostInstall then
   begin
     if WizardIsTaskSelected('path') then
@@ -182,5 +241,14 @@ begin
              ExpandConstant('{app}') + '.', mbInformation, MB_OK, IDOK);
   end;
   if CurUninstallStep = usPostUninstall then
+  begin
     RemoveFromPath(ExpandConstant('{app}'));
+    // Kept by default, so a reinstall picks up where it left off; never
+    // deleted by a silent uninstall, which nobody was asked about.
+    if DirExists(DataDir()) and not UninstallSilent() then
+      if MsgBox('Also delete your DispCtrl settings, presets, named monitor codes and logs?' + #13#10#13#10 +
+                'Keep them if you might install DispCtrl again. They are in ' + DataDir() + '.',
+                mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+        DelTree(DataDir(), True, True, True);
+  end;
 end;

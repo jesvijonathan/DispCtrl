@@ -29,7 +29,11 @@
     <AnalysisLevel>latest</AnalysisLevel>
 
     <Authors>Jesvi Jonathan</Authors>
+    <Company>Jesvi Jonathan</Company>
     <Product>DispCtrl</Product>
+    <Copyright>Copyright (c) 2026 Jesvi Jonathan (jesvi22j@gmail.com, www.jesvi.net). MIT licence.</Copyright>
+    <RepositoryUrl>https://github.com/jesvijonathan/Display-Control</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/jesvijonathan/Display-Control</PackageProjectUrl>
   </PropertyGroup>
 
 </Project>

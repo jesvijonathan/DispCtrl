@@ -22,7 +22,7 @@ public sealed partial class ControlService
         "focus.get", "focus.set", "focus.reset", "oled.get", "oled.set", "oled.reset", "oled.preview", "oled.rest",
         "awake.get", "awake.set", "awake.reset", "nightlight.get", "nightlight.set", "nightlight.reset",
         "taskbar.get", "taskbar.set", "taskbar.reset", "tray.get", "tray.set", "tray.reset", "windows.get", "windows.set",
-        "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "tray.show", "apply", "commands", "diagnostics", "report"];
+        "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "maintenance.repair", "maintenance.clear-cache", "tray.show", "apply", "commands", "diagnostics", "report"];
 
     public JsonObject Execute(JsonObject request)
     {
@@ -102,6 +102,7 @@ public sealed partial class ControlService
         if (command.StartsWith("devices.", StringComparison.Ordinal)) return DevicesCommand(command[8..], args);
         if (command.StartsWith("hotkeys.", StringComparison.Ordinal)) return HotkeysCommand(command[8..], args);
         if (command.StartsWith("unison.", StringComparison.Ordinal)) return UnisonCommand(command[7..], args);
+        if (command.StartsWith("maintenance.", StringComparison.Ordinal)) return MaintenanceCommand(command[12..], args);
         if (command == "gamma.get")
         {
             var state = GammaRange.Read();
@@ -208,6 +209,15 @@ public sealed partial class ControlService
             }, action == "validate" || Flag(args, "dryRun"), Text(args, "revision"));
         }
         if (action is not ("set" or "reset")) throw new ArgumentException("Unknown settings action.");
+        if (action == "reset" && token is null && path.Length == 0)
+            return SettingsDocument.Update(target =>
+            {
+                DispCtrlSettings settings = SettingsDocument.Validate(target);
+                settings.ResetAll();
+                JsonObject reset = SettingsDocument.Encode(settings);
+                target.Clear();
+                foreach (var pair in reset) target[pair.Key] = pair.Value?.DeepClone();
+            }, Flag(args, "dryRun"), Text(args, "revision"));
         JsonNode? value;
         if (action == "reset")
         {

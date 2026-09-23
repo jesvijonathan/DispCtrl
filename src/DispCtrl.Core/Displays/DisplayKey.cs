@@ -21,13 +21,13 @@ namespace DispCtrl.Core.Displays;
 /// </list>
 /// </remarks>
 /// <param name="DevicePath">
-/// CCD monitor device path, e.g. <c>\\?\DISPLAY#DELA234#5&amp;1af48b2f&amp;0&amp;UID257#{guid}</c>.
+/// CCD monitor device path, e.g. <c>\\?\DISPLAY#DELA234#5&amp;3c9e07d1&amp;0&amp;UID257#{guid}</c>.
 /// </param>
 /// <param name="Model">
 /// EDID manufacturer and product code, e.g. <c>DEL-A234</c>. Deliberately
 /// <em>not</em> an identity on its own — see <see cref="Matches"/>.
 /// </param>
-/// <param name="Serial">EDID serial, e.g. <c>3QQQ2X3</c>. Empty when the panel reports none.</param>
+/// <param name="Serial">EDID serial, e.g. <c>9XYZ7K1</c>. Empty when the panel reports none.</param>
 public sealed record DisplayKey(string DevicePath, string Model, string Serial)
 {
     /// <summary>

@@ -24,16 +24,65 @@ return command switch
     "index" => Index(Root(1), args.Contains("--check")),
     "intake" => Intake(args.ElementAtOrDefault(1) ?? throw new ArgumentException("intake BODY-FILE [devices]"), Root(2)),
     "migrate" => Migrate(Root(1)),
+    "selftest" => SelfTest(),
     _ => Usage(),
 };
 
 static int Usage()
 {
-    Console.Error.WriteLine("devicecheck validate|index [--check]|intake BODY|migrate [devices]");
+    Console.Error.WriteLine("devicecheck validate|index [--check]|intake BODY|migrate [devices]|selftest");
     return 2;
 }
 
 static string Rel(string root, string path) => Path.GetRelativePath(root, path).Replace('\\', '/');
+
+static int SelfTest()
+{
+    string temp = Path.Combine(Path.GetTempPath(), "DispCtrl-devicecheck-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(temp);
+    int checks = 0;
+    void Check(bool ok, string description)
+    {
+        if (!ok) throw new Exception(description);
+        Console.WriteLine("PASS " + description);
+        checks++;
+    }
+    string Share(string model, string code = "0xE2") => $"### {model}\n\nDevice key: `{model}`\n\n### Mappings\n\n```json\n"
+        + new JsonObject
+        {
+            ["schema"] = 1, ["kind"] = "dispctrl-device-mapping", ["model"] = model,
+            ["definitions"] = new JsonArray(new JsonObject
+            {
+                ["schema"] = 1, ["target"] = model,
+                ["controls"] = new JsonArray(new JsonObject { ["code"] = code, ["name"] = "Test mode", ["kind"] = "information" }),
+            }),
+        }.ToJsonString() + "\n```\n";
+    try
+    {
+        string input = Path.Combine(temp, "issue.md"), output = Path.Combine(temp, "devices");
+        File.WriteAllText(input, Share("TST-0101") + "\n\n---\n\n" + Share("TST-0202"));
+        Check(Intake(input, output) == 0 && File.Exists(DeviceLayout.DefinitionPath(output, "TST-0101"))
+            && File.Exists(DeviceLayout.DefinitionPath(output, "TST-0202"))
+            && File.ReadAllText(DeviceLayout.RecordPath(output, "TST-0202")).StartsWith("### TST-0202"),
+            "combined intake keeps both definitions and associates each record with its model");
+        string refused = Path.Combine(temp, "refused");
+        File.WriteAllText(input, Share("TST-0101") + "\n\n---\n\n" + Share("TST-0202", "bad-code"));
+        Check(Intake(input, refused) == 1 && !Directory.Exists(refused),
+            "an invalid later model leaves no partial combined intake on disk");
+        File.WriteAllText(input, Share("TST-0101", "0xE3"));
+        Check(Intake(input, output) == 0 && JsonNode.Parse(File.ReadAllText(DeviceLayout.DefinitionPath(output, "TST-0101")))!["controls"]!.AsArray().Count == 2,
+            "single-model shares still merge without removing existing codes");
+        File.WriteAllText(input, "Paste the complete device share here.");
+        Check(Intake(input, refused) == 3 && !Directory.Exists(refused), "a link placeholder is never ingested as a record");
+        Console.WriteLine($"{checks} intake checks passed.");
+        return 0;
+    }
+    finally
+    {
+        if (Path.GetDirectoryName(temp) == Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar)
+            && Path.GetFileName(temp).StartsWith("DispCtrl-devicecheck-", StringComparison.Ordinal)) Directory.Delete(temp, true);
+    }
+}
 
 static int Validate(string root)
 {
@@ -185,12 +234,37 @@ static int Index(string root, bool check)
 static int Intake(string bodyFile, string root)
 {
     string body = File.ReadAllText(bodyFile).Replace("\r\n", "\n");
-    Match block = Regex.Match(body, "```json\\s*\\n(?<json>\\{.*?\\})\\s*\\n```", RegexOptions.Singleline);
-    if (!block.Success) { Console.Error.WriteLine("No JSON block: not a DispCtrl device share."); return 3; }
-    JsonNode? payload;
-    try { payload = JsonNode.Parse(block.Groups["json"].Value); }
-    catch (JsonException ex) { Console.Error.WriteLine($"The JSON block does not parse: {ex.Message}"); return 1; }
-    if (payload?["kind"]?.GetValue<string>() != "dispctrl-device-mapping") { Console.Error.WriteLine("Not a device mapping."); return 3; }
+    MatchCollection blocks = Regex.Matches(body, "```json\\s*\\n(?<json>\\{.*?\\})\\s*\\n```", RegexOptions.Singleline);
+    if (blocks.Count == 0) { Console.Error.WriteLine("No JSON block: not a DispCtrl device share."); return 3; }
+    // Stage every model first. A malformed later model must not leave half a
+    // combined submission written to disk.
+    var pending = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    int start = 0, recognised = 0;
+    foreach (Match block in blocks)
+    {
+        JsonNode? payload;
+        try { payload = JsonNode.Parse(block.Groups["json"].Value); }
+        catch (JsonException ex) { Console.Error.WriteLine($"The JSON block does not parse: {ex.Message}"); return 1; }
+        string section = body[start..(block.Index + block.Length)].Trim();
+        start = block.Index + block.Length;
+        if (section.StartsWith("---\n", StringComparison.Ordinal)) section = section[4..].TrimStart();
+        if (payload?["kind"]?.GetValue<string>() != "dispctrl-device-mapping") continue;
+        recognised++;
+        int code = IntakeModel(section, payload, root, pending);
+        if (code != 0) return code;
+    }
+    if (recognised == 0) return 3;
+    foreach (var (path, text) in pending)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, text);
+    }
+    Console.WriteLine($"{recognised} model(s), {pending.Count} file(s) written");
+    return pending.Count == 0 ? 4 : 0;
+}
+
+static int IntakeModel(string body, JsonNode payload, string root, Dictionary<string, string> pending)
+{
     string model = payload["model"]?.GetValue<string>() ?? "";
     if (!DeviceDefinitions.IsModel(model)) { Console.Error.WriteLine($"'{model}' is not a model key."); return 1; }
 
@@ -205,8 +279,8 @@ static int Intake(string bodyFile, string root)
         // Merged into what the repository has, code by code: a share replaces
         // the codes it defines and leaves the rest, and sources accumulate.
         string path = DeviceLayout.DefinitionPath(root, incoming.Target);
-        DeviceDefinition current = File.Exists(path)
-            ? JsonSerializer.Deserialize(File.ReadAllText(path), DeviceJsonContext.Default.DeviceDefinition)!
+        DeviceDefinition current = pending.TryGetValue(path, out string? staged) || File.Exists(path)
+            ? JsonSerializer.Deserialize(staged ?? File.ReadAllText(path), DeviceJsonContext.Default.DeviceDefinition)!
             : new DeviceDefinition { Target = incoming.Target };
         current.Name ??= incoming.Name;
         foreach (string link in incoming.Extends) if (!current.Extends.Contains(link)) current.Extends.Add(link);
@@ -223,8 +297,7 @@ static int Intake(string bodyFile, string root)
         current.Controls.Sort((a, b) => (a.CodeValue ?? 0).CompareTo(b.CodeValue ?? 0));
         var merged = DeviceDefinitions.Validate(current);
         if (merged.Count > 0) { Console.Error.WriteLine($"{current.Target} after merge: {string.Join("; ", merged)}"); return 1; }
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(current, DeviceJsonContext.Default.DeviceDefinition).Replace("\r\n", "\n") + "\n");
+        pending[path] = JsonSerializer.Serialize(current, DeviceJsonContext.Default.DeviceDefinition).Replace("\r\n", "\n") + "\n";
         Console.WriteLine($"definition {current.Target}: {incoming.Controls.Count} code(s) -> {Rel(root, path)}");
         written++;
     }
@@ -239,18 +312,17 @@ static int Intake(string bodyFile, string root)
     // link carries a placeholder heading instead, and one made while the
     // monitor was unplugged carries none. Neither is a record.
     if (record.StartsWith("### ", StringComparison.Ordinal) && record.Contains($"Device key: `{model}`", StringComparison.Ordinal)
-        && !File.Exists(recordPath))
+        && !File.Exists(recordPath) && !pending.ContainsKey(recordPath))
     {
         var leaks = RecordProblems(record, model).Where(p => !p.StartsWith("does not name", StringComparison.Ordinal)).ToList();
         if (leaks.Count > 0) { Console.Error.WriteLine($"record refused: {string.Join("; ", leaks)}"); return 1; }
-        Directory.CreateDirectory(Path.GetDirectoryName(recordPath)!);
-        File.WriteAllText(recordPath, record + "\n");
+        pending[recordPath] = record + "\n";
         Console.WriteLine($"record {model} -> {Rel(root, recordPath)}");
         written++;
     }
 
     Console.WriteLine(written == 0 ? "nothing to add" : $"{written} file(s) written");
-    return written == 0 ? 4 : 0;
+    return 0;
 }
 
 // From the first, flat layout: definitions/DEL-A234.json, definitions/DEL.json,

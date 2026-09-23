@@ -8,6 +8,24 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+### Added
+- Repair and maintenance: **Settings > Updates and maintenance** and `dispctrl maintenance repair|clear-cache` put back the sign-in task and Start menu shortcut and clear logs and cached monitor data. The installer offers the same, plus a settings reset that keeps a backup.
+- Help > Report a problem and `dispctrl report`: a scrubbed diagnostic report, reviewed before a prefilled issue opens.
+- Devices learn each new monitor by themselves; remove one from the list, share one or all.
+- Hotkeys show whether each shortcut is working or taken by another program, warn about combinations Windows keeps, and list Windows' own display shortcuts.
+- Sponsor entry in the navigation, and contact details on the About page.
+
+### Changed
+- Thirteen default shortcuts, four switched on; existing desks keep theirs and get the new ones switched off.
+- The installer adds the desktop shortcut and `PATH` entry by default and asks on uninstall whether to keep your settings.
+- The tray icon is kept on the taskbar the first time it appears.
+
+### Fixed
+- Reset all left most of the page showing old values, and missed the quick panel, the Windows brightness bridge and the start-up options.
+- A display's Reset also factory-reset the monitor without asking; that is now an unticked option in a confirmation.
+- Share opened an empty issue when a record was too long for a link.
+- An exception on an engine background thread could leave a hidden taskbar off-screen.
+
 ## [0.1.0] - Unreleased
 
 The first public beta.

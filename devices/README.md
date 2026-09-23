@@ -58,7 +58,7 @@ that setup rather than every unit.
 It must never hold:
 
 - **Serial numbers.** The single most identifying thing a monitor reports.
-- **Device instance paths** (`\\?\DISPLAY#...` or `5&1af48b2f&0&UID256`),
+- **Device instance paths** (`\\?\DISPLAY#...` or `5&3c9e07d1&0&UID256`),
   which are unique to one PC.
 - **File paths**, which carry the owner's Windows account name.
 - **Personal settings.** Brightness 62 describes an evening at someone's desk,

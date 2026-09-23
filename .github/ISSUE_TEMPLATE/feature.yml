@@ -23,5 +23,5 @@ body:
     attributes:
       label: Checks
       options:
-        - label: I searched existing issues and docs/FEATURES.md.
+        - label: I searched the existing issues.
           required: true

@@ -303,6 +303,43 @@ internal sealed class TrayIconService : IDisposable
 
         _shown = true;
         Log.Write("tray: icon shown");
+        PromoteOnce();
+    }
+
+    /// <summary>
+    /// Puts the icon on the taskbar rather than behind the ^, once per engine
+    /// location, the first time Windows keeps a record of it.
+    /// </summary>
+    /// <remarks>
+    /// Windows 11 hides every new icon in the overflow and gives programs no
+    /// way to ask otherwise; the icon is DispCtrl's way in, so hidden it looks
+    /// as if DispCtrl did not start. The record appears a moment after the icon
+    /// is first shown, hence the retries. Once per path, remembered in
+    /// settings: after that, where the icon sits is the person's choice, made
+    /// on the Quick panel page, the icon's menu or Windows' own settings.
+    /// </remarks>
+    private void PromoteOnce()
+    {
+        string? path = Environment.ProcessPath;
+        if (path is null) return;
+        _ = Task.Run(async () =>
+        {
+            for (int attempt = 0; attempt < 10; attempt++)
+            {
+                await Task.Delay(1500).ConfigureAwait(false);
+                if (_disposed) return;
+                DispCtrlSettings settings = SettingsStore.Load();
+                if (settings.Global.TrayPromotedFor.Contains(path, StringComparer.OrdinalIgnoreCase)) return;
+                if (TrayIconPromotion.IsPromoted(path) is null) continue;
+                if (TrayIconPromotion.SetPromoted(path, true))
+                {
+                    settings.Global.TrayPromotedFor.Add(path);
+                    SettingsStore.Save(settings);
+                    Log.Write("tray: kept on the taskbar (first run for this location)");
+                }
+                return;
+            }
+        });
     }
 
     private unsafe void Remove()

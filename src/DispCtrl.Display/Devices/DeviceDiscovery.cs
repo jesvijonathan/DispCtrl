@@ -20,12 +20,19 @@ public static class DeviceDiscovery
 {
     private static readonly ConcurrentDictionary<string, byte> Tried = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The attached external monitors whose model has never been read here.</summary>
+    /// <summary>Attached models still missing their codes or public record.</summary>
     public static List<DisplayInfo> Unread(IEnumerable<DisplayInfo> displays) => displays
-        .Where(d => !d.IsInternal && DeviceDefinitions.IsModel(d.Key.Model))
+        .Where(d => DeviceDefinitions.IsModel(d.Key.Model))
         .GroupBy(d => d.Key.Model, StringComparer.OrdinalIgnoreCase).Select(g => g.First())
-        .Where(d => !Tried.ContainsKey(d.Key.Model) && DeviceHistoryEdits.NeedsReading(d.Key.Model))
+        .Where(d => !Tried.ContainsKey(d.Key.Model) && NeedsLearning(d.Key.Model))
         .ToList();
+
+    private static bool NeedsLearning(string model)
+    {
+        DeviceHistory history = DeviceHistory.Load();
+        return !history.Forgotten.Contains(model, StringComparer.OrdinalIgnoreCase)
+            && (!history.Models.TryGetValue(model, out SeenModel? seen) || seen.Record is null || DeviceHistoryEdits.NeedsReading(model));
+    }
 
     /// <summary>Reads one monitor's capabilities, which records them; returns how many codes it listed.</summary>
     /// <remarks>
@@ -36,7 +43,23 @@ public static class DeviceDiscovery
     public static int Learn(DisplayInfo display)
     {
         if (!Tried.TryAdd(display.Key.Model, 0)) return 0;
-        MonitorCapability capabilities = MonitorCapabilities.Read(display);
+        MonitorCapability capabilities = display.IsInternal ? MonitorCapability.None : MonitorCapabilities.Read(display);
+        CacheRecord(display);
         return capabilities.Supported ? capabilities.Controls.Count : -1;
+    }
+
+    /// <summary>Collects the public model record outside the Share button's path.</summary>
+    public static void CacheRecord(DisplayInfo display)
+    {
+        bool? oled = Core.Settings.SettingsStore.Load().For(display.Token).IsOled;
+        string record = Redact.Ascii(Redact.Scrub(
+            DeviceSubmission.Build(display, oled, includePrivateDetails: false).ToRepositoryMarkdown(),
+            DeviceContribution.Identifiers([display]))).Replace("\r\n", "\n", StringComparison.Ordinal);
+        DeviceHistory.Update(history =>
+        {
+            if (!history.Models.TryGetValue(display.Key.Model, out SeenModel? seen) || seen.Record == record) return false;
+            seen.Record = record;
+            return true;
+        });
     }
 }

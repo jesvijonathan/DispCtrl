@@ -1487,7 +1487,15 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             _ = Task.Run(async () =>
             {
                 bool ok = MonitorCapabilities.RestoreFactory(d);
-                if (!ok) return;
+                if (!ok)
+                {
+                    _ui.TryEnqueue(() =>
+                    {
+                        ModeStatus = "DispCtrl settings were reset, but the monitor did not confirm its factory reset.";
+                        Raise(nameof(ModeStatusVisibility));
+                    });
+                    return;
+                }
 
                 // The monitor needs a moment to settle before its new values
                 // read back correctly.

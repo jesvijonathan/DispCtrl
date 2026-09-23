@@ -12,8 +12,9 @@
                        Description="Manage displays, taskbars, colour and OLED protection from one lightweight open-source app."/>
       <tk:SettingsCard Header="Intent"
                        Description="Keep advanced display control local, understandable and efficient, without locking it behind a vendor utility."/>
-      <tk:SettingsCard Header="Created by Jesvi Jonathan" Description="Software developer and open-source maker.">
+      <tk:SettingsCard Header="Created by Jesvi Jonathan" Description="jesvi22j@gmail.com · www.jesvi.net">
         <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Email" Click="OnEmail"/>
           <Button Content="jesvi.net" Click="OnWebsite"/>
           <Button Content="GitHub profile" Click="OnAuthorGitHub"/>
         </StackPanel>

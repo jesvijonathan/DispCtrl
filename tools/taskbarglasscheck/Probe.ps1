@@ -1,4 +1,4 @@
-param([string]$NativeDirectory = "$PSScriptRoot/../../native/DispCtrl.TaskbarGlass/bin")
+param([string]$NativeDirectory = "$PSScriptRoot/../../src/native/DispCtrl.TaskbarGlass/bin")
 $ErrorActionPreference = 'Stop'
 $nativeDir = (Resolve-Path -LiteralPath $NativeDirectory).Path
 $dll = Join-Path $nativeDir (Get-Content -LiteralPath (Join-Path $nativeDir 'TaskbarGlass.version'))

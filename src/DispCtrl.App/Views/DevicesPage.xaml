@@ -18,6 +18,9 @@
       </StackPanel>
 
       <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+        <Button x:Name="ShareAllButton" Content="Share all devices" Click="OnShareAll"
+                Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Share all devices"
+                ToolTipService.ToolTip="Review one issue containing every model in this list, including built-in and disconnected displays."/>
         <Button x:Name="ScanButton" Click="OnScan" AutomationProperties.Name="DevicesScan"
                 ToolTipService.ToolTip="Read every attached monitor again now, including any removed from this list. The engine does this by itself for new models.">
           <StackPanel Orientation="Horizontal" Spacing="8">
@@ -32,7 +35,7 @@
             <TextBlock Text="Open the folder"/>
           </StackPanel>
         </Button>
-        <HyperlinkButton Content="How mapping works"
+        <HyperlinkButton Content="How mapping works" VerticalAlignment="Center"
                          NavigateUri="https://github.com/jesvijonathan/Display-Control/blob/master/docs/DEVICE-LIBRARY.md"/>
       </StackPanel>
 

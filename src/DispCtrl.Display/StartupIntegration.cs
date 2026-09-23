@@ -195,6 +195,31 @@ public static class StartupIntegration
         catch (UnauthorizedAccessException) { }
     }
 
+    /// <summary>The engine the sign-in task starts, or null when there is no task.</summary>
+    /// <remarks>
+    /// Which copy owns sign-in matters once there can be several: an installed
+    /// one, a portable one and a development build. Repair re-points a task only
+    /// when its engine no longer exists, never one that belongs to another copy.
+    /// </remarks>
+    public static string? EngineTaskTarget()
+    {
+        try
+        {
+            var info = new System.Diagnostics.ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "schtasks.exe"))
+            {
+                UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+            };
+            foreach (string a in new[] { "/Query", "/TN", EngineTaskName, "/XML" }) info.ArgumentList.Add(a);
+            using var process = System.Diagnostics.Process.Start(info)!;
+            Task<string> output = process.StandardOutput.ReadToEndAsync();
+            _ = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(10000) || process.ExitCode != 0) return null;
+            var match = System.Text.RegularExpressions.Regex.Match(output.Result, "<Command>(?<c>[^<]+)</Command>");
+            return match.Success ? System.Net.WebUtility.HtmlDecode(match.Groups["c"].Value).Trim().Trim('"') : null;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException) { return null; }
+    }
+
     private static int Schtasks(params string[] arguments)
     {
         var info = new System.Diagnostics.ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "schtasks.exe"))

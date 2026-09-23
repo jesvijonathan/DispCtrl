@@ -4,7 +4,7 @@ Per-monitor display management for Windows 11. A resident engine plus an
 on-demand WinUI 3 panel.
 
 This file is the handover: architecture, the traps already paid for, the
-commands that work, and how to verify a change on real hardware. `docs/ROADMAP.md`
+commands that work, and how to verify a change on real hardware. `docs/design/ROADMAP.md`
 carries the longer reasoning behind individual decisions — this is the operating
 manual.
 
@@ -24,7 +24,7 @@ Two displays, and nearly every hard-won lesson below comes from one of them.
 | Taskbar | hidden by DispCtrl | Windows' own auto-hide |
 | DDC/CI | none — built-in panels have no channel | 37 VCP controls, 11 offered |
 
-Token identities: `SDC-4154-E2387367` (internal), `DEL-A234-3QQQ2X3` (Dell).
+Token identities: `SDC-4154-0A1B2C3D` (internal), `DEL-A234-9XYZ7K1` (Dell).
 
 **Leave the desk as you found it.** Brightness 68% internal / 62% Dell, night
 light off, Dell contrast 75. Several bugs in this project's history were caused
@@ -49,7 +49,7 @@ DispCtrl.Control   shared JSON command API, console frontend and named-pipe brok
 Clients share atomic, merge-aware `settings.json`; the engine watches it with a
 `FileSystemWatcher` (120 ms debounce). The engine also hosts a user/session-scoped
 named-pipe command broker. The CLI falls back to local execution when the broker
-is absent. See `docs/CLI.md` and `docs/IMPLEMENTATION-CHECKLIST.md` for coverage and
+is absent. See `docs/CLI.md` and `docs/design/IMPLEMENTATION-CHECKLIST.md` for coverage and
 remaining migration work; older adapter paths still exist in the UI.
 
 `DispCtrl.Display` used to be the app's alone, on the reasoning that every call in
@@ -685,7 +685,7 @@ unrecallable.
     being submitted: a preset names the whole desk, and
     `dispctrl contribute --display 2` narrows the caller's list to one.
 - **A device instance id does not need its path prefix to identify a machine.**
-  `5&1af48b2f&0&UID256` on its own does it, and this laptop's wallpaper tool
+  `5&3c9e07d1&0&UID256` on its own does it, and this laptop's wallpaper tool
   writes it into file names. `InstanceId` catches the bare form.
 - **Check for fragments, not just whole strings.** Both leaks survived checks
   that looked for `Jesvi Jonathan` and the full device path, because what
@@ -774,6 +774,18 @@ unrecallable.
 - **Release output has one fixed place**, `artifacts/<channel>-<version>/`,
   cleared on each run. It used to be a new GUID-suffixed folder per publish and
   per MSIX, each with a full staging copy: 2 GB had accumulated.
+- **The engine restores taskbars from a crash handler.** An exception on a
+  timer or pool thread ends the process without unwinding through the
+  manager; `AppDomain.UnhandledException` calls `TaskbarManager.EmergencyRestore`
+  first. Do not remove it.
+- **Tray icon promotion is once per engine path** (`Global.TrayPromotedFor`).
+  After that, where the icon sits is the person's choice; never re-promote.
+- **Repair never re-points a sign-in task another copy owns.** An installed
+  copy, a portable one and a development build can all exist; `maintenance
+  repair` only fixes a task whose engine is missing.
+- **Repository layout**: `.claude/` this file, `.github/` community files,
+  `build/packaging/` MSIX and installer, `src/native/` the glass helper,
+  `docs/design/` internal notes. Session exports stay in `.notes/`, ignored.
 - `DispCtrlVersion` in `Directory.Build.props` is the default `Version`; a
   stable tag that disagrees with it fails `release.yml`. Bump it in the
   release commit. See `docs/RELEASING.md` for the whole procedure and the
@@ -859,14 +871,14 @@ drag/apply, presets with per-app rules, monitor capability discovery and control
 display report, identify overlays, hotplug re-discovery, device contribution
 (anonymised, consent-gated), the quick panel and tray icon, Windows' brightness
 slider and keys driving unison, the control API and `dispctrl` JSON surface.
-`docs/IMPLEMENTATION-CHECKLIST.md` records how each recent item was verified and
+`docs/design/IMPLEMENTATION-CHECKLIST.md` records how each recent item was verified and
 what is still unverified: CI has never run on GitHub, the MSIX has been
 packed but not installed, signed or certified, and the installer has been
 compiled but not installed (see "Release and installer").
 
 Outstanding, roughly in the order last discussed:
 
-See `docs/FEATURES.md` for the full candidate list with effort and risk. The
+See `docs/design/FEATURES.md` for the full candidate list with effort and risk. The
 short version, in recommended order:
 
 1. ~~Brightness fallback, high-level to VCP `0x10`~~ — **done**.
@@ -892,7 +904,7 @@ short version, in recommended order:
 
 Cloned outside the repo at `../refs/` (not tracked, re-clone with
 `git clone --depth 1`). Read before designing anything in their territory —
-`docs/FEATURES.md` lists what was taken from each and why.
+`docs/design/FEATURES.md` lists what was taken from each and why.
 
 | Repo | Language | Worth reading for |
 |---|---|---|

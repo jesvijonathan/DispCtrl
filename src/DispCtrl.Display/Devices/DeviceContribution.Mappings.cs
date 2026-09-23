@@ -49,17 +49,20 @@ public static partial class DeviceContribution
         string name = seen?.Name ?? attached?.Label ?? model;
 
         var sb = new StringBuilder();
-        if (attached is not null)
+        if (seen?.Record is { Length: > 0 } recordOnDisk)
         {
-            bool? isOled = null;
-            try { isOled = Core.Settings.SettingsStore.Load().For(attached.Token).IsOled; } catch (Exception) { }
-            sb.AppendLine(DeviceSubmission.Build(attached, isOled).ToRepositoryMarkdown());
+            sb.AppendLine(recordOnDisk);
         }
         else
         {
             sb.AppendLine($"### {name} ({model})");
             sb.AppendLine();
-            sb.AppendLine("Shared from this machine's history; the monitor was not attached.");
+            if (seen is not null)
+            {
+                sb.AppendLine($"Connection: {seen.Connector}. {(seen.BuiltIn ? "Built-in panel." : "External monitor.")}");
+                if (seen.WidthMm > 0 && seen.HeightMm > 0) sb.AppendLine($"Physical size: {seen.WidthMm} x {seen.HeightMm} mm.");
+            }
+            sb.AppendLine("Shared from saved discovery. A full model record has not been collected yet; the known codes and mappings follow.");
         }
 
         var payload = new JsonObject
@@ -90,7 +93,7 @@ public static partial class DeviceContribution
         }
         catch (Exception) { }
 
-        string title = WebUtility.UrlEncode($"Device mapping: {name} ({model})");
+        string title = WebUtility.UrlEncode(Redact.Ascii(Redact.Scrub($"Device mapping: {name} ({model})", Identifiers(null))));
         string labels = WebUtility.UrlEncode($"device,{MappingLabel}");
         string Link(string text) => $"https://github.com/{Repository}/issues/new?title={title}&labels={labels}&body={WebUtility.UrlEncode(text)}";
 
@@ -107,16 +110,38 @@ public static partial class DeviceContribution
         if (Link(placeholder + mappings).Length <= MaxUrlLength)
             return new MappingShare(model, name, body, path, new Uri(Link(placeholder + mappings)), false, record);
 
-        // Still too long: a monitor with very many unnamed codes. The observed
-        // values go to the clipboard too; the definitions and codes stay.
-        var lean = (JsonObject)payload.DeepClone();
-        if (lean["observed"]?["codes"] is JsonObject leanCodes)
-            foreach (var (_, entry) in leanCodes) (entry as JsonObject)?.Remove("observed");
-        string leanMappings = Mappings(lean);
-        if (Link(placeholder + leanMappings).Length <= MaxUrlLength)
-            return new MappingShare(model, name, body, path, new Uri(Link(placeholder + leanMappings)), false, body);
+        // Keep one JSON block per model. Prefilling a reduced block and asking
+        // for the complete body to be pasted used to leave two conflicting ones.
         return new MappingShare(model, name, body, path,
-            new Uri($"https://github.com/{Repository}/issues/new?title={title}&labels={labels}"), false, body);
+            new Uri(Link("Paste the complete device share copied by DispCtrl here, replacing this line.")), false, body);
+    }
+
+    /// <summary>Combines every model in the device list into one reviewable issue.</summary>
+    public static MappingShare PrepareMappings(IReadOnlyList<DisplayInfo> attached)
+    {
+        string[] models = DeviceHistory.Load().Models.Keys.Order(StringComparer.Ordinal).ToArray();
+        if (models.Length == 0) throw new ArgumentException("No devices have been recorded yet.");
+        var shares = models.Select(model => PrepareMapping(model,
+            attached.FirstOrDefault(d => d.Key.Model.Equals(model, StringComparison.OrdinalIgnoreCase)))).ToArray();
+        return CombineMappings(shares);
+    }
+
+    /// <summary>Fits a set of complete model shares into one link without discarding any model.</summary>
+    public static MappingShare CombineMappings(IReadOnlyList<MappingShare> shares)
+    {
+        if (shares.Count == 0) throw new ArgumentException("No devices to share.");
+        string body = string.Join("\n\n---\n\n", shares.Select(s => s.Body.Trim()));
+        string title = $"Device library: {shares.Count} model(s)";
+        string summary = "Devices: " + string.Join(", ", shares.Select(s => s.Model))
+            + "\n\nPaste the complete device share copied by DispCtrl here, replacing this text.";
+        string Link(string text) => $"https://github.com/{Repository}/issues/new?labels=device,{MappingLabel}"
+            + $"&title={WebUtility.UrlEncode(title)}&body={WebUtility.UrlEncode(text)}";
+        bool fits = Link(body).Length <= MaxUrlLength;
+        if (Link(summary).Length > MaxUrlLength) summary = "Paste the complete device share copied by DispCtrl here.";
+        string path = System.IO.Path.Combine(Outbox, "all-devices.md");
+        Directory.CreateDirectory(Outbox);
+        File.WriteAllText(path, body);
+        return new MappingShare("all", title, body, path, new Uri(Link(fits ? body : summary)), fits, fits ? null : body);
     }
 
     /// <summary>What the history knows about a model's codes, without anybody's settings.</summary>

@@ -413,7 +413,7 @@ Console.WriteLine("EDID, decoded from the panels actually attached");
 Console.WriteLine();
 Console.WriteLine("redaction: what must never be published");
 
-const string Serial = "3QQQ2X3";
+const string Serial = "9XYZ7K1";
 string[] serials = [Serial];
 
 Check("a serial is removed", !Redact.Scrub($"Serial {Serial} here", serials).Contains(Serial));
@@ -421,7 +421,7 @@ Check("a serial is removed whatever its case",
     !Redact.Scrub($"serial {Serial.ToLowerInvariant()}", serials).Contains(Serial, StringComparison.OrdinalIgnoreCase));
 
 Check("a device path is removed",
-    !Redact.Scrub(@"path \\?\DISPLAY#SDC4154#5&1af48b2f&0&UID256#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}")
+    !Redact.Scrub(@"path \\?\DISPLAY#SDC4154#5&3c9e07d1&0&UID256#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}")
         .Contains("SDC4154#5"));
 
 Check("a user profile path is removed",
@@ -437,10 +437,10 @@ Check("a profile path survives no part of a spaced account name",
 // And the fragment it was hiding: an instance id does not need its path prefix
 // to identify one panel on one port of one machine.
 Check("a bare device instance id is removed",
-    !Redact.Scrub("Shift-SDC4154#5&1af48b2f&0&UID256-2.jpg").Contains("1af48b2f"));
+    !Redact.Scrub("Shift-SDC4154#5&3c9e07d1&0&UID256-2.jpg").Contains("3c9e07d1"));
 
 Check("an instance id inside a file name is removed",
-    !Redact.Scrub(@"C:\x\Shift-DELA234#5&1af48b2f&0&UID257#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}-2.jpg")
+    !Redact.Scrub(@"C:\x\Shift-DELA234#5&3c9e07d1&0&UID257#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}-2.jpg")
         .Contains("UID257"));
 
 Check("a bare GUID is removed",

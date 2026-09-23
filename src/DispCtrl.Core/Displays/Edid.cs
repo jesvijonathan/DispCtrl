@@ -32,7 +32,7 @@ public static class Edid
 
     /// <summary>Model and serial as the panel reports them; either may be empty.</summary>
     /// <param name="Model">e.g. <c>DEL-A234</c> — manufacturer plus product code.</param>
-    /// <param name="Serial">e.g. <c>3QQQ2X3</c>, or empty when none is reported.</param>
+    /// <param name="Serial">e.g. <c>9XYZ7K1</c>, or empty when none is reported.</param>
     public readonly record struct Identity(string Model, string Serial);
 
     /// <summary>
@@ -40,7 +40,7 @@ public static class Edid
     /// </summary>
     /// <param name="devicePath">
     /// A CCD monitor device path, e.g.
-    /// <c>\\?\DISPLAY#DELA234#5&amp;1af48b2f&amp;0&amp;UID257#{guid}</c>.
+    /// <c>\\?\DISPLAY#DELA234#5&amp;3c9e07d1&amp;0&amp;UID257#{guid}</c>.
     /// </param>
     /// <remarks>
     /// Model and serial stay separate rather than being pre-joined: a model
@@ -180,8 +180,8 @@ public static class Edid
     }
 
     /// <summary>
-    /// <c>\\?\DISPLAY#DELA234#5&amp;1af48b2f&amp;0&amp;UID257#{guid}</c> becomes
-    /// <c>DISPLAY\DELA234\5&amp;1af48b2f&amp;0&amp;UID257</c>.
+    /// <c>\\?\DISPLAY#DELA234#5&amp;3c9e07d1&amp;0&amp;UID257#{guid}</c> becomes
+    /// <c>DISPLAY\DELA234\5&amp;3c9e07d1&amp;0&amp;UID257</c>.
     /// </summary>
     private static string? ToEnumSubKey(string devicePath)
     {

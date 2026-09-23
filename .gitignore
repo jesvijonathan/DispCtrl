@@ -21,3 +21,8 @@ packaging/out/
 # Developer tools fetched by build/dev.ps1 and build.sh, and local choices.
 .tools/
 build/local.json
+
+# Conversation exports and agent session logs: private, never committed.
+/*-this-session-*.txt
+/codex-session-*.md
+/*.session.md

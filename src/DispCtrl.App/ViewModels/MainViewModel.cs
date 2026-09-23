@@ -1754,6 +1754,23 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Stops the engine gracefully, waits for it to go, and starts it again.</summary>
+    /// <returns>False when it did not stop within 20 seconds, or would not start.</returns>
+    public async Task<bool> RestartEngineAsync()
+    {
+        if (EngineController.Query().Running)
+        {
+            EngineController.Stop();
+            // It restores every taskbar before it exits; starting a second one
+            // meanwhile would have two engines managing Explorer.
+            for (int i = 0; i < 80 && EngineController.Query().Running; i++) await Task.Delay(250);
+            if (EngineController.Query().Running) return false;
+        }
+        bool started = _engine.Start();
+        RefreshEngineStatus();
+        return started;
+    }
+
     public void SetEngineRunning(bool running)
     {
         if (running == _status.Running) return;

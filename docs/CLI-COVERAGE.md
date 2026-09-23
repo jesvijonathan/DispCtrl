@@ -62,7 +62,7 @@ calls it. The Devices page already works that way - it sends the same
 | Density, width, toggles per row, height | `tray set --density comfortable --width 360 --tile-columns 4 --fixed-height off` |
 | Sections, toggles, rows, switches, and their order | `tray set --sections '["unison","tiles","displays"]'` (and `--tiles`, `--display-rows`, `--display-tiles`) |
 | Your tiles | `tray set --custom-tiles '[...]'` |
-| Which displays | `tray set --hidden-displays '["DEL-A234-3QQQ2X3"]'` |
+| Which displays | `tray set --hidden-displays '["DEL-A234-9XYZ7K1"]'` |
 | Open it | `tray show` |
 | Reset | `tray reset` |
 

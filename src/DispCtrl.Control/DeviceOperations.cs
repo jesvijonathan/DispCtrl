@@ -56,6 +56,9 @@ public sealed partial class ControlService
     private static JsonNode DevicesList(JsonObject args)
     {
         Only(args, "list");
+        // Opening the page also records arrivals when the resident engine is
+        // stopped; enumeration itself does not touch a DDC/CI control.
+        DeviceObserver.Attached(DisplayRegistry.Enumerate());
         DeviceHistory history = DeviceHistory.Load();
         var attached = DisplayRegistry.Enumerate().Select(d => d.Key.Model).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var models = new JsonArray();
@@ -139,6 +142,8 @@ public sealed partial class ControlService
             entry["writable"] = mapped.Definition.Writable;
             entry["confidence"] = mapped.Definition.Confidence;
             entry["origin"] = mapped.Origin;
+            entry["maximum"] = mapped.Definition.Maximum;
+            entry["notes"] = mapped.Definition.Notes;
             entry["values"] = new JsonArray(mapped.Definition.Values
                 .Select(v => (JsonNode)new JsonObject { ["value"] = v.Value, ["name"] = v.Name }).ToArray());
         }
@@ -156,8 +161,14 @@ public sealed partial class ControlService
         DeviceObserver.Attached(displays);
         foreach (DisplayInfo d in displays)
         {
-            if (d.IsInternal) { scanned.Add((JsonNode)new JsonObject { ["model"] = d.Key.Model, ["ddc"] = false }); continue; }
+            if (d.IsInternal)
+            {
+                DeviceDiscovery.CacheRecord(d);
+                scanned.Add((JsonNode)new JsonObject { ["model"] = d.Key.Model, ["ddc"] = false });
+                continue;
+            }
             MonitorCapability c = MonitorCapabilities.Read(d);
+            DeviceDiscovery.CacheRecord(d);
             scanned.Add((JsonNode)new JsonObject { ["model"] = d.Key.Model, ["ddc"] = c.Supported, ["codes"] = c.Controls.Count });
         }
         return new JsonObject { ["scanned"] = scanned, ["history"] = DeviceHistory.PathOnDisk };
@@ -302,22 +313,30 @@ public sealed partial class ControlService
 
     private static JsonNode DevicesShare(JsonObject args)
     {
-        Only(args, "share", "monitor", "model", "open");
-        var (model, display) = ModelOf(args);
-        MappingShare share = DeviceContribution.PrepareMapping(model, display);
+        Only(args, "share", "monitor", "model", "all", "open");
+        bool all = Flag(args, "all");
+        if (all && (args.ContainsKey("model") || args.ContainsKey("monitor")))
+            throw new ArgumentException("Choose --all or a single --model/--monitor.");
+        MappingShare share;
+        if (all) share = DeviceContribution.PrepareMappings(DisplayRegistry.Enumerate());
+        else
+        {
+            var (model, display) = ModelOf(args);
+            share = DeviceContribution.PrepareMapping(model, display);
+        }
         bool open = Flag(args, "open");
         // What did not fit in the link goes to the clipboard before the browser
         // opens, as the app does. clip.exe, because a console process has no
         // clipboard API of its own; the text is ASCII, so no code page matters.
         bool copied = open && share.Paste is not null && DeviceContribution.CopyToClipboard(share.Paste);
-        bool opened = open && DeviceContribution.Open(share);
+        bool opened = open && (share.Paste is null || copied) && DeviceContribution.Open(share);
         return new JsonObject
         {
-            ["model"] = model, ["path"] = share.Path, ["url"] = share.Url.ToString(), ["prefilled"] = share.Prefilled,
+            ["model"] = share.Model, ["path"] = share.Path, ["url"] = share.Url.ToString(), ["prefilled"] = share.Prefilled,
             ["opened"] = opened, ["copied"] = copied,
             ["note"] = share.Paste is null ? null
-                : copied ? "The mappings are in the issue; the rest is on the clipboard - paste it where the issue says."
-                : $"The mappings are in the issue; paste the rest from {share.Path}.",
+                : copied ? "Paste the copied text where the issue asks for it."
+                : $"The share needs pasted text; copy it from the paste field or {share.Path}.",
             ["paste"] = share.Paste,
             ["body"] = share.Body,
         };

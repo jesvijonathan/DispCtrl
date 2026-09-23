@@ -11,4 +11,4 @@
 - [ ] `presetcheck` passes (if settings, presets or device records changed)
 - [ ] Tested on real displays, and the desk was left as it was found
 - [ ] New behaviour is reachable from `dispctrl` as well as the app
-- [ ] `CHANGELOG.md` has an entry under Unreleased (if a user would notice)
+- [ ] `docs/CHANGELOG.md` has an entry under Unreleased (if a user would notice)

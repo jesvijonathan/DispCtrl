@@ -86,7 +86,7 @@ internal sealed class UnisonHotplug : IDisposable
             _attached = displays.Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
             if (arrived.Count == 0) return;
             // The DDC/CI channel is not up when the monitor enumerates.
-            Learn(arrived, ReadyDelayMs * 2);
+            Learn(displays, ReadyDelayMs * 2);
 
             DispCtrlSettings settings = SettingsStore.Load();
             if (!settings.Global.UnisonBrightness || UnisonCalibration.IsActive) return;

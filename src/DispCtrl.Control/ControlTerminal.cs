@@ -8,7 +8,7 @@ namespace DispCtrl.Control;
 
 public static class ControlTerminal
 {
-    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys"];
+    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance"];
     public static bool Handles(string[] args) => args.Length > 0 && (Roots.Contains(args[0])
         || args[0] == "nightlight" && args.Length > 1 && args[1] is "get" or "set" or "reset"
         || args[0] == "topology" && args.Length > 1 && args[1] is "get" or "set");
@@ -39,6 +39,7 @@ public static class ControlTerminal
                   [--kind range|choice|action|information] [--writable] [--scope model|brand|all]
       devices unmap|link|definitions        Remove, cross-link (--to DEL-A233), inspect layers
       devices share --monitor ID [--open]   Record and mappings as one prefilled issue
+      devices share --all [--open]          Every recorded model in one issue
       devices validate FILE                 Check a definition before sharing it
       settings get|schema                   Full settings tree or generated JSON schema
       settings set --path /global/... --value JSON
@@ -58,6 +59,7 @@ public static class ControlTerminal
       oled preview --percent 50             Two-second preview (engine + care enabled)
       oled rest --monitor ID --minutes 5    Manual screen rest policy
       engine start|stop|status              Manage the resident engine
+      maintenance repair|clear-cache        Fix the sign-in task and shortcuts; clear logs and cached data
       apply FILE [--dry-run]                Ordered display + settings operations
       watch [--events displays,settings,engine] [--interval 500]
       watch --script PATH.ps1               Run an explicit script on changed state

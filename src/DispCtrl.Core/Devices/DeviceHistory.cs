@@ -40,14 +40,19 @@ public sealed class DeviceHistory
 
     private static readonly Lock Gate = new();
 
-    public static DeviceHistory Load()
+    public static DeviceHistory Load() => Read(strict: false);
+
+    private static DeviceHistory Read(bool strict)
     {
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize(File.ReadAllText(FilePath), DeviceJsonContext.Default.DeviceHistory) ?? new();
+            {
+                using var stream = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                return JsonSerializer.Deserialize(stream, DeviceJsonContext.Default.DeviceHistory) ?? new();
+            }
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { }
+        catch (Exception ex) when (!strict && (ex is JsonException or IOException or UnauthorizedAccessException)) { }
         return new DeviceHistory();
     }
 
@@ -68,14 +73,16 @@ public sealed class DeviceHistory
             if (!held) return;
             try
             {
-                DeviceHistory history = Load();
+                // A sharing violation must not turn an existing library into
+                // an empty one that this update would then overwrite.
+                DeviceHistory history = Read(strict: true);
                 if (!change(history)) return;
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
                 string temp = FilePath + ".tmp";
                 File.WriteAllText(temp, JsonSerializer.Serialize(history, DeviceJsonContext.Default.DeviceHistory));
                 File.Move(temp, FilePath, overwrite: true);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { }
             finally { mutex.ReleaseMutex(); }
         }
     }
@@ -91,7 +98,8 @@ public sealed class DeviceHistory
             bool fresh = !h.Models.TryGetValue(model, out SeenModel? m);
             m ??= h.Models[model] = new SeenModel { Key = model, FirstSeen = now };
             // A sighting a day, not a write per rescan.
-            bool changed = fresh || m.Name != name || m.Connector != connector || (now - m.LastSeen).TotalHours >= 24;
+            bool changed = fresh || m.Name != name || m.Connector != connector || m.BuiltIn != builtIn
+                || m.WidthMm != widthMm || m.HeightMm != heightMm || (now - m.LastSeen).TotalHours >= 24;
             if (!changed) return false;
             m.Name = name; m.Connector = connector; m.BuiltIn = builtIn;
             m.WidthMm = widthMm; m.HeightMm = heightMm;
@@ -177,6 +185,9 @@ public sealed class SeenModel
 
     /// <summary>The MCCS capabilities string, verbatim.</summary>
     public string? Capabilities { get; set; }
+
+    /// <summary>The scrubbed public model record collected in the background, never a private diagnostic report.</summary>
+    public string? Record { get; set; }
 
     public Dictionary<string, SeenCode> Codes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

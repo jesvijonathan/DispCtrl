@@ -15,7 +15,7 @@ with serial numbers, device paths and your account name removed. It shows you
 the text and opens a prefilled issue for you to submit. Nothing is sent without
 your press. If the monitor has manufacturer-specific codes you can identify,
 `dispctrl devices probe` and `dispctrl devices map` name them. See
-[docs/DEVICE-LIBRARY.md](docs/DEVICE-LIBRARY.md).
+[docs/DEVICE-LIBRARY.md](../docs/DEVICE-LIBRARY.md).
 
 ## Reporting a bug
 
@@ -34,10 +34,10 @@ scrubbed for you.
 
 ## Changing code
 
-1. Read [CLAUDE.md](CLAUDE.md). It is the handover document: the architecture,
+1. Read [CLAUDE.md](../.claude/CLAUDE.md). It is the handover document: the architecture,
    the build commands, and a long list of traps that have already cost a crash
    or a corrupted setting. Most bugs worth fixing here were caused by one of them.
-2. Set up and build. [docs/DEVELOPING.md](docs/DEVELOPING.md) has the details:
+2. Set up and build. [docs/DEVELOPING.md](../docs/DEVELOPING.md) has the details:
    ```powershell
    .\build.cmd setup -Install
    .\build.cmd build
@@ -70,9 +70,9 @@ scrubbed for you.
 Commit messages are prose: what changed, why, and how you verified it, including
 on which hardware. The pull request template asks the same questions. Keep one
 concern per pull request, and add an entry under **Unreleased** in
-[CHANGELOG.md](CHANGELOG.md) for anything a user would notice.
+[CHANGELOG.md](../docs/CHANGELOG.md) for anything a user would notice.
 
 ## Licence
 
 By contributing you agree that your contribution is licensed under the
-[MIT licence](LICENSE).
+[MIT licence](../LICENSE).

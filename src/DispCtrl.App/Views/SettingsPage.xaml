@@ -36,16 +36,42 @@
         <ToggleSwitch IsOn="{x:Bind ViewModel.Logging, Mode=TwoWay}"/>
       </tk:SettingsCard>
 
-      <TextBlock Text="Reset"
+      <TextBlock Text="Updates and maintenance"
                  Style="{StaticResource BodyStrongTextBlockStyle}"
                  Margin="0,28,0,8"/>
 
+      <InfoBar x:Name="MaintenanceResult" IsOpen="False" IsClosable="True" Margin="0,0,0,8"/>
+
+      <tk:SettingsCard x:Name="UpdateCard" Header="Updates"
+                       Description="DispCtrl never checks by itself. Download the latest release and run it: it updates in place and keeps your settings.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE895;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Check for updates" Click="OnCheckUpdates" AutomationProperties.Name="CheckForUpdates"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Repair"
+                       Description="Puts back the sign-in task and the Start menu shortcut if something removed them, and restarts the engine. No setting changes.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE90F;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button x:Name="RepairButton" Content="Repair" Click="OnRepair" AutomationProperties.Name="Repair"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Clear logs and cached data"
+                       Description="Logs, and what DispCtrl learned about your monitors, which it reads again by itself. Settings, presets and codes you named are kept.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE74D;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Clear" Click="OnClearCache" AutomationProperties.Name="ClearCache"/>
+      </tk:SettingsCard>
+
       <tk:SettingsCard Header="Reset everything"
-                       Description="Returns all of DispCtrl's settings, for every monitor, to their defaults. Windows' own display settings are left alone.">
+                       Description="Returns all of DispCtrl's settings, every monitor's and the shortcuts, to their defaults. Windows' own display settings are left alone.">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE777;"/>
         </tk:SettingsCard.HeaderIcon>
-        <Button Content="Reset all" Click="OnResetAll"/>
+        <Button Content="Reset all" Click="OnResetAll" AutomationProperties.Name="ResetAll"/>
       </tk:SettingsCard>
 
     </StackPanel>

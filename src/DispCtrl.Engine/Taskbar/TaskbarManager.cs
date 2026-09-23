@@ -796,6 +796,24 @@ internal sealed class TaskbarManager
         foreach (Bar b in _bars) RestoreBar(b);
     }
 
+    /// <summary>
+    /// Puts every bar back from a thread that is not the manager's, as the
+    /// process dies of an exception somewhere else.
+    /// </summary>
+    /// <remarks>
+    /// The main loop unwinds through <see cref="Restore"/>; an exception on a
+    /// timer or a pool thread does not, and killed the engine with its bars
+    /// still parked off-screen. The list is copied first because the loop may
+    /// be halfway through changing it; a bar restored twice is harmless.
+    /// </remarks>
+    public void EmergencyRestore()
+    {
+        Bar[] bars;
+        try { bars = [.. _bars]; }
+        catch (Exception) { return; }
+        foreach (Bar b in bars) RestoreBar(b);
+    }
+
     private static unsafe void RestoreBar(Bar b)
     {
         try

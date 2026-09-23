@@ -51,7 +51,7 @@ try {
         } finally { $graphics.Dispose(); $bitmap.Dispose() }
     }
 } finally { $original.Dispose(); $icon.Dispose() }
-$manifest = [xml](Get-Content -LiteralPath (Join-Path $repo 'packaging/AppxManifest.xml') -Raw)
+$manifest = [xml](Get-Content -LiteralPath (Join-Path $repo 'build/packaging/AppxManifest.xml') -Raw)
 $manifest.Package.Identity.SetAttribute('Name',$IdentityName)
 $manifest.Package.Identity.SetAttribute('Publisher',$Publisher)
 $manifest.Package.Identity.SetAttribute('Version',$Version)

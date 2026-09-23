@@ -17,11 +17,12 @@ foreach ($exe in @('DispCtrl.App.exe','DispCtrl.Engine.exe','dispctrl.exe')) {
 }
 if (-not $Iscc) { $Iscc = $env:DISPCTRL_ISCC }
 if (-not $Iscc) {
-    $candidates = foreach ($major in 7, 6) {
+    # The portable copy `build.cmd setup` fetches, then installed ones.
+    $candidates = @(Join-Path $repo '.tools\innosetup\tools\ISCC.exe') + @(foreach ($major in 7, 6) {
         (Join-Path ${env:ProgramFiles(x86)} "Inno Setup $major\ISCC.exe")
         (Join-Path $env:ProgramFiles "Inno Setup $major\ISCC.exe")
         (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup $major\ISCC.exe")
-    }
+    })
     $Iscc = @($candidates | Where-Object { Test-Path -LiteralPath $_ }) + @((Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source) |
         Where-Object { $_ } | Select-Object -First 1
 }
@@ -33,7 +34,7 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 # Inno's VersionInfoVersion takes up to four numeric parts; the file name and
 # the Add/Remove Programs entry keep the three the release uses.
-& $Iscc /Qp "/DAppVersion=$Version" "/DChannel=$Channel" "/DSourceDir=$source" "/DRepoRoot=$repo" "/DOutputDir=$OutputDirectory" (Join-Path $repo 'packaging/installer/DispCtrl.iss')
+& $Iscc /Qp "/DAppVersion=$Version" "/DChannel=$Channel" "/DSourceDir=$source" "/DRepoRoot=$repo" "/DOutputDir=$OutputDirectory" (Join-Path $repo 'build/packaging/installer/DispCtrl.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
 $setup = Join-Path $OutputDirectory "DispCtrl-$Version-$Channel-win-x64-setup.exe"
 if (-not (Test-Path -LiteralPath $setup)) { throw "Inno Setup reported success but $setup is missing." }

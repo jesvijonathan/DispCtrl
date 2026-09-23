@@ -157,7 +157,7 @@ public sealed record DeviceSubmission
     /// and whether a model is OLED is exactly the sort of thing this database
     /// exists to answer.
     /// </param>
-    public static DeviceSubmission Build(DisplayInfo display, bool? isOled = null)
+    public static DeviceSubmission Build(DisplayInfo display, bool? isOled = null, bool includePrivateDetails = true)
     {
         MonitorCapability capability = Safely(() => MonitorCapabilities.Read(display), MonitorCapability.None);
         DisplayDetail detail = Safely(() => DisplayDetails.Read(display), new DisplayDetail());
@@ -238,8 +238,8 @@ public sealed record DeviceSubmission
             Capabilities = capability.Raw,
             Controls = controls,
             Commands = capability.Commands,
-            FullReport = Safely(() => DisplayReport.For(display), ""),
-            Presets = Safely(DisplayReport.Presets, ""),
+            FullReport = includePrivateDetails ? Safely(() => DisplayReport.For(display), "") : "",
+            Presets = includePrivateDetails ? Safely(DisplayReport.Presets, "") : "",
             Edid = Safely(() => EdidReader.Describe(display.Key.DevicePath), EdidDetails.None),
             SettableCount = settable,
         };
@@ -766,7 +766,7 @@ public static partial class Redact
 
     private const string Removed = "[removed]";
 
-    // \\?\DISPLAY#SDC4154#5&1af48b2f&0&UID256#{guid}
+    // \\?\DISPLAY#SDC4154#5&3c9e07d1&0&UID256#{guid}
     [GeneratedRegex(@"\\\\[?.]\\[A-Za-z0-9#&{}\-]+", RegexOptions.None, 200)]
     private static partial Regex DevicePath();
 
@@ -789,7 +789,7 @@ public static partial class Redact
     /// A Windows device instance id, with or without its path prefix.
     /// </summary>
     /// <remarks>
-    /// <c>5&amp;1af48b2f&amp;0&amp;UID256</c> identifies one panel on one port of one
+    /// <c>5&amp;3c9e07d1&amp;0&amp;UID256</c> identifies one panel on one port of one
     /// machine. It normally arrives inside a <c>\\?\DISPLAY#...</c> path that
     /// <see cref="DevicePath"/> catches, but this laptop's wallpaper tool bakes
     /// it into a file name, where nothing was looking for it.

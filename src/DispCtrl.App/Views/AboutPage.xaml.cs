@@ -21,4 +21,5 @@ public sealed partial class AboutPage : Page
     private void OnAuthorGitHub(object sender, RoutedEventArgs e) => ProjectLinks.Open(ProjectLinks.AuthorGitHub);
     private void OnRepository(object sender, RoutedEventArgs e) => ProjectLinks.Open(ProjectLinks.Repository);
     private void OnSponsor(object sender, RoutedEventArgs e) => ProjectLinks.Open(ProjectLinks.Sponsor);
+    private void OnEmail(object sender, RoutedEventArgs e) => ProjectLinks.Open(ProjectLinks.Email);
 }

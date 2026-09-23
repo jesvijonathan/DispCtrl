@@ -165,7 +165,7 @@ try
     var unsafeDefinition = new DispCtrl.Core.Devices.DeviceDefinition
     {
         Target = "DEL-A234",
-        Controls = [Named("0xE2", "Seen on C:\\Users\\someone"), Named("0xE2", "twice"), Named("0xE5", "SN 3QQQ2X3A9"),
+        Controls = [Named("0xE2", "Seen on C:\\Users\\someone"), Named("0xE2", "twice"), Named("0xE5", "SN 9XYZ7K1A9"),
             new() { Code = "0xE6", Name = "Writable choice without values", Kind = "choice", Writable = true },
             new() { Code = "E7", Name = "bad code" }],
     };
@@ -174,14 +174,14 @@ try
         && problems.Any(p => p.Contains("list its values")) && problems.Any(p => p.Contains("0x00 to 0xFF")),
         "definitions refuse paths, serials, duplicates, unsafe writable choices and bad codes");
     Check(DispCtrl.Core.Devices.DeviceDefinitions.KeyFor("Input source (DP 1.4)") == "input-source-dp-1-4"
-        && DispCtrl.Core.Devices.DeviceDefinitions.IsModel("DEL-A234") && !DispCtrl.Core.Devices.DeviceDefinitions.IsModel("DEL-A234-3QQQ2X3"),
+        && DispCtrl.Core.Devices.DeviceDefinitions.IsModel("DEL-A234") && !DispCtrl.Core.Devices.DeviceDefinitions.IsModel("DEL-A234-9XYZ7K1"),
         "keys are words joined by dashes, and a token is never a model");
     DispCtrl.Core.Devices.DeviceHistory.PathOverride = Path.Combine(scratch, "history.json");
     try
     {
         DispCtrl.Core.Devices.DeviceHistory.Listed("DEL-A234", "(vcp(E2))", [new(0xE2, "Manufacturer-specific control E2", "Information", [], 0)]);
         DispCtrl.Core.Devices.DeviceHistory.Listed("DEL-A234", "(vcp(E2))", [new(0xE2, "Manufacturer-specific control E2", "Information", [], 11)]);
-        DispCtrl.Core.Devices.DeviceHistory.Listed("DEL-A234-3QQQ2X3", "", []);
+        DispCtrl.Core.Devices.DeviceHistory.Listed("DEL-A234-9XYZ7K1", "", []);
         var history = DispCtrl.Core.Devices.DeviceHistory.Load();
         Check(history.Models.Count == 1 && history.Models["DEL-A234"].Codes["0xE2"].Observed.SequenceEqual([0, 11]),
             "history keeps each value a code was seen at, and never records a unit token as a model");
@@ -193,6 +193,11 @@ try
             "automatic sightings and code reads cannot restore a removed device");
         DispCtrl.Core.Devices.DeviceHistoryEdits.Remember(["DEL-A234"]);
         Check(DispCtrl.Core.Devices.DeviceHistoryEdits.NeedsReading("DEL-A234"), "explicit sync allows a removed model to be discovered again");
+        DispCtrl.Core.Devices.DeviceHistory.Seen("DEL-A234", "Dell", "DisplayPort", false, 527, 296);
+        using (var heldHistory = new FileStream(DispCtrl.Core.Devices.DeviceHistory.PathOverride!, FileMode.Open, FileAccess.Read, FileShare.None))
+            DispCtrl.Core.Devices.DeviceHistory.Seen("SDC-4154", "Built-in", "Internal", true, 302, 189);
+        Check(DispCtrl.Core.Devices.DeviceHistory.Load().Models.ContainsKey("DEL-A234"),
+            "an unreadable history cannot be overwritten with an empty library during discovery");
     }
     finally { DispCtrl.Core.Devices.DeviceHistory.PathOverride = null; }
     // ---- quick panel folding and hotkey defaults ----
@@ -228,6 +233,7 @@ try
     resetAll.Global.UnisonFollowsWindows = true;
     resetAll.Global.NightLight.Enabled = true;
     resetAll.For("test-panel").Alias = "Desk";
+    resetAll.Global.TrayPromotedFor.Add(@"C:\Programs\DispCtrl\DispCtrl.Engine.exe");
     resetAll.For("test-panel").SoftwareBrightness = 25;
     resetAll.For("test-panel").OledRestUntilUtc = DateTimeOffset.UtcNow.AddMinutes(10);
     resetAll.ResetAll();
@@ -235,8 +241,8 @@ try
         && resetAll.Global.QuickPanel.Simple == new QuickPanelSettings().Simple
         && resetAll.For("test-panel").SoftwareBrightness == new MonitorSettings().SoftwareBrightness
         && resetAll.For("test-panel").OledRestUntilUtc is null && resetAll.For("test-panel").Alias == "Desk"
-        && resetAll.Hotkeys.Count == Hotkey.Defaults().Count,
-        "reset all restores panel, bridge, colour, rest and hotkeys while retaining monitor names");
+        && resetAll.Hotkeys.Count == Hotkey.Defaults().Count && resetAll.Global.TrayPromotedFor.Count == 1,
+        "reset all restores panel, bridge, colour, rest and hotkeys while retaining monitor names and tray bookkeeping");
 
     // A report's text, link and clipboard fallback are all publishable surfaces.
     string[] reportSecrets = ["SECRET1234", "DEL-A234-SECRET1234"];
@@ -263,6 +269,30 @@ try
     Check(service.Execute(Request("report", new() { ["what"] = true }))["exitCode"]!.GetValue<int>() == 2
         && service.Execute(Request("report", new() { ["typo"] = true }))["exitCode"]!.GetValue<int>() == 2,
         "report API rejects invalid descriptions and unknown options");
+    MappingShare SampleShare(string model, string extra = "") => new(model, model,
+        $"### {model}\n\nDevice key: `{model}`\n\n{extra}\n### Mappings\n\n```json\n"
+        + new JsonObject { ["schema"] = 1, ["kind"] = "dispctrl-device-mapping", ["model"] = model, ["definitions"] = new JsonArray() }.ToJsonString()
+        + "\n```\n", "", new Uri("https://github.com/"), true, null);
+    var combined = DeviceContribution.CombineMappings([SampleShare("DEL-A234"), SampleShare("SDC-4154")]);
+    Check(combined.Prefilled && combined.Paste is null && combined.Url.AbsoluteUri.Length <= 7000
+        && System.Net.WebUtility.UrlDecode(combined.Url.AbsoluteUri).Contains("SDC-4154")
+        && combined.Body.Split("dispctrl-device-mapping").Length == 3,
+        "small combined shares prefill both models with one payload per model");
+    combined = DeviceContribution.CombineMappings([SampleShare("DEL-A234", new string('界', 9000)), SampleShare("SDC-4154")]);
+    Check(!combined.Prefilled && combined.Paste == combined.Body && combined.Url.AbsoluteUri.Length <= 7000
+        && !System.Net.WebUtility.UrlDecode(combined.Url.AbsoluteUri).Contains("```json"),
+        "large combined shares retain the full body and avoid duplicate partial JSON in the issue");
+    Check(service.Execute(Request("devices.share", new() { ["all"] = true, ["model"] = "DEL-A234" }))["exitCode"]!.GetValue<int>() == 2,
+        "share all rejects an ambiguous single-model selector");
+    DispCtrl.Core.Devices.DeviceHistory.Listed("TST-0101", "(vcp(E2))", [new(0xE2, "Unknown", "Information", [0, 1, 2], 2)]);
+    var mapped = service.Execute(Request("devices.map", new() { ["model"] = "TST-0101", ["code"] = "0xE2", ["name"] = "Test range",
+        ["kind"] = "range", ["maximum"] = 42, ["notes"] = "Documented test range" }));
+    var codesReply = service.Execute(Request("devices.show", new() { ["model"] = "TST-0101", ["history"] = true }));
+    var mappedCode = codesReply["data"]!["codes"]![0]!;
+    Check(mapped["ok"]!.GetValue<bool>() && mappedCode["maximum"]!.GetValue<int>() == 42
+        && mappedCode["notes"]!.GetValue<string>() == "Documented test range"
+        && !mappedCode["writable"]!.GetValue<bool>() && mappedCode["listed"]!.AsArray().Count == 3,
+        "mapped unknown codes retain notes, range limits and unnamed values and stay read-only by default");
     var original = Console.Out;
     var captured = new StringWriter();
     Console.SetOut(captured);
@@ -303,6 +333,20 @@ try
     bool rejected = false;
     try { await ControlTransport.ReadAsync(oversized, default); } catch (InvalidDataException) { rejected = true; }
     Check(rejected, "oversized protocol frames rejected before allocation");
+    var beforeReset = SettingsStore.Load();
+    beforeReset.For("FAKE-panel").Alias = "office";
+    beforeReset.Global.QuickPanel.Simple = true;
+    SettingsStore.Save(beforeReset);
+    string beforeResetJson = File.ReadAllText(SettingsStore.Path_);
+    var resetDry = service.Execute(Request("settings.reset", new() { ["dryRun"] = true }));
+    Check(resetDry["ok"]!.GetValue<bool>() && File.ReadAllText(SettingsStore.Path_) == beforeResetJson,
+        "reset all dry-run leaves settings untouched");
+    var resetReply = service.Execute(Request("settings.reset"));
+    var afterReset = SettingsStore.Load();
+    Check(resetReply["ok"]!.GetValue<bool>() && afterReset.For("FAKE-panel").Alias == "office"
+        && afterReset.Hotkeys.Count(h => h.Enabled) == 4 && afterReset.Hotkeys.Count == 13
+        && !afterReset.Global.QuickPanel.Simple && afterReset.Global.Focus.DimPercent == new FocusSettings().DimPercent,
+        "CLI reset all matches the app: all groups and default hotkeys reset while monitor names survive");
     Console.WriteLine($"{checks} control checks passed.");
 }
 finally

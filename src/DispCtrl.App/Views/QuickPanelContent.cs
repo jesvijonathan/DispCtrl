@@ -628,7 +628,7 @@ internal sealed partial class QuickPanelContent
         return (header, chevron);
     }
 
-    /// <summary>"Monitor 2 · SN 3QQQ2X3", or what stands in for a serial when there is none.</summary>
+    /// <summary>"Monitor 2 · SN 9XYZ7K1", or what stands in for a serial when there is none.</summary>
     public static string Subscript(DisplayViewModel display)
     {
         bool hasSerial = display.SerialText.Length > 0 && display.SerialText != "Not reported";

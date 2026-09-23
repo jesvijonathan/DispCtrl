@@ -121,11 +121,9 @@ been verified.
 
 ## Editors
 
-- **VS Code:** `.vscode/tasks.json` runs the same script. *Run Build Task*
-  builds, *Run Test Task* tests, and the other `DispCtrl:` tasks cover the rest.
 - **Visual Studio / Rider:** open any `src/*/*.csproj`. There is no solution
   file, by choice: build the projects that changed, in dependency order.
-  [CLAUDE.md](../CLAUDE.md) has the order and the traps.
+  [CLAUDE.md](../.claude/CLAUDE.md) has the order and the traps.
 
 ## Before a pull request
 
@@ -135,4 +133,4 @@ been verified.
 ```
 
 Leave the desk as you found it: any brightness, night light or monitor setting
-a manual test changed must be put back. See [CONTRIBUTING.md](../CONTRIBUTING.md).
+a manual test changed must be put back. See [CONTRIBUTING.md](../.github/CONTRIBUTING.md).

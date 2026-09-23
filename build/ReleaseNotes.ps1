@@ -12,7 +12,7 @@ param(
 # to), then Unreleased, so a tag never goes out with empty notes.
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-if (-not $Changelog) { $Changelog = Join-Path $repo 'CHANGELOG.md' }
+if (-not $Changelog) { $Changelog = Join-Path $repo 'docs/CHANGELOG.md' }
 $lines = Get-Content -LiteralPath $Changelog -Encoding utf8
 function Section([string]$name) {
     $start = -1

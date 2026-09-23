@@ -109,11 +109,11 @@
   </Target>
 
   <Target Name="BuildTaskbarGlassBridge" AfterTargets="Build" Condition="'$(SkipTaskbarGlass)' != 'true'">
-    <Exec Command="$(TaskbarGlassShell) -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../../native/DispCtrl.TaskbarGlass/build.ps1&quot; -OutputDirectory &quot;$(TargetDir)taskbar-glass&quot;" />
+    <Exec Command="$(TaskbarGlassShell) -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../native/DispCtrl.TaskbarGlass/build.ps1&quot; -OutputDirectory &quot;$(TargetDir)taskbar-glass&quot;" />
   </Target>
 
   <Target Name="BuildTaskbarGlassBridgeForPublish" AfterTargets="Publish" Condition="'$(SkipTaskbarGlass)' != 'true'">
-    <Exec Command="$(TaskbarGlassShell) -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../../native/DispCtrl.TaskbarGlass/build.ps1&quot; -OutputDirectory &quot;$(PublishDir)taskbar-glass&quot;" />
+    <Exec Command="$(TaskbarGlassShell) -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../native/DispCtrl.TaskbarGlass/build.ps1&quot; -OutputDirectory &quot;$(PublishDir)taskbar-glass&quot;" />
   </Target>
 
 </Project>

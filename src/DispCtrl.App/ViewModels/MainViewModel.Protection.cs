@@ -63,12 +63,18 @@ public sealed partial class MainViewModel
         if (!Care.Enabled) return;
         // Startup may still be creating the message window. Only the latest
         // slider value is allowed to retry; preview requests never hit disk.
-        for (int attempt = 0; attempt < 20; attempt++)
+        // async void: an exception here would take the window down with it,
+        // and a preview that fails is worth nothing more than skipping.
+        try
         {
-            if (version != _oledPreviewVersion || !Care.Enabled) return;
-            if (DispCtrl.Display.OledPreview.TryShow(percent)) return;
-            await Task.Delay(100);
+            for (int attempt = 0; attempt < 20; attempt++)
+            {
+                if (version != _oledPreviewVersion || !Care.Enabled) return;
+                if (DispCtrl.Display.OledPreview.TryShow(percent)) return;
+                await Task.Delay(100);
+            }
         }
+        catch (Exception) { }
     }
     public double OledIdleFade { get => Care.FadeMs; set { int v = Number(value, 0, 2000); if (Care.FadeMs == v) return; Care.FadeMs = v; SaveProtection(); } }
     public bool OledPauseFullscreen { get => Care.PauseFullscreen; set { if (Care.PauseFullscreen == value) return; Care.PauseFullscreen = value; SaveProtection(); } }

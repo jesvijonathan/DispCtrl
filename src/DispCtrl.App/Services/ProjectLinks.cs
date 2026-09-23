@@ -6,6 +6,8 @@ internal static class ProjectLinks
 {
     public const string Repository = "https://github.com/jesvijonathan/Display-Control";
     public const string Issues = Repository + "/issues/new/choose";
+    public const string Releases = Repository + "/releases/latest";
+    public const string Email = "mailto:jesvi22j@gmail.com";
     public const string PullRequest = Repository + "/compare";
     public const string AuthorGitHub = "https://github.com/jesvijonathan";
     public const string Website = "https://www.jesvi.net/";

@@ -306,7 +306,8 @@ function Invoke-Test {
             @('presetverify', @()),
             # The index is regenerated after each merge, so a new device folder
             # is valid without it: only the layout and the rules are checked.
-            @('devicecheck', @('validate', 'devices'))
+            @('devicecheck', @('validate', 'devices')),
+            @('devicecheck', @('selftest'))
         )
         if ($Hardware) { $checks += , @('presetcheck', @()) }
         $failed = @()

@@ -58,8 +58,11 @@ try {
         $modified = [bool](& git status --porcelain 2>$null)
     }
     foreach ($folder in @($cli,$desktop)) {
-        Copy-Item -LiteralPath (Join-Path $repo 'docs') -Destination $folder -Recurse
-        Copy-Item -LiteralPath (Join-Path $repo 'examples') -Destination $folder -Recurse
+        # The Markdown and the examples; not docs/assets, which holds the
+        # README's screenshots and would only add megabytes to every download.
+        New-Item -ItemType Directory -Path (Join-Path $folder 'docs') -Force | Out-Null
+        Copy-Item -Path (Join-Path $repo 'docs/*.md') -Destination (Join-Path $folder 'docs')
+        Copy-Item -LiteralPath (Join-Path $repo 'docs/examples') -Destination (Join-Path $folder 'examples') -Recurse
         if (Test-Path (Join-Path $repo 'LICENSE')) { Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination $folder }
         $manifest = [ordered]@{ product='DispCtrl'; version=$Version; channel=$Channel; architecture='x64'; commit=$commit; modifiedSources=$modified; builtUtc=[DateTimeOffset]::UtcNow.ToString('O'); nativeAot=$false; readyToRun=$true }
         $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $folder 'build-info.json') -Encoding utf8

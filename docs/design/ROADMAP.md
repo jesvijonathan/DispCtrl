@@ -16,7 +16,7 @@ secondary panel. Native, minimal, MSIX-packaged for the Store.
 | Attach | Internal (eDP) | HDMI |
 | Brightness | WMI only (no DDC/CI) | DDC/CI (verified: 0-100) |
 | Refresh options | 60 / 90 | 50 / 59 / 60 / 100 / 119 / 120 |
-| Serial in EDID | **none reported** | `3QQQ2X3` |
+| Serial in EDID | **none reported** | `9XYZ7K1` |
 
 Hybrid GPU: RTX 3050 Laptop + AMD Radeon iGPU. The iGPU drives the internal
 panel. **Anything drawing continuously must stay off the dGPU** or it wakes the
