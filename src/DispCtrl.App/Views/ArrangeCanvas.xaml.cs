@@ -10,18 +10,21 @@ using DispCtrl.App.Services;
 using DispCtrl.Core.Displays;
 using DispCtrl.Display;
 using Windows.Foundation;
-using Windows.Storage.Streams;
 
 namespace DispCtrl.App.Views;
 
 /// <summary>A physical-size preview with separate Windows desktop coordinates.</summary>
 public sealed partial class ArrangeCanvas : UserControl
 {
+    private readonly record struct WallpaperStamp(string Path, long Length, DateTime ModifiedUtc);
+
     private sealed class Tile
     {
         public required Border Element { get; init; }
         public required TextBlock Label { get; init; }
         public required DisplayInfo Display { get; init; }
+        public required Brush EmptyBackground { get; init; }
+        public WallpaperStamp? WallpaperSignature { get; set; }
         public int X { get; set; }
         public int Y { get; set; }
         public int Width => Display.Bounds.Width;
@@ -54,6 +57,9 @@ public sealed partial class ArrangeCanvas : UserControl
     private bool _hasView;
 
     private readonly DispatcherTimer _settle = new();
+    private Task _wallpaperRefreshTask = Task.CompletedTask;
+    private bool _wallpaperRefreshPending;
+    public bool WallpapersActive { get; set; }
 
     public ArrangeCanvas()
     {
@@ -161,14 +167,14 @@ public sealed partial class ArrangeCanvas : UserControl
             border.PointerMoved += OnPointerMoved;
             border.PointerReleased += OnPointerReleased;
             border.PointerCaptureLost += OnPointerCaptureLost;
-            _ = LoadTileWallpaperAsync(border, display);
-
-            var tile = new Tile { Element = border, Label = label, Display = display, X = x, Y = y };
+            var tile = new Tile { Element = border, Label = label, Display = display,
+                EmptyBackground = border.Background, X = x, Y = y };
             border.Tag = tile;
             Canvas.SetZIndex(border, 1);
             Surface.Children.Add(border);
             _tiles.Add(tile);
         }
+        _ = RefreshWallpapersAsync();
         UpdatePreview();
         Layout();
     }
@@ -465,19 +471,64 @@ public sealed partial class ArrangeCanvas : UserControl
         Layout();
     }
 
-    private static async Task LoadTileWallpaperAsync(Border border, DisplayInfo display)
+    /// <summary>Refreshes wallpaper thumbnails without re-enumerating displays.</summary>
+    public Task RefreshWallpapersAsync()
+    {
+        if (!WallpapersActive) return Task.CompletedTask;
+        _wallpaperRefreshPending = true;
+        if (!_wallpaperRefreshTask.IsCompleted) return _wallpaperRefreshTask;
+        return _wallpaperRefreshTask = RefreshWallpapersCoreAsync();
+    }
+
+    private async Task RefreshWallpapersCoreAsync()
+    {
+        do
+        {
+            _wallpaperRefreshPending = false;
+            // A display rescan may replace the tiles while a read is pending.
+            foreach (Tile tile in _tiles.ToArray())
+            {
+                if (!WallpapersActive) break;
+                await LoadTileWallpaperAsync(tile);
+            }
+        } while (WallpapersActive && _wallpaperRefreshPending);
+    }
+
+    private async Task LoadTileWallpaperAsync(Tile tile)
     {
         try
         {
-            string? path = await Task.Run(() => Wallpaper.Read(display)).ConfigureAwait(true);
-            if (path is null || !File.Exists(path)) return;
-            byte[] bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(true);
-            var stream = new InMemoryRandomAccessStream();
-            using (DataWriter writer = new(stream.GetOutputStreamAt(0))) { writer.WriteBytes(bytes); await writer.StoreAsync(); }
+            WallpaperStamp? previous = tile.WallpaperSignature;
+            var snapshot = await Task.Run(() => ReadWallpaper(tile.Display, previous));
+            using var file = snapshot.Stream;
+            if (!WallpapersActive || !_tiles.Contains(tile) || snapshot.Stamp == previous) return;
+            if (file is null)
+            {
+                tile.WallpaperSignature = null;
+                tile.Element.Background = tile.EmptyBackground;
+                return;
+            }
+            // Decode from the file stream: no full-sized byte array or second
+            // in-memory copy of a potentially large wallpaper.
+            using var stream = file.AsRandomAccessStream();
             var bitmap = new BitmapImage { DecodePixelWidth = 320 };
             await bitmap.SetSourceAsync(stream);
-            border.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
+            if (!WallpapersActive || !_tiles.Contains(tile)) return;
+            tile.Element.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
+            tile.WallpaperSignature = snapshot.Stamp;
         }
         catch (Exception) { }
+    }
+
+    private static (WallpaperStamp? Stamp, FileStream? Stream) ReadWallpaper(DisplayInfo display, WallpaperStamp? previous)
+    {
+        string? path = Wallpaper.Read(display);
+        if (string.IsNullOrEmpty(path)) return (null, null);
+        var info = new FileInfo(path);
+        if (!info.Exists) return (null, null);
+        var stamp = new WallpaperStamp(path, info.Length, info.LastWriteTimeUtc);
+        if (stamp == previous) return (stamp, null);
+        return (stamp, new FileStream(path, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan));
     }
 }

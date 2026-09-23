@@ -40,6 +40,7 @@ public sealed partial class MainWindow : Window
         _statusTimer = new DispatcherTimer { Interval = StatusPollInterval };
         _statusTimer.Tick += (_, _) =>
         {
+            if (!CanPollStatus) { _statusTimer.Stop(); return; }
             App.ViewModel.RefreshEngineStatus();
             App.ViewModel.RaiseAwakeStatus();
 
@@ -52,23 +53,34 @@ public sealed partial class MainWindow : Window
         _statusTimer.Start();
 
         // Nothing on screen means nothing worth polling for.
-        AppWindow.Changed += (s, e) =>
-        {
-            if (!e.DidVisibilityChange) return;
-            if (s.IsVisible) _statusTimer.Start(); else _statusTimer.Stop();
-        };
+        AppWindow.Changed += (_, _) => UpdateStatusPolling();
 
         // The settings file is shared with the engine's CLI, so anything shown
         // here can be stale by the time the window is looked at again.
         Activated += (_, e) =>
         {
+            UpdateStatusPolling();
             if (e.WindowActivationState == WindowActivationState.Deactivated) return;
             App.ViewModel.ReloadFromDisk();
         };
 
-        Closed += (_, _) => _statusTimer.Stop();
+        Closed += (_, _) =>
+        {
+            _statusTimer.Stop();
+            // Closing the last window ends the process; a save a slider left
+            // pending would go with it.
+            App.ViewModel.FlushPendingSave();
+        };
 
         ContentFrame.Navigate(typeof(DisplaysPage), null, new EntranceNavigationTransitionInfo());
+    }
+
+    private bool CanPollStatus => AppWindow.IsVisible
+        && AppWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Minimized };
+
+    private void UpdateStatusPolling()
+    {
+        if (CanPollStatus) _statusTimer.Start(); else _statusTimer.Stop();
     }
 
     private void OnEngineToggled(object sender, RoutedEventArgs e)

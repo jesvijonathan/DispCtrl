@@ -372,9 +372,11 @@ function Invoke-Installer([string]$bundle) {
 
 function Invoke-Package([string]$bundle) {
     if (-not $bundle) { $bundle = Latest-Bundle }
-    $identity = if ($env:STORE_IDENTITY) { $env:STORE_IDENTITY } else { 'DispCtrl.Development' }
-    $publisher = if ($env:STORE_PUBLISHER) { $env:STORE_PUBLISHER } else { 'CN=DispCtrl Development' }
-    & (Join-Path $PSScriptRoot 'Package.ps1') -DesktopDirectory (Join-Path $bundle 'desktop') -IdentityName $identity -Publisher $publisher -Version "$($options.version).0" -Sign:$Sign
+    # The Store identity in the manifest template, unless the environment names another.
+    $identity = @{}
+    if ($env:STORE_IDENTITY) { $identity.IdentityName = $env:STORE_IDENTITY }
+    if ($env:STORE_PUBLISHER) { $identity.Publisher = $env:STORE_PUBLISHER }
+    & (Join-Path $PSScriptRoot 'Package.ps1') -DesktopDirectory (Join-Path $bundle 'desktop') @identity -Version "$($options.version).0" -Sign:$Sign
 }
 
 function Invoke-Release {

@@ -26,6 +26,19 @@ internal sealed class TaskbarGlassController : IDisposable
     private string? _lastStatus;
     private long _retryAt;
 
+    // Adaptive cadence for the native check. It is a cross-process message into
+    // Explorer's taskbar thread, and a once-a-second one kept Explorer waking to
+    // confirm a brush it already had. While nothing changes it steps back to
+    // every few seconds; anything that can replace the brush - a new
+    // configuration, a new result, the primary bar moving through Windows'
+    // auto-hide - brings it straight back to every rescan.
+    private const int QuietChecksBeforeBackoff = 5;
+    private const long BackoffMs = 5000;
+    private int _quietChecks;
+    private int _lastResult = -1;
+    private long _nextCheckAt;
+    private Protection.OverlayNative.Rect _primaryRect;
+
     public void Update(GlobalSettings settings)
     {
         if (!settings.TaskbarGlassEnabled)
@@ -43,6 +56,19 @@ internal sealed class TaskbarGlassController : IDisposable
 
         nint taskbar = Protection.OverlayNative.FindWindowEx(0, 0, "Shell_TrayWnd", null);
         if (taskbar == 0) { WriteStatus("Explorer taskbar is not running"); return; }
+        long now = Environment.TickCount64;
+        // Explorer swaps the bar's brush when its auto-hide state changes, and
+        // the primary bar moving is how that shows from outside.
+        bool moved = Protection.OverlayNative.GetWindowRect(taskbar, out Protection.OverlayNative.Rect rect) != 0
+            && (rect.Left != _primaryRect.Left || rect.Top != _primaryRect.Top
+                || rect.Right != _primaryRect.Right || rect.Bottom != _primaryRect.Bottom);
+        if (moved) { _primaryRect = rect; _quietChecks = 0; }
+
+        int radius = Math.Clamp(settings.TaskbarGlassRadius, 0, 100);
+        int tint = Math.Clamp(settings.TaskbarGlassTint, 0, 100);
+        int config = unchecked((int)(0x01000000u | (uint)radius | ((uint)tint << 8)));
+        if (!moved && config == _lastConfig && now < _nextCheckAt) return;
+
         Protection.OverlayNative.GetWindowThreadProcessId(taskbar, out uint pid);
         if (_explorerPid != pid)
         {
@@ -63,12 +89,9 @@ internal sealed class TaskbarGlassController : IDisposable
             WriteStatus("Connected to Explorer; waiting for the taskbar surface");
         }
 
-        int radius = Math.Clamp(settings.TaskbarGlassRadius, 0, 100);
-        int tint = Math.Clamp(settings.TaskbarGlassTint, 0, 100);
-        int config = unchecked((int)(0x01000000u | (uint)radius | ((uint)tint << 8)));
         // New taskbar XAML threads and Explorer's own visual-state changes
-        // can arrive after a successful application. The native check is cheap
-        // when its brush is still installed; keep it on the one-second rescan.
+        // can arrive after a successful application, so it is re-checked on
+        // the cadence above rather than applied once.
         int result = InvokeUpdate(pid, unchecked((uint)config));
         if (result < 0)
         {
@@ -80,7 +103,10 @@ internal sealed class TaskbarGlassController : IDisposable
         // rectangles. Keep retrying until the callback reports a real target.
         if (config != _lastConfig && result > 0)
             Log.Write($"taskbar glass: applied to {result} taskbar background(s), radius {radius}, tint {tint}");
+        _quietChecks = result > 0 && config == _lastConfig && result == _lastResult ? _quietChecks + 1 : 0;
+        _lastResult = result;
         _lastConfig = result > 0 ? config : 0;
+        _nextCheckAt = _quietChecks >= QuietChecksBeforeBackoff ? now + BackoffMs : 0;
         WriteStatus(result == 0
             ? "Connected to Explorer; waiting for the taskbar surface"
             : $"Applied to {result} taskbar surface(s) · blur {radius}px · tint {tint}%");

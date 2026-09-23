@@ -359,6 +359,16 @@ Every one of these was a real bug. Do not reintroduce them.
 
 ### WinUI
 
+- **Coalesce slider saves.** A drag can change a value dozens of times per
+  second; writing settings for every change wakes every engine service. Use
+  `MainViewModel.PersistSoon()` for sliders and flush pending saves before a
+  refresh, external settings sync, or app close.
+- **Polling stops with the window.** Page `Unloaded` alone does not
+  cover minimization. Stop the refresh timer on hide/minimize and restart it
+  on restore; check `OverlappedPresenter.State` for both wallpaper and status
+  polling. Wait for the current read before scheduling another; file
+  metadata and open calls belong on a worker, and thumbnails decode directly
+  from a disposed file stream rather than copying the whole image into RAM.
 - **Set `AcceptsReturn` before assigning multiline `TextBox.Text`.** Assigning
   text first silently kept only the first line in the problem-report and
   device-share previews. UI Automation must read the whole preview, not just
@@ -408,6 +418,17 @@ Every one of these was a real bug. Do not reintroduce them.
   (`0xc000027b`, `CoreMessagingXP.dll`) with no managed stack. The app now logs
   unhandled exceptions to `%LOCALAPPDATA%\DispCtrl\app-crash.log`; a stack
   overflow bypasses even that, and needs a `FirstChanceException` hook to see.
+
+### Protection hooks
+
+- **Keep the global location hook behind focus mode.** `EVENT_OBJECT_LOCATIONCHANGE`
+  woke the protection thread about 180 times a second on an otherwise idle
+  desk. OLED care alone can use its once-a-second tick to inspect the active
+  window and pointer.
+- **Settings reloads are not foreground changes.** Keep the exclusion set,
+  hook registrations and pointer-event detection when their inputs are
+  unchanged. Resetting them on unrelated saves restarts polling and the focus
+  delay. `ForegroundChanged()` already calls `Tick()`; do not tick twice.
 
 ### DDC/CI
 
@@ -769,6 +790,16 @@ unrecallable.
   "Identifier expected" a line later. Use `//` comments in `[Code]`.
 - **Do not sign the taskbar-glass helper.** Its bytes are pinned by revision;
   `Publish.ps1 -Sign` signs only `DispCtrl*` binaries.
+- **Never set `AssemblyTitle` on `DispCtrl.App`.** With it set to "DispCtrl",
+  a clean build crashed at start (`Cannot locate resource from
+  'ms-appx:///Microsoft.UI.Xaml/Themes/themeresources.xaml'`), and so did the
+  published bundle and the MSIX. Incremental builds hid it. The engine and the
+  CLI carry titles safely; they have no WinUI.
+- **The Store identity lives in `build/packaging/AppxManifest.xml`** (`JustVStudio.DispCtrl`,
+  `CN=C082656A-...`), and `Package.ps1` packs with it by default. A package with
+  the old development identity was rejected by Partner Center on upload. Only
+  CI's validation build passes `DispCtrl.Development`. Run `Package.ps1` under
+  pwsh 7: Windows PowerShell's `System.Drawing` cannot read the icon's 256 px frame.
 - An MSIX signs only with a certificate whose subject equals its `Publisher`.
   The release workflow compares them and leaves it unsigned rather than failing.
 - **Read a process's `Path` before stopping it.** `Process.Path` comes from
@@ -793,6 +824,21 @@ unrecallable.
   timer or pool thread ends the process without unwinding through the
   manager; `AppDomain.UnhandledException` calls `TaskbarManager.EmergencyRestore`
   first. Do not remove it.
+- **Idle cost is wake-ups, not work.** Measured with per-thread context
+  switches (`\Thread(DispCtrl.Engine*)\Context Switches/sec`), not guessed.
+  - A global `EVENT_OBJECT_LOCATIONCHANGE` hook woke the focus thread ~180 times
+    a second on an idle desk; it is registered only for focus mode.
+  - The taskbar loop polled at 100 ms when it managed nothing or the session was
+    locked; it now sleeps to the rescan, or until settings change.
+  - OLED care stops polling while locked (`WM_WTSSESSION_CHANGE`).
+  - Hot-plug detection follows `WM_DISPLAYCHANGE` (`DisplayChanges`) with a
+    30 s safety net.
+  - The power loop sleeps to its next deadline.
+  - Engine idle: ~282 ms/min before, ~16 ms/min after.
+- **Slider saves are coalesced** (`PersistSoon`); a synchronous save per drag
+  step also made the engine reload each time. `Persist()` flushes a pending one.
+- **The hidden quick panel trims itself** 10 s after hiding: 190 MB working set
+  down to ~11 MB, and the next summons shows in ~40 ms.
 - **Tray icon promotion is once per engine path** (`Global.TrayPromotedFor`).
   After that, where the icon sits is the person's choice; never re-promote.
 - **Repair never re-points a sign-in task another copy owns.** An installed

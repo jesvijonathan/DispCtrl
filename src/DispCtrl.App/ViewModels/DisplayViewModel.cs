@@ -35,6 +35,8 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     private readonly Func<bool> _perDisplayWarmth;
 
     private readonly Action _persist;
+    /// <summary>A coalesced save, for values a slider sets during a drag.</summary>
+    private readonly Action _persistSoon;
 
     /// <summary>
     /// Raised when the user changes something a preset captures.
@@ -62,12 +64,13 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     private CancellationTokenSource? _brightnessWrite;
 
     public DisplayViewModel(DisplayInfo display, MonitorSettings settings, DispCtrlSettings root,
-                            int number, Action persist, Func<bool> perDisplayWarmth, Action deskChanged)
+                            int number, Action persist, Action persistSoon, Func<bool> perDisplayWarmth, Action deskChanged)
     {
         _display = display;
         _settings = settings;
         _root = root;
         _persist = persist;
+        _persistSoon = persistSoon;
         _perDisplayWarmth = perDisplayWarmth;
         _deskChanged = deskChanged;
         Number = number;
@@ -1679,7 +1682,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             if (_settings.SoftwareBrightness == v) return;
 
             _settings.SoftwareBrightness = v;
-            _persist();
+            _persistSoon();
             Raise();
             Raise(nameof(SoftwareBrightnessText));
             _deskChanged();
@@ -2026,7 +2029,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             int v = Math.Clamp((int)value, 0, 100);
             if (_settings.NightLightStrength == v) return;
             _settings.NightLightStrength = v;
-            _persist();
+            _persistSoon();
             _deskChanged();
             Raise();
             Raise(nameof(NightLightStrengthText));

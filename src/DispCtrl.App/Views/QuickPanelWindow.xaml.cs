@@ -276,7 +276,46 @@ public sealed partial class QuickPanelWindow : Window
         if (_closing || !_stale) return;
         _stale = false;
         Rebuild(place: false);
+        TrimWhenIdle();
     }
+
+    private DispatcherQueueTimer? _trim;
+
+    /// <summary>
+    /// Gives the idle panel's memory back to Windows, a while after it hides.
+    /// </summary>
+    /// <remarks>
+    /// The preloaded panel sat at about 200 MB of working set doing nothing:
+    /// the XAML tree, the composition surfaces and the heap its build left
+    /// behind. One collection and an emptied working set return what is not in
+    /// use. The pages it needs again come back from memory, not the disk, when
+    /// it is next summoned. Skipped while the full window is open, which is
+    /// using the same process.
+    /// </remarks>
+    private void TrimWhenIdle()
+    {
+        if (_trim is null)
+        {
+            _trim = DispatcherQueue.CreateTimer();
+            _trim.IsRepeating = false;
+            _trim.Interval = TimeSpan.FromSeconds(10);
+            _trim.Tick += (_, _) =>
+            {
+                if (_closing || _appWindow.IsVisible || App.MainWindow is not null) return;
+                GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+                _ = SetProcessWorkingSetSizeEx(GetCurrentProcess(), -1, -1, 0);
+            };
+        }
+        _trim.Stop();
+        _trim.Start();
+    }
+
+    [LibraryImport("kernel32.dll")]
+    private static partial nint GetCurrentProcess();
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetProcessWorkingSetSizeEx(nint process, nint minimum, nint maximum, uint flags);
 
     // ================================================================ opening and closing
 
@@ -597,6 +636,7 @@ public sealed partial class QuickPanelWindow : Window
         {
             _appWindow.Hide();
             PrepareContent(false);
+            TrimWhenIdle();
             return;
         }
 
@@ -607,6 +647,7 @@ public sealed partial class QuickPanelWindow : Window
             _appWindow.Hide();
             MoveTo(0);
             PrepareContent(false);
+            TrimWhenIdle();
         });
     }
 

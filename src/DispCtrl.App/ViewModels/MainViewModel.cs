@@ -119,6 +119,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
 
     private void SyncExternalSettings()
     {
+        // A slider's pending value is only in memory; reloading over it would
+        // undo it. Saving first merges it with whatever changed on disk.
+        FlushPendingSave();
         var stamp = SettingsStamp();
         if (stamp == _settingsStamp) return;
         try
@@ -169,6 +172,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
 
     public void Refresh()
     {
+        FlushPendingSave();
         int loadVersion = ++_displayLoadVersion;
         ShowFooterStatus("Loading display information…", busy: true);
         _layoutSignature = DisplayRegistry.CheapSignature();
@@ -199,7 +203,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             // legible even though nothing matches on it.
             ms.Label = d.Label;
 
-            Displays.Add(new DisplayViewModel(d, ms, _settings, i + 1, Persist, () => PerDisplayWarmth, ScheduleDriftCheck));
+            Displays.Add(new DisplayViewModel(d, ms, _settings, i + 1, Persist, PersistSoon, () => PerDisplayWarmth, ScheduleDriftCheck));
         }
 
         ScalePreviews();
@@ -286,8 +290,47 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// Writes settings out. The engine watches this file, so a toggle takes
     /// effect without restarting or otherwise signalling it.
     /// </summary>
+    private DispatcherQueueTimer? _saveTimer;
+    private long _saveDueBy;
+    private const int SaveSettleMs = 100, SaveAtMostEveryMs = 300;
+
+    /// <summary>
+    /// Saves soon, once, for values a slider sets.
+    /// </summary>
+    /// <remarks>
+    /// A drag moves a slider a step at a time, and each step used to be a whole
+    /// save on the UI thread: serialise, re-read and merge the file, write, and
+    /// rename under the cross-process lock. The engine then reloaded and
+    /// re-applied every service for each of them. Coalesced, a drag saves at
+    /// most every 300 ms and once more 100 ms after it stops, which also lets
+    /// the engine follow a long drag it previously only caught up with once the
+    /// pointer paused. Anything that calls <see cref="Persist"/> flushes the
+    /// pending save with its own, and closing the window flushes it.
+    /// </remarks>
+    private void PersistSoon()
+    {
+        long now = Environment.TickCount64;
+        if (_saveTimer is null)
+        {
+            _saveTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+            _saveTimer.IsRepeating = false;
+            _saveTimer.Tick += (_, _) => Persist();
+        }
+        if (!_saveTimer.IsRunning) _saveDueBy = now + SaveAtMostEveryMs;
+        _saveTimer.Stop();
+        _saveTimer.Interval = TimeSpan.FromMilliseconds(Math.Clamp(_saveDueBy - now, 0, SaveSettleMs));
+        _saveTimer.Start();
+    }
+
+    /// <summary>Writes a save a slider left pending, before the process can go.</summary>
+    public void FlushPendingSave()
+    {
+        if (_saveTimer?.IsRunning == true) Persist();
+    }
+
     private void Persist()
     {
+        _saveTimer?.Stop();
         // Setters bound to sliders call this, so an exception here comes out of
         // a XAML callback and ends the process. The value stays in memory and
         // goes out with the next save.
@@ -748,7 +791,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             int v = Math.Clamp((int)value, MinStrength, 100);
             if (Night.Strength == v) return;
             Night.Strength = v;
-            Persist();
+            PersistSoon();
             Raise();
             RaiseNightLight();
             ApplyNightLightPreview();
@@ -1321,7 +1364,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             int v = (int)value;
             if (_settings.Global.UnisonLevel == v) return;
             _settings.Global.UnisonLevel = v;
-            Persist();
+            PersistSoon();
             Raise();
             Raise(nameof(UnisonPercentText));
 
@@ -1592,7 +1635,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             int v = (int)value;
             if (_settings.Global.HideDelayMs == v) return;
             _settings.Global.HideDelayMs = v;
-            Persist();
+            PersistSoon();
             Raise();
         }
     }
@@ -1615,7 +1658,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
 
             if (value)
             {
-                _settings.Global.AnimMs = _lastAnimMs > 0 ? _lastAnimMs : 180;
+                _settings.Global.AnimMs = _lastAnimMs > 0 ? _lastAnimMs : 270;
             }
             else
             {
@@ -1630,7 +1673,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private int _lastAnimMs = 180;
+    private int _lastAnimMs = 270;
 
     public bool AnimMsEnabled => AnimateTaskbar;
 
@@ -1642,7 +1685,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             int v = (int)value;
             if (_settings.Global.AnimMs == v) return;
             _settings.Global.AnimMs = v;
-            Persist();
+            PersistSoon();
             Raise();
         }
     }
@@ -1655,7 +1698,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             int v = (int)value;
             if (_settings.Global.RevealPx == v) return;
             _settings.Global.RevealPx = v;
-            Persist();
+            PersistSoon();
             Raise();
         }
     }
@@ -1706,7 +1749,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         if (current == v) return;
 
         write(v);
-        Persist();
+        PersistSoon();
         Raise(name);
         Raise(nameof(PollSummary));
     }

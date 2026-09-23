@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace DispCtrl.App.Services;
 
@@ -18,10 +19,11 @@ public readonly record struct EngineStatus(bool Running, int ProcessId, double M
 /// path — the taskbar keeps working whether or not this window is open, or
 /// crashes.
 /// </remarks>
-public sealed class EngineController
+public sealed partial class EngineController
 {
     private const string ProcessName = "DispCtrl.Engine";
     private const string StopEventName = @"Local\DispCtrl.Engine.Stop";
+    private const string InstanceMutexName = @"Local\DispCtrl.Engine";
     private static readonly string PreviousProcessName = "Displ" + "Ctrl.Engine";
     private static readonly string PreviousStopEventName = @"Local\Displ" + "Ctrl.Engine.Stop";
 
@@ -29,26 +31,84 @@ public sealed class EngineController
 
     public EngineController() => EnginePath = LocateEngine();
 
+    /// <summary>Whether the engine is running, its process id and working set.</summary>
+    /// <remarks>
+    /// Asked every two seconds while the window is open and on every quick panel
+    /// summons, so it has to be cheap. <c>Process.GetProcessesByName</c>
+    /// snapshots every process on the machine: measured at 3.7 ms a call, on the
+    /// UI thread. The engine's single-instance mutex is taken before anything
+    /// else and released after the taskbars are restored, so it exists exactly
+    /// as long as the engine does, and opens in microseconds. The process itself
+    /// is looked up once per engine lifetime and then read through a handle.
+    /// </remarks>
     public static EngineStatus Query()
+    {
+        if (!Mutex.TryOpenExisting(InstanceMutexName, out Mutex? instance)) { Forget(); return EngineStatus.Stopped; }
+        instance.Dispose();
+
+        lock (Gate)
+        {
+            if (_handle == 0 || WaitForSingleObject(_handle, 0) == 0) { Forget(); Find(); }
+            if (_handle == 0) return new EngineStatus(true, 0, 0);
+            var counters = new MemoryCounters { Size = (uint)Marshal.SizeOf<MemoryCounters>() };
+            double mb = GetProcessMemoryInfo(_handle, ref counters, counters.Size) ? counters.WorkingSetSize / (1024.0 * 1024.0) : 0;
+            return new EngineStatus(true, _pid, mb);
+        }
+    }
+
+    private static readonly Lock Gate = new();
+    private static nint _handle;
+    private static int _pid;
+
+    private static void Find()
     {
         Process[] found = Process.GetProcessesByName(ProcessName);
         try
         {
-            if (found.Length == 0) return EngineStatus.Stopped;
-
-            Process p = found[0];
-            return new EngineStatus(true, p.Id, p.WorkingSet64 / (1024.0 * 1024.0));
-        }
-        catch (InvalidOperationException)
-        {
-            // Exited between the enumeration and the read.
-            return EngineStatus.Stopped;
+            if (found.Length == 0) return;
+            _pid = found[0].Id;
+            _handle = OpenProcess(QueryLimitedInformation | Synchronize, false, (uint)_pid);
+            if (_handle == 0) _pid = 0;
         }
         finally
         {
             foreach (Process p in found) p.Dispose();
         }
     }
+
+    private static void Forget()
+    {
+        lock (Gate)
+        {
+            if (_handle != 0) CloseHandle(_handle);
+            _handle = 0;
+            _pid = 0;
+        }
+    }
+
+    private const uint QueryLimitedInformation = 0x1000, Synchronize = 0x00100000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MemoryCounters
+    {
+        public uint Size, PageFaultCount;
+        public nuint PeakWorkingSetSize, WorkingSetSize, QuotaPeakPagedPoolUsage, QuotaPagedPoolUsage,
+            QuotaPeakNonPagedPoolUsage, QuotaNonPagedPoolUsage, PagefileUsage, PeakPagefileUsage;
+    }
+
+    [LibraryImport("kernel32.dll")]
+    private static partial nint OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint pid);
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CloseHandle(nint handle);
+
+    [LibraryImport("kernel32.dll")]
+    private static partial uint WaitForSingleObject(nint handle, uint ms);
+
+    [LibraryImport("kernel32.dll", EntryPoint = "K32GetProcessMemoryInfo")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetProcessMemoryInfo(nint process, ref MemoryCounters counters, uint size);
 
     public bool Start()
     {

@@ -7,8 +7,8 @@ namespace DispCtrl.Engine.Power;
 
 /// <summary>
 /// Holds Windows awake requests and powers supported external monitors down
-/// after inactivity. One sleeping worker handles both; at rest it wakes once a
-/// second and performs no DDC traffic unless a monitor changes state.
+/// after inactivity. One sleeping worker handles both; it wakes only when one of
+/// them next needs it, and performs no DDC traffic unless a monitor changes state.
 /// </summary>
 internal sealed partial class PowerService : IDisposable
 {
@@ -70,19 +70,26 @@ internal sealed partial class PowerService : IDisposable
     {
         try
         {
-            RefreshDisplays();
             while (!_disposed)
             {
                 if (Interlocked.Exchange(ref _pending, null) is { } settings)
                 {
                     _settings = settings;
-                    RefreshDisplays();
+                    _nextDisplayRefresh = default;
                 }
-                else if (DateTimeOffset.UtcNow >= _nextDisplayRefresh) RefreshDisplays();
-                ApplyAwake();
-                StayActive();
-                ApplyMonitorSleep();
-                _wake.WaitOne(1000);
+
+                DateTimeOffset now = DateTimeOffset.UtcNow;
+                uint idleMs = IdleMs();
+                bool sleepWanted = _sleeping.Count > 0 || AnyMonitorSleep();
+                // The display list is a CCD query plus registry reads, and only
+                // monitor sleep needs it. Most desks never switch that on.
+                if (sleepWanted && now >= _nextDisplayRefresh) RefreshDisplays();
+
+                ApplyAwake(now);
+                StayActive(idleMs);
+                if (sleepWanted) ApplyMonitorSleep(idleMs, now);
+
+                _wake.WaitOne(NextWait(now, idleMs, sleepWanted));
             }
         }
         catch (Exception ex) { Log.Write($"power service stopped: {ex.Message}"); }
@@ -93,11 +100,67 @@ internal sealed partial class PowerService : IDisposable
         }
     }
 
-    private void ApplyAwake()
+    /// <summary>
+    /// How long nothing here can change, so the thread can sleep that long.
+    /// </summary>
+    /// <remarks>
+    /// This loop used to wake every second whatever was switched on: 86,400
+    /// wakes a day to confirm that nothing was. Each duty now says when it next
+    /// needs looking at. Keep awake needs its end time, Stay active the moment
+    /// the idle time reaches the nudge, and monitor sleep its threshold, or a
+    /// second while a monitor is asleep, so that a touch wakes it quickly. With
+    /// none of them on it waits for a settings change, which sets the event.
+    /// Recomputed on every wake, so input that resets the idle time only means
+    /// a wake finds nothing to do and sleeps again.
+    /// </remarks>
+    private int NextWait(DateTimeOffset now, uint idleMs, bool sleepWanted)
+    {
+        const int Soonest = 1000, Latest = 3_600_000;
+        long wait = Latest;
+        AwakeSettings awake = _settings.Global.Awake;
+
+        DateTimeOffset? ends = awake.Mode switch
+        {
+            AwakeMode.Timed => awake.TimedUntilUtc,
+            AwakeMode.Expiration => awake.ExpirationUtc,
+            _ => null,
+        };
+        if (ends is { } end && end > now) wait = Math.Min(wait, (long)(end - now).TotalMilliseconds + 50);
+
+        if (awake.StayActive) wait = Math.Min(wait, NudgeAfterIdleMs - (long)Math.Min(idleMs, NudgeAfterIdleMs));
+
+        if (sleepWanted)
+        {
+            if (_sleeping.Count > 0) wait = Soonest;
+            foreach (MonitorSettings monitor in _settings.Monitors.Values)
+                if (monitor.MonitorSleepEnabled)
+                    wait = Math.Min(wait, Math.Clamp(monitor.MonitorSleepMinutes, 1, 240) * 60_000L - idleMs);
+            if (_retryAfter.Count > 0) wait = Math.Min(wait, 30_000);
+            // Enumerated displays go stale on a hotplug; this is how often they are re-read.
+            wait = Math.Min(wait, 30_000);
+        }
+
+        return (int)Math.Clamp(wait, Soonest, Latest);
+    }
+
+    private bool AnyMonitorSleep()
+    {
+        foreach (MonitorSettings monitor in _settings.Monitors.Values)
+            if (monitor.MonitorSleepEnabled) return true;
+        return false;
+    }
+
+    private static uint IdleMs()
+    {
+        var input = new LastInput { Size = 8 };
+        return GetLastInputInfo(ref input) == 0 ? 0 : unchecked((uint)Environment.TickCount - input.Tick);
+    }
+
+    private void ApplyAwake(DateTimeOffset now)
     {
         AwakeSettings awake = _settings.Global.Awake;
         uint wanted = Continuous;
-        if (awake.ActiveAt(DateTimeOffset.UtcNow))
+        if (awake.ActiveAt(now))
         {
             wanted |= SystemRequired;
             if (awake.KeepDisplaysOn) wanted |= DisplayRequired;
@@ -123,7 +186,7 @@ internal sealed partial class PowerService : IDisposable
     /// everything that waits for inactivity - OLED idle dimming, monitor sleep -
     /// waits while this is on; that is what staying active means.
     /// </remarks>
-    private unsafe void StayActive()
+    private unsafe void StayActive(uint idleMs)
     {
         bool wanted = _settings.Global.Awake.StayActive;
         if (wanted != _stayActive)
@@ -133,9 +196,6 @@ internal sealed partial class PowerService : IDisposable
         }
         if (!wanted) return;
 
-        var last = new LastInput { Size = 8 };
-        if (GetLastInputInfo(ref last) == 0) return;
-        uint idleMs = unchecked((uint)Environment.TickCount - last.Tick);
         if (idleMs < NudgeAfterIdleMs) return;
 
         Input* moves = stackalloc Input[2];
@@ -145,11 +205,8 @@ internal sealed partial class PowerService : IDisposable
             Log.Write($"stay active: the nudge was refused ({Marshal.GetLastPInvokeError()}); a secure desktop or an elevated window may have the input");
     }
 
-    private void ApplyMonitorSleep()
+    private void ApplyMonitorSleep(uint idleMs, DateTimeOffset now)
     {
-        var input = new LastInput { Size = 8 };
-        if (GetLastInputInfo(ref input) == 0) return;
-        uint idleMs = unchecked((uint)Environment.TickCount - input.Tick);
         bool recentInput = idleMs < 1500;
         foreach ((string token, MonitorSettings monitor) in _settings.Monitors)
         {
@@ -166,10 +223,10 @@ internal sealed partial class PowerService : IDisposable
             }
 
             if (asleep || idleMs < Math.Clamp(monitor.MonitorSleepMinutes, 1, 240) * 60_000L) continue;
-            if (_retryAfter.TryGetValue(token, out DateTimeOffset retry) && retry > DateTimeOffset.UtcNow) continue;
+            if (_retryAfter.TryGetValue(token, out DateTimeOffset retry) && retry > now) continue;
 
             if (MonitorCapabilities.Write(display!, 0xD6, 0x04)) _sleeping.Add(token);
-            else _retryAfter[token] = DateTimeOffset.UtcNow.AddSeconds(30);
+            else _retryAfter[token] = now.AddSeconds(30);
         }
 
         foreach (string token in _sleeping.ToArray())

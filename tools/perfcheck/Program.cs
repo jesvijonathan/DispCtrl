@@ -4,6 +4,27 @@ using DispCtrl.Core.Presets;
 using DispCtrl.Core.Settings;
 using DispCtrl.Display;
 using DispCtrl.Display.Presets;
+if (args.Contains("--status"))
+{
+    for (int i = 0; i < 5; i++)
+    {
+        var watch = Stopwatch.StartNew();
+        var signature = DisplayRegistry.CheapSignature();
+        Console.Write($"signature {watch.Elapsed.TotalMilliseconds:0.0} ms, ");
+        watch.Restart();
+        var active = DisplayRegistry.Enumerate();
+        Console.Write($"enumeration {watch.Elapsed.TotalMilliseconds:0.0} ms, ");
+        watch.Restart();
+        var statusSettings = SettingsStore.Load();
+        Console.Write($"settings {watch.Elapsed.TotalMilliseconds:0.0} ms, ");
+        watch.Restart();
+        var processes = Process.GetProcessesByName("DispCtrl.Engine");
+        Console.Write($"process {watch.Elapsed.TotalMilliseconds:0.0} ms");
+        foreach (var process in processes) process.Dispose();
+        Console.WriteLine($" ({active.Count} displays, signature {signature.Length}, {statusSettings.Monitors.Count} saved)");
+    }
+    return;
+}
 var displays = DisplayRegistry.Enumerate();
 var external = displays.FirstOrDefault(d => !d.IsInternal);
 void Measure(string name, Action action, int count = 1)

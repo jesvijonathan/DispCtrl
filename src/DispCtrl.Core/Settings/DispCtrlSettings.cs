@@ -136,7 +136,7 @@ public sealed class GlobalSettings
     public int HideDelayMs { get; set; } = 350;
 
     /// <summary>Slide duration. 0 restores an instant snap.</summary>
-    public int AnimMs { get; set; } = 180;
+    public int AnimMs { get; set; } = 270;
 
     /// <summary>How close to the screen edge the cursor must get to reveal.</summary>
     public int RevealPx { get; set; } = 2;

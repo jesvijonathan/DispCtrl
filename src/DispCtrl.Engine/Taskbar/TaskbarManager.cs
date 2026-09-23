@@ -138,8 +138,16 @@ internal sealed class TaskbarManager
     /// underneath a tick that is midway through reading them would be a data
     /// race, and the loop is the only thread allowed to touch bar state.
     /// </remarks>
-    public void ApplySettings(DispCtrlSettings settings) =>
+    public void ApplySettings(DispCtrlSettings settings)
+    {
         Volatile.Write(ref _pendingSettings, settings);
+        // The loop may be in a long sleep with nothing to watch; a new
+        // configuration is exactly what it is waiting for.
+        _wake.Set();
+    }
+
+    private readonly AutoResetEvent _wake = new(false);
+    private WaitHandle[]? _waitOn;
 
     public void Run(CancellationToken ct)
     {
@@ -156,9 +164,8 @@ internal sealed class TaskbarManager
             {
                 long now = clock.ElapsedMilliseconds;
 
-                if (Volatile.Read(ref _pendingSettings) is { } incoming)
+                if (Interlocked.Exchange(ref _pendingSettings, null) is { } incoming)
                 {
-                    Volatile.Write(ref _pendingSettings, null);
                     AdoptSettings(incoming);
                     nextRescan = now;   // re-discover immediately
                 }
@@ -171,15 +178,21 @@ internal sealed class TaskbarManager
                     Rescan();
                 }
 
+                // No bar to move means no cursor to watch: sleep to the next
+                // rescan, and with nothing at all to keep up - no bar, no glass,
+                // no opacity - until the settings change. This used to poll at
+                // the idle rate, ten wakes a second on a desk managing nothing.
                 if (_bars.Count == 0)
                 {
-                    Sleep(_settings.Global.IdlePollMs, ct);
+                    Sleep(NothingToMaintain() ? Timeout.Infinite : (int)Math.Max(1, nextRescan - now), ct);
                     continue;
                 }
 
+                // Fails on the secure desktop: locked, UAC, sign-in. Nothing can
+                // be revealed there, so check once a second rather than ten times.
                 if (!PInvoke.GetCursorPos(out System.Drawing.Point cur))
                 {
-                    Sleep(_settings.Global.IdlePollMs, ct);
+                    Sleep(RescanIntervalMs, ct);
                     continue;
                 }
 
@@ -298,10 +311,20 @@ internal sealed class TaskbarManager
     {
         // A 1ms system timer is only worth its power cost while a slide is
         // actually running.
-        if (ms <= AnimFrameMs) BeginHighResTimer();
+        if (ms != Timeout.Infinite && ms <= AnimFrameMs) BeginHighResTimer();
         else EndHighResTimer();
 
-        ct.WaitHandle.WaitOne(ms);
+        _waitOn ??= [ct.WaitHandle, _wake];
+        WaitHandle.WaitAny(_waitOn, ms);
+    }
+
+    private bool NothingToMaintain()
+    {
+        GlobalSettings g = _settings.Global;
+        if (g.TaskbarGlassEnabled || g.TaskbarOpacity < 100) return false;
+        foreach (MonitorSettings m in _settings.Monitors.Values)
+            if (m.ManagesTaskbar) return false;
+        return true;
     }
 
     private void BeginHighResTimer()
@@ -562,7 +585,9 @@ internal sealed class TaskbarManager
     /// </remarks>
     private void Rescan()
     {
-        if (!_settings.Monitors.Values.Any(m => m.ManagesTaskbar)) return;
+        bool any = false;
+        foreach (MonitorSettings m in _settings.Monitors.Values) if (m.ManagesTaskbar) { any = true; break; }
+        if (!any) return;
         string signature = DisplayRegistry.CheapSignature();
         bool layoutChanged = signature != _lastSignature;
 

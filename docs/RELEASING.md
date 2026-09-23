@@ -32,7 +32,7 @@ the engine gracefully and close the app before rebuilding binaries they use.
 ./build/Publish.ps1   -Version 0.1.0 -Channel beta            # into artifacts/beta-0.1.0
 ./build/Installer.ps1 -DesktopDirectory ./artifacts/beta-0.1.0/desktop -Version 0.1.0 -Channel beta
 ./build/Package.ps1   -DesktopDirectory ./artifacts/beta-0.1.0/desktop `
-  -IdentityName '<Partner Center identity name>' -Publisher '<Partner Center publisher CN>' -Version 0.1.0.0
+  -Version 0.1.0.0   # Store identity from AppxManifest.xml; -IdentityName/-Publisher override it
 ./build/ReleaseNotes.ps1 -Version 0.1.0 -ArtifactsDirectory ./artifacts/beta-0.1.0
 ```
 
@@ -130,8 +130,8 @@ caught by the commit that causes it. `devices.yml` validates the device library.
 |---|---|---|
 | secret | `SIGNING_CERT_BASE64` | base64 of a code-signing `.pfx`; optional |
 | secret | `SIGNING_CERT_PASSWORD` | its password |
-| variable | `STORE_IDENTITY` | Partner Center > Product identity > `Package/Identity/Name` |
-| variable | `STORE_PUBLISHER` | the same page's `Package/Identity/Publisher` (`CN=...`) |
+| variable | `STORE_IDENTITY` | optional: overrides the Store identity in `build/packaging/AppxManifest.xml` |
+| variable | `STORE_PUBLISHER` | optional, with `STORE_IDENTITY`: overrides its publisher (`CN=...`) |
 | variable | `STORE_PRODUCT_ID` | the Store ID (`9N...`); enables the Store job |
 | secret | `PARTNER_CENTER_TENANT_ID`, `_SELLER_ID`, `_CLIENT_ID`, `_CLIENT_SECRET` | an Entra app added to Partner Center (Account settings > User management > Microsoft Entra applications, Manager role) |
 | variable | `WINGET_PACKAGE_ID` | `JesviJonathan.DispCtrl`; enables the winget job |

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Windowing;
 using DispCtrl.App.ViewModels;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
@@ -11,10 +12,17 @@ namespace DispCtrl.App.Views;
 public sealed partial class DisplaysPage : Page
 {
     public MainViewModel ViewModel => App.ViewModel;
+    // Each check asks Explorer for every display's wallpaper over COM. Coming
+    // back to the window refreshes at once; the timer only catches a slideshow
+    // changing while the page is watched.
+    private readonly DispatcherTimer _wallpaperRefresh = new() { Interval = TimeSpan.FromSeconds(10) };
+    private Window? _wallpaperWindow;
 
     public DisplaysPage()
     {
         InitializeComponent();
+        _wallpaperRefresh.Tick += OnWallpaperRefresh;
+        Unloaded += (_, _) => StopWallpaperRefresh();
 
         // Dark mode is read from Windows rather than stored here, so the switch
         // has to be told when something else moves it - Windows' own Settings,
@@ -26,29 +34,84 @@ public sealed partial class DisplaysPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         LoadArrangement();
+        _wallpaperWindow = App.MainWindow;
+        _wallpaperWindow.AppWindow.Changed += OnWallpaperWindowChanged;
+        _wallpaperWindow.Activated += OnWallpaperWindowActivated;
+        _wallpaperWindow.Closed += OnWallpaperWindowClosed;
+        UpdateWallpaperVisibility();
         if (ViewModel.PresetsEnabled) ViewModel.Presets.RefreshDrift();
     }
 
-    /// <remarks>
-    /// Narrow, the picture goes first and on the table's left edge. Moved below
-    /// the table and centred, it sat under thirty rows of text, lined up with
-    /// nothing, and read as left over; first, it is what the details describe,
-    /// as in Windows' own display settings.
-    /// </remarks>
     private void OnDisplayOverviewSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (sender is not Grid grid || grid.Children.Count < 2) return;
-        bool narrow = e.NewSize.Width < 780;
+        bool narrow = e.NewSize.Width < 600;
         var preview = (FrameworkElement)grid.Children[0];
         var table = (FrameworkElement)grid.Children[1];
         Grid.SetRow(preview, 0);
         Grid.SetColumn(preview, narrow ? 0 : 1);
         Grid.SetColumnSpan(preview, narrow ? 2 : 1);
         Grid.SetRow(table, narrow ? 1 : 0);
+        Grid.SetColumn(table, 0);
         Grid.SetColumnSpan(table, narrow ? 2 : 1);
-        grid.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : GridLength.Auto;
-        preview.HorizontalAlignment = narrow ? HorizontalAlignment.Left : HorizontalAlignment.Center;
-        preview.MaxWidth = narrow ? Math.Min(300, Math.Max(1, e.NewSize.Width)) : 340;
+        grid.ColumnDefinitions[0].Width = narrow ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+        grid.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        table.Width = narrow ? double.NaN : Math.Clamp(e.NewSize.Width * 0.56, 400, 660);
+        preview.HorizontalAlignment = HorizontalAlignment.Center;
+        preview.MaxWidth = narrow ? Math.Min(300, e.NewSize.Width) :
+            Math.Min(340, Math.Max(1, e.NewSize.Width - table.Width - grid.ColumnSpacing));
+    }
+
+    private bool CanRefreshWallpaper => _wallpaperWindow?.AppWindow.IsVisible == true
+        && _wallpaperWindow.AppWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Minimized };
+
+    private void OnWallpaperWindowChanged(AppWindow sender, AppWindowChangedEventArgs args) => UpdateWallpaperVisibility();
+    private void OnWallpaperWindowActivated(object sender, WindowActivatedEventArgs args)
+    {
+        bool wasActive = ArrangeSurface.WallpapersActive;
+        UpdateWallpaperVisibility();
+        if (wasActive && args.WindowActivationState != WindowActivationState.Deactivated)
+            OnWallpaperRefresh(null, EventArgs.Empty);
+    }
+    private void OnWallpaperWindowClosed(object sender, WindowEventArgs args) => StopWallpaperRefresh();
+
+    private void UpdateWallpaperVisibility()
+    {
+        bool visible = CanRefreshWallpaper;
+        if (ArrangeSurface.WallpapersActive == visible) return;
+        ArrangeSurface.WallpapersActive = visible;
+        _wallpaperRefresh.Stop();
+        if (visible) OnWallpaperRefresh(null, EventArgs.Empty);
+    }
+
+    private async void OnWallpaperRefresh(object? sender, object args)
+    {
+        // Schedule the next check after this one finishes. A slow COM server
+        // or wallpaper file must not create an ever-growing queue of reads.
+        _wallpaperRefresh.Stop();
+        ArrangeSurface.WallpapersActive = CanRefreshWallpaper;
+        await ArrangeSurface.RefreshWallpapersAsync();
+        if (CanRefreshWallpaper) _wallpaperRefresh.Start();
+    }
+
+    private void StopWallpaperRefresh()
+    {
+        _wallpaperRefresh.Stop();
+        ArrangeSurface.WallpapersActive = false;
+        if (_wallpaperWindow is not { } window) return;
+        window.AppWindow.Changed -= OnWallpaperWindowChanged;
+        window.Activated -= OnWallpaperWindowActivated;
+        window.Closed -= OnWallpaperWindowClosed;
+        _wallpaperWindow = null;
+    }
+
+    private void OnToggleMonitorControls(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Parent is not StackPanel panel || panel.Children.Count < 2) return;
+        var controls = (ItemsControl)panel.Children[1];
+        bool show = controls.Visibility != Visibility.Visible;
+        controls.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        button.Content = show ? "Hide controls" : "Show controls";
     }
 
     private void OnOpenWindowsColours(object sender, RoutedEventArgs e) =>
@@ -264,5 +327,6 @@ public sealed partial class DisplaysPage : Page
         // which one to sit over. Without this it throws on an unpackaged app.
         nint handle = WindowNative.GetWindowHandle(App.MainWindow);
         await display.PickWallpaperAsync(handle);
+        await ArrangeSurface.RefreshWallpapersAsync();
     }
 }

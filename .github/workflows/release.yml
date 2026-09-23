@@ -109,14 +109,12 @@ jobs:
           STORE_IDENTITY: ${{ vars.STORE_IDENTITY }}
           STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
         run: |
-          $identity = $env:STORE_IDENTITY
-          $publisher = $env:STORE_PUBLISHER
-          if ([bool]$identity -ne [bool]$publisher) { throw 'Set both STORE_IDENTITY and STORE_PUBLISHER repository variables.' }
-          if (-not $identity) {
-            $identity = 'DispCtrl.Development'
-            $publisher = 'CN=DispCtrl Development'
-            '::warning::Using the development identity; this MSIX cannot be submitted to the Store.'
-          }
+          # The Store identity is in build/packaging/AppxManifest.xml; the
+          # repository variables only override it, and must come as a pair.
+          if ([bool]$env:STORE_IDENTITY -ne [bool]$env:STORE_PUBLISHER) { throw 'Set both STORE_IDENTITY and STORE_PUBLISHER repository variables, or neither.' }
+          $template = [xml](Get-Content build/packaging/AppxManifest.xml -Raw)
+          $identity = if ($env:STORE_IDENTITY) { $env:STORE_IDENTITY } else { $template.Package.Identity.Name }
+          $publisher = if ($env:STORE_PUBLISHER) { $env:STORE_PUBLISHER } else { $template.Package.Identity.Publisher }
           # An MSIX can be signed only by a certificate whose subject equals its
           # Publisher; signtool refuses anything else. A code-signing
           # certificate that is not the Store's still signs the exe and the

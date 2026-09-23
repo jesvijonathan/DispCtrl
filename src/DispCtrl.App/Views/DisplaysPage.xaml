@@ -612,13 +612,8 @@
                   <Grid ColumnSpacing="24" RowSpacing="16" Padding="0,4,0,8"
                         SizeChanged="OnDisplayOverviewSizeChanged" RowDefinitions="Auto,Auto">
                     <Grid.ColumnDefinitions>
-                      <!-- The preview takes whatever the table does not, and
-                           centres itself in it. Pinned left it sat alone against
-                           the icon gutter with the whole gap to its right; in
-                           the middle of its own share it reads as the other half
-                           of the card rather than as something left over. -->
-                      <ColumnDefinition Width="*"/>
                       <ColumnDefinition Width="Auto"/>
+                      <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- The panel itself, drawn at its real aspect ratio with
@@ -1075,10 +1070,12 @@
                     <FontIcon Glyph="&#xE9E9;"/>
                   </tk:SettingsCard.HeaderIcon>
 
+                  <StackPanel Spacing="4">
+                    <Button Content="Show controls" Click="OnToggleMonitorControls"
+                            Visibility="{x:Bind MonitorControlsVisibility, Mode=OneWay}"/>
                   <ItemsControl ItemsSource="{x:Bind MonitorControls}"
                                 HorizontalContentAlignment="Stretch"
-                                Margin="0,4,0,8"
-                                Visibility="{x:Bind MonitorControlsVisibility, Mode=OneWay}">
+                                Margin="12,4,0,8" Visibility="Collapsed">
                     <ItemsControl.ItemsPanel>
                       <ItemsPanelTemplate>
                         <StackPanel Spacing="2"/>
@@ -1124,6 +1121,7 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
+                  </StackPanel>
                 </tk:SettingsCard>
 
                 <tk:SettingsCard Header="Also reported"

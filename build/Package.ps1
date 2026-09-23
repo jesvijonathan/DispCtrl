@@ -1,9 +1,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$DesktopDirectory,
-    [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9.-]{3,50}$')][string]$IdentityName,
-    [Parameter(Mandatory)][string]$Publisher,
-    [string]$PublisherDisplayName = 'Jesvi Jonathan',
+    # Both default to the Store identity in build/packaging/AppxManifest.xml.
+    [ValidatePattern('^[A-Za-z0-9.-]{3,50}$')][string]$IdentityName,
+    [string]$Publisher,
+    [string]$PublisherDisplayName = 'JustVStudio',
     [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')][string]$Version = '0.1.0.0',
     [string]$MakeAppx,
     # Signs with Sign.ps1. The certificate subject must equal -Publisher.
@@ -14,6 +15,9 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+$template = [xml](Get-Content -LiteralPath (Join-Path $repo 'build/packaging/AppxManifest.xml') -Raw)
+if (-not $IdentityName) { $IdentityName = $template.Package.Identity.Name }
+if (-not $Publisher) { $Publisher = $template.Package.Identity.Publisher }
 $source = (Resolve-Path -LiteralPath $DesktopDirectory).Path
 foreach ($exe in @('DispCtrl.App.exe','DispCtrl.Engine.exe','dispctrl.exe')) {
     if (-not (Test-Path -LiteralPath (Join-Path $source $exe))) { throw "Missing published executable: $exe" }
@@ -51,7 +55,7 @@ try {
         } finally { $graphics.Dispose(); $bitmap.Dispose() }
     }
 } finally { $original.Dispose(); $icon.Dispose() }
-$manifest = [xml](Get-Content -LiteralPath (Join-Path $repo 'build/packaging/AppxManifest.xml') -Raw)
+$manifest = $template
 $manifest.Package.Identity.SetAttribute('Name',$IdentityName)
 $manifest.Package.Identity.SetAttribute('Publisher',$Publisher)
 $manifest.Package.Identity.SetAttribute('Version',$Version)
@@ -65,5 +69,5 @@ if ($Sign) { & "$PSScriptRoot/Sign.ps1" -Path $package }
 Get-FileHash -LiteralPath $package -Algorithm SHA256 | ForEach-Object {
     "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))"
 } | Set-Content -LiteralPath (Join-Path $output 'MSIX-SHA256SUMS.txt') -Encoding ascii
-Write-Output "$(if ($Sign) { 'Signed' } else { 'Unsigned' }) MSIX: $package"
+Write-Output "$(if ($Sign) { 'Signed' } else { 'Unsigned' }) MSIX: $package ($IdentityName, $Publisher)"
 return $package

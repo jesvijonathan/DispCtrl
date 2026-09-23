@@ -8,7 +8,7 @@ using static DispCtrl.Engine.Protection.OverlayNative;
 namespace DispCtrl.Engine.Protection;
 
 /// <summary>One sleeping message pump; one cached black overlay per monitor.</summary>
-internal sealed unsafe class FocusService : IDisposable
+internal sealed unsafe partial class FocusService : IDisposable
 {
     private const uint UpdateMessage = 0x8001;
 
@@ -20,9 +20,18 @@ internal sealed unsafe class FocusService : IDisposable
     private DispCtrlSettings _settings;
     private DispCtrlSettings? _pending;
     private readonly List<nint> _hooks = [];
+    private (bool Active, bool Focus, bool Prioritize)? _hookState;
     private readonly List<Mask> _masks = [];
     private HashSet<string> _excluded = [];
+    private string? _excludedApps;
+    private (bool FollowMouse, bool KeepHoveredClear)? _pointerMode;
     private nint _control, _foreground;
+    private bool _locked;
+
+    [System.Runtime.InteropServices.LibraryImport("wtsapi32.dll")]
+    private static partial int WTSRegisterSessionNotification(nint hwnd, uint flags);
+    [System.Runtime.InteropServices.LibraryImport("wtsapi32.dll")]
+    private static partial int WTSUnRegisterSessionNotification(nint hwnd);
     private nint _automaticWindow;
     private string _automaticClass = "";
     private long _focusedAt;
@@ -119,8 +128,12 @@ internal sealed unsafe class FocusService : IDisposable
 
     public void Update(DispCtrlSettings settings)
     {
-        Volatile.Write(ref _pending, settings);
-        if (_control != 0) PostMessage(_control, UpdateMessage, 0, 0);
+        // One queued message consumes the latest settings from a save burst.
+        // A message that could not be posted must not leave _pending set, or
+        // every later save would assume one is already on its way.
+        if (Interlocked.Exchange(ref _pending, settings) is null
+            && (_control == 0 || PostMessage(_control, UpdateMessage, 0, 0) == 0))
+            Interlocked.CompareExchange(ref _pending, null, settings);
     }
 
     private void Pump()
@@ -137,6 +150,8 @@ internal sealed unsafe class FocusService : IDisposable
             _control = CreateWindowEx(0x08000080, ClassName, "DispCtrl protection service", 0x80000000,
                 0, 0, 0, 0, 0, 0, GetModuleHandle(null), 0);
             if (_control == 0) throw new InvalidOperationException("Cannot create protection message window.");
+            // Lock and unlock arrive as messages, so a locked session costs no polling.
+            _ = WTSRegisterSessionNotification(_control, 0);
             Configure();
             _ready.Set();
             while (GetMessage(out Message message, 0, 0, 0) > 0) DispatchMessage(ref message);
@@ -146,7 +161,7 @@ internal sealed unsafe class FocusService : IDisposable
         {
             ClearMasks();
             ClearHooks();
-            if (_control != 0) DestroyWindow(_control);
+            if (_control != 0) { _ = WTSUnRegisterSessionNotification(_control); DestroyWindow(_control); }
             _control = 0;
             _instance = null;
             _ready.Set();
@@ -155,22 +170,55 @@ internal sealed unsafe class FocusService : IDisposable
 
     private void Configure(bool rebuildMasks = true)
     {
-        _excluded = _settings.Global.Focus.Exclusions();
-        ClearHooks();
+        FocusSettings focus = _settings.Global.Focus;
+        string excludedApps = focus.ExcludedApps ?? "";
+        bool exclusionsChanged = _excludedApps != excludedApps;
+        if (exclusionsChanged)
+        {
+            _excludedApps = excludedApps;
+            _excluded = focus.Exclusions();
+        }
         if (rebuildMasks) ClearMasks();
         bool active = _settings.Global.Focus.Enabled || _settings.Global.OledCare.Enabled
             || _settings.Monitors.Values.Any(monitor => monitor.OledRestUntilUtc > DateTimeOffset.UtcNow);
-        _automaticWindow = 0;
-        _automaticClass = "";
+        bool focusMode = _settings.Global.Focus.Enabled;
+        bool prioritize = focusMode && _settings.Global.Focus.PrioritizeNewWindows;
+        var hookState = (Active: active, Focus: focusMode, Prioritize: prioritize);
+        bool hooksChanged = _hookState != hookState;
+        if (hooksChanged)
+        {
+            ClearHooks();
+            if (active)
+            {
+                AddHook(3, focusMode ? 7u : 3u);
+                if (focusMode)
+                {
+                    AddHook(0x800B, 0x800B);
+                    AddHook(0x0016, 0x0017);
+                }
+                if (prioritize) AddHook(0x8001, 0x8003);
+            }
+            _hookState = hookState;
+            _pointerEvents = false;
+        }
+        var pointerMode = (focus.FollowMouse, focus.KeepHoveredClear);
+        if (rebuildMasks || hooksChanged || _pointerMode != pointerMode)
+        {
+            _automaticWindow = 0;
+            _automaticClass = "";
+        }
+        _pointerMode = pointerMode;
         if (!active) { _previewUntil = 0; ClearMasks(); }
         if (active)
         {
             // Out-of-context notifications: no DLL injection, no keyboard hook.
-            AddHook(3, 7); // foreground and menu start/end
-            AddHook(0x800B, 0x800B); // location; filtered to foreground below
-            AddHook(0x0016, 0x0017); // minimize start/end
-            if (_settings.Global.Focus.Enabled && _settings.Global.Focus.PrioritizeNewWindows)
-                AddHook(0x8001, 0x8003); // destroy/show/hide for the temporary priority window
+            // Location changes are the expensive one: out of context, every
+            // caret, progress bar and animation in every process is a wake-up
+            // of this thread - measured at about 180 a second on an idle desk,
+            // nearly all of them thrown away. Only focus mode follows windows and
+            // the pointer live. OLED care alone needs the foreground window, and
+            // its once-a-second tick already re-reads that window's rectangle,
+            // the idle time and the pointer.
             foreach (DisplayInfo d in _masks.Count == 0 ? DisplayRegistry.Enumerate() : [])
             {
                 nint live = CreateWindowEx(0x080800A8, ClassName, "DispCtrl dim overlay", 0x80000000,
@@ -199,8 +247,10 @@ internal sealed unsafe class FocusService : IDisposable
                 _masks.Add(new(d, live, ghost));
             }
         }
-        ForegroundChanged();
-        Tick();
+        // ForegroundChanged already ticks. Unrelated saves must not restart
+        // the focus delay, clear a newly shown window, or restore pointer polling.
+        if (rebuildMasks || hooksChanged || exclusionsChanged) ForegroundChanged();
+        else Tick();
     }
 
     private void AddHook(uint min, uint max)
@@ -257,8 +307,11 @@ internal sealed unsafe class FocusService : IDisposable
                 if (message == 0x10) { PostQuitMessage(0); return 0; }
                 if (message == UpdateMessage)
                 {
-                    if (Interlocked.Exchange(ref self._pending, null) is { } settings) self._settings = settings;
-                    self.Configure(rebuildMasks: false);
+                    if (Interlocked.Exchange(ref self._pending, null) is { } settings)
+                    {
+                        self._settings = settings;
+                        self.Configure(rebuildMasks: false);
+                    }
                     return 0;
                 }
                 if (message == DispCtrl.Display.OledPreview.MessageId)
@@ -268,7 +321,13 @@ internal sealed unsafe class FocusService : IDisposable
                     self.Tick();
                     return 0;
                 }
-                if (message == 0x7E) { self.Configure(); return 0; } // display topology/DPI change
+                if (message == 0x7E) { Color.DisplayChanges.Raise(); self.Configure(); return 0; } // display topology/DPI change
+                if (message == 0x2B1 && wparam is 7 or 8) // WM_WTSSESSION_CHANGE: lock, unlock
+                {
+                    self._locked = wparam == 7;
+                    self.Tick();
+                    return 0;
+                }
                 if (message == 0x218) // suspend/resume: never leave a stale mask on resume
                 {
                     self._suspended = wparam == 4;
@@ -347,7 +406,10 @@ internal sealed unsafe class FocusService : IDisposable
         // a button.
         nint hovered = 0;
         bool pointerKnown = GetCursorPos(out Point cursor) != 0;
-        if (pointerKnown)
+        // Only focus mode cares which window is under the pointer. OLED care
+        // wants the position alone, so a care-only tick skips two window
+        // lookups and a class-name string.
+        if (pointerKnown && focus.Enabled && (focus.FollowMouse || focus.KeepHoveredClear))
         {
             nint under = WindowFromPoint(cursor);
             nint root = under == 0 ? 0 : GetAncestor(under, 2); // GA_ROOT
@@ -724,6 +786,11 @@ internal sealed unsafe class FocusService : IDisposable
 
         animating |= sliding;
 
+        // Nothing drawn here shows on the lock screen, and a rest already in
+        // place stays put. Polling for input at ten a second behind it, which a
+        // screen resting for an absent person did all night, waits for unlock.
+        if (_locked) return;
+
         if (animating) Schedule(16);
         // Every frame while it moves, not once when the drag is judged over:
         // scheduling the settle deadline instead meant the hole was re-cut about
@@ -945,7 +1012,7 @@ internal sealed unsafe class FocusService : IDisposable
         foreach (Mask mask in _masks) { DestroyWindow(mask.Live); DestroyWindow(mask.Ghost); }
         _masks.Clear();
     }
-    private void ClearHooks() { foreach (nint hook in _hooks) UnhookWinEvent(hook); _hooks.Clear(); }
+    private void ClearHooks() { foreach (nint hook in _hooks) UnhookWinEvent(hook); _hooks.Clear(); _hookState = null; }
     private void FailOpen(Exception ex) { ClearMasks(); ClearHooks(); Log.Write($"Display protection cleared: {ex.Message}"); }
     public void Dispose()
     {

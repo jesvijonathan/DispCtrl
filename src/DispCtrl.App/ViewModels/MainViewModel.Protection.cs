@@ -8,7 +8,7 @@ public sealed partial class MainViewModel
     private FocusSettings Focus => _settings.Global.Focus;
     private OledCareSettings Care => _settings.Global.OledCare;
     public bool FocusEnabled { get => Focus.Enabled; set { if (Focus.Enabled == value) return; Focus.Enabled = value; SaveProtection(); } }
-    public double FocusDim { get => Focus.DimPercent; set { int v = Number(value, 0, 100); if (Focus.DimPercent == v) return; Focus.DimPercent = v; SaveProtection(); } }
+    public double FocusDim { get => Focus.DimPercent; set { int v = Number(value, 0, 100); if (Focus.DimPercent == v) return; Focus.DimPercent = v; SaveProtectionSlider(); } }
     public double FocusDelay { get => Focus.DelayMs; set { int v = Number(value, 0, 10000); if (Focus.DelayMs == v) return; Focus.DelayMs = v; SaveProtection(); } }
     public double FocusFade { get => Focus.FadeMs; set { int v = Number(value, 0, 2000); if (Focus.FadeMs == v) return; Focus.FadeMs = v; SaveProtection(); } }
     public bool FocusOledOnly { get => Focus.OledOnly; set { if (Focus.OledOnly == value) return; Focus.OledOnly = value; SaveProtection(); } }
@@ -50,11 +50,11 @@ public sealed partial class MainViewModel
     public string FocusExcludedApps { get => Focus.ExcludedApps; set { if (Focus.ExcludedApps == value) return; Focus.ExcludedApps = value; SaveProtection(); } }
     public bool OledIdleEnabled { get => Care.Enabled; set { if (Care.Enabled == value) return; Care.Enabled = value; SaveProtection(); } }
     public double OledIdleMinutes { get => Care.IdleMinutes; set { int v = Number(value, 1, 120); if (Care.IdleMinutes == v) return; Care.IdleMinutes = v; SaveProtection(); } }
-    public double OledIdleDim { get => Care.DimPercent; set { int v = Number(value, 0, 100); if (Care.DimPercent == v) return; Care.DimPercent = v; SaveProtection(); PreviewOled(v); Raise(nameof(OledSecondStageVisibility)); Raise(nameof(OledSecondStageDim)); } }
+    public double OledIdleDim { get => Care.DimPercent; set { int v = Number(value, 0, 100); if (Care.DimPercent == v) return; Care.DimPercent = v; SaveProtectionSlider(); PreviewOled(v); Raise(nameof(OledSecondStageVisibility)); Raise(nameof(OledSecondStageDim)); } }
     public Visibility OledSecondStageVisibility => Care.DimPercent is > 0 and < 100 ? Visibility.Visible : Visibility.Collapsed;
     public bool OledSecondStageEnabled { get => Care.SecondStageEnabled; set { if (Care.SecondStageEnabled == value) return; Care.SecondStageEnabled = value; SaveProtection(); } }
     public double OledSecondStageMinutes { get => Care.SecondStageMinutes; set { int v = Number(value, 1, 120); if (Care.SecondStageMinutes == v) return; Care.SecondStageMinutes = v; SaveProtection(); } }
-    public double OledSecondStageDim { get => Math.Clamp(Care.SecondStageDimPercent, Care.DimPercent, 100); set { int v = Number(value, Care.DimPercent, 100); if (Care.SecondStageDimPercent == v) return; Care.SecondStageDimPercent = v; SaveProtection(); PreviewOled(v); } }
+    public double OledSecondStageDim { get => Math.Clamp(Care.SecondStageDimPercent, Care.DimPercent, 100); set { int v = Number(value, Care.DimPercent, 100); if (Care.SecondStageDimPercent == v) return; Care.SecondStageDimPercent = v; SaveProtectionSlider(); PreviewOled(v); } }
 
     private int _oledPreviewVersion;
     private async void PreviewOled(int percent)
@@ -78,10 +78,10 @@ public sealed partial class MainViewModel
     }
     public double OledIdleFade { get => Care.FadeMs; set { int v = Number(value, 0, 2000); if (Care.FadeMs == v) return; Care.FadeMs = v; SaveProtection(); } }
     public bool OledPauseFullscreen { get => Care.PauseFullscreen; set { if (Care.PauseFullscreen == value) return; Care.PauseFullscreen = value; SaveProtection(); } }
-    public double TaskbarOpacity { get => _settings.Global.TaskbarOpacity; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarOpacity == v) return; _settings.Global.TaskbarOpacity = v; SaveProtection(); } }
+    public double TaskbarOpacity { get => _settings.Global.TaskbarOpacity; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarOpacity == v) return; _settings.Global.TaskbarOpacity = v; SaveProtectionSlider(); } }
     public bool TaskbarGlassEnabled { get => _settings.Global.TaskbarGlassEnabled; set { if (_settings.Global.TaskbarGlassEnabled == value) return; _settings.Global.TaskbarGlassEnabled = value; SaveProtection(); Raise(nameof(TaskbarGlassStatus)); } }
-    public double TaskbarGlassRadius { get => _settings.Global.TaskbarGlassRadius; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarGlassRadius == v) return; _settings.Global.TaskbarGlassRadius = v; SaveProtection(); } }
-    public double TaskbarGlassTint { get => _settings.Global.TaskbarGlassTint; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarGlassTint == v) return; _settings.Global.TaskbarGlassTint = v; SaveProtection(); } }
+    public double TaskbarGlassRadius { get => _settings.Global.TaskbarGlassRadius; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarGlassRadius == v) return; _settings.Global.TaskbarGlassRadius = v; SaveProtectionSlider(); } }
+    public double TaskbarGlassTint { get => _settings.Global.TaskbarGlassTint; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarGlassTint == v) return; _settings.Global.TaskbarGlassTint = v; SaveProtectionSlider(); } }
     public string TaskbarGlassStatus
     {
         get
@@ -249,12 +249,30 @@ public sealed partial class MainViewModel
     private void SaveProtection()
     {
         Persist();
+        EnsureEngineForProtection();
+        RaiseProtectionSettings();
+    }
+
+    /// <summary>For a slider: a coalesced save, and only its own value raised.</summary>
+    /// <remarks>
+    /// Raising all thirty-odd protection properties on every step of a drag
+    /// re-evaluated every binding on the page each time; a slider changes only
+    /// itself, and its setter raises anything that depends on it.
+    /// </remarks>
+    private void SaveProtectionSlider([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+    {
+        PersistSoon();
+        EnsureEngineForProtection();
+        Raise(name);
+    }
+
+    private void EnsureEngineForProtection()
+    {
         if (Focus.Enabled || Care.Enabled || _settings.Global.TaskbarOpacity < 100 || _settings.Global.TaskbarGlassEnabled)
         {
             try { _engine.Start(); }
             catch (Exception ex) { AppearanceStatus = $"Could not start the engine: {ex.Message}"; }
         }
-        RaiseProtectionSettings();
     }
     private void RaiseProtectionSettings()
     {

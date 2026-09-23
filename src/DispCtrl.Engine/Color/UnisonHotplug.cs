@@ -14,8 +14,10 @@ namespace DispCtrl.Engine.Color;
 /// that looks like unison having broken. Only monitors that arrive are written;
 /// the ones that stayed attached are already where unison put them.
 /// <para>
-/// The GDI fingerprint is polled once a second, which costs one
-/// <c>EnumDisplayMonitors</c>. A DDC/CI channel is not ready the moment the
+/// Woken by <c>WM_DISPLAYCHANGE</c> through <see cref="DisplayChanges"/>, then
+/// the GDI fingerprint is checked once a second until the layout settles; a
+/// slow check every half minute is only the safety net. It used to poll once
+/// a second forever. A DDC/CI channel is not ready the moment the
 /// monitor appears, so the write waits and retries rather than taking the first
 /// refusal as the answer.
 /// </para>
@@ -23,6 +25,10 @@ namespace DispCtrl.Engine.Color;
 internal sealed class UnisonHotplug : IDisposable
 {
     private const int PollMs = 1000;
+    private const int SafetyNetMs = 30_000;
+    /// <summary>How many one-second checks follow a display change, while monitors arrive.</summary>
+    private const int SettleChecks = 5;
+    private int _settling;
     private const int ReadyDelayMs = 1500;
     private const int Attempts = 3;
 
@@ -43,7 +49,15 @@ internal sealed class UnisonHotplug : IDisposable
         // Well after sign-in: nothing about learning a model is urgent, and the
         // first seconds belong to the taskbar and the tray.
         Learn(now, StartupLearnDelayMs);
-        _timer = new Timer(_ => Poll(), null, PollMs, PollMs);
+        _timer = new Timer(_ => Poll(), null, SafetyNetMs, SafetyNetMs);
+        DisplayChanges.Changed += OnDisplaysChanged;
+    }
+
+    private void OnDisplaysChanged()
+    {
+        if (_disposed) return;
+        Volatile.Write(ref _settling, SettleChecks);
+        _timer.Change(PollMs / 2, PollMs);
     }
 
     private const int StartupLearnDelayMs = 20_000;
@@ -73,7 +87,10 @@ internal sealed class UnisonHotplug : IDisposable
 
     private void Poll()
     {
-        if (_disposed || Interlocked.CompareExchange(ref _busy, 1, 0) != 0) return;
+        if (_disposed) return;
+        if (Volatile.Read(ref _settling) > 0 && Interlocked.Decrement(ref _settling) == 0)
+            _timer.Change(SafetyNetMs, SafetyNetMs);
+        if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0) return;
         try
         {
             string signature = DisplayRegistry.CheapSignature();
@@ -134,6 +151,19 @@ internal sealed class UnisonHotplug : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        DisplayChanges.Changed -= OnDisplaysChanged;
         _timer.Dispose();
     }
+}
+
+/// <summary>A display was added, removed or changed mode.</summary>
+/// <remarks>
+/// Raised from a window that hears <c>WM_DISPLAYCHANGE</c>, which Windows
+/// broadcasts to every top-level window, so nothing has to poll to notice.
+/// </remarks>
+internal static class DisplayChanges
+{
+    public static event Action? Changed;
+
+    public static void Raise() => Changed?.Invoke();
 }

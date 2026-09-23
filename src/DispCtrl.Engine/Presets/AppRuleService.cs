@@ -47,6 +47,8 @@ internal sealed class AppRuleService : IDisposable
                 if (_disposed) return;
                 settings = _settings;
             }
+            // Nothing to match and nothing to put back: no process to open.
+            if (_activeIdentity is null && !settings.AppRules.Exists(rule => rule.IsComplete)) return;
             string? image = ForegroundImageName();
             if (image is null) return;
             if (!string.Equals(image, _foreground, StringComparison.OrdinalIgnoreCase))
