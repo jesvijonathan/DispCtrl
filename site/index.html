@@ -212,7 +212,7 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 .dl .card{display:flex;flex-direction:column;padding:24px}
 .dl .card p{flex:1;color:var(--muted);font-size:14.5px;margin:6px 0 0}
 .dl .card h3{margin:0;font-size:18px}
-.dl .lg{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;margin-bottom:16px}
+.dl .lg{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;margin-bottom:16px;background:linear-gradient(180deg,#3a3642,#26232d);border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
 .dl .lg svg{width:24px;height:24px}
 .dl .btn{margin-top:18px;padding:11px 16px;font-size:14px;width:100%}
 .dl .rec{border-color:rgba(139,92,246,.55);background:linear-gradient(180deg,rgba(139,92,246,.14),var(--card))}
@@ -225,6 +225,12 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 .donate{position:relative;overflow:hidden;border-radius:30px;border:1px solid var(--line2);padding:64px 56px;text-align:center;
   background:radial-gradient(70% 120% at 0% 0%,rgba(240,166,216,.16),transparent 60%),radial-gradient(60% 120% at 100% 100%,rgba(139,92,246,.22),transparent 60%),var(--bg2)}
 .donate .sub{margin:0 auto}
+.note-card{display:flex;gap:18px;align-items:flex-start;text-align:left;max-width:640px;margin:22px auto 0;padding:22px 24px;border-radius:20px;
+  background:var(--glass);border:1px solid var(--line2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.note-card p{margin:0 0 10px;color:var(--muted);font-size:15.5px}
+.avatar{width:64px;height:64px;border-radius:50%;flex:none;border:3px solid var(--bg2);box-shadow:0 0 0 2px var(--a2)}
+.sig{font-weight:650;color:var(--text)}
+.heart-mini{color:#db61a2;display:inline-block;animation:beat 1.6s ease-in-out infinite}
 .heart{display:inline-grid;place-items:center;width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#ff8fc7,#db61a2);margin-bottom:14px;
   box-shadow:0 12px 36px rgba(219,97,162,.45);animation:beat 1.6s ease-in-out infinite}
 .heart svg{width:30px;height:30px;fill:#fff}
@@ -259,15 +265,12 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 
 /* legal */
 .legal{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-details{border:1px solid var(--line);border-radius:16px;background:var(--bg2);padding:0 22px;transition:border-color .2s}
-details[open]{border-color:var(--line2)}
-summary{cursor:pointer;list-style:none;padding:20px 0;font-weight:600;font-size:17px;display:flex;align-items:center;gap:12px}
-summary::-webkit-details-marker{display:none}
-summary::after{content:"+";margin-left:auto;font-size:22px;color:var(--a1);transition:transform .2s}
-details[open] summary::after{transform:rotate(45deg)}
-details .body{padding:0 0 20px;color:var(--muted);font-size:14.5px}
-details .body h4{color:var(--text);margin:16px 0 4px;font-size:15px}
-details .body p{margin:6px 0}
+.doc{display:flex;align-items:center;gap:16px;padding:20px 22px;border:1px solid var(--line);border-radius:16px;background:var(--bg2);color:var(--text);transition:border-color .2s,transform .2s}
+.doc:hover{border-color:var(--line2);transform:translateY(-2px);text-decoration:none}
+.doc b{display:block;font-size:17px}.doc small{color:var(--muted);font-size:14px}
+.docic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none;background:linear-gradient(180deg,#3a3642,#26232d)}
+.docic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.doc .go{margin-left:auto;color:var(--dim);font-size:18px}
 
 /* footer */
 footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradient(180deg,transparent,rgba(139,92,246,.05))}
@@ -539,26 +542,26 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
     <div class="dl">
       <div class="card rec reveal">
         <span class="badge">Recommended</span>
-        <div class="lg" style="background:linear-gradient(135deg,#2a8cff,#0052cc)"><svg viewBox="0 0 24 24" fill="#fff"><path d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zm8.5 1.2L21 21v-8.5h-9.5zm0-15.4V11.5H21V3z"/></svg></div>
+        <div class="lg"><svg viewBox="0 0 24 24" fill="#fff"><path d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zm8.5 1.2L21 21v-8.5h-9.5zm0-15.4V11.5H21V3z"/></svg></div>
         <h3>Microsoft Store</h3>
         <p>Automatic updates, installed and removed like any other Store app.</p>
         <a class="btn primary" href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">Open in the Store</a>
       </div>
       <div class="card reveal">
-        <div class="lg" style="background:linear-gradient(135deg,#c4a6ff,#8b5cf6)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+        <div class="lg"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
         <h3>Direct download</h3>
         <p>The setup program: a desktop shortcut, <code class="i">dispctrl</code> on your PATH, and repair options.</p>
         <a class="btn ghost" id="dlSetup" href="https://github.com/jesvijonathan/Display-Control/releases/latest">Download installer</a>
       </div>
       <div class="card reveal">
-        <div class="lg" style="background:linear-gradient(135deg,#3a3148,#1c1628)"><svg viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></div>
+        <div class="lg"><svg viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></div>
         <h3>Portable zip</h3>
         <p>Unzip and run, for the app or just the command line. Nothing installed.</p>
         <a class="btn ghost" id="dlZip" href="https://github.com/jesvijonathan/Display-Control/releases/latest">Download zip</a>
       </div>
       <div class="card reveal">
         <span class="badge soon">Soon</span>
-        <div class="lg" style="background:linear-gradient(135deg,#1a1a1a,#3b3b3b)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-5-6-5M12 19h8"/></svg></div>
+        <div class="lg"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-5-6-5M12 19h8"/></svg></div>
         <h3>winget</h3>
         <p>Install and update from the Windows Package Manager. Coming after the first stable release.</p>
         <div class="cmd">winget install DispCtrl</div>
@@ -571,10 +574,16 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 <section id="support" style="padding-top:20px">
   <div class="wrap">
     <div class="donate reveal">
-      <div class="heart"><svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1 5.4 3 2-2 3.4-3 5.4-3 3.6 0 5.7 3.6 4.2 7.2C19.5 16.4 12 21 12 21z"/></svg></div>
       <span class="eyebrow" style="display:block">Support the project</span>
-      <h2>Made in spare time.<br>Free for everyone.</h2>
-      <p class="sub">No ads, no paid tier, no tracking, ever. If DispCtrl saves you a little every day, a small donation keeps it going. It pays for development time and for the test monitors that teach it something new.</p>
+      <h2>Keep it free,<br>keep it independent</h2>
+      <div class="note-card">
+        <img class="avatar" src="https://github.com/jesvijonathan.png?size=160" alt="Jesvi Jonathan" width="64" height="64" loading="lazy">
+        <div>
+          <p>Hi, I'm Jesvi. I build DispCtrl on evenings and weekends, because my own desk needed it. There are no ads, no paid tier and no tracking, and there never will be.</p>
+          <p>If it saves you a little every day, a small donation keeps it going: it buys time to build, and the odd monitor to test on.</p>
+          <span class="sig">— Jesvi <span class="heart-mini">♥</span></span>
+        </div>
+      </div>
       <div class="pay">
         <span class="payitem"><a class="paybtn p-gh" href="https://github.com/sponsors/jesvijonathan">
           <svg viewBox="0 0 24 24" fill="#fff"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1 5.4 3 2-2 3.4-3 5.4-3 3.6 0 5.7 3.6 4.2 7.2C19.5 16.4 12 21 12 21z"/></svg>
@@ -596,38 +605,19 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
     <div class="head reveal">
       <span class="eyebrow">The small print</span>
       <h2>Terms &amp; privacy</h2>
-      <p class="sub">Short, plain and true.</p>
+      <p class="sub">Short, plain and true. Each opens as a simple page of its own.</p>
     </div>
     <div class="legal reveal">
-      <details id="privacy">
-        <summary>Privacy policy</summary>
-        <div class="body">
-          <p><b>DispCtrl collects no personal data.</b> It has no accounts, no analytics, no telemetry and no advertising, and it makes no network requests of its own.</p>
-          <h4>What stays on your PC</h4>
-          <p>Settings, presets, logs and the list of monitors you have used live in <code class="i">%LOCALAPPDATA%\DispCtrl</code> and never leave your computer. Uninstalling offers to delete them.</p>
-          <h4>When you choose to share</h4>
-          <p>"Report a problem" and "Share a monitor" open a prefilled GitHub issue in your own browser. Serial numbers, device paths, file paths and your account name are removed first, and you can read the whole text before sending. Nothing is sent unless you press Submit on GitHub, and what you then publish is covered by <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>.</p>
-          <h4>This website</h4>
-          <p>Hosted on GitHub Pages. It sets no cookies and uses no analytics; it remembers your light or dark choice in your own browser only. It asks GitHub for the star count, the latest release and the device library's index, and draws the UPI QR code in your browser.</p>
-          <h4>Contact</h4>
-          <p><a href="mailto:jesvi22j@gmail.com">jesvi22j@gmail.com</a></p>
-        </div>
-      </details>
-      <details id="terms">
-        <summary>Terms of use</summary>
-        <div class="body">
-          <h4>Licence</h4>
-          <p>DispCtrl is free and open-source software under the <a href="https://github.com/jesvijonathan/Display-Control/blob/master/LICENSE">MIT Licence</a>. You may use, copy, modify and redistribute it under those terms.</p>
-          <h4>No warranty</h4>
-          <p>It is provided "as is", without warranty of any kind. The authors are not liable for any claim, damage or other liability arising from its use.</p>
-          <h4>Your hardware</h4>
-          <p>DispCtrl changes real hardware settings: monitor controls over DDC/CI, display modes, gamma and power. It only offers values a monitor reports it accepts, and never writes an undocumented code unless a reviewed definition marks it safe. Even so, monitors differ, and you use it at your own risk. A monitor's own menu, or DispCtrl's per-display reset, puts things back.</p>
-          <h4>Donations</h4>
-          <p>Donations are voluntary gifts to support development. They buy no licence, features, support contract or priority, and are not refundable.</p>
-          <h4>Trademarks</h4>
-          <p>Windows and Microsoft Store are trademarks of Microsoft. Monitor makers' names are used only to identify their products. DispCtrl is not affiliated with any of them.</p>
-        </div>
-      </details>
+      <a class="doc" href="privacy.html" target="_blank" rel="noopener">
+        <span class="docic"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/></svg></span>
+        <span><b>Privacy policy</b><small>No data collected. What stays on your PC, and what you choose to share.</small></span>
+        <span class="go">↗</span>
+      </a>
+      <a class="doc" href="terms.html" target="_blank" rel="noopener">
+        <span class="docic"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>
+        <span><b>Terms of use</b><small>MIT licence, no warranty, your hardware, donations.</small></span>
+        <span class="go">↗</span>
+      </a>
     </div>
   </div>
 </section>
@@ -643,7 +633,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <div><h5>Product</h5><a href="#features">Features</a><a href="#panel">Quick panel</a><a href="#tour">Tour</a><a href="#cli">Command line</a></div>
       <div><h5>Download</h5><a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">Microsoft Store</a><a href="https://github.com/jesvijonathan/Display-Control/releases/latest">Installer</a><a href="https://github.com/jesvijonathan/Display-Control/releases">All releases</a><a href="https://github.com/jesvijonathan/Display-Control/blob/master/docs/CHANGELOG.md">Changelog</a></div>
       <div><h5>Project</h5><a href="https://github.com/jesvijonathan/Display-Control">Source code</a><a href="https://github.com/jesvijonathan/Display-Control/issues">Report an issue</a><a href="https://github.com/jesvijonathan/Display-Control/tree/master/devices">Device library</a><a href="https://github.com/jesvijonathan/Display-Control/blob/master/.github/CONTRIBUTING.md">Contributing</a></div>
-      <div><h5>More</h5><a href="#support">Donate</a><a href="#privacy" data-open="privacy">Privacy</a><a href="#terms" data-open="terms">Terms</a><a href="mailto:jesvi22j@gmail.com">Contact</a></div>
+      <div><h5>More</h5><a href="#support">Donate</a><a href="privacy.html" target="_blank" rel="noopener">Privacy</a><a href="terms.html" target="_blank" rel="noopener">Terms</a><a href="mailto:jesvi22j@gmail.com">Contact</a></div>
     </div>
     <div class="wordmark" aria-hidden="true"><img src="assets/logo.png" alt=""><span>DispCtrl</span></div>
     <div class="fbot"><span>© 2026 Jesvi Jonathan · MIT licence</span><span>Not affiliated with Microsoft.</span></div>
@@ -761,9 +751,8 @@ const lb = $('lb');
 document.querySelectorAll('.gview img, .panelshot img, .spot img, .stack .layer').forEach(el => el.addEventListener('click', () => { lb.querySelector('img').src = el.src; lb.classList.add('open'); }));
 lb.onclick = () => lb.classList.remove('open');
 
-// Legal links open their section
-document.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', () => { $(a.dataset.open).open = true; }));
-if (location.hash === '#privacy' || location.hash === '#terms') document.querySelector(location.hash).open = true;
+// Old links to the in-page sections go to the pages that replaced them
+if (location.hash === '#privacy' || location.hash === '#terms') location.replace(location.hash.slice(1) + '.html');
 
 // GitHub: star count and the latest release's files (public API, no cookies)
 const repo = 'https://api.github.com/repos/jesvijonathan/Display-Control';

@@ -38,9 +38,27 @@ try {
         & dotnet publish "src/$project/$project.csproj" -c Release -r win-x64 --self-contained true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -o $cli
         if ($LASTEXITCODE -ne 0) { throw "Publish failed: $project" }
     }
-    Copy-Item -Path "$cli/*" -Destination $desktop -Recurse -Force
+    # The app first, into an empty folder, and only then whatever the CLI and
+    # engine add that the app does not already have. The other way round, the
+    # app's publish skipped shared files the CLI's publish had just written
+    # (it keeps a newer destination), the app ran with the CLI's copies, and it
+    # crashed at start: "Cannot locate resource ...themeresources.xaml".
     & dotnet publish src/DispCtrl.App/DispCtrl.App.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -o $desktop
     if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed.' }
+    Get-ChildItem -LiteralPath $cli -Recurse -File | ForEach-Object {
+        $target = Join-Path $desktop $_.FullName.Substring($cli.Length).TrimStart([char]92, [char]47)
+        if (Test-Path -LiteralPath $target) { return }
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        Copy-Item -LiteralPath $_.FullName -Destination $target
+    }
+    # A release that cannot start must not be packaged: launch it and watch.
+    # Skipped on CI runners, which may have no interactive desktop.
+    if (-not $env:CI) {
+        $probe = Start-Process -FilePath (Join-Path $desktop 'DispCtrl.App.exe') -PassThru
+        Start-Sleep -Seconds 8
+        if ($probe.HasExited) { throw "The published app exits at start (code $($probe.ExitCode)); see app-crash.log in %LOCALAPPDATA%\DispCtrl." }
+        Stop-Process -Id $probe.Id -Force -ErrorAction SilentlyContinue
+    }
     if ($Sign) {
         # DispCtrl's own binaries only. The runtime's are Microsoft-signed
         # already, and the taskbar-glass helper is pinned by revision: Explorer
