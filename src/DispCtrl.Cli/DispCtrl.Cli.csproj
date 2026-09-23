@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Console subsystem, unlike the engine. A WinExe does not block the shell
+         that launched it, so a script gets no output and no exit code — which
+         makes it useless for the one job a command line has. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+
+    <!-- `dispctrl`, because that is what someone types. -->
+    <AssemblyName>dispctrl</AssemblyName>
+    <!-- The file description: what Task Manager, Startup apps and the tray settings call it. -->
+    <AssemblyTitle>DispCtrl command line</AssemblyTitle>
+    <ApplicationIcon>..\DispCtrl.App\Assets\DispCtrl.ico</ApplicationIcon>
+    <RootNamespace>DispCtrl.Cli</RootNamespace>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DispCtrl.Control\DispCtrl.Control.csproj" />
+    <ProjectReference Include="..\DispCtrl.Core\DispCtrl.Core.csproj" />
+    <ProjectReference Include="..\DispCtrl.Display\DispCtrl.Display.csproj" />
+  </ItemGroup>
+
+</Project>

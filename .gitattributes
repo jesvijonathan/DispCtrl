@@ -1,0 +1,5 @@
+# Line endings that the tools reading these files require, whatever
+# core.autocrlf says on the machine that checks them out.
+*.sh   text eol=lf
+*.cmd  text eol=crlf
+*.bat  text eol=crlf

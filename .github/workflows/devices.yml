@@ -1,0 +1,57 @@
+name: Device library
+# Pull requests are validated; the index and catalogue are regenerated after the
+# merge instead of in each pull request. Every share touches only its own model
+# folder, so shares never conflict with each other - a generated file they all
+# edited would make every one of them conflict with the last.
+on:
+  pull_request:
+    paths: ['devices/**', 'src/DispCtrl.Core/Devices/**', 'tools/devicecheck/**']
+  push:
+    branches: [main, master]
+    paths: ['devices/**', 'tools/devicecheck/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: devices-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      # The same rules DispCtrl applies when it loads a definition, plus the
+      # layout: a file in the wrong place is one the app would never read.
+      - name: Validate the library
+        shell: pwsh
+        run: dotnet run --project tools/devicecheck -c Release -- validate devices
+
+  index:
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Regenerate index.json and CATALOG.md
+        shell: pwsh
+        run: dotnet run --project tools/devicecheck -c Release -- index devices
+      - name: Commit them if they changed
+        shell: pwsh
+        run: |
+          git add devices/index.json devices/CATALOG.md
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { 'Index already current.'; exit 0 }
+          git config user.name 'dispctrl-index'
+          git config user.email 'dispctrl-index@users.noreply.github.com'
+          git commit -m "Regenerate the device index"
+          git push

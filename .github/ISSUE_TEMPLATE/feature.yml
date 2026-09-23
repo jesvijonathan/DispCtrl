@@ -1,0 +1,27 @@
+name: Feature request
+description: Something DispCtrl should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The situation, not the solution. "My second monitor is too bright at night" is more useful than "add a slider".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware it matters for
+      description: If this depends on a monitor feature (DDC/CI, HDR, a sensor), which monitor.
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Checks
+      options:
+        - label: I searched the existing issues.
+          required: true

@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: nuget
+    directories:
+      - /src/*
+      - /tools/*
+    schedule:
+      interval: monthly
+    groups:
+      # WinUI, the App SDK and the toolkit move together; a partial bump of
+      # them is the likeliest way to break the window at runtime.
+      windows-app:
+        patterns: ['Microsoft.WindowsAppSDK*', 'Microsoft.Windows.SDK*', 'CommunityToolkit.*', 'Microsoft.Windows.CsWin32']
+      other:
+        patterns: ['*']

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <AssemblyTitle>DispCtrl command API</AssemblyTitle>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DispCtrl.Core/DispCtrl.Core.csproj" />
+    <ProjectReference Include="../DispCtrl.Display/DispCtrl.Display.csproj" />
+  </ItemGroup>
+</Project>

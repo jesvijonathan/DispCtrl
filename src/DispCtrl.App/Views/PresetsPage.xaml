@@ -1,0 +1,111 @@
+<Page x:Class="DispCtrl.App.Views.PresetsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:vm="using:DispCtrl.App.ViewModels"
+      xmlns:views="using:DispCtrl.App.Views"
+      Loaded="OnLoaded">
+  <ScrollViewer Padding="0,0,0,32">
+    <StackPanel Padding="36,12,36,0" Spacing="16" HorizontalAlignment="Stretch">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Presets" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Text="Save your display setup, restore it later, or switch automatically for an app."
+                   TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      </StackPanel>
+      <InfoBar x:Name="Toast" IsOpen="False" IsClosable="True"/>
+      <ContentControl IsEnabled="{x:Bind ViewModel.CanEdit, Mode=OneWay}" HorizontalContentAlignment="Stretch">
+      <StackPanel Spacing="16">
+        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="16">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Capture a setup" Style="{StaticResource SubtitleTextBlockStyle}"/>
+            <TextBlock Text="Capture every supported setting for the whole desk or one display. Monitor-only presets leave shared settings and layout alone."
+                       TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <Grid ColumnSpacing="12" ColumnDefinitions="*,*">
+              <TextBox x:Name="NewName" Header="Name" PlaceholderText="Work, evening, gaming…"
+                       AutomationProperties.Name="NewPresetName"/>
+              <ComboBox Grid.Column="1" Header="Capture" HorizontalAlignment="Stretch"
+                        ItemsSource="{x:Bind ViewModel.CaptureScopes}"
+                        SelectedItem="{x:Bind ViewModel.CaptureScope, Mode=TwoWay}"
+                        DisplayMemberPath="Label" AutomationProperties.Name="PresetCaptureScope"/>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Capture new preset" Style="{StaticResource AccentButtonStyle}" Click="OnSaveAs"/>
+              <Button Content="Import JSON…" Click="OnImport"/>
+              <Button Content="Open folder" Click="OnOpenFolder"/>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="16">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Saved setups" Style="{StaticResource SubtitleTextBlockStyle}"/>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <ComboBox ItemsSource="{x:Bind ViewModel.Names}" HorizontalAlignment="Stretch"
+                        SelectedItem="{x:Bind ViewModel.Selected, Mode=TwoWay}" AutomationProperties.Name="PresetPicker"/>
+              <Button Grid.Column="1" Content="Apply" Style="{StaticResource AccentButtonStyle}"
+                      Visibility="{x:Bind ViewModel.ExistingVisibility, Mode=OneWay}" Click="OnApply"/>
+            </Grid>
+            <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" TextWrapping="Wrap"/>
+            <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.ExistingVisibility, Mode=OneWay}">
+              <TextBlock Text="{x:Bind ViewModel.Details, Mode=OneWay}" TextWrapping="Wrap"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <views:PresetChanges/>
+                <Button Content="Update from displays" Click="OnSave"/>
+                <Button Content="View / edit JSON…" Click="OnEditJson"/>
+                <DropDownButton Content="Manage">
+                  <DropDownButton.Flyout>
+                    <MenuFlyout>
+                      <MenuFlyoutItem Text="Map displays…" Click="OnMapDisplays"/>
+                      <MenuFlyoutItem Text="Rename…" Click="OnRename"/>
+                      <MenuFlyoutItem Text="Export JSON…" Click="OnExport"/>
+                      <MenuFlyoutSeparator/>
+                      <MenuFlyoutItem Text="Delete…" Click="OnDelete"/>
+                    </MenuFlyout>
+                  </DropDownButton.Flyout>
+                </DropDownButton>
+              </StackPanel>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <StackPanel Spacing="6">
+          <TextBlock Text="App rules" Style="{StaticResource SubtitleTextBlockStyle}"/>
+          <TextBlock Text="Apply a saved setup when an app stays in the foreground. Rules run in the background engine; the first matching enabled rule wins."
+                     TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+        <ItemsControl ItemsSource="{x:Bind ViewModel.Rules}" HorizontalContentAlignment="Stretch">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="8"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:AppRuleViewModel">
+              <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="12">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <TextBox Header="Executable name" Text="{x:Bind Process, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             PlaceholderText="game.exe" AutomationProperties.Name="RuleProcess"/>
+                    <ToggleSwitch Grid.Column="1" Header="Enabled" IsOn="{x:Bind Enabled, Mode=TwoWay}"/>
+                  </Grid>
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <ComboBox Header="Apply preset" ItemsSource="{x:Bind PresetNames}" SelectedItem="{x:Bind Preset, Mode=TwoWay}"
+                              HorizontalAlignment="Stretch" AutomationProperties.Name="RulePreset"/>
+                    <NumberBox Grid.Column="1" Header="Activation delay (seconds)" Minimum="0.5" Maximum="60"
+                               Value="{x:Bind DwellSeconds, Mode=TwoWay}" SpinButtonPlacementMode="Compact"/>
+                  </Grid>
+                  <CheckBox Content="Restore previous setup when leaving this app" IsChecked="{x:Bind RestorePrevious, Mode=TwoWay}"/>
+                  <ComboBox Header="Otherwise return to (optional)" PlaceholderText="Keep the applied setup"
+                            ItemsSource="{x:Bind PresetNames}" SelectedItem="{x:Bind RevertTo, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch" AutomationProperties.Name="RuleRevertTo"/>
+                  <TextBlock Text="{x:Bind Summary, Mode=OneWay}" TextWrapping="Wrap"
+                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Clear return preset" Click="OnClearReturn" Tag="{x:Bind}"/>
+                    <Button Content="Remove rule" Click="OnRemoveRule" Tag="{x:Bind}"/>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Content="Add app rule" Click="OnAddRule"/>
+      </StackPanel>
+      </ContentControl>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

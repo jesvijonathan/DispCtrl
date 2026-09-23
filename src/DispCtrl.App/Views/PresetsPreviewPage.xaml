@@ -1,0 +1,59 @@
+<Page x:Class="DispCtrl.App.Views.PresetsPreviewPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:tk="using:CommunityToolkit.WinUI.Controls">
+  <ScrollViewer Padding="0,0,0,32">
+    <StackPanel Padding="36,12,36,0" Spacing="16" HorizontalAlignment="Stretch">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Presets" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Text="Save a complete display setup and restore it later."
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      </StackPanel>
+
+      <InfoBar IsOpen="True" IsClosable="False" Severity="Informational"
+               Title="Coming soon"
+               Message="Applying, importing and saving presets remain disabled. You can export a read-only JSON snapshot of the complete current configuration."/>
+
+      <tk:SettingsCard Header="Export current configuration"
+                       Description="Writes all shared settings, per-monitor settings and serials, plus the current layout, modes and hardware controls, to readable JSON.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE74E;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button x:Name="ExportCurrentButton" Content="Export JSON…" Click="OnExportCurrent"
+                AutomationProperties.Name="ExportCurrentConfiguration"/>
+      </tk:SettingsCard>
+
+      <ContentControl Opacity="0.48" IsEnabled="False"
+                      HorizontalContentAlignment="Stretch"
+                      AutomationProperties.Name="Preset features coming soon">
+      <StackPanel Spacing="0">
+        <TextBlock Text="Planned preset tools"
+                   Style="{StaticResource BodyStrongTextBlockStyle}"
+                   Margin="0,8,0,8"/>
+
+        <tk:SettingsCard Header="Whole setup"
+                         Description="Capture display layout, resolution, refresh rate, scaling, colour, brightness and app settings.">
+          <Button Content="Save current setup" IsEnabled="False"/>
+        </tk:SettingsCard>
+
+        <tk:SettingsCard Header="Individual display"
+                         Description="Save and apply settings for one monitor without changing the rest of the desk.">
+          <Button Content="Choose display" IsEnabled="False"/>
+        </tk:SettingsCard>
+
+        <tk:SettingsCard Header="App-triggered preset"
+                         Description="Apply a preset while a chosen application is active, then restore the previous setup.">
+          <Button Content="Add app rule" IsEnabled="False"/>
+        </tk:SettingsCard>
+
+        <tk:SettingsCard Header="Shareable files"
+                         Description="Inspect, edit, import and export presets as readable text files.">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Import" IsEnabled="False"/>
+          </StackPanel>
+        </tk:SettingsCard>
+      </StackPanel>
+      </ContentControl>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

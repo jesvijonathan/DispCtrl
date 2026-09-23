@@ -1,0 +1,47 @@
+<Page x:Class="DispCtrl.App.Views.DevicesPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Loaded="OnLoaded"
+      Unloaded="OnUnloaded">
+
+  <!-- Built in code, like the quick panel: which cards exist depends on the
+       monitors this machine has seen, and every action goes through the same
+       devices.* operations the command line uses. -->
+  <ScrollViewer Padding="0,0,0,32">
+    <StackPanel Padding="36,12,36,0" Spacing="4" HorizontalAlignment="Stretch">
+
+      <StackPanel Spacing="4" Margin="0,0,0,12">
+        <TextBlock Text="Devices" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="Every monitor this PC has seen. DispCtrl reads each new model by itself the first time it is plugged in, and applies whatever the project already knows about it. The codes nobody has named are listed under each monitor: name one, share it, and every owner of that model gets the control."/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+        <Button x:Name="ShareAllButton" Content="Share all devices" Click="OnShareAll"
+                Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Share all devices"
+                ToolTipService.ToolTip="Review one issue containing every model in this list, including built-in and disconnected displays."/>
+        <Button x:Name="ScanButton" Click="OnScan" AutomationProperties.Name="DevicesScan"
+                ToolTipService.ToolTip="Read every attached monitor again now, including any removed from this list. The engine does this by itself for new models.">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <FontIcon FontSize="14" Glyph="&#xE895;"/>
+            <TextBlock Text="Sync now"/>
+          </StackPanel>
+        </Button>
+        <Button Click="OnOpenFolder" AutomationProperties.Name="DevicesOpenFolder"
+                ToolTipService.ToolTip="The history and the definitions made on this PC">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <FontIcon FontSize="14" Glyph="&#xE838;"/>
+            <TextBlock Text="Open the folder"/>
+          </StackPanel>
+        </Button>
+        <HyperlinkButton Content="How mapping works" VerticalAlignment="Center"
+                         NavigateUri="https://github.com/jesvijonathan/Display-Control/blob/master/docs/DEVICE-LIBRARY.md"/>
+      </StackPanel>
+
+      <InfoBar x:Name="Result" IsOpen="False" IsClosable="True" Margin="0,0,0,8"/>
+
+      <StackPanel x:Name="Models" Spacing="8"/>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

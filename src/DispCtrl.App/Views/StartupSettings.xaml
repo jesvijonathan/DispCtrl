@@ -1,0 +1,76 @@
+<UserControl x:Class="DispCtrl.App.Views.StartupSettings"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:tk="using:CommunityToolkit.WinUI.Controls"
+             Loaded="OnLoaded">
+  <StackPanel Spacing="0">
+    <TextBlock Text="Startup and shortcuts"
+               Style="{StaticResource BodyStrongTextBlockStyle}"
+               Margin="0,28,0,8"/>
+
+    <tk:SettingsCard Header="Start engine at sign-in"
+                     Description="Keeps taskbar, hotkey, night light and OLED features running, and the quick panel icon in the notification area. Registered as a Windows task that starts the moment you sign in, rather than in the Startup folder, which Windows holds back for several seconds.">
+      <tk:SettingsCard.HeaderIcon>
+        <FontIcon Glyph="&#xE7E8;"/>
+      </tk:SettingsCard.HeaderIcon>
+      <ToggleSwitch x:Name="EngineStartupToggle"
+                    IsOn="{x:Bind EngineStartupEnabled, Mode=OneTime}"
+                    IsEnabled="{x:Bind EngineAvailable, Mode=OneTime}"
+                    Toggled="OnEngineStartupToggled"/>
+    </tk:SettingsCard>
+
+    <tk:SettingsCard Header="Keep the quick panel ready"
+                     Description="Starts the quick panel hidden alongside the engine, so the first click on the icon opens it at once instead of after about a second. It uses the memory the panel would use once opened anyway.">
+      <tk:SettingsCard.HeaderIcon>
+        <FontIcon Glyph="&#xE945;"/>
+      </tk:SettingsCard.HeaderIcon>
+      <ToggleSwitch IsOn="{x:Bind ViewModel.PreloadQuickPanel, Mode=TwoWay}"
+                    AutomationProperties.Name="PreloadQuickPanel"/>
+    </tk:SettingsCard>
+
+    <tk:SettingsCard Header="Open DispCtrl at sign-in"
+                     Description="Opens this window when you sign in, as well as starting the engine. Needs the engine to start at sign-in.">
+      <tk:SettingsCard.HeaderIcon>
+        <FontIcon Glyph="&#xE8A7;"/>
+      </tk:SettingsCard.HeaderIcon>
+      <ToggleSwitch IsOn="{x:Bind ViewModel.OpenWindowAtSignIn, Mode=TwoWay}"
+                    AutomationProperties.Name="OpenWindowAtSignIn"/>
+    </tk:SettingsCard>
+
+    <tk:SettingsCard Header="Start Menu shortcut"
+                     Description="Add or remove DispCtrl from your personal Start Menu programs.">
+      <tk:SettingsCard.HeaderIcon>
+        <FontIcon Glyph="&#xE71D;"/>
+      </tk:SettingsCard.HeaderIcon>
+      <ToggleSwitch x:Name="StartMenuToggle"
+                    IsOn="{x:Bind StartMenuShortcutEnabled, Mode=OneTime}"
+                    Toggled="OnStartMenuToggled"/>
+    </tk:SettingsCard>
+
+    <tk:SettingsCard Header="Desktop shortcut"
+                     Description="Put a DispCtrl shortcut on this account's desktop.">
+      <tk:SettingsCard.HeaderIcon>
+        <FontIcon Glyph="&#xE8FC;"/>
+      </tk:SettingsCard.HeaderIcon>
+      <ToggleSwitch x:Name="DesktopToggle"
+                    IsOn="{x:Bind DesktopShortcutEnabled, Mode=OneTime}"
+                    Toggled="OnDesktopToggled"/>
+    </tk:SettingsCard>
+
+    <tk:SettingsCard Header="Windows startup controls"
+                     Description="Review startup apps or inspect the shortcuts Windows runs at sign-in.">
+      <tk:SettingsCard.HeaderIcon>
+        <FontIcon Glyph="&#xE713;"/>
+      </tk:SettingsCard.HeaderIcon>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="Startup apps" Click="OnOpenStartupApps"/>
+        <Button Content="Startup folder" Click="OnOpenStartupFolder"/>
+      </StackPanel>
+    </tk:SettingsCard>
+
+    <InfoBar x:Name="ResultBar"
+             IsOpen="False"
+             IsClosable="True"
+             Margin="0,8,0,0"/>
+  </StackPanel>
+</UserControl>
