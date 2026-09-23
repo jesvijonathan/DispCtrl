@@ -69,9 +69,11 @@ public static class ControlTerminal
       commands|status|diagnostics           Discover commands and inspect local state
       report [--what TEXT] [--steps TEXT]   Review a scrubbed bug report and its issue link
 
-    Common: --json --local --dry-run --monitor ID --timeout 30000
+    Common: --json --text --local --dry-run --monitor ID --timeout 30000
     Settings options use kebab-case names from 'get': --dim-percent 50, --enabled on.
-    Output: JSON results on stdout, diagnostics on stderr. --json uses one line.
+    Output: tables and plain text in a terminal; the JSON envelope when piped or
+    redirected, or with --json (one line); --text keeps tables when piped.
+    Diagnostics go to stderr.
     Exit codes: 0 success, 1 failed/partial, 2 invalid request, 4 timeout, 130 cancelled.
     Use DISPCTRL_DATA_DIR for an isolated absolute configuration directory.
     Existing flat commands (brightness, contrast, vcp, etc.) remain supported.
@@ -86,6 +88,10 @@ public static class ControlTerminal
         {
             var options = Parse(words, out List<string> positional);
             bool json = RemoveFlag(options, "json"), local = RemoveFlag(options, "local");
+            // A person at a terminal gets tables and sentences; a pipe, a
+            // redirect or --json gets the JSON envelope scripts rely on.
+            bool text = RemoveFlag(options, "text");
+            _human = text || (!json && !Console.IsOutputRedirected);
             int timeout = options["timeout"]?.GetValue<int>() ?? 30000;
             options.Remove("timeout");
             if (timeout is < 100 or > 600000) throw new ArgumentException("Timeout must be 100..600000 milliseconds.");
@@ -174,13 +180,19 @@ public static class ControlTerminal
         return exit;
     }
 
-    private static void Print(JsonNode result, bool compact) => Console.WriteLine(compact ? result.ToJsonString() : result.ToJsonString(SettingsJsonContext.Default.Options));
+    private static bool _human;
+
+    private static void Print(JsonNode result, bool compact)
+    {
+        if (_human) { HumanOutput.Write(result); return; }
+        Console.WriteLine(compact ? result.ToJsonString() : result.ToJsonString(SettingsJsonContext.Default.Options));
+    }
 
     private static JsonObject Parse(string[] words, out List<string> positional)
     {
         positional = [];
         var options = new JsonObject();
-        string[] flags = ["json", "local", "dry-run", "hardware", "overwrite", "help", "confirm", "all", "writable", "remove", "open", "factory", "history"];
+        string[] flags = ["json", "text", "local", "dry-run", "hardware", "overwrite", "help", "confirm", "all", "writable", "remove", "open", "factory", "history"];
         for (int i = 0; i < words.Length; i++)
         {
             string word = words[i];
