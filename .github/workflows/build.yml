@@ -41,9 +41,18 @@ jobs:
       - name: Pack and validate the MSIX
         shell: pwsh
         run: |
-          $bundle = Get-ChildItem artifacts -Directory | Where-Object Name -Like 'beta-*' | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          $bundle = Get-Item "artifacts/beta-0.1.${{ github.run_number }}"
           ./build/Package.ps1 -DesktopDirectory (Join-Path $bundle.FullName 'desktop') `
             -IdentityName 'DispCtrl.Development' -Publisher 'CN=DispCtrl Development' -Version "0.1.${{ github.run_number }}.0"
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup install failed.' }
+          }
+          $bundle = Get-Item "artifacts/beta-0.1.${{ github.run_number }}"
+          ./build/Installer.ps1 -DesktopDirectory (Join-Path $bundle.FullName 'desktop') -Version "0.1.${{ github.run_number }}" -Channel beta
       - uses: actions/upload-artifact@v4
         with:
           name: DispCtrl-ci-${{ github.run_number }}
@@ -51,5 +60,5 @@ jobs:
           path: |
             artifacts/**/*.zip
             artifacts/**/*.msix
-            artifacts/**/SHA256SUMS.txt
-            artifacts/**/MSIX-SHA256SUMS.txt
+            artifacts/**/*-setup.exe
+            artifacts/**/*SHA256SUMS.txt

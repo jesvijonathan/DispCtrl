@@ -10,9 +10,10 @@ namespace DispCtrl.Display.Devices;
 /// <summary>A model's record and mappings, ready for the person to publish.</summary>
 /// <param name="Body">The scrubbed issue body, exactly as it would be published.</param>
 /// <param name="Path">Where the same text was saved locally.</param>
-/// <param name="Url">The prefilled issue, or the plain form when the body is too long for a link.</param>
-/// <param name="Prefilled">False when the body must be pasted by hand.</param>
-public readonly record struct MappingShare(string Model, string Name, string Body, string Path, Uri Url, bool Prefilled);
+/// <param name="Url">The issue, prefilled with as much of the body as a link can carry.</param>
+/// <param name="Prefilled">True when the whole body is in the link.</param>
+/// <param name="Paste">What did not fit, for the clipboard; null when nothing is left to paste.</param>
+public readonly record struct MappingShare(string Model, string Name, string Body, string Path, Uri Url, bool Prefilled, string? Paste);
 
 public static partial class DeviceContribution
 {
@@ -73,16 +74,12 @@ public static partial class DeviceContribution
             ["observed"] = Observed(model, seen),
         };
 
-        sb.AppendLine();
-        sb.AppendLine("### Mappings");
-        sb.AppendLine();
-        sb.AppendLine("Read by the intake workflow. Edit the names and notes if you like; keep it valid JSON.");
-        sb.AppendLine();
-        sb.AppendLine("```json");
-        sb.AppendLine(payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-        sb.AppendLine("```");
-
-        string body = Redact.Ascii(Redact.Scrub(sb.ToString(), Identifiers(null))).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string record = Redact.Ascii(Redact.Scrub(sb.ToString(), Identifiers(null))).Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd();
+        string Mappings(JsonObject p) => Redact.Ascii(Redact.Scrub(
+            "### Mappings\n\nRead by the intake workflow. Edit the names and notes if you like; keep it valid JSON.\n\n```json\n"
+            + p.ToJsonString() + "\n```\n", Identifiers(null))).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mappings = Mappings(payload);
+        string body = record + "\n\n" + mappings;
 
         string path = "";
         try
@@ -95,11 +92,31 @@ public static partial class DeviceContribution
 
         string title = WebUtility.UrlEncode($"Device mapping: {name} ({model})");
         string labels = WebUtility.UrlEncode($"device,{MappingLabel}");
-        string prefilled = $"https://github.com/{Repository}/issues/new?title={title}&labels={labels}&body={WebUtility.UrlEncode(body)}";
-        return prefilled.Length <= MaxUrlLength
-            ? new MappingShare(model, name, body, path, new Uri(prefilled), true)
-            : new MappingShare(model, name, body, path,
-                new Uri($"https://github.com/{Repository}/issues/new?title={title}&labels={labels}"), false);
+        string Link(string text) => $"https://github.com/{Repository}/issues/new?title={title}&labels={labels}&body={WebUtility.UrlEncode(text)}";
+
+        // The whole body rarely fits in a link: a monitor's record alone is
+        // about 8,000 characters once percent-encoded. Sharing used to open an
+        // empty form then, which looked exactly like the button doing nothing.
+        // So the part the project needs - the model, the mappings and what each
+        // code was seen to do - always goes in the link, compact, and only the
+        // record, which describes the model rather than anyone's mapping, is
+        // left for the clipboard. The intake takes a record only when it has
+        // the "Device key" line, so this placeholder is never saved as one.
+        if (Link(body).Length <= MaxUrlLength) return new MappingShare(model, name, body, path, new Uri(Link(body)), true, null);
+        string placeholder = $"### {name} ({model})\n\n_DispCtrl copied this model's full record to the clipboard, because it is too long for a link. Paste it here, in place of this line._\n\n";
+        if (Link(placeholder + mappings).Length <= MaxUrlLength)
+            return new MappingShare(model, name, body, path, new Uri(Link(placeholder + mappings)), false, record);
+
+        // Still too long: a monitor with very many unnamed codes. The observed
+        // values go to the clipboard too; the definitions and codes stay.
+        var lean = (JsonObject)payload.DeepClone();
+        if (lean["observed"]?["codes"] is JsonObject leanCodes)
+            foreach (var (_, entry) in leanCodes) (entry as JsonObject)?.Remove("observed");
+        string leanMappings = Mappings(lean);
+        if (Link(placeholder + leanMappings).Length <= MaxUrlLength)
+            return new MappingShare(model, name, body, path, new Uri(Link(placeholder + leanMappings)), false, body);
+        return new MappingShare(model, name, body, path,
+            new Uri($"https://github.com/{Repository}/issues/new?title={title}&labels={labels}"), false, body);
     }
 
     /// <summary>What the history knows about a model's codes, without anybody's settings.</summary>
@@ -125,6 +142,23 @@ public static partial class DeviceContribution
             codes[code] = entry;
         }
         return new JsonObject { ["capabilities"] = seen?.Capabilities, ["codes"] = codes };
+    }
+
+    /// <summary>Puts text on the clipboard from a process that may have no window.</summary>
+    public static bool CopyToClipboard(string text)
+    {
+        try
+        {
+            using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("clip.exe")
+            {
+                RedirectStandardInput = true, UseShellExecute = false, CreateNoWindow = true,
+            });
+            if (p is null) return false;
+            p.StandardInput.Write(text);
+            p.StandardInput.Close();
+            return p.WaitForExit(5000) && p.ExitCode == 0;
+        }
+        catch (Exception) { return false; }
     }
 
     /// <summary>Opens a prepared share in the browser.</summary>

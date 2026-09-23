@@ -5,7 +5,12 @@ param(
     [Parameter(Mandatory)][string]$Publisher,
     [string]$PublisherDisplayName = 'Jesvi Jonathan',
     [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')][string]$Version = '0.1.0.0',
-    [string]$MakeAppx
+    [string]$MakeAppx,
+    # Signs with Sign.ps1. The certificate subject must equal -Publisher.
+    [switch]$Sign,
+    # Where the MSIX goes; by default beside the desktop folder, in the same
+    # bundle as the zips and the installer.
+    [string]$OutputDirectory
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -22,8 +27,12 @@ if (-not $MakeAppx) {
     } | Sort-Object FullName -Descending | Select-Object -First 1).FullName
 }
 if (-not $MakeAppx -or -not (Test-Path -LiteralPath $MakeAppx)) { throw 'Install Windows SDK build tools or pass -MakeAppx.' }
-$output = Join-Path $repo ('artifacts/msix-' + $Version + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
-$stage = Join-Path $output 'stage'
+$output = if ($OutputDirectory) { $OutputDirectory } else { Split-Path -Parent $source }
+New-Item -ItemType Directory -Path $output -Force | Out-Null
+$output = (Resolve-Path -LiteralPath $output).Path
+# A full copy of the desktop folder, so it is staged in temp and removed after:
+# left in artifacts it was a few hundred MB per run.
+$stage = Join-Path ([IO.Path]::GetTempPath()) ('dispctrl-msix-' + [guid]::NewGuid().ToString('N').Substring(0,8))
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 Copy-Item -Path (Join-Path $source '*') -Destination $stage -Recurse -Force
 $assets = Join-Path $stage 'PackageAssets'
@@ -49,9 +58,12 @@ $manifest.Package.Identity.SetAttribute('Version',$Version)
 $manifest.Package.Properties.PublisherDisplayName = $PublisherDisplayName
 $manifest.Save((Join-Path $stage 'AppxManifest.xml'))
 $package = Join-Path $output "DispCtrl-$Version-x64.msix"
-& $MakeAppx pack /d $stage /p $package /o
+try { & $MakeAppx pack /d $stage /p $package /o }
+finally { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
 if ($LASTEXITCODE -ne 0) { throw 'MSIX validation/packing failed.' }
+if ($Sign) { & "$PSScriptRoot/Sign.ps1" -Path $package }
 Get-FileHash -LiteralPath $package -Algorithm SHA256 | ForEach-Object {
     "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))"
 } | Set-Content -LiteralPath (Join-Path $output 'MSIX-SHA256SUMS.txt') -Encoding ascii
-Write-Output "Unsigned MSIX: $package"
+Write-Output "$(if ($Sign) { 'Signed' } else { 'Unsigned' }) MSIX: $package"
+return $package

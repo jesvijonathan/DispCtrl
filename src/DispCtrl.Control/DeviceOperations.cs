@@ -22,13 +22,14 @@ public sealed partial class ControlService
         "list" => DevicesList(args),
         "show" => DevicesShow(args),
         "scan" => DevicesScan(args),
+        "forget" => DevicesForget(args),
         "map" => DevicesMap(args),
         "unmap" => DevicesUnmap(args),
         "link" => DevicesLink(args),
         "definitions" => DevicesDefinitions(args),
         "share" => DevicesShare(args),
         "validate" => DevicesValidate(args),
-        _ => throw new ArgumentException("devices actions: list, show, scan, map, unmap, link, definitions, share, validate. probe runs in the terminal."),
+        _ => throw new ArgumentException("devices actions: list, show, scan, forget, map, unmap, link, definitions, share, validate. probe runs in the terminal."),
     };
 
     private static void Only(JsonObject args, string command, params string[] allowed)
@@ -76,13 +77,15 @@ public sealed partial class ControlService
     /// <summary>Every code, what the standard or a definition calls it, and whether anyone has.</summary>
     private static JsonNode DevicesShow(JsonObject args)
     {
-        Only(args, "show", "monitor", "model");
+        Only(args, "show", "monitor", "model", "history");
         var (model, display) = ModelOf(args);
         Dictionary<byte, ResolvedControl> known = DeviceLibrary.Resolve(model);
         var codes = new JsonArray();
         string source;
 
-        if (display is not null && !display.IsInternal)
+        // --history answers from what has been recorded, in milliseconds: what
+        // the Devices page shows first, before anybody asks for a live read.
+        if (display is not null && !display.IsInternal && !Flag(args, "history"))
         {
             MonitorCapability capabilities = MonitorCapabilities.Read(display);
             if (!capabilities.Supported) throw new InvalidOperationException($"{display.Label} does not answer DDC/CI.");
@@ -147,6 +150,9 @@ public sealed partial class ControlService
         Only(args, "scan");
         var scanned = new JsonArray();
         List<DisplayInfo> displays = DisplayRegistry.Enumerate();
+        // An explicit sync brings back a monitor the person removed earlier;
+        // only the automatic learning respects the removal.
+        DeviceHistoryEdits.Remember(displays.Select(d => d.Key.Model));
         DeviceObserver.Attached(displays);
         foreach (DisplayInfo d in displays)
         {
@@ -155,6 +161,19 @@ public sealed partial class ControlService
             scanned.Add((JsonNode)new JsonObject { ["model"] = d.Key.Model, ["ddc"] = c.Supported, ["codes"] = c.Controls.Count });
         }
         return new JsonObject { ["scanned"] = scanned, ["history"] = DeviceHistory.PathOnDisk };
+    }
+
+    /// <summary>Removes a model from this PC's list; it is not recorded again by itself until a scan.</summary>
+    private static JsonNode DevicesForget(JsonObject args)
+    {
+        Only(args, "forget", "monitor", "model");
+        var (model, _) = ModelOf(args);
+        bool removed = DeviceHistoryEdits.Forget(model);
+        return new JsonObject
+        {
+            ["model"] = model, ["removed"] = removed,
+            ["note"] = "Kept off the list until devices scan runs with it attached. Local mappings are kept; devices unmap removes those.",
+        };
     }
 
     /// <summary>Names one code for a model, its manufacturer, or every monitor.</summary>
@@ -256,20 +275,28 @@ public sealed partial class ControlService
             return new JsonObject { ["model"] = model, ["resolved"] = resolved };
         }
 
-        JsonArray Folder(string path)
+        var problems = new List<string>();
+        var localFound = new JsonArray();
+        foreach (DeviceDefinition d in DeviceLibrary.LoadFolder(DeviceLibrary.UserFolder, problems).Values)
+            localFound.Add((JsonNode)new JsonObject { ["target"] = d.Target, ["name"] = d.Name, ["controls"] = d.Controls.Count,
+                ["extends"] = new JsonArray(d.Extends.Select(e => (JsonNode?)JsonValue.Create(e)).ToArray()) });
+        foreach (string p in problems) localFound.Add((JsonNode)new JsonObject { ["problem"] = p });
+
+        // The shipped library is meant to hold thousands of models: counted by
+        // brand here, and shown one model at a time with --model.
+        var brands = new JsonObject();
+        int models = 0;
+        foreach (var group in DeviceLayout.Definitions(DeviceLibrary.ShippedFolder).GroupBy(d => d.Target == "*" ? "*" : d.Target[..3]))
         {
-            var problems = new List<string>();
-            var found = new JsonArray();
-            foreach (DeviceDefinition d in DeviceLibrary.LoadFolder(path, problems).Values)
-                found.Add((JsonNode)new JsonObject { ["target"] = d.Target, ["name"] = d.Name, ["controls"] = d.Controls.Count,
-                    ["extends"] = new JsonArray(d.Extends.Select(e => (JsonNode?)JsonValue.Create(e)).ToArray()) });
-            foreach (string p in problems) found.Add((JsonNode)new JsonObject { ["problem"] = p });
-            return found;
+            int count = group.Count(d => DeviceDefinitions.IsModel(d.Target));
+            models += count;
+            brands[group.Key] = new JsonObject { ["models"] = count, ["brandFile"] = group.Any(d => d.Target == group.Key) };
         }
         return new JsonObject
         {
-            ["shipped"] = new JsonObject { ["folder"] = DeviceLibrary.ShippedFolder, ["definitions"] = Folder(DeviceLibrary.ShippedFolder) },
-            ["local"] = new JsonObject { ["folder"] = DeviceLibrary.UserFolder, ["definitions"] = Folder(DeviceLibrary.UserFolder) },
+            ["shipped"] = new JsonObject { ["folder"] = DeviceLibrary.ShippedFolder, ["models"] = models, ["brands"] = brands,
+                ["note"] = "devices definitions --model DEL-A234 shows one model with every layer that applies." },
+            ["local"] = new JsonObject { ["folder"] = DeviceLibrary.UserFolder, ["definitions"] = localFound },
         };
     }
 
@@ -278,12 +305,20 @@ public sealed partial class ControlService
         Only(args, "share", "monitor", "model", "open");
         var (model, display) = ModelOf(args);
         MappingShare share = DeviceContribution.PrepareMapping(model, display);
-        bool opened = Flag(args, "open") && DeviceContribution.Open(share);
+        bool open = Flag(args, "open");
+        // What did not fit in the link goes to the clipboard before the browser
+        // opens, as the app does. clip.exe, because a console process has no
+        // clipboard API of its own; the text is ASCII, so no code page matters.
+        bool copied = open && share.Paste is not null && DeviceContribution.CopyToClipboard(share.Paste);
+        bool opened = open && DeviceContribution.Open(share);
         return new JsonObject
         {
             ["model"] = model, ["path"] = share.Path, ["url"] = share.Url.ToString(), ["prefilled"] = share.Prefilled,
-            ["opened"] = opened,
-            ["note"] = share.Prefilled ? null : "Too long for a link: the form opens empty; paste the saved file into it.",
+            ["opened"] = opened, ["copied"] = copied,
+            ["note"] = share.Paste is null ? null
+                : copied ? "The mappings are in the issue; the rest is on the clipboard - paste it where the issue says."
+                : $"The mappings are in the issue; paste the rest from {share.Path}.",
+            ["paste"] = share.Paste,
             ["body"] = share.Body,
         };
     }

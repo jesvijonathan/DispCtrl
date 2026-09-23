@@ -20,6 +20,17 @@ public sealed class DeviceHistory
 
     public Dictionary<string, SeenModel> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Models the person removed from the list; not recorded again until they sync them.</summary>
+    /// <remarks>
+    /// Everything is learned without a click now, so removing a monitor that is
+    /// still attached would otherwise last only until the next capabilities
+    /// read. Removal wins over automatic learning; an explicit sync wins over
+    /// removal.
+    /// </remarks>
+    public List<string> Forgotten { get; set; } = [];
+
+    private bool IsForgotten(string model) => Forgotten.Contains(model, StringComparer.OrdinalIgnoreCase);
+
     public static string PathOnDisk => Path.Combine(SettingsStore.Directory, "devices", "history.json");
 
     /// <summary>For checks that must not touch the real file.</summary>
@@ -76,6 +87,7 @@ public sealed class DeviceHistory
         DateTimeOffset now = DateTimeOffset.UtcNow;
         Update(h =>
         {
+            if (h.IsForgotten(model)) return false;
             bool fresh = !h.Models.TryGetValue(model, out SeenModel? m);
             m ??= h.Models[model] = new SeenModel { Key = model, FirstSeen = now };
             // A sighting a day, not a write per rescan.
@@ -94,6 +106,7 @@ public sealed class DeviceHistory
         if (!DeviceDefinitions.IsModel(model)) return;
         Update(h =>
         {
+            if (h.IsForgotten(model)) return false;
             if (!h.Models.TryGetValue(model, out SeenModel? m))
                 m = h.Models[model] = new SeenModel { Key = model, FirstSeen = DateTimeOffset.UtcNow, LastSeen = DateTimeOffset.UtcNow, Sightings = 1 };
             bool changed = m.Capabilities != capabilities;
@@ -115,6 +128,38 @@ public sealed class DeviceHistory
             }
             return changed;
         });
+    }
+}
+
+public static class DeviceHistoryEdits
+{
+    /// <summary>Removes a model from the list and stops it being recorded again by itself.</summary>
+    /// <returns>False when there was nothing to remove.</returns>
+    public static bool Forget(string model)
+    {
+        bool removed = false;
+        DeviceHistory.Update(h =>
+        {
+            removed = h.Models.Remove(model);
+            if (!h.Forgotten.Contains(model, StringComparer.OrdinalIgnoreCase)) { h.Forgotten.Add(model.ToUpperInvariant()); return true; }
+            return removed;
+        });
+        return removed;
+    }
+
+    /// <summary>Lets a forgotten model be recorded again: what an explicit sync does.</summary>
+    public static void Remember(IEnumerable<string> models)
+    {
+        var list = models.ToList();
+        DeviceHistory.Update(h => h.Forgotten.RemoveAll(f => list.Contains(f, StringComparer.OrdinalIgnoreCase)) > 0);
+    }
+
+    /// <summary>Attached models whose codes have never been read here, and are not forgotten.</summary>
+    public static bool NeedsReading(string model)
+    {
+        DeviceHistory h = DeviceHistory.Load();
+        if (h.Forgotten.Contains(model, StringComparer.OrdinalIgnoreCase)) return false;
+        return !h.Models.TryGetValue(model, out SeenModel? m) || (!m.BuiltIn && m.Capabilities is null);
     }
 }
 

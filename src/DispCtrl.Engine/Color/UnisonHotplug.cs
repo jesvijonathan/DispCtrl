@@ -40,7 +40,35 @@ internal sealed class UnisonHotplug : IDisposable
         // The same arrivals feed the local device history; it costs nothing
         // more than the enumeration already done here.
         Display.Devices.DeviceObserver.Attached(now);
+        // Well after sign-in: nothing about learning a model is urgent, and the
+        // first seconds belong to the taskbar and the tray.
+        Learn(now, StartupLearnDelayMs);
         _timer = new Timer(_ => Poll(), null, PollMs, PollMs);
+    }
+
+    private const int StartupLearnDelayMs = 20_000;
+
+    /// <summary>Reads the codes of any attached model never read here, in the background.</summary>
+    private void Learn(IEnumerable<DisplayInfo> displays, int delayMs)
+    {
+        List<DisplayInfo> todo = Display.Devices.DeviceDiscovery.Unread(displays);
+        if (todo.Count == 0) return;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(delayMs).ConfigureAwait(false);
+            foreach (DisplayInfo display in todo)
+            {
+                if (_disposed) return;
+                try
+                {
+                    int codes = Display.Devices.DeviceDiscovery.Learn(display);
+                    Log.Write(codes < 0
+                        ? $"devices: {display.Key.Model} ({display.Label}) did not answer DDC/CI; not recorded"
+                        : $"devices: learned {display.Key.Model} ({display.Label}), {codes} code(s)");
+                }
+                catch (Exception ex) { Log.Write($"devices: reading {display.Key.Model} failed: {ex.Message}"); }
+            }
+        });
     }
 
     private void Poll()
@@ -57,6 +85,8 @@ internal sealed class UnisonHotplug : IDisposable
             List<DisplayInfo> arrived = displays.Where(d => !_attached.Contains(d.Token) && !d.IsInternal).ToList();
             _attached = displays.Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
             if (arrived.Count == 0) return;
+            // The DDC/CI channel is not up when the monitor enumerates.
+            Learn(arrived, ReadyDelayMs * 2);
 
             DispCtrlSettings settings = SettingsStore.Load();
             if (!settings.Global.UnisonBrightness || UnisonCalibration.IsActive) return;

@@ -1,0 +1,91 @@
+name: Distribute release
+# Runs when a person publishes a stable release (a draft from release.yml
+# turned public). Prereleases never leave GitHub. Each job does nothing until
+# its repository variable is set, so this workflow is inert on a fork.
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag to distribute, such as v0.1.0
+        required: true
+permissions:
+  contents: read
+jobs:
+  winget:
+    # The first version has to be submitted by hand (wingetcreate new); after
+    # that, each release is an update to the manifest already in winget-pkgs.
+    if: vars.WINGET_PACKAGE_ID != ''
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      PACKAGE_ID: ${{ vars.WINGET_PACKAGE_ID }}
+      # A classic token with public_repo scope: wingetcreate forks
+      # microsoft/winget-pkgs under that account and opens the pull request.
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+    steps:
+      - name: Submit the update to winget-pkgs
+        shell: pwsh
+        run: |
+          if (-not $env:WINGET_TOKEN) { throw 'Set the WINGET_TOKEN secret.' }
+          $version = $env:TAG -replace '^v',''
+          if ($version -match '-') { throw "$env:TAG is a prerelease; winget carries stable releases only." }
+          $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:TAG/DispCtrl-$version-stable-win-x64-setup.exe"
+          $response = Invoke-WebRequest -Uri $url -Method Head -SkipHttpErrorCheck
+          if ($response.StatusCode -ge 400) { throw "The installer is not public at $url (HTTP $($response.StatusCode))." }
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          ./wingetcreate.exe update $env:PACKAGE_ID --version $version --urls "$url|x64" --submit --token $env:WINGET_TOKEN
+          if ($LASTEXITCODE -ne 0) { throw 'wingetcreate failed.' }
+
+  store:
+    if: vars.STORE_PRODUCT_ID != ''
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # Configure reviewers on this environment: a Store submission cannot be
+    # recalled once certification starts.
+    environment: microsoft-store
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download the MSIX from the release
+        id: msix
+        shell: pwsh
+        env:
+          STORE_IDENTITY: ${{ vars.STORE_IDENTITY }}
+        run: |
+          if ($env:TAG -match '-') { throw "$env:TAG is a prerelease; only stable releases go to the Store." }
+          gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern '*.msix' --dir msix
+          if ($LASTEXITCODE -ne 0) { throw 'The release has no MSIX.' }
+          $package = Get-ChildItem msix -Filter *.msix | Select-Object -First 1
+          # Refuse a package built with the development identity: Partner
+          # Center would reject it, but only after the submission is created.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead($package.FullName)
+          try {
+            $reader = [IO.StreamReader]::new($zip.GetEntry('AppxManifest.xml').Open())
+            $manifest = [xml]$reader.ReadToEnd(); $reader.Dispose()
+          } finally { $zip.Dispose() }
+          $name = $manifest.Package.Identity.Name
+          if ($name -ne $env:STORE_IDENTITY) { throw "The MSIX identity is '$name', not the Store's '$env:STORE_IDENTITY'. Set STORE_IDENTITY and STORE_PUBLISHER before tagging." }
+          "path=$($package.FullName)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - uses: microsoft/microsoft-store-apppublisher@v1.1
+      - name: Submit to Partner Center
+        shell: pwsh
+        env:
+          TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
+          SELLER_ID: ${{ secrets.PARTNER_CENTER_SELLER_ID }}
+          CLIENT_ID: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
+          PRODUCT_ID: ${{ vars.STORE_PRODUCT_ID }}
+          MSIX: ${{ steps.msix.outputs.path }}
+        run: |
+          foreach ($name in 'TENANT_ID','SELLER_ID','CLIENT_ID','CLIENT_SECRET') {
+            if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Set the PARTNER_CENTER_$name secret." }
+          }
+          msstore reconfigure --tenantId $env:TENANT_ID --sellerId $env:SELLER_ID --clientId $env:CLIENT_ID --clientSecret $env:CLIENT_SECRET
+          if ($LASTEXITCODE -ne 0) { throw 'Partner Center sign-in failed.' }
+          msstore publish (Split-Path $env:MSIX) --inputFile $env:MSIX --appId $env:PRODUCT_ID
+          if ($LASTEXITCODE -ne 0) { throw 'Store submission failed.' }

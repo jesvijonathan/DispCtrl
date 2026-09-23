@@ -350,7 +350,7 @@ public static partial class DeviceContribution
     /// replacing the longer string first leaves a clean <c>[removed]</c> rather
     /// than a hollowed-out <c>DEL-A234-[removed]</c>.
     /// </remarks>
-    private static List<string> Identifiers(IReadOnlyList<DisplayInfo>? all)
+    internal static List<string> Identifiers(IReadOnlyList<DisplayInfo>? all)
     {
         var found = new List<string>();
 

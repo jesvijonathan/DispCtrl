@@ -94,12 +94,26 @@
     <ProjectReference Include="..\DispCtrl.Display\DispCtrl.Display.csproj" />
   </ItemGroup>
 
-  <Target Name="BuildTaskbarGlassBridge" AfterTargets="Build">
-    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\native\DispCtrl.TaskbarGlass\build.ps1&quot; -OutputDirectory &quot;$(TargetDir)taskbar-glass&quot;" />
+  <!-- The helper is native C++ built by MinGW-w64. Windows PowerShell on
+       Windows; pwsh elsewhere, where a Linux or macOS machine can still build
+       it with the x86_64-w64-mingw32 cross compiler. SkipTaskbarGlass=true
+       leaves it out entirely, for a compile check on a machine without
+       MinGW: the engine then runs without glass, which it already handles. -->
+  <PropertyGroup>
+    <TaskbarGlassShell Condition="'$(TaskbarGlassShell)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">powershell.exe</TaskbarGlassShell>
+    <TaskbarGlassShell Condition="'$(TaskbarGlassShell)' == ''">pwsh</TaskbarGlassShell>
+  </PropertyGroup>
+
+  <Target Name="ReportTaskbarGlassSkipped" AfterTargets="Build" Condition="'$(SkipTaskbarGlass)' == 'true'">
+    <Message Importance="high" Text="Taskbar glass helper skipped (SkipTaskbarGlass=true); this engine build has no glass." />
   </Target>
 
-  <Target Name="BuildTaskbarGlassBridgeForPublish" AfterTargets="Publish">
-    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\native\DispCtrl.TaskbarGlass\build.ps1&quot; -OutputDirectory &quot;$(PublishDir)taskbar-glass&quot;" />
+  <Target Name="BuildTaskbarGlassBridge" AfterTargets="Build" Condition="'$(SkipTaskbarGlass)' != 'true'">
+    <Exec Command="$(TaskbarGlassShell) -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../../native/DispCtrl.TaskbarGlass/build.ps1&quot; -OutputDirectory &quot;$(TargetDir)taskbar-glass&quot;" />
+  </Target>
+
+  <Target Name="BuildTaskbarGlassBridgeForPublish" AfterTargets="Publish" Condition="'$(SkipTaskbarGlass)' != 'true'">
+    <Exec Command="$(TaskbarGlassShell) -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../../native/DispCtrl.TaskbarGlass/build.ps1&quot; -OutputDirectory &quot;$(PublishDir)taskbar-glass&quot;" />
   </Target>
 
 </Project>

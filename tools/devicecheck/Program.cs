@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -5,90 +6,182 @@ using DispCtrl.Core.Devices;
 
 // The device library's backend, run by CI and by maintainers:
 //
-//   devicecheck validate [devices]        every definition parses and passes the rules
-//   devicecheck index    [devices]        rewrite devices/index.json (--check: fail if stale)
+//   devicecheck validate [devices]        every file is where its key says, and passes the rules
+//   devicecheck index    [devices]        rewrite index.json and CATALOG.md (--check: fail if stale)
 //   devicecheck intake   BODY [devices]   turn a shared issue body into files
+//   devicecheck migrate  [devices]        move a flat library (definitions/*.json, *.md) into folders
 //
-// The rules are DeviceDefinitions.Validate - the same code DispCtrl loads a
-// definition with - so nothing reaches the repository that the app would refuse.
+// The layout is DeviceLayout's: devices/DEL/A234/{definition.json,record.md},
+// devices/DEL/brand.json, devices/common.json. The rules are
+// DeviceDefinitions.Validate - the same code DispCtrl loads a definition with -
+// so nothing reaches the repository that the app would refuse.
 
 string command = args.ElementAtOrDefault(0) ?? "validate";
+string Root(int i) => args.ElementAtOrDefault(i) is { } f && !f.StartsWith("--", StringComparison.Ordinal) ? f : "devices";
 return command switch
 {
-    "validate" => Validate(args.ElementAtOrDefault(1) ?? "devices"),
-    "index" => Index(args.ElementAtOrDefault(1) is { } f && !f.StartsWith("--", StringComparison.Ordinal) ? f : "devices", args.Contains("--check")),
-    "intake" => Intake(args.ElementAtOrDefault(1) ?? throw new ArgumentException("intake BODY-FILE [devices]"), args.ElementAtOrDefault(2) ?? "devices"),
+    "validate" => Validate(Root(1)),
+    "index" => Index(Root(1), args.Contains("--check")),
+    "intake" => Intake(args.ElementAtOrDefault(1) ?? throw new ArgumentException("intake BODY-FILE [devices]"), Root(2)),
+    "migrate" => Migrate(Root(1)),
     _ => Usage(),
 };
 
 static int Usage()
 {
-    Console.Error.WriteLine("devicecheck validate|index [--check]|intake BODY");
+    Console.Error.WriteLine("devicecheck validate|index [--check]|intake BODY|migrate [devices]");
     return 2;
 }
 
+static string Rel(string root, string path) => Path.GetRelativePath(root, path).Replace('\\', '/');
+
 static int Validate(string root)
 {
-    string folder = Path.Combine(root, "definitions");
-    int failures = 0, count = 0;
-    foreach (string file in Directory.EnumerateFiles(folder, "*.json"))
+    var problems = new List<string>();
+    var definitions = DeviceLibrary.LoadLibrary(root, problems);
+
+    // Nothing but the layout: a stray file is usually a record or definition
+    // put in the wrong place, which the app would then silently never read.
+    string[] rootFiles = ["README.md", "CATALOG.md", DeviceLayout.IndexFile, DeviceLayout.CommonFile];
+    foreach (string file in Directory.EnumerateFiles(root))
+        if (!rootFiles.Contains(Path.GetFileName(file))) problems.Add($"{Rel(root, file)}: not part of the layout (models go in BRAND/PRODUCT/)");
+    foreach (string dir in Directory.EnumerateDirectories(root))
     {
-        count++;
-        string name = Path.GetFileNameWithoutExtension(file);
-        try
+        string name = Path.GetFileName(dir);
+        if (name == "schema") continue;
+        if (name.Length != 3 || !DeviceDefinitions.IsTarget(name)) { problems.Add($"{Rel(root, dir)}/: not a manufacturer code such as DEL"); continue; }
+        foreach (string file in Directory.EnumerateFiles(dir))
+            if (Path.GetFileName(file) != DeviceLayout.BrandFile) problems.Add($"{Rel(root, file)}: a manufacturer folder holds only {DeviceLayout.BrandFile} and model folders");
+        foreach (string product in Directory.EnumerateDirectories(dir))
         {
-            DeviceDefinition d = JsonSerializer.Deserialize(File.ReadAllText(file), DeviceJsonContext.Default.DeviceDefinition)
-                ?? throw new JsonException("empty");
-            var problems = DeviceDefinitions.Validate(d);
-            string expected = d.Target == "*" ? "common" : d.Target;
-            if (!string.Equals(expected, name, StringComparison.Ordinal)) problems.Add($"file must be named {expected}.json");
-            foreach (string p in problems) { Console.WriteLine($"FAIL {name}: {p}"); failures++; }
-            if (problems.Count == 0) Console.WriteLine($"ok   {name}: {d.Controls.Count} control(s)");
+            string key = name + "-" + Path.GetFileName(product);
+            if (!DeviceDefinitions.IsModel(key)) { problems.Add($"{Rel(root, product)}/: not a product code such as A234 (four hex digits, upper case)"); continue; }
+            var files = Directory.EnumerateFiles(product).Select(Path.GetFileName).ToList();
+            foreach (string? f in files)
+                if (f is not DeviceLayout.RecordFile and not DeviceLayout.DefinitionFile) problems.Add($"{Rel(root, product)}/{f}: a model folder holds only {DeviceLayout.RecordFile} and {DeviceLayout.DefinitionFile}");
+            if (files.Count == 0) problems.Add($"{Rel(root, product)}/: empty");
+            if (Directory.EnumerateDirectories(product).Any()) problems.Add($"{Rel(root, product)}/: a model folder has no subfolders");
+            string record = Path.Combine(product, DeviceLayout.RecordFile);
+            if (File.Exists(record)) problems.AddRange(RecordProblems(File.ReadAllText(record), key).Select(p => $"{Rel(root, record)}: {p}"));
         }
-        catch (JsonException ex) { Console.WriteLine($"FAIL {name}: {ex.Message}"); failures++; }
     }
-    Console.WriteLine($"{count} definition(s), {failures} problem(s)");
-    return failures == 0 ? 0 : 1;
+
+    foreach (var (target, d) in definitions.OrderBy(p => p.Key, StringComparer.Ordinal))
+        Console.WriteLine($"ok   {target}: {d.Controls.Count} control(s)");
+    foreach (string p in problems) Console.WriteLine($"FAIL {p}");
+    Console.WriteLine($"{definitions.Count} definition(s), {DeviceLayout.Models(root).Count()} model(s), {problems.Count} problem(s)");
+    return problems.Count == 0 ? 0 : 1;
+}
+
+// A record is published text: the same things DispCtrl strips must not be in it.
+static IEnumerable<string> RecordProblems(string text, string key)
+{
+    if (!text.StartsWith("### ", StringComparison.Ordinal)) yield return "should start with a '### ' heading";
+    if (!text.Contains($"`{key}`", StringComparison.Ordinal)) yield return $"does not name its key `{key}`";
+    if (text.Contains("DISPLAY#", StringComparison.OrdinalIgnoreCase)) yield return "carries a device path";
+    if (Regex.IsMatch(text, @"[A-Za-z]:\\Users\\", RegexOptions.IgnoreCase)) yield return "carries a path under a user folder";
+    if (Regex.IsMatch(text, @"\b\d&[0-9a-f]{6,8}&\d&UID\d+", RegexOptions.IgnoreCase)) yield return "carries a device instance id";
+}
+
+// The name a model goes by: its definition's, else the record's table.
+static string? NameOf(string root, string model, DeviceDefinition? d)
+{
+    if (!string.IsNullOrWhiteSpace(d?.Name)) return d!.Name;
+    string record = DeviceLayout.RecordPath(root, model);
+    if (!File.Exists(record)) return null;
+    string text = File.ReadAllText(record);
+    string? Row(string label) => Regex.Match(text, $@"^\|\s*{label}\s*\|\s*(?<v>[^|]+?)\s*\|", RegexOptions.Multiline) is { Success: true } m ? m.Groups["v"].Value : null;
+    string? maker = Row("Manufacturer") is { } mk ? Regex.Replace(mk, @"\s*\([A-Z]{3}\)$", "") : null;
+    string? product = Row("Model");
+    if (product is null)
+    {
+        // Built-in panels rarely name themselves; say what the record does know.
+        string? inches = Row("Physical size") is { } size && Regex.Match(size, @"\((?<in>[\d.]+) in\)") is { Success: true } s ? s.Groups["in"].Value + " inch" : null;
+        return Row("Connector") == "Internal" ? $"Built-in panel{(inches is null ? "" : ", " + inches)}" : null;
+    }
+    return maker is null || product.StartsWith(maker, StringComparison.OrdinalIgnoreCase) ? product : $"{maker} {product}";
 }
 
 static int Index(string root, bool check)
 {
-    var entries = new JsonArray();
-    var definitions = DeviceLibrary.LoadFolder(Path.Combine(root, "definitions"));
-    var records = Directory.EnumerateFiles(root, "*.md").Select(f => Path.GetFileNameWithoutExtension(f))
-        .Where(DeviceDefinitions.IsModel).ToHashSet(StringComparer.Ordinal);
-    foreach (string target in definitions.Keys.Concat(records).Distinct().Order(StringComparer.Ordinal))
+    var definitions = DeviceLibrary.LoadLibrary(root);
+    var models = DeviceLayout.Models(root).ToList();
+    var brands = models.Select(m => m[..3]).Concat(definitions.Keys.Where(k => k.Length == 3)).Distinct().Order(StringComparer.Ordinal).ToList();
+    var opts = new JsonSerializerOptions { WriteIndented = false };
+
+    // One line per model, sorted: two merges that add different models touch
+    // different lines, and the file is regenerated after every merge anyway.
+    var json = new StringBuilder();
+    json.Append("{\n  \"schema\": 2,\n  \"generated\": \"tools/devicecheck index - do not edit; regenerated after every merge\",\n");
+    json.Append($"  \"counts\": {{ \"brands\": {brands.Count}, \"models\": {models.Count}, \"records\": {models.Count(m => File.Exists(DeviceLayout.RecordPath(root, m)))}, \"definitions\": {definitions.Count} }},\n");
+    json.Append($"  \"common\": {(definitions.ContainsKey("*") ? definitions["*"].Controls.Count : 0)},\n");
+    json.Append("  \"brands\": {\n");
+    json.Append(string.Join(",\n", brands.Select(b =>
     {
-        definitions.TryGetValue(target, out DeviceDefinition? d);
-        entries.Add((JsonNode)new JsonObject
+        definitions.TryGetValue(b, out DeviceDefinition? bd);
+        var entry = new JsonObject { ["brandCodes"] = bd?.Controls.Count ?? 0, ["models"] = models.Count(m => m.StartsWith(b + "-", StringComparison.Ordinal)) };
+        return $"    \"{b}\": {entry.ToJsonString(opts)}";
+    })));
+    json.Append("\n  },\n  \"models\": {\n");
+    json.Append(string.Join(",\n", models.Select(m =>
+    {
+        definitions.TryGetValue(m, out DeviceDefinition? d);
+        var entry = new JsonObject
         {
-            ["target"] = target,
-            ["name"] = d?.Name,
-            ["record"] = records.Contains(target),
+            ["name"] = NameOf(root, m, d),
+            ["record"] = File.Exists(DeviceLayout.RecordPath(root, m)),
+            ["codes"] = d?.Controls.Count ?? 0,
+            ["writable"] = d?.Controls.Count(c => c.Writable) ?? 0,
             ["extends"] = new JsonArray((d?.Extends ?? []).Select(e => (JsonNode?)JsonValue.Create(e)).ToArray()),
-            ["codes"] = new JsonArray((d?.Controls ?? []).Select(c => (JsonNode)new JsonObject
-            {
-                ["code"] = c.Code, ["key"] = c.EffectiveKey, ["kind"] = c.Kind, ["writable"] = c.Writable, ["confidence"] = c.Confidence,
-            }).ToArray()),
-        });
+        };
+        return $"    \"{m}\": {entry.ToJsonString(opts)}";
+    })));
+    json.Append("\n  }\n}\n");
+
+    // The same, for people: is my monitor here, and what is known of it?
+    var md = new StringBuilder();
+    md.Append("# Monitor catalogue\n\n");
+    md.Append("Generated by `tools/devicecheck index` after every merge; do not edit. ");
+    md.Append($"{models.Count} model(s) from {brands.Count} manufacturer(s). A **record** is what the model reports about itself; ");
+    md.Append("**mapped** codes are ones the standard does not name that somebody has identified. See [README.md](README.md) to add yours.\n");
+    foreach (string b in brands)
+    {
+        var inBrand = models.Where(m => m.StartsWith(b + "-", StringComparison.Ordinal)).ToList();
+        md.Append($"\n## {b}\n\n");
+        if (definitions.TryGetValue(b, out DeviceDefinition? bd)) md.Append($"Every {b} model: {bd.Controls.Count} mapped code(s), [brand.json]({b}/{DeviceLayout.BrandFile}).\n\n");
+        if (inBrand.Count == 0) continue;
+        md.Append("| Model | Name | Record | Mapped codes |\n|---|---|---|---|\n");
+        foreach (string m in inBrand)
+        {
+            definitions.TryGetValue(m, out DeviceDefinition? d);
+            string folder = $"{b}/{m[4..]}";
+            string record = File.Exists(DeviceLayout.RecordPath(root, m)) ? $"[record]({folder}/{DeviceLayout.RecordFile})" : "";
+            string codes = d is null ? "" : $"[{d.Controls.Count}]({folder}/{DeviceLayout.DefinitionFile})";
+            md.Append($"| `{m}` | {(NameOf(root, m, d) ?? "").Replace("|", "\\|")} | {record} | {codes} |\n");
+        }
     }
-    string text = new JsonObject { ["schema"] = 1, ["targets"] = entries }
-        .ToJsonString(new JsonSerializerOptions { WriteIndented = true }).Replace("\r\n", "\n") + "\n";
-    string path = Path.Combine(root, "index.json");
+
+    string indexPath = Path.Combine(root, DeviceLayout.IndexFile), catalogPath = Path.Combine(root, "CATALOG.md");
+    string indexText = json.ToString(), catalogText = md.ToString();
     if (check)
     {
-        bool current = File.Exists(path) && File.ReadAllText(path).Replace("\r\n", "\n") == text;
-        Console.WriteLine(current ? "index is current" : "index.json is stale: run devicecheck index");
+        bool current = Same(indexPath, indexText) && Same(catalogPath, catalogText);
+        Console.WriteLine(current ? "index is current" : "index.json or CATALOG.md is stale: run devicecheck index");
         return current ? 0 : 1;
     }
-    File.WriteAllText(path, text);
-    Console.WriteLine($"wrote {path}: {entries.Count} target(s)");
+    File.WriteAllText(indexPath, indexText);
+    File.WriteAllText(catalogPath, catalogText);
+    Console.WriteLine($"wrote {DeviceLayout.IndexFile} and CATALOG.md: {models.Count} model(s), {brands.Count} brand(s)");
     return 0;
+
+    static bool Same(string path, string text) => File.Exists(path) && File.ReadAllText(path).Replace("\r\n", "\n") == text;
 }
 
 // An issue body from DispCtrl's share: a Markdown record, then one fenced JSON
 // block. Everything in it is untrusted; only validated definitions and a record
 // for a well-formed model key are written, and a person reviews the pull request.
+// The index is not touched: it is regenerated after the merge, so two shares
+// never conflict over it.
 static int Intake(string bodyFile, string root)
 {
     string body = File.ReadAllText(bodyFile).Replace("\r\n", "\n");
@@ -102,8 +195,6 @@ static int Intake(string bodyFile, string root)
     if (!DeviceDefinitions.IsModel(model)) { Console.Error.WriteLine($"'{model}' is not a model key."); return 1; }
 
     int written = 0;
-    string folder = Path.Combine(root, "definitions");
-    Directory.CreateDirectory(folder);
     foreach (JsonNode? node in payload["definitions"]?.AsArray() ?? [])
     {
         DeviceDefinition incoming = JsonSerializer.Deserialize(node, DeviceJsonContext.Default.DeviceDefinition)
@@ -113,7 +204,7 @@ static int Intake(string bodyFile, string root)
 
         // Merged into what the repository has, code by code: a share replaces
         // the codes it defines and leaves the rest, and sources accumulate.
-        string path = Path.Combine(folder, (incoming.Target == "*" ? "common" : incoming.Target) + ".json");
+        string path = DeviceLayout.DefinitionPath(root, incoming.Target);
         DeviceDefinition current = File.Exists(path)
             ? JsonSerializer.Deserialize(File.ReadAllText(path), DeviceJsonContext.Default.DeviceDefinition)!
             : new DeviceDefinition { Target = incoming.Target };
@@ -132,8 +223,9 @@ static int Intake(string bodyFile, string root)
         current.Controls.Sort((a, b) => (a.CodeValue ?? 0).CompareTo(b.CodeValue ?? 0));
         var merged = DeviceDefinitions.Validate(current);
         if (merged.Count > 0) { Console.Error.WriteLine($"{current.Target} after merge: {string.Join("; ", merged)}"); return 1; }
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, JsonSerializer.Serialize(current, DeviceJsonContext.Default.DeviceDefinition).Replace("\r\n", "\n") + "\n");
-        Console.WriteLine($"definition {current.Target}: {incoming.Controls.Count} code(s)");
+        Console.WriteLine($"definition {current.Target}: {incoming.Controls.Count} code(s) -> {Rel(root, path)}");
         written++;
     }
 
@@ -142,15 +234,55 @@ static int Intake(string bodyFile, string root)
     // unless the maintainer takes the new text from the pull request.
     int split = body.IndexOf("\n### Mappings", StringComparison.Ordinal);
     string record = split > 0 ? body[..split].Trim() : "";
-    string recordPath = Path.Combine(root, model + ".md");
-    if (record.StartsWith("### ", StringComparison.Ordinal) && !record.Contains("the monitor was not attached", StringComparison.Ordinal)
+    string recordPath = DeviceLayout.RecordPath(root, model);
+    // A real record names its key; a share whose record was too long for the
+    // link carries a placeholder heading instead, and one made while the
+    // monitor was unplugged carries none. Neither is a record.
+    if (record.StartsWith("### ", StringComparison.Ordinal) && record.Contains($"Device key: `{model}`", StringComparison.Ordinal)
         && !File.Exists(recordPath))
     {
+        var leaks = RecordProblems(record, model).Where(p => !p.StartsWith("does not name", StringComparison.Ordinal)).ToList();
+        if (leaks.Count > 0) { Console.Error.WriteLine($"record refused: {string.Join("; ", leaks)}"); return 1; }
+        Directory.CreateDirectory(Path.GetDirectoryName(recordPath)!);
         File.WriteAllText(recordPath, record + "\n");
-        Console.WriteLine($"record {model}");
+        Console.WriteLine($"record {model} -> {Rel(root, recordPath)}");
         written++;
     }
 
     Console.WriteLine(written == 0 ? "nothing to add" : $"{written} file(s) written");
-    return written == 0 ? 4 : Index(root, check: false);
+    return written == 0 ? 4 : 0;
+}
+
+// From the first, flat layout: definitions/DEL-A234.json, definitions/DEL.json,
+// definitions/common.json and DEL-A234.md at the top. Moves, never overwrites.
+static int Migrate(string root)
+{
+    int moved = 0, refused = 0;
+    void Move(string from, string to)
+    {
+        if (File.Exists(to)) { Console.WriteLine($"SKIP {Rel(root, from)}: {Rel(root, to)} already exists"); refused++; return; }
+        Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+        File.Move(from, to);
+        Console.WriteLine($"move {Rel(root, from)} -> {Rel(root, to)}");
+        moved++;
+    }
+    string flat = Path.Combine(root, "definitions");
+    if (Directory.Exists(flat))
+    {
+        foreach (string file in Directory.EnumerateFiles(flat, "*.json"))
+        {
+            string stem = Path.GetFileNameWithoutExtension(file);
+            string target = stem == "common" ? "*" : stem;
+            if (!DeviceDefinitions.IsTarget(target)) { Console.WriteLine($"SKIP {Rel(root, file)}: not a device key"); refused++; continue; }
+            Move(file, DeviceLayout.DefinitionPath(root, target));
+        }
+        if (!Directory.EnumerateFileSystemEntries(flat).Any()) Directory.Delete(flat);
+    }
+    foreach (string file in Directory.EnumerateFiles(root, "*.md"))
+    {
+        string stem = Path.GetFileNameWithoutExtension(file);
+        if (DeviceDefinitions.IsModel(stem)) Move(file, DeviceLayout.RecordPath(root, stem));
+    }
+    Console.WriteLine($"{moved} moved, {refused} left in place");
+    return refused == 0 ? 0 : 1;
 }

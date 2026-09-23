@@ -20,7 +20,7 @@ monitor ──DDC/CI──▶ MonitorCapabilities ──▶ local history       
                                                  │
             dispctrl devices / Devices page ─────┤ map, link, share
                                                  ▼
-            GitHub issue ──intake workflow──▶ pull request ──▶ devices/definitions
+            GitHub issue ──intake workflow──▶ pull request ──▶ devices/BRAND/PRODUCT/
 ```
 
 ### Local history
@@ -35,12 +35,21 @@ unplugged last month can still be mapped and shared.
 
 ### Definitions
 
-One JSON file per target, in two folders:
+One JSON file per target, in two places:
 
-| Folder | What |
-| --- | --- |
-| `devices/definitions/` in the repository, shipped beside every executable | reviewed, everyone's |
-| `%LOCALAPPDATA%\DispCtrl\devices\definitions\` | made on this PC; wins over a shipped file, code by code |
+| Where | Layout | What |
+| --- | --- | --- |
+| `devices/` in the repository, shipped beside every executable | `DEL/A234/definition.json`, `DEL/brand.json`, `common.json` | reviewed, everyone's |
+| `%LOCALAPPDATA%\DispCtrl\devices\definitions\` | flat: `DEL-A234.json`, `DEL.json`, `common.json` | made on this PC; wins over a shipped file, code by code |
+
+The repository's layout is `DeviceLayout`: a folder per manufacturer, then per
+model, so every path follows from the key. It is built for thousands of models.
+The app reads only the files that bear on the monitor in front of it, and
+caches them, since the shipped library cannot change while it runs. Two shares
+of different models touch different folders and cannot conflict. Records
+(`record.md`) and the generated index stay in the repository and do not ship;
+the app never reads them. [devices/README.md](../devices/README.md) shows the
+tree.
 
 A target is every monitor (`*`, file `common.json`), a manufacturer (`DEL`) or a
 model (`DEL-A234`). For a model, definitions layer in this order, later winning
@@ -141,16 +150,19 @@ The repository is the backend; there is no server.
   issue whose body carries the share's `dispctrl-device-mapping` marker - a
   label cannot be relied on, since GitHub drops the labels a link asks for
   when the author cannot triage. It runs `tools/devicecheck intake`, which
-  validates every definition, merges it into `devices/definitions/` code by
-  code (sources accumulate), adds the record for a model the repository has
-  never seen, rebuilds `devices/index.json`, and opens a pull request for a
-  maintainer. A share it cannot read gets a comment saying why. The issue body
+  validates every definition, merges it into the model's folder code by code
+  (sources accumulate), adds the record for a model the repository has never
+  seen after checking it for paths and instance ids, and opens a pull request
+  for a maintainer. It does not touch the index, so shares never conflict. A share it cannot read gets a comment saying why. The issue body
   is passed through the environment, never into a script.
-- **`.github/workflows/devices.yml`** runs `devicecheck validate` and
-  `devicecheck index --check` on every pull request touching `devices/`, so
-  nothing merges that DispCtrl would refuse to load.
-- **`devices/index.json`** lists every target with its codes, generated; a
-  website or another tool can read it without parsing every file.
+- **`.github/workflows/devices.yml`** runs `devicecheck validate` on every
+  pull request touching `devices/`: the rules DispCtrl loads a definition
+  with, the layout (a file in the wrong place is one the app would never
+  read), and the records' privacy. After a merge it regenerates the index and
+  commits it.
+- **`devices/index.json` and `devices/CATALOG.md`** list every model: one line
+  per model in the JSON for tools, and a table per manufacturer for people.
+  Both are generated; nobody edits them.
 
 ```powershell
 dotnet run --project tools/devicecheck -- validate devices

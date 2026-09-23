@@ -77,6 +77,12 @@ public sealed partial class MainWindow : Window
             ViewModel.SetEngineRunning(toggle.IsOn);
     }
 
+    private void OnNavigationItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if ((args.InvokedItemContainer as NavigationViewItem)?.Tag as string == "sponsor")
+            DispCtrl.App.Services.ProjectLinks.Open(DispCtrl.App.Services.ProjectLinks.Sponsor);
+    }
+
     private void OnNavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         string? tag = (args.SelectedItem as NavigationViewItem)?.Tag as string;

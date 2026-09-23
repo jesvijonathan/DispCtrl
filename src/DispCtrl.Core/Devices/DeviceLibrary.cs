@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using DispCtrl.Core.Settings;
 
@@ -7,22 +8,34 @@ namespace DispCtrl.Core.Devices;
 /// Loads, layers and edits device definitions.
 /// </summary>
 /// <remarks>
-/// Two places, one format. The shipped folder beside the executables holds the
-/// definitions the project has reviewed (<c>devices/definitions</c> in the
-/// repository). The user folder holds the ones made on this machine, and wins
-/// over a shipped one for the same target, code by code - so a local correction
-/// takes effect at once, and becomes everyone's once it is shared and merged.
+/// Two places, one format. The shipped library beside the executables holds the
+/// definitions the project has reviewed, laid out as <see cref="DeviceLayout"/>
+/// describes, and is read a target at a time: it is meant to hold thousands of
+/// models, and a monitor needs three or four files of it. The user folder holds
+/// the handful made on this machine, flat, and wins over a shipped one for the
+/// same target, code by code - so a local correction takes effect at once, and
+/// becomes everyone's once it is shared and merged.
 /// </remarks>
 public static class DeviceLibrary
 {
-    public static string ShippedFolder => Path.Combine(AppContext.BaseDirectory, "devices", "definitions");
+    public static string ShippedFolder => Path.Combine(AppContext.BaseDirectory, "devices");
 
     public static string UserFolder => Path.Combine(SettingsStore.Directory, "devices", "definitions");
 
     /// <summary>Overrides the folders, for checks that must not touch the real ones.</summary>
-    public static (string Shipped, string User)? FoldersOverride { get; set; }
+    public static (string Shipped, string User)? FoldersOverride
+    {
+        get => _override;
+        set { _override = value; ShippedCache.Clear(); }
+    }
+    private static (string Shipped, string User)? _override;
 
-    private static string Shipped => FoldersOverride?.Shipped ?? ShippedFolder;
+    // The shipped library does not change while a process runs, and a missing
+    // file is the common answer (most models have no brand file), so both are
+    // remembered.
+    private static readonly ConcurrentDictionary<string, DeviceDefinition?> ShippedCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static string ShippedRoot => FoldersOverride?.Shipped ?? ShippedFolder;
     private static string User => FoldersOverride?.User ?? UserFolder;
 
     /// <summary>Every definition in a folder, by target; unreadable files are reported, not fatal.</summary>
@@ -48,16 +61,54 @@ public static class DeviceLibrary
         return result;
     }
 
-    /// <summary>The definitions for one target as the two folders combine them.</summary>
-    public static DeviceDefinition? Find(string target) => Layers(target).LastOrDefault().Definition;
-
-    private static IEnumerable<(DeviceDefinition Definition, string Origin)> Layers(string target)
+    /// <summary>Every definition in a library laid out as <see cref="DeviceLayout"/> says, by target.</summary>
+    /// <remarks>Reads the whole library, so it is for the checks and the maintainers' tools, never a lookup.</remarks>
+    public static Dictionary<string, DeviceDefinition> LoadLibrary(string root, List<string>? problems = null)
     {
-        var shipped = LoadFolder(Shipped);
-        var user = LoadFolder(User);
-        if (shipped.TryGetValue(target, out var s)) yield return (s, "shipped");
-        if (user.TryGetValue(target, out var u)) yield return (u, "local");
+        var result = new Dictionary<string, DeviceDefinition>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (target, file) in DeviceLayout.Definitions(root))
+        {
+            DeviceDefinition? d = ReadFile(file, problems);
+            if (d is null) continue;
+            if (!string.Equals(d.Target, target, StringComparison.OrdinalIgnoreCase))
+            {
+                problems?.Add($"{Relative(root, file)}: holds {d.Target}, but its place is for {target}");
+                continue;
+            }
+            result[target] = d;
+        }
+        return result;
     }
+
+    /// <summary>The shipped definition for one target, or null.</summary>
+    public static DeviceDefinition? Shipped(string target) =>
+        ShippedCache.GetOrAdd(target, t => DeviceDefinitions.IsTarget(t) ? ReadFile(DeviceLayout.DefinitionPath(ShippedRoot, t), null) : null);
+
+    /// <summary>The local definition for one target, or null; read fresh, because this machine edits it.</summary>
+    public static DeviceDefinition? Local(string target) => File.Exists(PathFor(target)) ? ReadFile(PathFor(target), null) : null;
+
+    private static DeviceDefinition? ReadFile(string file, List<string>? problems)
+    {
+        if (!File.Exists(file)) return null;
+        try
+        {
+            DeviceDefinition? d = JsonSerializer.Deserialize(File.ReadAllText(file), DeviceJsonContext.Default.DeviceDefinition);
+            if (d is null) return null;
+            List<string> wrong = DeviceDefinitions.Validate(d);
+            if (wrong.Count > 0) { problems?.Add($"{Path.GetFileName(file)}: {string.Join("; ", wrong)}"); return null; }
+            return d;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            problems?.Add($"{Path.GetFileName(file)}: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static string Relative(string root, string file) => Path.GetRelativePath(root, file).Replace('\\', '/');
+
+    /// <summary>The definitions for one target as the two folders combine them.</summary>
+    public static DeviceDefinition? Find(string target) => Local(target) ?? Shipped(target);
 
     /// <summary>
     /// Every code with a definition that applies to a model, most specific last.
@@ -71,8 +122,6 @@ public static class DeviceLibrary
     /// </remarks>
     public static Dictionary<byte, ResolvedControl> Resolve(string model)
     {
-        var shipped = LoadFolder(Shipped);
-        var user = LoadFolder(User);
         var result = new Dictionary<byte, ResolvedControl>();
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -80,8 +129,8 @@ public static class DeviceLibrary
         {
             if (!visited.Add(target)) return;
             var layers = new List<(DeviceDefinition, string)>();
-            if (shipped.TryGetValue(target, out var s)) layers.Add((s, "shipped " + target));
-            if (user.TryGetValue(target, out var u)) layers.Add((u, "local " + target));
+            if (Shipped(target) is { } s) layers.Add((s, "shipped " + target));
+            if (Local(target) is { } u) layers.Add((u, "local " + target));
             foreach (var (definition, _) in layers)
                 foreach (string link in definition.Extends)
                     if (!string.Equals(link, model, StringComparison.OrdinalIgnoreCase)) Apply(link);

@@ -1,0 +1,17 @@
+<Project>
+
+  <!-- MSBuild copies files to the output folder but never removes the ones it has
+       stopped copying, so a layout that moved stays behind in every bin folder
+       forever. The device library was flat (devices/definitions/*.json and
+       devices/*.md records) before it had a folder per model; neither is read
+       any more, and records must not ship at all. -->
+  <Target Name="RemoveRetiredDeviceLayout" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <_RetiredDeviceFile Include="$(OutDir)devices\definitions\*.json;$(OutDir)devices\*.md" />
+      <_RetiredDeviceFile Include="$(PublishDir)devices\definitions\*.json;$(PublishDir)devices\*.md" Condition="'$(PublishDir)' != ''" />
+    </ItemGroup>
+    <Delete Files="@(_RetiredDeviceFile)" ContinueOnError="true" />
+    <RemoveDir Directories="$(OutDir)devices\definitions" Condition="Exists('$(OutDir)devices\definitions')" ContinueOnError="true" />
+  </Target>
+
+</Project>

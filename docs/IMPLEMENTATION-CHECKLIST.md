@@ -77,8 +77,50 @@ verification named beside them.
 - [ ] MSIX packaging, identity, installation/update/startup and certification.
   `build/Package.ps1` packs and MakeAppx validates. Not installed, signed or
   certified: needs the Partner Center identity and a signing certificate.
+- [ ] Per-user installer (Inno Setup), graceful engine stop on upgrade and
+  uninstall, sign-in task, optional PATH. `build/Installer.ps1` compiled a
+  73 MB setup from a real desktop bundle (Inno 7.1, portable `ISCC.exe`). The
+  embedded stop script ran against an empty root, and its task-ownership check
+  ran read-only against this desk's task: it matches the Release build and
+  would not remove it for an install elsewhere. Not installed here, because
+  doing so would re-point this desk's sign-in task. Needs a clean account or VM.
+- [ ] Release pipeline: CHANGELOG-based draft notes, signing of binaries, setup
+  and MSIX (MSIX only when the certificate subject equals the Publisher),
+  winget update and gated Store submission on publish. `ReleaseNotes.ps1` ran
+  locally; every workflow passes actionlint. Nothing has run on GitHub, and the
+  winget and Store jobs need their accounts first (docs/RELEASING.md).
+- [x] Device library laid out for thousands of models: devices/BRAND/PRODUCT/
+  {record.md,definition.json}, BRAND/brand.json, common.json (DeviceLayout).
+  The app reads per target and caches; only definitions ship. devicecheck
+  migrate moved the repository's files; validate refuses stray files, bad
+  folder names and records carrying a user path or instance id (each planted
+  and caught); intake writes a new model into its own folder; index writes
+  index.json and CATALOG.md, regenerated after merge by devices.yml. A synthetic
+  3,000-model, 150-brand library validated in about 8 s warm; the index is
+  276 KB. All checks pass; the CLI resolves DEL-A234 from its folder.
+- [x] Build output: Directory.Build.targets removes the retired flat layout from
+  every bin (verified in the engine, app and CLI outputs); build -Rebuild; build
+  and release end by listing every output with its path. Release goes to one
+  folder, artifacts/<channel>-<version>, cleared first (it removed 1.9 GB of
+  stale bundles here), MSIX staged in temp and deleted. dev.ps1 publish now
+  stops and restarts the engine, which the tests' build otherwise collides with.
+- [x] Developer entry points: build.cmd / build/dev.ps1 (doctor, setup, build,
+  test, run, publish, installer, package, release, clean, options, and a menu)
+  and build.sh for Linux/WSL. On this desk: doctor and setup found every tool
+  and fetched a portable Inno Setup; build stopped the engine, built with the
+  glass helper at the same revision, and restarted it through its task (the
+  first run did not restart it - Process.Path is empty after exit - fixed);
+  test passed all four checks. Script parses under Windows PowerShell 5.1.
+  WSL Ubuntu, from a clean copy: setup installed .NET into .tools, build
+  compiled everything but the app with the glass helper skipped, and
+  presetverify and devicecheck passed. setup -Install (winget) and build.sh
+  --native are not exercised.
+- [x] Licence (MIT), README, CONTRIBUTING, SECURITY, code of conduct, changelog,
+  issue forms, PR template, dependabot. README claims checked against the code:
+  default hotkeys, the night light schedule, the OLED and focus options, and
+  presets marked as off in release builds.
 
 Presets stay disabled; current-settings export remains available. Preserve earlier
 OLED, Focus, Awake, contribution, startup, help and layout changes. Static-content
 detection and hardware refresh/power features need working adapters before being
-represented as supported. Publication and licensing are separate release inputs.
+represented as supported. The licence is MIT; publication is a release input.

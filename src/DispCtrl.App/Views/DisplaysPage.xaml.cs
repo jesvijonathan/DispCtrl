@@ -175,10 +175,32 @@ public sealed partial class DisplaysPage : Page
     private void OnColorManagement(object sender, RoutedEventArgs e) =>
         ColorProfile.OpenColorManagement();
 
-    private void OnResetDisplay(object sender, RoutedEventArgs e)
+    private async void OnResetDisplay(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.Tag is DisplayViewModel display)
-            display.ResetToDefaults();
+        if ((sender as FrameworkElement)?.Tag is not DisplayViewModel display) return;
+        var factory = new CheckBox
+        {
+            Content = "Also restore the monitor's own factory settings: colour, contrast and picture mode, as set in its menu. The monitor does this itself and it cannot be undone.",
+            Visibility = display.Info.IsInternal ? Visibility.Collapsed : Visibility.Visible,
+        };
+        var content = new StackPanel { Spacing = 12 };
+        content.Children.Add(new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Text = $"DispCtrl's settings for {display.Info.Label} go back to their defaults: taskbar hiding, OLED care, focus dimming, night light and its brightness range. Its name is kept.",
+        });
+        content.Children.Add(factory);
+        var confirm = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"Reset {display.Info.Label}?",
+            Content = content,
+            PrimaryButtonText = "Reset",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        if (await confirm.ShowAsync() == ContentDialogResult.Primary)
+            display.ResetToDefaults(factory.IsChecked == true);
     }
 
     private async void OnCaptureLimits(object sender, RoutedEventArgs e)

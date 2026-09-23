@@ -31,7 +31,8 @@ public static class ControlTerminal
     Device library (docs/DEVICE-LIBRARY.md)
       devices list                          Every monitor model seen here, and what is known of it
       devices show --monitor ID|--model KEY Every code: standard, mapped, or not yet named
-      devices scan                          Read every attached monitor into the local history
+      devices scan                          Sync: read every attached monitor now (the engine does it by itself)
+  devices forget --monitor ID|--model KEY   Remove a model from the list until the next scan
       devices probe --monitor ID [--codes unknown|all|0xE2,0xF0] [--seconds 120]
                                             Watch codes while you change the monitor's own menu
       devices map --monitor ID --code 0xE2 --name "Preset mode" [--values "0x0B=ComfortView"]
@@ -175,7 +176,7 @@ public static class ControlTerminal
     {
         positional = [];
         var options = new JsonObject();
-        string[] flags = ["json", "local", "dry-run", "hardware", "overwrite", "help", "confirm", "all", "writable", "remove", "open", "factory"];
+        string[] flags = ["json", "local", "dry-run", "hardware", "overwrite", "help", "confirm", "all", "writable", "remove", "open", "factory", "history"];
         for (int i = 0; i < words.Length; i++)
         {
             string word = words[i];

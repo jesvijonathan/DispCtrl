@@ -1,12 +1,32 @@
 [CmdletBinding()]
-param([ValidateSet('stable','beta')][string]$Channel = 'beta', [string]$Version = '0.1.0', [switch]$SkipTests)
+param(
+    [ValidateSet('stable','beta')][string]$Channel = 'beta',
+    [string]$Version = '0.1.0',
+    [switch]$SkipTests,
+    [switch]$Sign,
+    # Keep earlier builds in artifacts/. By default they are removed: every
+    # bundle is a few hundred MB, and a folder of stale ones is how an old
+    # build ends up attached to a release.
+    [switch]$KeepOld
+)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 if ($Version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') { throw 'Version must be numeric, e.g. 0.1.0.' }
 Push-Location $repo
 try {
     if (-not $SkipTests) { & "$PSScriptRoot/Build.ps1" -Test }
-    $artifactRoot = Join-Path $repo ('artifacts/' + $Channel + '-' + $Version + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
+    # One folder per channel and version, replaced on each run, so its path is
+    # predictable: artifacts/beta-0.1.0 holds the zips, the installer and the MSIX.
+    $artifacts = Join-Path $repo 'artifacts'
+    $artifactRoot = Join-Path $artifacts ($Channel + '-' + $Version)
+    if (Test-Path -LiteralPath $artifacts) {
+        $old = @(Get-ChildItem -LiteralPath $artifacts -Force | Where-Object { $KeepOld -eq $false -or $_.FullName -eq $artifactRoot })
+        if ($old) {
+            $bytes = ($old | ForEach-Object { if ($_.PSIsContainer) { Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Force | Measure-Object Length -Sum | ForEach-Object Sum } else { $_.Length } } | Measure-Object -Sum).Sum
+            $old | Remove-Item -Recurse -Force
+            Write-Host ('Removed {0} earlier build item(s) from artifacts ({1:N1} GB).' -f $old.Count, ($bytes / 1GB))
+        }
+    }
     $cli = Join-Path $artifactRoot 'cli'
     $desktop = Join-Path $artifactRoot 'desktop'
     New-Item -ItemType Directory -Path $cli,$desktop -Force | Out-Null
@@ -21,11 +41,27 @@ try {
     Copy-Item -Path "$cli/*" -Destination $desktop -Recurse -Force
     & dotnet publish src/DispCtrl.App/DispCtrl.App.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -o $desktop
     if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed.' }
+    if ($Sign) {
+        # DispCtrl's own binaries only. The runtime's are Microsoft-signed
+        # already, and the taskbar-glass helper is pinned by revision: Explorer
+        # keeps the one it loaded, so its bytes must not change after the build.
+        $own = foreach ($folder in @($cli,$desktop)) {
+            Get-ChildItem -LiteralPath $folder -File | Where-Object { $_.Name -like 'DispCtrl*.exe' -or $_.Name -eq 'dispctrl.exe' -or $_.Name -like 'DispCtrl.*.dll' }
+        }
+        & "$PSScriptRoot/Sign.ps1" -Path @($own.FullName)
+    }
+    # A source download from GitHub (Download ZIP) has no .git: record that
+    # rather than letting git print a fatal error per bundle.
+    $commit = 'unknown'; $modified = $null
+    if (Test-Path -LiteralPath (Join-Path $repo '.git')) {
+        $commit = (& git rev-parse HEAD 2>$null)
+        $modified = [bool](& git status --porcelain 2>$null)
+    }
     foreach ($folder in @($cli,$desktop)) {
         Copy-Item -LiteralPath (Join-Path $repo 'docs') -Destination $folder -Recurse
         Copy-Item -LiteralPath (Join-Path $repo 'examples') -Destination $folder -Recurse
         if (Test-Path (Join-Path $repo 'LICENSE')) { Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination $folder }
-        $manifest = [ordered]@{ product='DispCtrl'; version=$Version; channel=$Channel; architecture='x64'; commit=(& git rev-parse HEAD); modifiedSources=[bool](& git status --porcelain); builtUtc=[DateTimeOffset]::UtcNow.ToString('O'); nativeAot=$false; readyToRun=$true }
+        $manifest = [ordered]@{ product='DispCtrl'; version=$Version; channel=$Channel; architecture='x64'; commit=$commit; modifiedSources=$modified; builtUtc=[DateTimeOffset]::UtcNow.ToString('O'); nativeAot=$false; readyToRun=$true }
         $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $folder 'build-info.json') -Encoding utf8
     }
     foreach ($kind in @('cli','desktop')) {
@@ -34,6 +70,6 @@ try {
     Get-ChildItem -LiteralPath $artifactRoot -Filter '*.zip' | Get-FileHash -Algorithm SHA256 |
         ForEach-Object { "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))" } |
         Set-Content -LiteralPath (Join-Path $artifactRoot 'SHA256SUMS.txt') -Encoding ascii
-    Write-Output "Artifacts: $artifactRoot"
+    Write-Host "Artifacts: $artifactRoot"
     return $artifactRoot
 } finally { Pop-Location }

@@ -69,8 +69,12 @@ background work, so the engine references it too.
 
 ## Commands
 
-Run everything from the repo root. There is no solution file; build projects
-individually, in dependency order when several changed.
+Run everything from the repo root. `build.cmd` (Windows) and `build.sh`
+(Linux/WSL) wrap it all: `build.cmd build` stops the engine gracefully, builds
+the CLI, engine and app, and restarts the engine through its task; `test`,
+`run engine|app|panel|cli`, `release`, and `doctor`/`setup` for a new machine.
+`docs/DEVELOPING.md` has every option. By hand: there is no solution file; build
+projects individually, in dependency order when several changed.
 
 ```bash
 dotnet build src/DispCtrl.Core/DispCtrl.Core.csproj       -c Release -v q --nologo
@@ -216,8 +220,10 @@ monitor (`*`), layered in that order with `extends` links - and `devices share`
 opens one prefilled issue with the record and the mappings. The repository is
 the backend: `.github/workflows/device-intake.yml` turns such an issue into a
 pull request through `tools/devicecheck intake`; `devices.yml` validates every
-change to `devices/`. Reviewed definitions live in `devices/definitions/` and
-ship beside every executable. The app's **Devices** page sends the same
+change to `devices/`. Reviewed definitions live in `devices/BRAND/PRODUCT/`
+(`DeviceLayout`; built for thousands of models, one folder each) and ship
+beside every executable in that layout; records and the generated index do not
+ship. The app's **Devices** page sends the same
 `devices.*` requests - it replaced the Collect / View / Submit card.
 
 - **A mapped code is writable only when its definition says so**, and only on a
@@ -727,6 +733,46 @@ unrecallable.
 - The engine must carry `<ApplicationIcon>` too: the tray's logo style reads it
   from the running binary, and without it drew an empty slot.
 
+### Release and installer
+
+- **Never let an installer kill the engine.** Inno's Restart Manager
+  (`CloseApplications`) would, and a killed engine strands a hidden taskbar.
+  `DispCtrl.iss` turns it off and runs `DispCtrl.Engine.exe stop` itself,
+  waiting for the exit, and refuses to install over an engine that will not stop.
+- **An installer or uninstaller removes the sign-in task only if it points into
+  its own folder.** The first draft ran `startup set --engine off`
+  unconditionally, which would have deleted a development or portable copy's
+  task on this very desk. Do not install the setup on the dev machine to test
+  it, for the same reason: it re-points the task. Use a clean account.
+- `{tmp}` inside a Pascal `{ }` comment ends the comment - the compiler reports
+  "Identifier expected" a line later. Use `//` comments in `[Code]`.
+- **Do not sign the taskbar-glass helper.** Its bytes are pinned by revision;
+  `Publish.ps1 -Sign` signs only `DispCtrl*` binaries.
+- An MSIX signs only with a certificate whose subject equals its `Publisher`.
+  The release workflow compares them and leaves it unsigned rather than failing.
+- **Read a process's `Path` before stopping it.** `Process.Path` comes from
+  the main module; once the engine has exited it is empty. `dev.ps1 build` read
+  it afterwards and so never restarted the engine it had stopped.
+- `SkipTaskbarGlass=true` builds the engine without the native helper (no
+  MinGW). On Linux the helper step runs `pwsh`, not `powershell.exe`: through
+  WSL interop the latter reached Windows' own MinGW with Linux paths and failed
+  to link. The WinUI app cannot build off Windows at all (`GenXbf.dll`).
+- **MSBuild never deletes an output it has stopped copying.** When the device
+  library moved to a folder per model, every `bin` kept the old flat
+  `devices/definitions/` and the records, which must not ship.
+  `Directory.Build.targets` removes the retired layout after each build and
+  publish. Any future move of a copied file needs the same treatment.
+- **Publish stops the engine too.** It runs the tests, which build into the
+  `bin` the engine runs from; `dev.ps1 publish` stops it gracefully and
+  restarts it, as `build` does.
+- **Release output has one fixed place**, `artifacts/<channel>-<version>/`,
+  cleared on each run. It used to be a new GUID-suffixed folder per publish and
+  per MSIX, each with a full staging copy: 2 GB had accumulated.
+- `DispCtrlVersion` in `Directory.Build.props` is the default `Version`; a
+  stable tag that disagrees with it fails `release.yml`. Bump it in the
+  release commit. See `docs/RELEASING.md` for the whole procedure and the
+  secrets and variables it needs.
+
 ---
 
 ## Verifying on real hardware
@@ -802,8 +848,9 @@ display report, identify overlays, hotplug re-discovery, device contribution
 (anonymised, consent-gated), the quick panel and tray icon, Windows' brightness
 slider and keys driving unison, the control API and `dispctrl` JSON surface.
 `docs/IMPLEMENTATION-CHECKLIST.md` records how each recent item was verified and
-what is still unverified: CI has never run on GitHub, and the MSIX has been
-packed but not installed, signed or certified.
+what is still unverified: CI has never run on GitHub, the MSIX has been
+packed but not installed, signed or certified, and the installer has been
+compiled but not installed (see "Release and installer").
 
 Outstanding, roughly in the order last discussed:
 
@@ -821,8 +868,8 @@ short version, in recommended order:
    Copy ddcutil's `<mfg>-<model>-<product>` convention.
 4. **More fields in the display report.**
 5. ~~Opt-in contribution~~ - **done**, `dispctrl contribute` and the panel card.
-   Records land in `devices/`; `DEL-A234.md` and `SDC-4154.md` are seeded from
-   this machine.
+   Records land in `devices/BRAND/PRODUCT/record.md`; `DEL/A234` and
+   `SDC/4154` are seeded from this machine.
 6. **OLED burn-in protection** — original scope, still unbuilt. The per-monitor
    `IsOled` flag exists and is what it should key off.
 7. **Remember window positions** across replug.

@@ -17,3 +17,7 @@ packaging/out/
 
 # Working notes and session logs: kept locally, never committed.
 .notes/
+
+# Developer tools fetched by build/dev.ps1 and build.sh, and local choices.
+.tools/
+build/local.json

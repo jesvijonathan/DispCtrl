@@ -138,36 +138,86 @@ public sealed class Hotkey
     /// which many Intel graphics drivers take to rotate the screen. Page Up and
     /// Page Down for unison, because brightness is the thing reached for most;
     /// a letter for each switch, named for what it does.
+    /// <para>
+    /// Only four are on: brightness both ways, night light and the quick panel.
+    /// The rest are set but off - a shortcut nobody asked for that fires by
+    /// accident, or holds a combination another program wanted, is worse than
+    /// one that is a switch away. Contrast takes Shift as well, beside
+    /// brightness on the same keys.
+    /// </para>
     /// </remarks>
     public static List<Hotkey> Defaults()
     {
-        const uint CtrlAlt = 1 | 2;
+        const uint CtrlAlt = 1 | 2, CtrlAltShift = 1 | 2 | 4;
         return
         [
             new() { Modifiers = CtrlAlt, Key = 0x21, Action = HotkeyAction.UnisonUp, Step = 5 },      // Page Up
             new() { Modifiers = CtrlAlt, Key = 0x22, Action = HotkeyAction.UnisonDown, Step = 5 },    // Page Down
-            new() { Modifiers = CtrlAlt, Key = 'N', Action = HotkeyAction.NightLightToggle },
-            new() { Modifiers = CtrlAlt, Key = 'F', Action = HotkeyAction.FocusToggle },
-            new() { Modifiers = CtrlAlt, Key = 'K', Action = HotkeyAction.KeepAwakeToggle },
-            new() { Modifiers = CtrlAlt, Key = 'I', Action = HotkeyAction.Identify },
             new() { Modifiers = CtrlAlt, Key = 'D', Action = HotkeyAction.QuickPanel },
+            new() { Modifiers = CtrlAlt, Key = 'N', Action = HotkeyAction.NightLightToggle },
+            new() { Modifiers = CtrlAlt, Key = 'U', Action = HotkeyAction.UnisonToggle, Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = 'F', Action = HotkeyAction.FocusToggle, Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = 'K', Action = HotkeyAction.KeepAwakeToggle, Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = 'I', Action = HotkeyAction.Identify, Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = 'M', Action = HotkeyAction.DarkModeToggle, Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = 'T', Action = HotkeyAction.TaskbarToggle, Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = 'O', Action = HotkeyAction.OledCareToggle, Enabled = false },
+            new() { Modifiers = CtrlAltShift, Key = 0x21, Action = HotkeyAction.ContrastUp, Step = 5, Enabled = false },
+            new() { Modifiers = CtrlAltShift, Key = 0x22, Action = HotkeyAction.ContrastDown, Step = 5, Enabled = false },
         ];
     }
 
+    /// <summary>Why a combination may never reach DispCtrl, or null when nothing is known against it.</summary>
+    /// <remarks>
+    /// Windows and graphics drivers take some combinations before any program
+    /// can: registering them either fails or succeeds and never fires. Said at
+    /// the moment the keys are pressed, rather than left to be found out.
+    /// </remarks>
+    public static string? Caution(uint key, uint modifiers)
+    {
+        bool win = (modifiers & 8) != 0, ctrl = (modifiers & 2) != 0, alt = (modifiers & 1) != 0;
+        if (win) return "Windows keeps most Win shortcuts for itself, so this one may never reach DispCtrl. Ctrl+Alt combinations are the safest.";
+        if (ctrl && alt && key is >= 0x25 and <= 0x28) return "Some graphics drivers rotate the screen on Ctrl+Alt and an arrow key.";
+        if (alt && !ctrl && key is 0x09 or 0x73 or 0x1B) return "Alt with Tab, F4 or Escape belongs to Windows.";
+        if (ctrl && !alt && key == 0x1B) return "Ctrl+Escape opens Start.";
+        return null;
+    }
+
+    /// <summary>The defaults version this build offers; see <see cref="OfferDefaults"/>.</summary>
+    public const int DefaultsVersion = 2;
+
+    /// <summary>Actions a defaults version added, offered to desks set up before it.</summary>
+    private static readonly HotkeyAction[] AddedInVersion2 =
+        [HotkeyAction.UnisonToggle, HotkeyAction.DarkModeToggle, HotkeyAction.TaskbarToggle, HotkeyAction.OledCareToggle,
+         HotkeyAction.ContrastUp, HotkeyAction.ContrastDown];
+
     /// <summary>
-    /// Adds the defaults once, to a desk that has never been offered them.
+    /// Adds the defaults once, to a desk that has never been offered them, and
+    /// later defaults once to a desk that was offered earlier ones.
     /// </summary>
     /// <remarks>
-    /// Only combinations not already bound, and never again after the first
-    /// time - so a default somebody removed stays removed.
+    /// Only combinations not already bound. A desk set up before a version gets
+    /// that version's new actions, switched off, and never the older defaults
+    /// again - so a default somebody removed stays removed.
     /// </remarks>
     /// <returns>True when the settings changed and want saving.</returns>
     public static bool OfferDefaults(DispCtrlSettings settings)
     {
-        if (settings.Global.HotkeyDefaultsOffered) return false;
-        settings.Global.HotkeyDefaultsOffered = true;
+        GlobalSettings g = settings.Global;
+        int from = g.HotkeyDefaultsVersion > 0 ? g.HotkeyDefaultsVersion : g.HotkeyDefaultsOffered ? 1 : 0;
+        if (from >= DefaultsVersion) return false;
         foreach (Hotkey d in Defaults())
-            if (!settings.Hotkeys.Any(h => h.Key == d.Key && h.Modifiers == d.Modifiers)) settings.Hotkeys.Add(d);
+        {
+            if (settings.Hotkeys.Any(h => h.Key == d.Key && h.Modifiers == d.Modifiers)) continue;
+            if (from == 0) settings.Hotkeys.Add(d);
+            else if (AddedInVersion2.Contains(d.Action) && !settings.Hotkeys.Any(h => h.Action == d.Action))
+            {
+                d.Enabled = false;
+                settings.Hotkeys.Add(d);
+            }
+        }
+        g.HotkeyDefaultsOffered = true;
+        g.HotkeyDefaultsVersion = DefaultsVersion;
         return true;
     }
 

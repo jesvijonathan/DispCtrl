@@ -88,9 +88,10 @@ Check(sampleRecord.Contains("297 MHz") && sampleRecord.Contains("0x09")
     && sampleRecord.Contains("93 PPI") && sampleRecord.Contains("100% scaling")
     && sampleRecord.Contains("1920 x 1080 @ 120 Hz") && sampleRecord.Contains("0x01 0x02")
     && sampleRecord.Contains("may differ between setups"), "public report includes controller, signal, density and commands with observed-state label");
-Check(DispCtrl.Display.Devices.KnownMonitorCatalog.Contains("DEL-A234")
-    && DispCtrl.Display.Devices.KnownMonitorCatalog.Contains("SDC-4154"),
-    "packaged monitor catalog contains the repository models");
+Check(DispCtrl.Core.Devices.DeviceLibrary.Shipped("DEL-A234")?.Controls.Any(c => c.Code == "0x66") == true
+    && File.Exists(Path.Combine(AppContext.BaseDirectory, "devices", "DEL", "A234", "definition.json"))
+    && !Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, "devices"), "*.md", SearchOption.AllDirectories).Any(),
+    "the shipped library resolves a model from its own folder, and ships definitions, not records");
 Check(PresetStore.Parse("{ /* editable */ \"monitors\": {}, }").Version == 3, "comments and trailing commas");
 Check(PresetStore.Parse("{\"version\":2,\"monitors\":{}}").IncludeGlobal, "legacy whole-desk scope preserved");
 Reject("{}", "unrelated JSON rejected");

@@ -14,15 +14,15 @@
         <TextBlock Text="Devices" Style="{StaticResource TitleTextBlockStyle}"/>
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="Every monitor this PC has seen, and what each of its controls does. The standard names some codes; manufacturers add their own and document none of them. Name one here - watch which code moves while you change a setting in the monitor's own menu - and share it, and every owner of the same model, or the same brand, gets that control."/>
+                   Text="Every monitor this PC has seen. DispCtrl reads each new model by itself the first time it is plugged in, and applies whatever the project already knows about it. The codes nobody has named are listed under each monitor: name one, share it, and every owner of that model gets the control."/>
       </StackPanel>
 
       <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
         <Button x:Name="ScanButton" Click="OnScan" AutomationProperties.Name="DevicesScan"
-                ToolTipService.ToolTip="Read every attached monitor's codes into this PC's history. A few seconds per monitor.">
+                ToolTipService.ToolTip="Read every attached monitor again now, including any removed from this list. The engine does this by itself for new models.">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <FontIcon FontSize="14" Glyph="&#xE895;"/>
-            <TextBlock Text="Read attached monitors"/>
+            <TextBlock Text="Sync now"/>
           </StackPanel>
         </Button>
         <Button Click="OnOpenFolder" AutomationProperties.Name="DevicesOpenFolder"

@@ -1472,13 +1472,17 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// here would blank the screen for something nobody asked for.
     /// </para>
     /// </remarks>
-    public void ResetToDefaults()
+    public void ResetToDefaults(bool factory = false)
     {
         _settings.ResetToDefaults();
         _persist();
 
+        // The monitor's own menu settings only when asked: this used to send
+        // the factory-reset code on every press of Reset, wiping the monitor's
+        // colour, contrast and picture mode without a word, where the command
+        // line demands --factory --confirm for the same thing.
         DisplayInfo d = _display;
-        if (!d.IsInternal)
+        if (factory && !d.IsInternal)
         {
             _ = Task.Run(async () =>
             {
@@ -1494,13 +1498,8 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
         _deskChanged();
 
-        Raise(nameof(HideTaskbar));
-        Raise(nameof(ReclaimWorkArea));
-        Raise(nameof(TaskbarSummary));
-        Raise(nameof(BrightnessFloor));
-        Raise(nameof(BrightnessCeiling));
-        Raise(nameof(HasBrightnessRange));
-        Raise(nameof(RangeSummary));
+        // Everything on the card: OLED, focus dimming, night light, the range.
+        Raise(string.Empty);
     }
 
     // --------------------------------------------------------------- unison --

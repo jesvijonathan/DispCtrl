@@ -22,14 +22,19 @@ public sealed partial class ControlService
             case "get":
             {
                 var list = new JsonArray();
+                HotkeyStatus? status = HotkeyStatus.Read();
                 for (int i = 0; i < settings.Hotkeys.Count; i++)
                 {
                     Hotkey h = settings.Hotkeys[i];
+                    // What the engine last reported for this combination.
+                    string state = !h.Enabled ? "off" : !h.IsComplete ? "incomplete" : status is null ? "unknown"
+                        : status.Refused.Contains(h.Describe()) ? "taken by another program"
+                        : status.Registered.Contains(h.Describe()) ? "registered" : "not registered yet";
                     list.Add((JsonNode)new JsonObject
                     {
                         ["index"] = i + 1, ["keys"] = h.Describe(), ["action"] = KebabAction(h.Action),
                         ["does"] = h.DescribeAction(), ["display"] = h.Display, ["step"] = h.Step,
-                        ["preset"] = h.Preset, ["enabled"] = h.Enabled,
+                        ["preset"] = h.Preset, ["enabled"] = h.Enabled, ["state"] = state,
                     });
                 }
                 return new JsonObject { ["hotkeys"] = list, ["actions"] = new JsonArray(Enum.GetValues<HotkeyAction>().Select(a => (JsonNode?)JsonValue.Create(KebabAction(a))).ToArray()) };
@@ -83,7 +88,7 @@ public sealed partial class ControlService
                 if (Flag(args, "dryRun")) return new JsonObject { ["state"] = "validated", ["hotkeys"] = defaults.Count };
                 settings.Hotkeys.Clear();
                 settings.Hotkeys.AddRange(defaults);
-                settings.Global.HotkeyDefaultsOffered = true;
+                settings.Global.HotkeyDefaultsOffered = true; settings.Global.HotkeyDefaultsVersion = Hotkey.DefaultsVersion;
                 SettingsStore.Save(settings);
                 return new JsonObject { ["state"] = "reset", ["hotkeys"] = new JsonArray(defaults.Select(h => (JsonNode?)JsonValue.Create($"{h.Describe()}: {h.DescribeAction()}")).ToArray()) };
             }

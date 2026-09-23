@@ -128,9 +128,16 @@ try
     // ---- device library: layering, links, validation ----
     string shipped = Path.Combine(scratch, "lib-shipped"), local = Path.Combine(scratch, "lib-local");
     Directory.CreateDirectory(shipped); Directory.CreateDirectory(local);
-    void Write(string folder, DispCtrl.Core.Devices.DeviceDefinition d) => File.WriteAllText(
-        Path.Combine(folder, (d.Target == "*" ? "common" : d.Target) + ".json"),
-        System.Text.Json.JsonSerializer.Serialize(d, DispCtrl.Core.Devices.DeviceJsonContext.Default.DeviceDefinition));
+    // The shipped library in its repository layout; the local folder flat, as
+    // DeviceLibrary.PathFor writes it.
+    void Write(string folder, DispCtrl.Core.Devices.DeviceDefinition d)
+    {
+        string path = folder == shipped
+            ? DispCtrl.Core.Devices.DeviceLayout.DefinitionPath(folder, d.Target)
+            : Path.Combine(folder, (d.Target == "*" ? "common" : d.Target) + ".json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(d, DispCtrl.Core.Devices.DeviceJsonContext.Default.DeviceDefinition));
+    }
     DispCtrl.Core.Devices.DefinedControl Named(string code, string name, bool writable = false) =>
         new() { Code = code, Name = name, Kind = writable ? "range" : "information", Writable = writable };
     Write(shipped, new() { Target = "*", Controls = [Named("0xF0", "Common F0")] });

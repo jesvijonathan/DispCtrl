@@ -41,6 +41,25 @@ public sealed class DispCtrlSettings
     /// </remarks>
     public List<Hotkey> Hotkeys { get; set; } = [];
 
+    /// <summary>
+    /// Every DispCtrl setting back to its default: the whole desk, every
+    /// monitor, and the shortcuts, which return to the default set.
+    /// </summary>
+    /// <remarks>
+    /// Kept: each monitor's name and alias, which say which monitor it is rather
+    /// than how it is set; app rules, which belong with the presets they name;
+    /// and anything outside this file - Windows' own display settings, the
+    /// sign-in task, a monitor's own menu.
+    /// </remarks>
+    public void ResetAll()
+    {
+        Global.ResetToDefaults();
+        foreach (MonitorSettings monitor in Monitors.Values) monitor.ResetToDefaults();
+        Hotkeys = Hotkey.Defaults();
+        Global.HotkeyDefaultsOffered = true;
+        Global.HotkeyDefaultsVersion = Hotkey.DefaultsVersion;
+    }
+
     /// <summary>Settings for a monitor, creating defaults on first sight.</summary>
     public MonitorSettings For(string token)
     {
@@ -214,6 +233,9 @@ public sealed class GlobalSettings
     /// <summary>Whether the default hotkeys have been added; see <see cref="Hotkey.OfferDefaults"/>.</summary>
     public bool HotkeyDefaultsOffered { get; set; }
 
+    /// <summary>Which defaults version this desk has been offered; 0 before versions were counted.</summary>
+    public int HotkeyDefaultsVersion { get; set; }
+
     /// <summary>Warmth applied to every display together.</summary>
     public NightLightSettings NightLight { get; set; } = new();
 
@@ -245,6 +267,14 @@ public sealed class GlobalSettings
         UnisonLevel = fresh.UnisonLevel;
         UnisonCalibrated = fresh.UnisonCalibrated;
         NightLight = new NightLightSettings();
+        // These were missed when they were added, so Reset all left the quick
+        // panel, the Windows brightness bridge and the start-up choices as they
+        // were. The hotkey bookkeeping is kept: it records what was offered,
+        // not a choice.
+        QuickPanel = new QuickPanelSettings();
+        UnisonFollowsWindows = fresh.UnisonFollowsWindows;
+        PreloadQuickPanel = fresh.PreloadQuickPanel;
+        OpenWindowAtSignIn = fresh.OpenWindowAtSignIn;
     }
 }
 

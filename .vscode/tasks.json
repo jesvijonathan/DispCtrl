@@ -1,0 +1,17 @@
+{
+  // Every task goes through build/dev.ps1 (build.sh off Windows), so the
+  // editor, build.cmd and the terminal build and stop the engine the same way.
+  "version": "2.0.0",
+  "windows": { "options": { "shell": { "executable": "pwsh.exe", "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"] } } },
+  "tasks": [
+    { "label": "DispCtrl: build", "type": "shell", "command": "./build/dev.ps1 build", "linux": { "command": "./build.sh build" }, "osx": { "command": "./build.sh build" }, "group": { "kind": "build", "isDefault": true }, "problemMatcher": "$msCompile" },
+    { "label": "DispCtrl: test", "type": "shell", "command": "./build/dev.ps1 test", "linux": { "command": "./build.sh test" }, "osx": { "command": "./build.sh test" }, "group": { "kind": "test", "isDefault": true }, "problemMatcher": "$msCompile" },
+    { "label": "DispCtrl: test with hardware", "type": "shell", "command": "./build/dev.ps1 test -Hardware", "problemMatcher": "$msCompile" },
+    { "label": "DispCtrl: check this machine", "type": "shell", "command": "./build/dev.ps1 doctor", "linux": { "command": "./build.sh doctor" }, "osx": { "command": "./build.sh doctor" }, "problemMatcher": [] },
+    { "label": "DispCtrl: set up", "type": "shell", "command": "./build/dev.ps1 setup", "linux": { "command": "./build.sh setup" }, "osx": { "command": "./build.sh setup" }, "problemMatcher": [] },
+    { "label": "DispCtrl: start the engine", "type": "shell", "command": "./build/dev.ps1 run engine", "problemMatcher": [] },
+    { "label": "DispCtrl: open the app", "type": "shell", "command": "./build/dev.ps1 run app", "problemMatcher": [] },
+    { "label": "DispCtrl: open the quick panel", "type": "shell", "command": "./build/dev.ps1 run panel", "problemMatcher": [] },
+    { "label": "DispCtrl: local release", "type": "shell", "command": "./build/dev.ps1 release", "problemMatcher": "$msCompile" }
+  ]
+}

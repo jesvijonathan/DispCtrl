@@ -112,6 +112,8 @@ internal sealed class HotkeyService : IDisposable
 
         int id = FirstId;
         int taken = 0, refused = 0;
+        var registeredKeys = new List<string>();
+        var refusedKeys = new List<string>();
 
         foreach (Hotkey hotkey in settings.Hotkeys)
         {
@@ -127,6 +129,7 @@ internal sealed class HotkeyService : IDisposable
                 _registered[id] = hotkey;
                 id++;
                 taken++;
+                registeredKeys.Add(hotkey.Describe());
             }
             else
             {
@@ -135,10 +138,14 @@ internal sealed class HotkeyService : IDisposable
                 // hardest kind of setting to diagnose.
                 Log.Write($"hotkey {hotkey.Describe()} refused — something else has it");
                 refused++;
+                refusedKeys.Add(hotkey.Describe());
             }
         }
 
         if (taken > 0 || refused > 0) Log.Write($"hotkeys: {taken} registered, {refused} refused");
+        // For the Hotkeys page and `hotkeys list`: a refused shortcut used to
+        // look set and silently do nothing.
+        HotkeyStatus.Write(registeredKeys, refusedKeys);
     }
 
     private void Unregister()

@@ -402,16 +402,42 @@ public sealed partial class ControlService
         public bool Settable => Control.Settable
             || Mapping is { Writable: true } m && m.Kind != DefinedKinds.Information;
 
-        public IReadOnlyList<(uint Value, string Name)> Values => Mapping is { Values.Count: > 0 } m
-            ? m.Values.Select(v => (v.Number ?? 0, v.Name)).ToArray()
-            : Control.Values.Select(v => ((uint)v.Value, v.Name)).ToArray();
+        /// <summary>The values offered: the mapping's names, within what the monitor itself lists.</summary>
+        /// <remarks>
+        /// A definition is shared across a model, a brand or every monitor, so it
+        /// can name values this unit does not list. Those are left out: nothing is
+        /// written that the monitor did not say it takes. Values the monitor lists
+        /// that nobody has named are kept, by number, rather than hidden. Only
+        /// when the monitor lists no values at all - a code it answers but does
+        /// not enumerate - are the mapping's own, which someone wrote and watched,
+        /// the whole list.
+        /// </remarks>
+        public IReadOnlyList<(uint Value, string Name)> Values
+        {
+            get
+            {
+                var listed = Control.Values.Select(v => ((uint)v.Value, v.Name)).ToList();
+                if (Mapping is not { Values.Count: > 0 } m) return listed;
+                var named = m.Values.Where(v => v.Number is not null).Select(v => (v.Number!.Value, v.Name)).ToList();
+                if (listed.Count == 0) return named;
+                var result = named.Where(n => listed.Any(l => (l.Item1 & 0xFF) == (n.Item1 & 0xFF))).ToList();
+                result.AddRange(listed.Where(l => !named.Any(n => (n.Item1 & 0xFF) == (l.Item1 & 0xFF)))
+                    .Select(l => (l.Item1, $"Value 0x{l.Item1 & 0xFF:X2}")));
+                return result;
+            }
+        }
 
-        public int Maximum => Mapping?.Maximum ?? Control.Maximum;
+        /// <summary>The mapping's maximum, never above what the monitor itself reports.</summary>
+        public int Maximum => Mapping?.Maximum is int mapped && Control.Maximum >= 0 ? Math.Min(mapped, Control.Maximum)
+            : Mapping?.Maximum ?? Control.Maximum;
 
         /// <summary>Null when the monitor did not answer the read: DDC/CI drops the odd reply.</summary>
         public int? Current => Control.Current < 0 ? null : Kind == DefinedKinds.Choice ? Control.CurrentValue : Control.Current;
 
-        public string? CurrentName => Current is int now ? Values.FirstOrDefault(v => v.Value == (uint)now).Name : null;
+        /// <summary>The current value's name; a choice at a value nobody has named says so rather than nothing.</summary>
+        public string? CurrentName => Current is not int now ? null
+            : Values.FirstOrDefault(v => (v.Value & 0xFF) == (uint)(now & 0xFF)).Name
+              ?? (Kind == DefinedKinds.Choice ? $"unnamed value 0x{now & 0xFF:X2}" : null);
     }
 
     private static List<Effective> Effectives(DisplayInfo display, MonitorCapability capabilities)

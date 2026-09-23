@@ -3,23 +3,62 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:tk="using:CommunityToolkit.WinUI.Controls"
       xmlns:vm="using:DispCtrl.App.ViewModels"
-      Loaded="OnLoaded">
+      Loaded="OnLoaded"
+      Unloaded="OnUnloaded">
+
+  <Page.Resources>
+    <!-- One key of a combination, drawn like a keycap. -->
+    <DataTemplate x:Key="Keycap" x:DataType="x:String">
+      <Border Padding="8,3,8,4" CornerRadius="4" BorderThickness="1,1,1,2"
+              BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+              Background="{ThemeResource ControlFillColorDefaultBrush}">
+        <TextBlock Text="{x:Bind}" FontSize="12" FontFamily="Segoe UI Variable Text Semibold"/>
+      </Border>
+    </DataTemplate>
+    <ItemsPanelTemplate x:Key="KeycapRow">
+      <StackPanel Orientation="Horizontal" Spacing="4"/>
+    </ItemsPanelTemplate>
+  </Page.Resources>
 
   <ScrollViewer Padding="0,0,0,32">
-    <StackPanel Padding="36,12,36,0" Spacing="0" HorizontalAlignment="Stretch">
+    <StackPanel Padding="36,12,36,0" Spacing="4" HorizontalAlignment="Stretch">
 
-      <StackPanel Spacing="4" Margin="0,0,0,20">
+      <StackPanel Spacing="4" Margin="0,0,0,12">
         <TextBlock Text="Hotkeys" Style="{StaticResource TitleTextBlockStyle}"/>
         <TextBlock Text="{x:Bind ViewModel.EngineNote, Mode=OneWay}"
-                   Style="{StaticResource BodyTextBlockStyle}"
-                   TextWrapping="Wrap"
+                   Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
       </StackPanel>
 
-      <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,0,0,12"
+      <Grid Margin="0,0,0,8" ColumnSpacing="8">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="{x:Bind ViewModel.Counts, Mode=OneWay}" VerticalAlignment="Center"
+                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+        <Button Grid.Column="1" Click="OnAdd" Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="AddHotkey">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <FontIcon Glyph="&#xE710;" FontSize="14"/>
+            <TextBlock Text="Add a shortcut"/>
+          </StackPanel>
+        </Button>
+        <Button Grid.Column="2" Click="OnRestoreDefaults" AutomationProperties.Name="RestoreHotkeys"
+                ToolTipService.ToolTip="Replace every shortcut with DispCtrl's own set: four on, the rest set up but off.">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <FontIcon Glyph="&#xE777;" FontSize="14"/>
+            <TextBlock Text="Restore the defaults"/>
+          </StackPanel>
+        </Button>
+      </Grid>
+
+      <InfoBar x:Name="Toast" IsOpen="False" IsClosable="True" Severity="Informational" Margin="0,0,0,8"/>
+
+      <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,0,0,8"
                Visibility="{x:Bind ViewModel.EmptyVisibility, Mode=OneWay}"
-               Title="No shortcuts yet"
-               Message="Add one, press Set, then press the keys you want. Ctrl+Alt combinations are the least likely to be taken by something else."/>
+               Title="No shortcuts"
+               Message="Add one, or restore DispCtrl's own set."/>
 
       <ItemsControl ItemsSource="{x:Bind ViewModel.Items}" HorizontalContentAlignment="Stretch">
         <ItemsControl.ItemsPanel>
@@ -29,64 +68,91 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:HotkeyViewModel">
-            <tk:SettingsCard Header="{x:Bind Shortcut, Mode=OneWay}"
-                             Description="{x:Bind Summary, Mode=OneWay}">
-              <tk:SettingsCard.HeaderIcon>
+            <tk:SettingsExpander Header="{x:Bind Summary, Mode=OneWay}"
+                                 Description="{x:Bind StateText, Mode=OneWay}"
+                                 IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}">
+              <tk:SettingsExpander.HeaderIcon>
                 <FontIcon Glyph="&#xE765;"/>
-              </tk:SettingsCard.HeaderIcon>
+              </tk:SettingsExpander.HeaderIcon>
 
-              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Content="Set" Click="OnCapture" Tag="{x:Bind}"
-                        ToolTipService.ToolTip="Press this, then the keys you want"
-                        AutomationProperties.Name="SetHotkey"/>
-
-                <ComboBox ItemsSource="{x:Bind ActionNames}"
-                          SelectedIndex="{x:Bind SelectedActionIndex, Mode=TwoWay}"
-                          MinWidth="190"
-                          AutomationProperties.Name="HotkeyAction"/>
-
-                <ComboBox ItemsSource="{x:Bind Presets, Mode=OneWay}"
-                          SelectedItem="{x:Bind SelectedPreset, Mode=TwoWay}"
-                          PlaceholderText="preset"
-                          MinWidth="130"
-                          Visibility="{x:Bind PresetVisibility, Mode=OneWay}"
-                          AutomationProperties.Name="HotkeyPreset"/>
-
-                <NumberBox Value="{x:Bind DisplayNumber, Mode=TwoWay}"
-                           Minimum="0" Maximum="8" SmallChange="1"
-                           SpinButtonPlacementMode="Compact" Width="96"
-                           Header="Display" PlaceholderText="0 = all"
-                           Visibility="{x:Bind DisplayVisibility, Mode=OneWay}"
-                           AutomationProperties.Name="HotkeyDisplay"/>
-
-                <NumberBox Value="{x:Bind Step, Mode=TwoWay}"
-                           Minimum="1" Maximum="50" SmallChange="5"
-                           SpinButtonPlacementMode="Compact" Width="90"
-                           Header="Step %"
-                           Visibility="{x:Bind StepVisibility, Mode=OneWay}"
-                           AutomationProperties.Name="HotkeyStep"/>
-
-                <ToggleSwitch IsOn="{x:Bind Enabled, Mode=TwoWay}"/>
-
-                <Button Content="Remove" Click="OnRemove" Tag="{x:Bind}"
-                        AutomationProperties.Name="RemoveHotkey"/>
+              <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                <ItemsControl ItemsSource="{x:Bind KeyParts, Mode=OneWay}" VerticalAlignment="Center"
+                              ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
+                <ToggleSwitch IsOn="{x:Bind Enabled, Mode=TwoWay}" OnContent="On" OffContent="Off" MinWidth="0"
+                              AutomationProperties.Name="HotkeyEnabled"/>
               </StackPanel>
-            </tk:SettingsCard>
+
+              <tk:SettingsExpander.Items>
+                <tk:SettingsCard Header="Keys" Description="{x:Bind KeysNote, Mode=OneWay}">
+                  <Button Content="{x:Bind CaptureLabel, Mode=OneWay}" Click="OnCapture" Tag="{x:Bind}"
+                          AutomationProperties.Name="SetHotkey"/>
+                </tk:SettingsCard>
+                <tk:SettingsCard Header="What it does">
+                  <ComboBox ItemsSource="{x:Bind ActionNames}"
+                            SelectedIndex="{x:Bind SelectedActionIndex, Mode=TwoWay}"
+                            MinWidth="260" AutomationProperties.Name="HotkeyAction"/>
+                </tk:SettingsCard>
+                <tk:SettingsCard Header="Step" Description="How far one press moves it, in percent."
+                                 Visibility="{x:Bind StepVisibility, Mode=OneWay}">
+                  <NumberBox Value="{x:Bind Step, Mode=TwoWay}" Minimum="1" Maximum="50" SmallChange="1"
+                             SpinButtonPlacementMode="Compact" Width="110" AutomationProperties.Name="HotkeyStep"/>
+                </tk:SettingsCard>
+                <tk:SettingsCard Header="Display" Description="The number shown by Identify; 0 for every display."
+                                 Visibility="{x:Bind DisplayVisibility, Mode=OneWay}">
+                  <NumberBox Value="{x:Bind DisplayNumber, Mode=TwoWay}" Minimum="0" Maximum="8" SmallChange="1"
+                             SpinButtonPlacementMode="Compact" Width="110" AutomationProperties.Name="HotkeyDisplay"/>
+                </tk:SettingsCard>
+                <tk:SettingsCard Header="Preset" Visibility="{x:Bind PresetVisibility, Mode=OneWay}">
+                  <ComboBox ItemsSource="{x:Bind Presets, Mode=OneWay}" SelectedItem="{x:Bind SelectedPreset, Mode=TwoWay}"
+                            PlaceholderText="Choose a preset" MinWidth="200" AutomationProperties.Name="HotkeyPreset"/>
+                </tk:SettingsCard>
+                <tk:SettingsCard Header="Remove this shortcut">
+                  <Button Content="Remove" Click="OnRemove" Tag="{x:Bind}" AutomationProperties.Name="RemoveHotkey"/>
+                </tk:SettingsCard>
+              </tk:SettingsExpander.Items>
+            </tk:SettingsExpander>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-        <Button Content="Add a shortcut" Click="OnAdd"
-                Style="{StaticResource AccentButtonStyle}"
-                AutomationProperties.Name="AddHotkey"/>
-        <Button Content="Restore the defaults" Click="OnRestoreDefaults"
-                ToolTipService.ToolTip="Replace every shortcut with DispCtrl's own: Ctrl+Alt+Page Up and Page Down for unison, N night light, F focus, K keep awake, I identify, D the quick panel."
-                AutomationProperties.Name="RestoreHotkeys"/>
-      </StackPanel>
-
-      <InfoBar x:Name="Toast" IsOpen="False" IsClosable="True" Severity="Informational"
-               Margin="0,16,0,0"/>
+      <!-- What Windows already does, so nobody binds over it or looks for it here. -->
+      <TextBlock Text="Windows' own display shortcuts" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,24,0,4"/>
+      <TextBlock Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="0,0,0,8"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                 Text="Built into Windows and always available. DispCtrl does not change them; they are here so you need not bind over them."/>
+      <tk:SettingsCard Header="Switch between PC screen only, duplicate, extend and second screen only">
+        <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE7F4;"/></tk:SettingsCard.HeaderIcon>
+        <ItemsControl ItemsSource="{x:Bind WinP}" ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
+      </tk:SettingsCard>
+      <tk:SettingsCard Header="Move the active window to the next display">
+        <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE8A7;"/></tk:SettingsCard.HeaderIcon>
+        <ItemsControl ItemsSource="{x:Bind WinShiftArrow}" ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
+      </tk:SettingsCard>
+      <tk:SettingsCard Header="HDR on or off" Description="On displays that support it.">
+        <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE8B9;"/></tk:SettingsCard.HeaderIcon>
+        <ItemsControl ItemsSource="{x:Bind WinAltB}" ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
+      </tk:SettingsCard>
+      <tk:SettingsCard Header="Quick Settings, with Windows' brightness slider"
+                       Description="With Replace Windows brightness on (Displays page), that slider and the brightness keys move every display.">
+        <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE706;"/></tk:SettingsCard.HeaderIcon>
+        <ItemsControl ItemsSource="{x:Bind WinA}" ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
+      </tk:SettingsCard>
+      <tk:SettingsCard Header="Cast to a wireless display">
+        <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE703;"/></tk:SettingsCard.HeaderIcon>
+        <ItemsControl ItemsSource="{x:Bind WinK}" ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
+      </tk:SettingsCard>
+      <tk:SettingsCard Header="Colour filters on or off" Description="Once the shortcut is allowed in Accessibility, Colour filters.">
+        <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE790;"/></tk:SettingsCard.HeaderIcon>
+        <ItemsControl ItemsSource="{x:Bind WinCtrlC}" ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
+      </tk:SettingsCard>
+      <tk:SettingsCard Header="Restart the graphics driver" Description="The screens go black for a moment. For a display that stopped drawing properly.">
+        <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE72C;"/></tk:SettingsCard.HeaderIcon>
+        <ItemsControl ItemsSource="{x:Bind WinCtrlShiftB}" ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
+      </tk:SettingsCard>
+      <tk:SettingsCard Header="Open Windows' display settings" Description="Scale, resolution, HDR and night light, in Windows' own Settings.">
+        <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE7F8;"/></tk:SettingsCard.HeaderIcon>
+        <Button Content="Open" Click="OnOpenWindowsDisplay" AutomationProperties.Name="OpenWindowsDisplaySettings"/>
+      </tk:SettingsCard>
     </StackPanel>
   </ScrollViewer>
 </Page>

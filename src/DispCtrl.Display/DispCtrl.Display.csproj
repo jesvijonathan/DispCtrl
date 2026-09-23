@@ -29,11 +29,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\devices\*.md" Exclude="..\..\devices\README.md"
-          Link="devices\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <!-- Reviewed device definitions, beside every executable that resolves them. -->
-    <None Include="..\..\devices\definitions\*.json"
-          Link="devices\definitions\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Reviewed device definitions, beside every executable that resolves them,
+         in the repository's layout (DeviceLayout). Records and the index stay in
+         the repository: the app never reads them, and with thousands of models
+         they would be most of the download. -->
+    <None Include="..\..\devices\common.json" Condition="Exists('..\..\devices\common.json')"
+          Link="devices\common.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\devices\**\brand.json;..\..\devices\**\definition.json"
+          Link="devices\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

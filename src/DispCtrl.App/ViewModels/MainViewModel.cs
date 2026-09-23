@@ -1569,11 +1569,17 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// <summary>Restores DispCtrl's own defaults, globally and for every monitor.</summary>
     public void ResetEverything()
     {
-        _settings.Global.ResetToDefaults();
-        foreach (MonitorSettings ms in _settings.Monitors.Values) ms.ResetToDefaults();
+        _settings.ResetAll();
         Persist();
-        ReloadFromDisk();
+        // Not ReloadFromDisk: Persist has just recorded the file's new stamp,
+        // so the sync there saw nothing to do and the page kept showing the
+        // settings it had before. Every card and every binding is told here.
+        foreach (DisplayViewModel display in Displays) display.NotifySettingsReloaded();
+        Raise(string.Empty);
         RaiseProtectionSettings();
+        RaiseAwakeSettings();
+        Hotkeys.Reload();
+        QuickPanelChanged?.Invoke();
     }
 
     // ------------------------------------------------------------- tuning --
