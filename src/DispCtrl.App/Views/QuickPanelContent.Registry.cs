@@ -49,6 +49,8 @@ internal sealed partial class QuickPanelContent
             // whether the computer may sleep, and the menu is the rest of it.
             "awake" => Tile(e, () => ReadAwake() != 0, v => WriteAwake(v ? 1 : 0),
                 nameof(MainViewModel.AwakeModeIndex), AwakeFlyout()),
+            "stayActive" => Tile(e, () => _vm.AwakeStayActive, v => _vm.AwakeStayActive = v,
+                nameof(MainViewModel.AwakeStayActive)),
 
             // Everything about the taskbar behind one tile: the wide half is the
             // glass, the effect people reach for; the arrow opens the rest.
@@ -367,6 +369,9 @@ internal sealed partial class QuickPanelContent
                 For("For 1 hour", 2, 1, 0),
                 For("For 2 hours", 2, 2, 0),
                 For("For 4 hours", 2, 4, 0)),
+            SwitchRow("Stay active", "Screen on, and never Away: a tiny pointer nudge after a minute idle. No timer.",
+                () => _vm.AwakeStayActive, v => _vm.AwakeStayActive = v,
+                nameof(MainViewModel.AwakeStayActive), "QuickStayActive"),
             SwitchRow("Keep the displays on too", "Otherwise the displays still turn off on Windows' schedule.",
                 () => _vm.AwakeKeepDisplaysOn, v => _vm.AwakeKeepDisplaysOn = v,
                 nameof(MainViewModel.AwakeKeepDisplaysOn), "QuickAwakeDisplays"));

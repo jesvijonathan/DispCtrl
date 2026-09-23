@@ -29,6 +29,8 @@ public sealed partial class QuickPanelPage : Page
 
         IconHost.Content = Choice(ViewModel.QuickPanelIcons, ViewModel.QuickPanelIconIndex,
             i => ViewModel.QuickPanelIconIndex = i, "QuickPanelIcon");
+        IconColourHost.Content = Choice(ViewModel.QuickPanelIconColours, ViewModel.QuickPanelIconColourIndex,
+            i => ViewModel.QuickPanelIconColourIndex = i, "QuickPanelIconColour");
 
         // Comfortable is the default, and says so.
         string[] densities = ViewModel.QuickPanelDensities

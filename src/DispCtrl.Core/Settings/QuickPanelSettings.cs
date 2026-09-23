@@ -26,6 +26,16 @@ public enum TrayIconStyle
     AppLogo,
 }
 
+/// <summary>What colour the notification area glyph is drawn in.</summary>
+public enum TrayIconColour
+{
+    /// <summary>White on a dark taskbar, black on a light one, as Windows draws its own.</summary>
+    Taskbar,
+
+    /// <summary>Windows' accent colour, so the icon stands out among the others.</summary>
+    Accent,
+}
+
 /// <summary>One entry in one of the panel's ordered lists.</summary>
 public sealed class QuickPanelItem
 {
@@ -159,6 +169,7 @@ public static class QuickPanelCatalog
         new("focus", "Focus", "\uE890", "Dim everything except the window you are working in.", true),
         new("oledIdle", "OLED care", "\uE7EF", "Dim OLED displays after a spell of inactivity.", false),
         new("awake", "Keep awake", "\uE916", "Stop the computer from sleeping. Click to switch; the arrow, or a right-click, chooses for how long.", true),
+        new("stayActive", "Stay active", "\uE962", "Keep the screen on and never show as Away: a tiny pointer nudge after a minute idle. On until you switch it off.", true),
         new("taskbar", "Taskbar", "\uE75A", "Taskbar glass on and off. The arrow opens transparency, glass, opacity and auto-hide together.", true),
         new("identify", "Identify", "\uE7C4", "Show each display's number on it for three seconds. The arrow picks one display, or looks for displays again.", true),
         new("detect", "Detect", "\uE72C", "Look for displays again, including one that is connected but switched off.", false),
@@ -294,6 +305,12 @@ public sealed class QuickPanelSettings
     /// own monochrome icons is the one that looks like it was installed.
     /// </remarks>
     public TrayIconStyle Icon { get; set; } = TrayIconStyle.Brightness;
+
+    /// <summary>The glyph's colour: the taskbar's own white or black, or Windows' accent colour.</summary>
+    public TrayIconColour IconColour { get; set; } = TrayIconColour.Taskbar;
+
+    /// <summary>Draws the glyph bolder while Stay active or Keep awake is on, so it can be seen at a glance.</summary>
+    public bool IconShowsActive { get; set; } = true;
 
     public QuickPanelDensity Density { get; set; } = QuickPanelDensity.Comfortable;
 

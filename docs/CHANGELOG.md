@@ -14,6 +14,8 @@ using DispCtrl, not for people reading the diff.
 - Devices learn each new monitor by themselves; remove one from the list, share one or all.
 - Hotkeys show whether each shortcut is working or taken by another program, warn about combinations Windows keeps, and list Windows' own display shortcuts.
 - Sponsor entry in the navigation, and contact details on the About page.
+- **Stay active**: keeps the screen on and stops the lock screen and chat apps showing you as Away, with a one-pixel pointer nudge after a minute idle. A quick panel tile, a switch under Keep awake, a hotkey action and `dispctrl awake set --stay-active on`.
+- The tray icon is drawn bolder while Stay active or Keep awake is on, and can use the Windows accent colour.
 
 ### Changed
 - Thirteen default shortcuts, four switched on; existing desks keep theirs and get the new ones switched off.

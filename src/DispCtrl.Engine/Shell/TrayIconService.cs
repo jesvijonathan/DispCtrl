@@ -32,6 +32,8 @@ internal sealed class TrayIconService : IDisposable
 
     private const string ClassName = "DispCtrl.Tray";
 
+    private const nuint ActiveCheckTimer = 1;
+
     private readonly Lock _gate = new();
     private readonly Action<DispCtrlSettings> _persist;
 
@@ -47,7 +49,7 @@ internal sealed class TrayIconService : IDisposable
     /// What the current icon was drawn for, so a broadcast that changed
     /// nothing the icon depends on does not redraw it.
     /// </summary>
-    private (TrayIconStyle Style, bool Dark, int Size) _drawnFor = (TrayIconStyle.AppLogo, false, -1);
+    private (TrayIconStyle Style, bool Dark, int Size, bool Active, uint Rgb) _drawnFor = (TrayIconStyle.AppLogo, false, -1, false, 0);
 
     /// <summary>
     /// Held for the life of the service so the shell's callback does not arrive
@@ -132,6 +134,10 @@ internal sealed class TrayIconService : IDisposable
             Redraw();
             Apply();
 
+            // Once a minute, so a timed keep-awake that runs out stops showing
+            // as active; Redraw costs nothing when nothing changed.
+            _ = PInvoke.SetTimer(_window, ActiveCheckTimer, 60_000, null);
+
             MSG message;
             while (PInvoke.GetMessage(&message, HWND.Null, 0, 0) > 0)
             {
@@ -190,7 +196,18 @@ internal sealed class TrayIconService : IDisposable
     private void Redraw()
     {
         TrayIconStyle style;
-        lock (_gate) { style = _settings.Global.QuickPanel.Icon; }
+        bool active;
+        TrayIconColour colour;
+        lock (_gate)
+        {
+            style = _settings.Global.QuickPanel.Icon;
+            colour = _settings.Global.QuickPanel.IconColour;
+            // Drawn denser while something is holding the PC awake, so the icon
+            // itself says so; a timed keep-awake that runs out is caught by the
+            // minute timer on this window.
+            AwakeSettings awake = _settings.Global.Awake;
+            active = _settings.Global.QuickPanel.IconShowsActive && (awake.StayActive || awake.ActiveAt(DateTimeOffset.UtcNow));
+        }
 
         // A theme that cannot be read is taken as dark, the Windows 11 default,
         // because a white glyph on a light bar is still visible and a black one
@@ -198,7 +215,8 @@ internal sealed class TrayIconService : IDisposable
         bool dark = WindowsTheme.IsShellDark ?? true;
         int size = TrayGlyph.Size;
 
-        if (_drawnFor == (style, dark, size) && !_icon.IsNull) return;
+        uint rgb = colour == TrayIconColour.Accent && AccentColour() is uint accent ? accent : dark ? 0xFFFFFFu : 0x000000u;
+        if (_drawnFor == (style, dark, size, active, rgb) && !_icon.IsNull) return;
 
         // Recorded as asked for, not as drawn: a logo that falls back to the
         // glyph must not look like a changed setting to every later broadcast.
@@ -229,10 +247,10 @@ internal sealed class TrayIconService : IDisposable
             // Caught here rather than left to the pump: an exception out of
             // drawing ended the pump, and with it the icon, the menu, and the
             // only way to reach the panel. A plainer icon is always better.
-            try { next = TrayGlyph.Draw(glyph, size, dark, out covered); }
+            try { next = TrayGlyph.Draw(glyph, size, rgb, active, out covered); }
             catch (Exception ex) { Log.Write($"tray: drawing the glyph failed: {ex.Message}"); }
 
-            how = $"{style} glyph, {size}px, {(dark ? "white" : "black")}, {covered} pixels";
+            how = $"{style} glyph, {size}px, #{rgb:X6}{(active ? ", bold while active" : "")}, {covered} pixels";
 
             // A glyph that drew nothing would be an invisible icon. The logo is
             // worse-looking and better than nothing.
@@ -246,7 +264,7 @@ internal sealed class TrayIconService : IDisposable
 
         HICON previous = _icon;
         _icon = next;
-        _drawnFor = (requested, dark, size);
+        _drawnFor = (requested, dark, size, active, rgb);
 
         if (_shown) _ = PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_MODIFY, Data());
 
@@ -255,6 +273,23 @@ internal sealed class TrayIconService : IDisposable
         if (!previous.IsNull) PInvoke.DestroyIcon(previous);
 
         Log.Write($"tray: icon is {how}");
+    }
+
+    /// <summary>Windows' accent colour as 0xRRGGBB, or null when it cannot be read.</summary>
+    /// <remarks>
+    /// DWM keeps it as 0xAABBGGRR under the user's key; a change arrives as the
+    /// same setting-change broadcast the theme does, so Redraw already hears it.
+    /// </remarks>
+    private static uint? AccentColour()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\DWM");
+            if (key?.GetValue("AccentColor") is not int abgr) return null;
+            uint v = unchecked((uint)abgr);
+            return ((v & 0xFF) << 16) | (v & 0xFF00) | ((v >> 16) & 0xFF);
+        }
+        catch (Exception) { return null; }
     }
 
     private unsafe NOTIFYICONDATAW Data()
@@ -378,6 +413,10 @@ internal sealed class TrayIconService : IDisposable
             // change ("ImmersiveColorSet"), and a change of scale as a display
             // change. Neither is filtered by its details: Redraw compares what
             // the icon depends on and does nothing when none of it moved.
+            case PInvoke.WM_TIMER:
+                Redraw();
+                break;
+
             case PInvoke.WM_SETTINGCHANGE:
             case PInvoke.WM_DISPLAYCHANGE:
             case PInvoke.WM_DPICHANGED:

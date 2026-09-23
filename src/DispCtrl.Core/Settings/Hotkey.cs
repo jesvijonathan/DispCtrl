@@ -29,6 +29,7 @@ public enum HotkeyAction
     TaskbarGlassToggle,
     ContrastUp,
     ContrastDown,
+    StayActiveToggle,
 }
 
 /// <summary>One global keyboard shortcut.</summary>
@@ -243,6 +244,7 @@ public sealed class Hotkey
             HotkeyAction.OledCareToggle => "Turn OLED care on or off",
             HotkeyAction.OledRestNow => $"Rest the OLED displays on {where}",
             HotkeyAction.KeepAwakeToggle => "Keep the computer awake, or let it sleep",
+            HotkeyAction.StayActiveToggle => "Stay active on or off: screen on, never Away",
             HotkeyAction.DarkModeToggle => "Switch between dark and light mode",
             HotkeyAction.QuickPanel => "Open or close the quick panel",
             HotkeyAction.TaskbarToggle => $"Hide or show the taskbar on {where}",

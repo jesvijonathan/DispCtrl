@@ -523,6 +523,11 @@
         </tk:SettingsExpander.HeaderIcon>
         <Button Content="Reset" Click="OnResetAwake" AutomationProperties.Name="ResetAwakeSettings"/>
         <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Stay active"
+                           Description="Until you switch it off: the screen stays on, and a tiny pointer nudge after a minute idle stops the lock screen and chat apps showing you as Away. OLED idle dimming waits while it is on.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.AwakeStayActive, Mode=TwoWay}"
+                          AutomationProperties.Name="AwakeStayActive"/>
+          </tk:SettingsCard>
           <tk:SettingsCard Header="Mode" Description="Choose when the engine should hold a Windows power request.">
             <ComboBox ItemsSource="{x:Bind ViewModel.AwakeModes}"
                       SelectedIndex="{x:Bind ViewModel.AwakeModeIndex, Mode=TwoWay}"

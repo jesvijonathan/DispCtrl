@@ -36,6 +36,7 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         (HotkeyAction.OledCareToggle, "OLED care on or off"),
         (HotkeyAction.OledRestNow, "Rest the OLED displays now"),
         (HotkeyAction.KeepAwakeToggle, "Keep awake on or off"),
+        (HotkeyAction.StayActiveToggle, "Stay active on or off"),
         (HotkeyAction.DarkModeToggle, "Dark or light mode"),
         (HotkeyAction.TaskbarToggle, "Hide or show the taskbar"),
         (HotkeyAction.TaskbarGlassToggle, "Taskbar glass on or off"),

@@ -210,6 +210,32 @@ public sealed partial class MainViewModel
         }
     }
 
+    public string[] QuickPanelIconColours { get; } = ["Match the taskbar", "Windows accent colour"];
+
+    public int QuickPanelIconColourIndex
+    {
+        get => QuickPanel.IconColour == TrayIconColour.Accent ? 1 : 0;
+        set
+        {
+            TrayIconColour wanted = value == 1 ? TrayIconColour.Accent : TrayIconColour.Taskbar;
+            if (value is < 0 or > 1 || QuickPanel.IconColour == wanted) return;
+            QuickPanel.IconColour = wanted;
+            SaveQuickPanel(composition: false);
+        }
+    }
+
+    /// <summary>The icon drawn bolder while Stay active or Keep awake is on.</summary>
+    public bool QuickPanelIconShowsActive
+    {
+        get => QuickPanel.IconShowsActive;
+        set
+        {
+            if (QuickPanel.IconShowsActive == value) return;
+            QuickPanel.IconShowsActive = value;
+            SaveQuickPanel(composition: false);
+        }
+    }
+
     // ---- where Windows puts the icon ----
 
     /// <summary>Whether Windows has a record of the icon it could move.</summary>
@@ -384,7 +410,7 @@ public sealed partial class MainViewModel
             nameof(QuickPanelSimple), nameof(QuickPanelCustomisable), nameof(QuickPanelLocked),
             nameof(QuickPanelWidth), nameof(QuickPanelWidthText),
             nameof(QuickPanelColumns), nameof(QuickPanelColumnsText),
-            nameof(QuickPanelDensityIndex), nameof(QuickPanelIconIndex), nameof(QuickPanelSummary),
+            nameof(QuickPanelDensityIndex), nameof(QuickPanelIconIndex), nameof(QuickPanelIconColourIndex), nameof(QuickPanelIconShowsActive), nameof(QuickPanelSummary),
         })
         {
             Raise(name);

@@ -236,6 +236,11 @@ internal sealed class HotkeyService : IDisposable
                 _persist(settings);
                 break;
 
+            case HotkeyAction.StayActiveToggle:
+                settings.Global.Awake.StayActive = !settings.Global.Awake.StayActive;
+                _persist(settings);
+                break;
+
             case HotkeyAction.DarkModeToggle:
                 WindowsTheme.SetDark(!(WindowsTheme.IsDark ?? false));
                 break;

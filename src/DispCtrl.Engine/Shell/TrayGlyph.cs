@@ -46,19 +46,25 @@ internal static class TrayGlyph
 
     /// <summary>Draws <paramref name="glyph"/> as an icon, or returns null when nothing drew.</summary>
     /// <param name="covered">How many pixels the glyph touched, for the log.</param>
-    public static HICON Draw(char glyph, int size, bool darkTaskbar, out int covered)
+    /// <param name="rgb">The glyph's colour, 0xRRGGBB.</param>
+    /// <param name="bold">
+    /// Drawn heavier, with every stroke thicker, so an active state reads at a
+    /// glance at 16 pixels - denser lines rather than a badge that would crowd
+    /// a glyph that small.
+    /// </param>
+    public static HICON Draw(char glyph, int size, uint rgb, bool bold, out int covered)
     {
         // Segoe Fluent Icons is Windows 11's; MDL2 Assets carries the same code
         // points on Windows 10. GDI substitutes a missing face silently, so the
         // fallback is decided by whether anything was drawn at all.
-        HICON icon = Draw(glyph, size, darkTaskbar, "Segoe Fluent Icons", out covered);
+        HICON icon = Draw(glyph, size, rgb, bold, "Segoe Fluent Icons", out covered);
         if (covered > 0) return icon;
 
         if (!icon.IsNull) PInvoke.DestroyIcon(icon);
-        return Draw(glyph, size, darkTaskbar, "Segoe MDL2 Assets", out covered);
+        return Draw(glyph, size, rgb, bold, "Segoe MDL2 Assets", out covered);
     }
 
-    private static unsafe HICON Draw(char glyph, int size, bool darkTaskbar, string face, out int covered)
+    private static unsafe HICON Draw(char glyph, int size, uint rgb, bool bold, string face, out int covered)
     {
         covered = 0;
 
@@ -94,7 +100,9 @@ internal static class TrayGlyph
                 // Negative height asks for the em size, which is how icon fonts
                 // are designed: the glyph fills the em box at its intended size.
                 lfHeight = -size,
-                lfWeight = 400,
+                // Icon fonts have one weight; GDI emboldens 700 by thickening
+                // every stroke, which is exactly the denser look wanted.
+                lfWeight = bold ? 700 : 400,
                 lfCharSet = FONT_CHARSET.DEFAULT_CHARSET,
                 lfOutPrecision = FONT_OUTPUT_PRECISION.OUT_TT_PRECIS,
                 lfClipPrecision = FONT_CLIP_PRECISION.CLIP_DEFAULT_PRECIS,
@@ -119,8 +127,8 @@ internal static class TrayGlyph
             PInvoke.SelectObject(dc, previousFont);
             PInvoke.SelectObject(dc, previousBitmap);
 
-            // Coverage to premultiplied BGRA in the taskbar's colour.
-            byte tone = darkTaskbar ? (byte)0xFF : (byte)0x00;
+            // Coverage to premultiplied BGRA in the requested colour.
+            byte red = (byte)(rgb >> 16), green = (byte)(rgb >> 8), blue = (byte)rgb;
             uint* pixel = (uint*)bits;
             for (int i = 0; i < size * size; i++)
             {
@@ -131,8 +139,7 @@ internal static class TrayGlyph
                 if (a == 0) { pixel[i] = 0; continue; }
                 covered++;
 
-                byte c = (byte)(tone * a / 255);
-                pixel[i] = ((uint)a << 24) | ((uint)c << 16) | ((uint)c << 8) | c;
+                pixel[i] = ((uint)a << 24) | ((uint)(red * a / 255) << 16) | ((uint)(green * a / 255) << 8) | (uint)(blue * a / 255);
             }
 
             // A 32-bit icon with alpha ignores its mask, but must still have one.

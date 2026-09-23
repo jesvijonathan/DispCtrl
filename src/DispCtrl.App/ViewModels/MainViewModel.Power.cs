@@ -34,6 +34,13 @@ public sealed partial class MainViewModel
         set { if (Awake.KeepDisplaysOn == value) return; Awake.KeepDisplaysOn = value; SaveAwake(); }
     }
 
+    /// <summary>Screen on and the session looking attended, until switched off. No timer.</summary>
+    public bool AwakeStayActive
+    {
+        get => Awake.StayActive;
+        set { if (Awake.StayActive == value) return; Awake.StayActive = value; SaveAwake(); }
+    }
+
     public double AwakeHours
     {
         get => Awake.IntervalHours;
@@ -93,6 +100,7 @@ public sealed partial class MainViewModel
         get
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
+            if (Awake.StayActive) return "Staying active: the screen stays on and you never show as Away.";
             return Awake.Mode switch
             {
                 AwakeMode.PowerPlan => "Windows is using the selected power plan.",
@@ -118,15 +126,15 @@ public sealed partial class MainViewModel
     private void SaveAwake()
     {
         Persist();
-        if (Awake.ActiveAt(DateTimeOffset.UtcNow)) _engine.Start();
-        foreach (string name in new[] { nameof(AwakeModeIndex), nameof(AwakeKeepDisplaysOn), nameof(AwakeHours),
+        if (Awake.ActiveAt(DateTimeOffset.UtcNow) || Awake.StayActive) _engine.Start();
+        foreach (string name in new[] { nameof(AwakeModeIndex), nameof(AwakeKeepDisplaysOn), nameof(AwakeStayActive), nameof(AwakeHours),
             nameof(AwakeMinutes), nameof(AwakeExpirationDate), nameof(AwakeExpirationTime), nameof(AwakeTimedVisibility),
             nameof(AwakeExpirationVisibility), nameof(AwakeOptionsEnabled), nameof(AwakeStatus) }) Raise(name);
     }
 
     public void RaiseAwakeSettings()
     {
-        foreach (string name in new[] { nameof(AwakeModeIndex), nameof(AwakeKeepDisplaysOn), nameof(AwakeHours),
+        foreach (string name in new[] { nameof(AwakeModeIndex), nameof(AwakeKeepDisplaysOn), nameof(AwakeStayActive), nameof(AwakeHours),
             nameof(AwakeMinutes), nameof(AwakeExpirationDate), nameof(AwakeExpirationTime), nameof(AwakeTimedVisibility),
             nameof(AwakeExpirationVisibility), nameof(AwakeOptionsEnabled), nameof(AwakeStatus) }) Raise(name);
     }

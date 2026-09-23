@@ -64,6 +64,22 @@
         <ContentControl x:Name="IconHost"/>
       </tk:SettingsCard>
 
+      <tk:SettingsCard Header="Icon colour"
+                       Description="The taskbar's own white or black, as Windows draws its icons, or your Windows accent colour so it stands out.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE790;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ContentControl x:Name="IconColourHost"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Show when active"
+                       Description="Draw the icon bolder while Stay active or Keep awake is on, so you can see it at a glance.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE706;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelIconShowsActive, Mode=TwoWay}" AutomationProperties.Name="QuickPanelIconShowsActive"/>
+      </tk:SettingsCard>
+
       <tk:SettingsCard Header="Density" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
                        Description="Comfortable, the default, labels each quick toggle underneath as Windows' quick settings do. Compact shows the toggles as symbols alone and packs the rows tight. Spacious makes the toggles larger and names every slider above itself.">
         <tk:SettingsCard.HeaderIcon>

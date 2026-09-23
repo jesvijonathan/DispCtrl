@@ -25,6 +25,22 @@ internal sealed partial class PowerService : IDisposable
     [LibraryImport("user32.dll")]
     private static partial int GetLastInputInfo(ref LastInput input);
 
+    // SendInput's INPUT with the mouse member of its union, the largest, so the
+    // size matches Windows' own (40 bytes on x64).
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInput { public int Dx, Dy; public uint MouseData, Flags, Time; public nint ExtraInfo; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Input { public uint Type; public MouseInput Mouse; }
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    private static unsafe partial uint SendInput(uint count, Input* inputs, int size);
+
+    private const uint InputMouse = 0, MouseMove = 0x0001;
+
+    /// <summary>How long nothing must have been touched before Stay active nudges the pointer.</summary>
+    private const int NudgeAfterIdleMs = 55_000;
+
     private readonly Thread _thread;
     private readonly AutoResetEvent _wake = new(false);
     private readonly HashSet<string> _sleeping = new(StringComparer.OrdinalIgnoreCase);
@@ -35,6 +51,7 @@ internal sealed partial class PowerService : IDisposable
     private DispCtrlSettings _settings;
     private DispCtrlSettings? _pending;
     private uint _executionState = Continuous;
+    private bool _stayActive;
 
     public PowerService(DispCtrlSettings settings)
     {
@@ -63,6 +80,7 @@ internal sealed partial class PowerService : IDisposable
                 }
                 else if (DateTimeOffset.UtcNow >= _nextDisplayRefresh) RefreshDisplays();
                 ApplyAwake();
+                StayActive();
                 ApplyMonitorSleep();
                 _wake.WaitOne(1000);
             }
@@ -84,10 +102,47 @@ internal sealed partial class PowerService : IDisposable
             wanted |= SystemRequired;
             if (awake.KeepDisplaysOn) wanted |= DisplayRequired;
         }
+        // Stay active holds the screen on too: an attended-looking session
+        // behind a blank display is no use to anyone.
+        if (awake.StayActive) wanted |= SystemRequired | DisplayRequired;
 
         if (wanted == _executionState) return;
         SetThreadExecutionState(wanted);
         _executionState = wanted;
+    }
+
+    /// <summary>
+    /// Nudges the pointer one pixel and back once nothing has been touched for
+    /// about a minute, so the lock screen, the screen saver and chat apps' Away
+    /// status do not come while Stay active is on.
+    /// </summary>
+    /// <remarks>
+    /// Only when idle: a person using the mouse needs no help, and a nudge under
+    /// their hand would be felt. There and back in one call, so the pointer ends
+    /// where it was and no program sees it move. The nudge is real input, so
+    /// everything that waits for inactivity - OLED idle dimming, monitor sleep -
+    /// waits while this is on; that is what staying active means.
+    /// </remarks>
+    private unsafe void StayActive()
+    {
+        bool wanted = _settings.Global.Awake.StayActive;
+        if (wanted != _stayActive)
+        {
+            _stayActive = wanted;
+            Log.Write(wanted ? "stay active: on" : "stay active: off");
+        }
+        if (!wanted) return;
+
+        var last = new LastInput { Size = 8 };
+        if (GetLastInputInfo(ref last) == 0) return;
+        uint idleMs = unchecked((uint)Environment.TickCount - last.Tick);
+        if (idleMs < NudgeAfterIdleMs) return;
+
+        Input* moves = stackalloc Input[2];
+        moves[0] = new Input { Type = InputMouse, Mouse = new MouseInput { Dx = 1, Flags = MouseMove } };
+        moves[1] = new Input { Type = InputMouse, Mouse = new MouseInput { Dx = -1, Flags = MouseMove } };
+        if (SendInput(2, moves, sizeof(Input)) != 2)
+            Log.Write($"stay active: the nudge was refused ({Marshal.GetLastPInvokeError()}); a secure desktop or an elevated window may have the input");
     }
 
     private void ApplyMonitorSleep()
