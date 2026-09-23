@@ -1,219 +1,237 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DispCtrl — every display, one control</title>
+<title>DispCtrl — one app, full control of every display</title>
 <meta name="description" content="Free, open-source display control for Windows 11: brightness in step across every monitor, night light, keep awake, per-monitor taskbar hiding, OLED care, monitor settings over DDC/CI, hotkeys and a command line.">
-<meta name="theme-color" content="#0f0c16">
+<meta name="theme-color" content="#0d0a14">
 <meta property="og:type" content="website">
-<meta property="og:title" content="DispCtrl — every display, one control">
+<meta property="og:title" content="DispCtrl — one app, full control of every display">
 <meta property="og:description" content="Brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own controls. Free and open source for Windows 11.">
 <meta property="og:image" content="assets/hero.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="assets/logo.png">
+<script>
+// Theme before first paint: saved choice, else the system's.
+(function(){try{var t=localStorage.getItem('theme');if(!t)t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();
+</script>
 <style>
 :root{
-  --bg:#0d0a14;--bg2:#141020;--card:#1a1426;--line:#2c2340;--line2:#3a2f55;
+  --bg:#0d0a14;--bg2:#141020;--card:#1a1426;--card-hi:#211a31;--line:#2c2340;--line2:#3a2f55;
   --text:#f4f1fa;--muted:#b2a8c6;--dim:#7f7596;
-  --a1:#c4a6ff;--a2:#8b5cf6;--a3:#f0a6d8;--warm:#ffb46b;
-  --glow:rgba(139,92,246,.35);--r:20px;--max:1200px;
+  --a1:#c4a6ff;--a2:#8b5cf6;--a3:#f0a6d8;--on-accent:#120d1c;
+  --glow:rgba(139,92,246,.35);--nav:rgba(13,10,20,.66);--glass:rgba(24,19,36,.72);--soft:rgba(255,255,255,.04);
+  --h1a:#ffffff;--ok:#7ee2a8;--no:#ff8fa3;
+  --r:20px;--max:1200px;
   --font:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
   --mono:"Cascadia Code","Cascadia Mono",Consolas,ui-monospace,monospace;
 }
+[data-theme=light]{
+  --bg:#f6f3fb;--bg2:#ffffff;--card:#ffffff;--card-hi:#faf7ff;--line:#e5ddf2;--line2:#d6cae9;
+  --text:#1b1428;--muted:#574c6c;--dim:#8a7f9e;
+  --a1:#7c4ddb;--a2:#8b5cf6;--a3:#d0589f;--on-accent:#ffffff;
+  --glow:rgba(139,92,246,.22);--nav:rgba(246,243,251,.75);--glass:rgba(255,255,255,.78);--soft:rgba(80,40,160,.04);
+  --h1a:#1b1428;--ok:#1f9d5a;--no:#d6335a;
+}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden;transition:background .3s,color .3s}
 a{color:var(--a1);text-decoration:none}
 a:hover{text-decoration:underline}
 img{max-width:100%;display:block}
 .wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
 ::selection{background:var(--a2);color:#fff}
-
-/* ---------- ambient ---------- */
 .bgfx{position:fixed;inset:0;z-index:-2;pointer-events:none;
-  background:radial-gradient(900px 600px at 15% -5%,rgba(139,92,246,.28),transparent 60%),
-             radial-gradient(700px 500px at 95% 10%,rgba(240,166,216,.13),transparent 60%),
-             radial-gradient(900px 700px at 50% 110%,rgba(139,92,246,.12),transparent 60%)}
+  background:radial-gradient(900px 600px at 15% -5%,rgba(139,92,246,.26),transparent 60%),
+             radial-gradient(700px 500px at 95% 8%,rgba(240,166,216,.12),transparent 60%),
+             radial-gradient(900px 700px at 50% 115%,rgba(139,92,246,.12),transparent 60%)}
 .grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.35;
-  background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-image:linear-gradient(var(--soft) 1px,transparent 1px),linear-gradient(90deg,var(--soft) 1px,transparent 1px);
   background-size:56px 56px;mask-image:radial-gradient(ellipse at 50% 0%,#000 30%,transparent 75%)}
 
-/* ---------- nav ---------- */
-nav{position:sticky;top:0;z-index:40;backdrop-filter:saturate(170%) blur(20px);-webkit-backdrop-filter:saturate(170%) blur(20px);
-  background:rgba(13,10,20,.66);border-bottom:1px solid rgba(255,255,255,.06)}
-nav .wrap{display:flex;align-items:center;gap:26px;height:66px}
+/* nav */
+nav{position:sticky;top:0;z-index:40;backdrop-filter:saturate(170%) blur(20px);-webkit-backdrop-filter:saturate(170%) blur(20px);background:var(--nav);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .brand{display:flex;align-items:center;gap:10px;color:var(--text);font-weight:650;font-size:18px;letter-spacing:-.01em}
 .brand:hover{text-decoration:none}
 .brand img{width:30px;height:30px}
 .links{display:flex;gap:24px;margin-left:auto}
 .links a{color:var(--muted);font-size:14.5px}
 .links a:hover{color:var(--text);text-decoration:none}
-.star{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:10px;border:1px solid var(--line2);color:var(--text);font-size:14px;background:rgba(255,255,255,.03)}
-.star:hover{border-color:var(--a1);text-decoration:none}
-.star svg{width:16px;height:16px}
+.navbtn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 13px;border-radius:10px;border:1px solid var(--line2);color:var(--text);font:inherit;font-size:14px;background:var(--soft);cursor:pointer}
+.navbtn:hover{border-color:var(--a1);text-decoration:none}
+.navbtn svg{width:17px;height:17px}
+.theme{width:38px;padding:0;justify-content:center}
+.theme .sun{display:none}[data-theme=light] .theme .sun{display:block}[data-theme=light] .theme .moon{display:none}
 
-/* ---------- buttons ---------- */
+/* buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:13px 22px;border-radius:13px;font-weight:600;font-size:15px;
-  border:1px solid transparent;transition:transform .15s,box-shadow .2s,border-color .2s,background .2s;cursor:pointer;font-family:inherit}
+  border:1px solid transparent;transition:transform .15s,box-shadow .2s,border-color .2s,background .2s;cursor:pointer;font-family:inherit;color:var(--text)}
 .btn:hover{text-decoration:none;transform:translateY(-2px)}
 .btn svg{width:18px;height:18px;flex:none}
-.primary{background:linear-gradient(135deg,var(--a1),var(--a2));color:#120d1c;box-shadow:0 10px 34px var(--glow)}
+.primary{background:linear-gradient(135deg,#c4a6ff,var(--a2));color:#120d1c;box-shadow:0 10px 34px var(--glow)}
 .primary:hover{box-shadow:0 14px 44px rgba(139,92,246,.5)}
-.ghost{background:rgba(255,255,255,.04);color:var(--text);border-color:var(--line2)}
+.ghost{background:var(--soft);border-color:var(--line2)}
 .ghost:hover{border-color:var(--a1)}
 
-/* ---------- hero ---------- */
-.hero{padding:76px 0 30px;display:grid;grid-template-columns:1.02fr 1fr;gap:48px;align-items:center}
-.pill{display:inline-flex;gap:10px;align-items:center;padding:6px 14px 6px 6px;border:1px solid var(--line2);border-radius:999px;color:var(--muted);font-size:13px;background:rgba(255,255,255,.03)}
-.pill b{background:linear-gradient(135deg,var(--a1),var(--a2));color:#120d1c;border-radius:999px;padding:2px 10px;font-weight:650;font-size:12px}
-h1{font-size:clamp(42px,6vw,78px);line-height:1.02;margin:22px 0 20px;letter-spacing:-.03em;font-weight:700}
-.grad{background:linear-gradient(110deg,#fff 5%,var(--a1) 45%,var(--a3) 75%,var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
-.lead{font-size:clamp(17px,1.7vw,19.5px);color:var(--muted);max-width:560px;margin:0 0 30px}
-.cta{display:flex;gap:12px;flex-wrap:wrap}
-.trust{display:flex;gap:18px;flex-wrap:wrap;margin-top:24px;color:var(--dim);font-size:13.5px}
+/* hero */
+.hero{padding:84px 0 20px;text-align:center}
+.pill{display:inline-flex;gap:10px;align-items:center;padding:6px 14px 6px 6px;border:1px solid var(--line2);border-radius:999px;color:var(--muted);font-size:13px;background:var(--soft)}
+.pill b{background:linear-gradient(135deg,#c4a6ff,var(--a2));color:#120d1c;border-radius:999px;padding:2px 10px;font-weight:650;font-size:12px}
+h1{font-size:clamp(46px,7.4vw,96px);line-height:1;margin:24px auto 22px;letter-spacing:-.04em;font-weight:750}
+.grad{background:linear-gradient(110deg,var(--h1a) 8%,var(--a1) 45%,var(--a3) 72%,var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:clamp(17px,1.8vw,20px);color:var(--muted);max-width:700px;margin:0 auto 32px}
+.cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.trust{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin-top:22px;color:var(--dim);font-size:13.5px}
 .trust span{display:inline-flex;align-items:center;gap:7px}
 .trust span::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--a1);box-shadow:0 0 10px var(--a1)}
+.show{position:relative;max-width:1080px;margin:64px auto 0;perspective:1600px}
+.show .frame{position:relative;border-radius:18px;padding:10px;background:linear-gradient(180deg,var(--line2),transparent);
+  transform:rotateX(9deg);transform-origin:50% 100%;transition:transform .8s cubic-bezier(.2,.8,.2,1)}
+.show:hover .frame,.show.flat .frame{transform:none}
+.show .frame::before{content:"";position:absolute;inset:6% 4% -6%;background:var(--glow);filter:blur(90px);z-index:-1;border-radius:50%}
+.show img{border-radius:12px;box-shadow:0 40px 100px rgba(0,0,0,.45)}
+.float{position:absolute;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;background:var(--glass);border:1px solid var(--line2);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 16px 40px rgba(0,0,0,.28);font-size:13.5px;color:var(--text);text-align:left;
+  animation:bob 6s ease-in-out infinite;z-index:3}
+.float small{display:block;color:var(--muted);font-size:12px}
+.float .d{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,#c4a6ff,var(--a2));flex:none}
+.float .d svg{width:17px;height:17px;stroke:#120d1c;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.f1{left:-3%;top:14%}.f2{right:-4%;top:8%;animation-delay:-2s}.f3{left:4%;bottom:10%;animation-delay:-4s}.f4{right:-2%;bottom:18%;animation-delay:-1s}
+@keyframes bob{50%{transform:translateY(-10px)}}
 
-/* ---------- interactive desk ---------- */
-.desk{position:relative;padding:26px 22px 22px;border-radius:26px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));
-  border:1px solid var(--line2);box-shadow:0 30px 90px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
-.desk-label{position:absolute;top:-12px;left:22px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#120d1c;
-  background:linear-gradient(135deg,var(--a1),var(--a2));padding:3px 10px;border-radius:999px;font-weight:700}
-.scene{display:flex;align-items:flex-end;justify-content:center;gap:18px;height:230px}
-.mon{position:relative;display:flex;flex-direction:column;align-items:center}
-.bezel{background:#1d1d22;border:2px solid #3a3a44;border-radius:10px;padding:7px;box-shadow:0 18px 40px rgba(0,0,0,.45)}
-.screen{position:relative;overflow:hidden;border-radius:4px;
-  background:radial-gradient(120% 90% at 20% 20%,#7b5bd6,transparent 60%),radial-gradient(90% 90% at 90% 80%,#e38bc4,transparent 55%),linear-gradient(135deg,#2b1f4a,#120d1c);
-  filter:brightness(var(--b,1));transition:filter .25s}
-.screen::after{content:"";position:absolute;inset:0;background:rgba(255,140,40,var(--warm,0));mix-blend-mode:multiply;transition:background .4s}
-.screen .win{position:absolute;left:12%;top:14%;width:62%;height:56%;border-radius:4px;background:rgba(24,20,34,.8);
-  border:1px solid rgba(255,255,255,.12);box-shadow:0 6px 18px rgba(0,0,0,.4)}
-.screen .win::before{content:"";position:absolute;left:0;right:0;top:0;height:14%;background:rgba(255,255,255,.06)}
-.screen .win::after{content:"";position:absolute;left:10%;top:30%;width:55%;height:8%;border-radius:3px;background:rgba(196,166,255,.5);
-  box-shadow:0 14px 0 rgba(255,255,255,.14),0 28px 0 rgba(255,255,255,.1)}
-.bar{position:absolute;left:0;right:0;bottom:0;height:11%;background:rgba(20,16,30,.82);backdrop-filter:blur(4px);
-  display:flex;justify-content:center;align-items:center;gap:4%;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
-.bar i{width:5%;aspect-ratio:1;border-radius:2px;background:rgba(255,255,255,.35)}
-.bar i:first-child{background:var(--a1)}
-.hidden-bar .bar{transform:translateY(105%)}
-.big .screen{width:300px;height:172px}
-.small .screen{width:190px;height:120px}
-.stand{width:46px;height:22px;background:linear-gradient(#34343e,#26262e)}
-.base{width:120px;height:8px;border-radius:5px;background:#34343e}
-.laptop .base{width:230px;height:10px;border-radius:0 0 12px 12px;background:linear-gradient(#3a3a44,#24242c)}
-.laptop .bezel{border-radius:10px 10px 2px 2px}
-.tag{position:absolute;top:8px;left:8px;font-size:10.5px;color:rgba(255,255,255,.75);background:rgba(0,0,0,.35);padding:1px 6px;border-radius:5px;z-index:2}
-.controls{margin-top:22px;display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;
-  padding:14px 16px;border-radius:16px;background:rgba(13,10,20,.6);border:1px solid var(--line)}
-.slider{display:flex;align-items:center;gap:12px;font-size:13.5px;color:var(--muted)}
-.slider svg{width:18px;height:18px;stroke:var(--text);fill:none;stroke-width:1.8;flex:none}
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:5px;
-  background:linear-gradient(90deg,var(--a1) var(--fill,70%),rgba(255,255,255,.14) var(--fill,70%));outline:none}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:4px solid var(--a2);cursor:pointer}
-input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:#fff;border:4px solid var(--a2);cursor:pointer}
-.pct{min-width:38px;text-align:right;color:var(--text);font-variant-numeric:tabular-nums}
-.chip{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:11px;border:1px solid var(--line2);background:rgba(255,255,255,.03);
-  color:var(--muted);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap;transition:all .2s}
-.chip svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9}
-.chip[aria-pressed=true]{background:linear-gradient(135deg,var(--a1),var(--a2));color:#120d1c;border-color:transparent;font-weight:600}
-.hint{margin:12px 2px 0;font-size:12.5px;color:var(--dim)}
-
-/* ---------- marquee ---------- */
-.marquee{margin:54px 0 0;border-block:1px solid var(--line);overflow:hidden;background:rgba(255,255,255,.015)}
-.track{display:flex;gap:44px;padding:16px 0;width:max-content;animation:scroll 38s linear infinite;color:var(--muted);font-size:15px}
+/* marquee */
+.marquee{margin:72px 0 0;border-block:1px solid var(--line);overflow:hidden;background:var(--soft)}
+.track{display:flex;gap:44px;padding:16px 0;width:max-content;animation:scroll 40s linear infinite;color:var(--muted);font-size:15px}
 .track span{display:inline-flex;align-items:center;gap:44px;white-space:nowrap}
 .track span::after{content:"✦";color:var(--a2)}
 @keyframes scroll{to{transform:translateX(-50%)}}
 
-/* ---------- sections ---------- */
+/* sections */
 section{padding:104px 0}
 .eyebrow{display:inline-block;color:var(--a1);font-weight:650;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase}
 h2{font-size:clamp(32px,4.2vw,50px);line-height:1.08;margin:12px 0 16px;letter-spacing:-.02em}
 .sub{color:var(--muted);max-width:660px;font-size:17.5px;margin:0}
-.head{margin-bottom:48px}.head.c{text-align:center}.head.c .sub{margin:0 auto}
+.head{margin-bottom:52px}.head.c{text-align:center}.head.c .sub{margin:0 auto}
+.card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:26px;transition:border-color .25s,transform .25s,box-shadow .25s}
+.card:hover{border-color:var(--line2);transform:translateY(-3px);box-shadow:0 20px 50px rgba(0,0,0,.18)}
 
-/* bento */
-.bento{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:minmax(190px,auto);gap:16px}
-.cell{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:var(--r);padding:26px;
-  transition:border-color .25s,transform .25s}
-.cell:hover{border-color:rgba(196,166,255,.45);transform:translateY(-3px)}
-.cell::before{content:"";position:absolute;inset:auto -30% -60% auto;width:70%;aspect-ratio:1;border-radius:50%;
-  background:radial-gradient(circle,rgba(139,92,246,.18),transparent 65%);pointer-events:none}
-.cell h3{margin:0 0 8px;font-size:20px;letter-spacing:-.01em}
-.cell p{margin:0;color:var(--muted);font-size:15px}
-.cell .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;margin-bottom:16px;
-  background:linear-gradient(135deg,rgba(196,166,255,.2),rgba(139,92,246,.08));border:1px solid rgba(196,166,255,.25)}
-.cell .ic svg{width:21px;height:21px;stroke:var(--a1);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.w3{grid-column:span 3}.w2{grid-column:span 2}.w4{grid-column:span 4}.tall{grid-row:span 2}
-.cell .fig{margin:18px -26px -26px;border-top:1px solid var(--line)}
-.cell .fig img{width:100%}
-.kbd{display:inline-flex;gap:6px;margin-top:16px;flex-wrap:wrap}
-.kbd kbd{font:12.5px var(--mono);padding:5px 9px;border-radius:7px;border:1px solid var(--line2);border-bottom-width:3px;background:#1f1830;color:var(--text)}
+/* features */
+.spot{display:grid;grid-template-columns:1fr 1.15fr;gap:44px;align-items:center;padding:38px;border-radius:26px;border:1px solid var(--line);
+  background:radial-gradient(80% 120% at 100% 0%,rgba(139,92,246,.16),transparent 60%),var(--card);margin-bottom:18px}
+.spot h3{font-size:clamp(24px,2.6vw,32px);margin:10px 0 12px;letter-spacing:-.02em}
+.spot p{color:var(--muted);margin:0 0 14px}
+.spot img{border-radius:14px;border:1px solid var(--line2);box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.tags span{font-size:12.5px;padding:5px 10px;border-radius:999px;border:1px solid var(--line2);color:var(--muted);background:var(--soft)}
+.fgrid4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.feat .ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;margin-bottom:18px;background:var(--hue,linear-gradient(135deg,#c4a6ff,#8b5cf6))}
+.feat .ic svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.feat h3{margin:0 0 8px;font-size:18px;letter-spacing:-.01em}
+.feat p{margin:0;color:var(--muted);font-size:14.5px}
+.feat .tags{margin-top:14px}.feat .tags span{font-size:11.5px;padding:3px 9px}
 
-/* split */
+/* split / quick panel */
 .split{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
 .checks{list-style:none;padding:0;margin:26px 0 0}
 .checks li{position:relative;padding-left:34px;margin:14px 0;color:var(--muted)}
 .checks li b{color:var(--text);font-weight:600}
 .checks li::before{content:"✓";position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:7px;display:grid;place-items:center;
-  font-size:13px;font-weight:700;color:#120d1c;background:linear-gradient(135deg,var(--a1),var(--a2))}
+  font-size:13px;font-weight:700;color:#120d1c;background:linear-gradient(135deg,#c4a6ff,var(--a2))}
 .panelshot{display:flex;justify-content:center;position:relative}
 .panelshot::before{content:"";position:absolute;inset:10% 15%;background:var(--glow);filter:blur(70px);border-radius:50%;z-index:-1}
-.panelshot img{max-height:600px;width:auto;border-radius:14px;border:1px solid rgba(255,255,255,.1);box-shadow:0 30px 70px rgba(0,0,0,.55)}
+.panelshot img{max-height:600px;width:auto;border-radius:14px;border:1px solid var(--line2);box-shadow:0 30px 70px rgba(0,0,0,.4)}
 
-/* gallery */
+/* tour */
 .gallery{display:grid;grid-template-columns:220px 1fr;gap:26px;align-items:start}
 .glist{display:flex;flex-direction:column;gap:6px;position:sticky;top:90px}
 .gbtn{text-align:left;padding:12px 14px;border-radius:12px;border:1px solid transparent;background:none;color:var(--muted);font:inherit;font-size:15px;cursor:pointer;transition:all .2s}
-.gbtn:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.gbtn:hover{color:var(--text);background:var(--soft)}
 .gbtn[aria-selected=true]{color:var(--text);border-color:var(--line2);background:linear-gradient(90deg,rgba(139,92,246,.18),transparent)}
 .gbtn small{display:block;color:var(--dim);font-size:12.5px;margin-top:2px}
-.gview{position:relative}
-.gview img{border-radius:16px;border:1px solid rgba(255,255,255,.09);box-shadow:0 30px 70px rgba(0,0,0,.5);cursor:zoom-in;transition:opacity .25s}
+.gview img{border-radius:16px;border:1px solid var(--line2);box-shadow:0 30px 70px rgba(0,0,0,.35);cursor:zoom-in;transition:opacity .25s}
 
 /* terminal */
-.term{background:#0a0810;border:1px solid var(--line2);border-radius:16px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.5)}
-.term .tb{display:flex;align-items:center;gap:7px;padding:12px 16px;border-bottom:1px solid var(--line);background:#120e1b;color:var(--dim);font-size:12.5px}
+.term{background:#0a0810;border:1px solid var(--line2);border-radius:16px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.4)}
+.term .tb{display:flex;align-items:center;gap:7px;padding:12px 16px;border-bottom:1px solid #2c2340;background:#120e1b;color:#7f7596;font-size:12.5px}
 .term .tb i{width:11px;height:11px;border-radius:50%;background:#3a3150}
 .term .tb span{margin-left:10px}
 .term pre{margin:0;padding:22px 24px;overflow:auto;font:14px/1.8 var(--mono);color:#ddd5ee;min-height:300px}
-.term .c{color:#766c8c}.term .p{color:var(--a1)}.term .o{color:#9be0b5}
-.cursor{display:inline-block;width:8px;height:16px;background:var(--a1);vertical-align:-3px;animation:blink 1s steps(1) infinite}
+.term .c{color:#766c8c}.term .p{color:#c4a6ff}.term .o{color:#9be0b5}
+.cursor{display:inline-block;width:8px;height:16px;background:#c4a6ff;vertical-align:-3px;animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
+code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--line);padding:1px 7px;border-radius:6px;color:var(--text)}
 
-/* numbers band */
-.band{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:18px}
-.band .cell{min-height:auto}
-.num{font-size:44px;font-weight:700;letter-spacing:-.03em;background:linear-gradient(135deg,#fff,var(--a1));-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1.1}
+/* privacy */
+.priv{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+.shield{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,#7ee2a8,#2fa46a);margin-bottom:20px;box-shadow:0 12px 30px rgba(47,164,106,.3)}
+.shield svg{width:32px;height:32px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mini{display:flex;gap:28px;margin-top:28px;flex-wrap:wrap}
+.mini b{display:block;font-size:30px;letter-spacing:-.03em;line-height:1.1}
+.mini span{color:var(--dim);font-size:13.5px}
+.ledger{border-radius:22px;border:1px solid var(--line);background:var(--card);overflow:hidden}
+.ledger .row{display:flex;align-items:center;gap:14px;padding:17px 22px;border-top:1px solid var(--line);font-size:15px}
+.ledger .row:first-child{border-top:0}
+.ledger .row .k{flex:1}
+.ledger .row .v{color:var(--muted);font-size:14px;text-align:right}
+.mark{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-weight:800;font-size:13px;flex:none}
+.mark.no{background:rgba(255,143,163,.14);color:var(--no)}.mark.ok{background:rgba(126,226,168,.14);color:var(--ok)}
+.ledger .top{padding:14px 22px;background:var(--soft);color:var(--dim);font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:650}
 
 /* download */
-.dl{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.dl .cell{display:flex;flex-direction:column}
-.dl .cell p{flex:1}
-.dl .btn{margin-top:20px;align-self:flex-start}
-.dl .rec{border-color:rgba(196,166,255,.5);background:linear-gradient(180deg,rgba(139,92,246,.18),var(--bg2))}
-.badge{position:absolute;top:18px;right:18px;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#120d1c;background:var(--a1);padding:3px 9px;border-radius:999px}
-code.i{font:13.5px var(--mono);background:rgba(255,255,255,.06);padding:2px 7px;border-radius:6px;color:#e8e0fb}
+.dlhead{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:48px}
+.dlhead img{width:92px;height:92px;margin-bottom:10px;filter:drop-shadow(0 16px 30px var(--glow));animation:bob 6s ease-in-out infinite}
+.ver{display:inline-flex;gap:8px;align-items:center;margin-top:14px;font-size:13px;color:var(--muted);padding:5px 12px;border-radius:999px;border:1px solid var(--line2);background:var(--soft)}
+.ver b{color:var(--text)}
+.dl{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.dl .card{display:flex;flex-direction:column;padding:24px}
+.dl .card p{flex:1;color:var(--muted);font-size:14.5px;margin:6px 0 0}
+.dl .card h3{margin:0;font-size:18px}
+.dl .lg{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;margin-bottom:16px}
+.dl .lg svg{width:24px;height:24px}
+.dl .btn{margin-top:18px;padding:11px 16px;font-size:14px;width:100%}
+.dl .rec{border-color:rgba(139,92,246,.55);background:linear-gradient(180deg,rgba(139,92,246,.14),var(--card))}
+.badge{position:absolute;top:16px;right:16px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#120d1c;background:#c4a6ff;padding:3px 8px;border-radius:999px}
+.badge.soon{background:var(--soft);color:var(--dim);border:1px solid var(--line2)}
+.cmd{display:flex;align-items:center;gap:8px;margin-top:18px;padding:9px 12px;border-radius:11px;background:#0a0810;border:1px solid var(--line2);font:12.5px var(--mono);color:#ddd5ee;opacity:.6}
+.alt{text-align:center;margin-top:26px;color:var(--dim);font-size:14px}
 
-/* donate */
-.donate{position:relative;overflow:hidden;border-radius:30px;border:1px solid var(--line2);padding:64px 56px;
+/* support */
+.donate{position:relative;overflow:hidden;border-radius:30px;border:1px solid var(--line2);padding:64px 56px;text-align:center;
   background:radial-gradient(70% 120% at 0% 0%,rgba(240,166,216,.16),transparent 60%),radial-gradient(60% 120% at 100% 100%,rgba(139,92,246,.22),transparent 60%),var(--bg2)}
-.donate .grid{display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center}
-.ways{display:grid;gap:12px}
-.way{display:flex;align-items:center;gap:16px;padding:16px 18px;border-radius:16px;border:1px solid var(--line2);background:rgba(13,10,20,.55);color:var(--text);transition:all .2s}
-.way:hover{border-color:var(--a1);text-decoration:none;transform:translateX(4px)}
-.way .logo{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none;font-weight:800;font-size:15px}
-.way b{display:block;font-size:16px}
-.way small{color:var(--muted);font-size:13.5px}
-.way .go{margin-left:auto;color:var(--dim)}
-.gh .logo{background:#db61a2;color:#fff}.pp .logo{background:#0070e0;color:#fff}.upi .logo{background:#fff;color:#0b7a3b;font-size:13px}
-.qrbox{display:flex;gap:18px;align-items:center;padding:18px;border-radius:18px;border:1px dashed var(--line2);background:rgba(13,10,20,.5)}
-.qrbox canvas,.qrbox img{width:132px;height:132px;border-radius:12px;background:#fff;padding:8px;flex:none;image-rendering:pixelated}
-.qrbox p{margin:0;color:var(--muted);font-size:14px}
-.qrbox code{font:13px var(--mono);color:var(--text)}
-.copy{margin-top:10px;padding:7px 12px;font-size:13px}
+.donate .sub{margin:0 auto}
+.heart{display:inline-grid;place-items:center;width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#ff8fc7,#db61a2);margin-bottom:14px;
+  box-shadow:0 12px 36px rgba(219,97,162,.45);animation:beat 1.6s ease-in-out infinite}
+.heart svg{width:30px;height:30px;fill:#fff}
+@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.12)}30%{transform:scale(1)}45%{transform:scale(1.08)}}
+.pay{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:34px}
+.paybtn{position:relative;display:inline-flex;align-items:center;gap:12px;padding:15px 24px;border-radius:16px;font-weight:650;font-size:16px;color:#fff;border:0;cursor:pointer;
+  font-family:inherit;overflow:hidden;transition:transform .2s,box-shadow .2s;animation:glowpulse 2.6s ease-in-out infinite}
+.paybtn:hover{transform:translateY(-3px) scale(1.03);text-decoration:none}
+.paybtn::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.45) 50%,transparent 70%);transform:translateX(-120%);animation:shine 3.2s ease-in-out infinite}
+.paybtn svg{width:20px;height:20px;flex:none}
+.p-gh{background:linear-gradient(135deg,#ff7ab6,#db61a2);--g:rgba(219,97,162,.55)}
+.p-pp{background:linear-gradient(135deg,#1a8cff,#0052cc);--g:rgba(0,112,224,.5);animation-delay:-.8s}
+.p-upi{background:linear-gradient(135deg,#1fbf6a,#0b7a3b);--g:rgba(31,191,106,.45);animation-delay:-1.6s}
+.p-pp::after{animation-delay:.6s}.p-upi::after{animation-delay:1.2s}
+@keyframes glowpulse{0%,100%{box-shadow:0 8px 24px var(--g)}50%{box-shadow:0 10px 44px var(--g),0 0 0 6px rgba(255,255,255,.04)}}
+@keyframes shine{0%,55%{transform:translateX(-120%)}85%,100%{transform:translateX(120%)}}
+.paybtn .tip{position:absolute;left:50%;bottom:calc(100% + 14px);transform:translate(-50%,6px);opacity:0;pointer-events:none;white-space:nowrap;
+  background:var(--text);color:var(--bg);font-size:13px;font-weight:600;padding:8px 12px;border-radius:10px;transition:all .2s;z-index:5}
+.paybtn .tip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:7px solid transparent;border-top-color:var(--text)}
+.payitem{position:relative}
+.payitem:hover .tip{opacity:1;transform:translate(-50%,0)}
+.help{margin-top:28px;color:var(--muted);font-size:14.5px}
 [hidden]{display:none!important}
+/* UPI dialog */
+.modal{position:fixed;inset:0;background:rgba(8,6,12,.7);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:70;padding:20px}
+.modal.open{display:flex}
+.sheet{width:min(380px,100%);background:var(--card);border:1px solid var(--line2);border-radius:22px;padding:28px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.sheet canvas{width:220px;height:220px;margin:18px auto;border-radius:16px;background:#fff;padding:10px;image-rendering:pixelated}
+.sheet .id{font:14px var(--mono);padding:8px 12px;border-radius:10px;background:var(--soft);border:1px solid var(--line)}
+.sheet .row{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+.sheet .btn{padding:10px 16px;font-size:14px}
 
 /* legal */
 .legal{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -226,42 +244,41 @@ details[open] summary::after{transform:rotate(45deg)}
 details .body{padding:0 0 20px;color:var(--muted);font-size:14.5px}
 details .body h4{color:var(--text);margin:16px 0 4px;font-size:15px}
 details .body p{margin:6px 0}
-details .body ul{margin:6px 0;padding-left:18px}
 
 /* footer */
 footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradient(180deg,transparent,rgba(139,92,246,.05))}
-.fgrid{display:grid;grid-template-columns:1.6fr repeat(4,1fr);gap:32px;padding:56px 0 36px}
-.fgrid h5{margin:0 0 14px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
-.fgrid a{display:block;color:var(--muted);font-size:14.5px;margin:9px 0}
-.fgrid a:hover{color:var(--text);text-decoration:none}
+.fcols{display:grid;grid-template-columns:1.6fr repeat(4,1fr);gap:32px;padding:56px 0 36px}
+.fcols h5{margin:0 0 14px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.fcols a{display:block;color:var(--muted);font-size:14.5px;margin:9px 0}
+.fcols a:hover{color:var(--text);text-decoration:none}
 .fbrand p{color:var(--muted);font-size:14.5px;max-width:300px}
+.fbrand p a{display:inline;margin:0;color:var(--a1);font-size:inherit}
+.fbrand .brand{display:inline-flex}
 .fbot{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;padding:22px 0 40px;border-top:1px solid var(--line);color:var(--dim);font-size:13.5px}
-.wordmark{font-size:clamp(70px,16vw,220px);font-weight:800;letter-spacing:-.05em;line-height:.8;text-align:center;margin:10px 0 -6px;
-  background:linear-gradient(180deg,rgba(196,166,255,.18),transparent 85%);-webkit-background-clip:text;background-clip:text;color:transparent;user-select:none}
+.wordmark{display:flex;align-items:center;justify-content:center;gap:.14em;font-size:clamp(64px,14vw,190px);font-weight:800;letter-spacing:-.05em;line-height:1;margin:6px 0 10px;user-select:none}
+.wordmark img{height:.78em;width:auto;opacity:.22;filter:saturate(.6)}
+.wordmark span{background:linear-gradient(180deg,rgba(139,92,246,.26),transparent 88%);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.06em}
 
-/* lightbox / reveal */
+/* lightbox, reveal, toast */
 .lb{position:fixed;inset:0;background:rgba(8,6,12,.92);display:none;align-items:center;justify-content:center;z-index:60;padding:3vw;cursor:zoom-out}
 .lb.open{display:flex}.lb img{max-height:94vh;border-radius:12px}
 .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
 .reveal.in{opacity:1;transform:none}
-.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);opacity:0;background:#fff;color:#120d1c;padding:10px 18px;border-radius:12px;font-weight:600;font-size:14px;transition:all .25s;z-index:70}
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);opacity:0;background:var(--text);color:var(--bg);padding:10px 18px;border-radius:12px;font-weight:600;font-size:14px;transition:all .25s;z-index:80}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.reveal{opacity:1;transform:none;transition:none}.track{animation:none}.cursor{animation:none}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important}.reveal{opacity:1;transform:none;transition:none}.show .frame{transform:none}}
 @media (max-width:1040px){
-  .hero,.split,.donate .grid{grid-template-columns:1fr}
-  .bento{grid-template-columns:repeat(2,1fr)}.w3,.w2,.w4{grid-column:span 1}.tall{grid-row:auto}
-  .band{grid-template-columns:1fr 1fr}.band .cell:first-child{grid-column:1/-1}
+  .split,.priv,.spot{grid-template-columns:1fr}
+  .fgrid4,.dl{grid-template-columns:1fr 1fr}
   .gallery{grid-template-columns:1fr}.glist{position:static;flex-direction:row;overflow:auto}.gbtn small{display:none}
-  .fgrid{grid-template-columns:1fr 1fr 1fr}.fbrand{grid-column:1/-1}
-  .links{display:none}
+  .fcols{grid-template-columns:1fr 1fr 1fr}.fbrand{grid-column:1/-1}
+  .links{display:none}.float{display:none}
 }
 @media (max-width:640px){
-  .bento,.dl,.legal,.band{grid-template-columns:1fr}
-  section{padding:76px 0}.donate{padding:40px 22px}
-  .scene{transform:scale(.72);transform-origin:bottom center;height:180px}
-  .controls{grid-template-columns:1fr}
-  .fgrid{grid-template-columns:1fr 1fr}
+  .fgrid4,.dl,.legal{grid-template-columns:1fr}
+  section{padding:76px 0}.donate{padding:44px 22px}.spot{padding:24px}
+  .fcols{grid-template-columns:1fr 1fr}.navstar{display:none}
 }
 </style>
 </head>
@@ -276,59 +293,44 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <a href="#tour">Tour</a>
       <a href="#cli">Command line</a>
       <a href="#download">Download</a>
-      <a href="#donate">Donate</a>
+      <a href="#support">Support</a>
     </div>
-    <a class="star" href="https://github.com/jesvijonathan/Display-Control" aria-label="DispCtrl on GitHub">
+    <a class="navbtn navstar" href="https://github.com/jesvijonathan/Display-Control" aria-label="DispCtrl on GitHub">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       <span>Star</span><span id="stars" hidden></span>
     </a>
+    <button class="navbtn theme" id="theme" aria-label="Switch between light and dark">
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
   </div>
 </nav>
 
-<div class="wrap" id="top">
-  <header class="hero">
-    <div class="reveal">
-      <span class="pill"><b>Open source</b> Free for Windows 11, under the MIT licence</span>
-      <h1><span class="grad">Every display.<br>One control.</span></h1>
-      <p class="lead">Windows treats every monitor the same. DispCtrl treats each one on its own terms: brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own settings.</p>
-      <div class="cta">
-        <a class="btn primary" href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zm8.5 1.2L21 21v-8.5h-9.5zm0-15.4V11.5H21V3z"/></svg>
-          Get it from the Microsoft Store
-        </a>
-        <a class="btn ghost" href="https://github.com/jesvijonathan/Display-Control/releases/latest">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-          Installer
-        </a>
-      </div>
-      <div class="trust"><span>No account</span><span>No telemetry</span><span>No admin rights</span></div>
+<header class="hero wrap" id="top">
+  <div class="reveal">
+    <span class="pill"><b>Open source</b> Free for Windows 11, under the MIT licence</span>
+    <h1><span class="grad">One App.<br>Full Ctrl.</span></h1>
+    <p class="lead">Windows treats every monitor the same. DispCtrl treats each one on its own terms: brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own settings.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zm8.5 1.2L21 21v-8.5h-9.5zm0-15.4V11.5H21V3z"/></svg>
+        Get it from the Microsoft Store
+      </a>
+      <a class="btn ghost" href="#download">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Installer
+      </a>
     </div>
-
-    <div class="desk reveal" id="desk">
-      <span class="desk-label">Try it</span>
-      <div class="scene">
-        <div class="mon big" id="monA">
-          <div class="bezel"><div class="screen"><span class="tag">Monitor</span><div class="win"></div><div class="bar"><i></i><i></i><i></i><i></i><i></i></div></div></div>
-          <div class="stand"></div><div class="base"></div>
-        </div>
-        <div class="mon small laptop hidden-bar" id="monB">
-          <div class="bezel"><div class="screen"><span class="tag">Laptop</span><div class="win"></div><div class="bar"><i></i><i></i><i></i><i></i></div></div></div>
-          <div class="base"></div>
-        </div>
-      </div>
-      <div class="controls">
-        <label class="slider">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-          <input type="range" id="unison" min="10" max="100" value="70" aria-label="Unison brightness">
-          <span class="pct" id="pct">70%</span>
-        </label>
-        <button class="chip" id="night" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>Night light</button>
-        <button class="chip" id="bar" aria-pressed="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M3 14h18"/></svg>Hide laptop taskbar</button>
-      </div>
-      <p class="hint">One slider, every display in step. Try it; this is what the tray panel does to real monitors.</p>
-    </div>
-  </header>
-</div>
+    <div class="trust"><span>No account</span><span>No telemetry</span><span>No admin rights</span></div>
+  </div>
+  <div class="show reveal" id="show">
+    <div class="float f1"><span class="d"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/></svg></span><span>Unison 62%<small>Every display, in step</small></span></div>
+    <div class="float f2"><span class="d"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span><span>Night light<small>20:00 – 07:00</small></span></div>
+    <div class="float f3"><span class="d"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M3 14h18"/></svg></span><span>Taskbar hidden<small>on the laptop only</small></span></div>
+    <div class="float f4"><span class="d"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg></span><span>Keep awake<small>for 2 hours</small></span></div>
+    <div class="frame"><img src="assets/hero.png" alt="The DispCtrl window with its quick panel open" width="1600" height="1010"></div>
+  </div>
+</header>
 
 <div class="marquee" aria-hidden="true"><div class="track" id="track">
   <span>Unison brightness</span><span>Windows' brightness keys drive every display</span><span>Night light per display</span><span>Keep awake</span><span>Stay active</span><span>Per-monitor taskbar hiding</span><span>Taskbar glass</span><span>OLED care</span><span>DDC/CI monitor controls</span><span>Focus mode</span><span>Global hotkeys</span><span>Quick panel</span><span>Command line</span>
@@ -339,52 +341,68 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
     <div class="head c reveal">
       <span class="eyebrow">Features</span>
       <h2>Everything about your displays,<br>in one place</h2>
-      <p class="sub">Built for desks with more than one screen, and for the laptops that Windows never quite gets right.</p>
+      <p class="sub">Built for desks with more than one screen, and for the laptops Windows never quite gets right.</p>
     </div>
-    <div class="bento">
-      <div class="cell w4 reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></div>
-        <h3>Unison brightness</h3>
-        <p>One slider moves every display together, each inside a range you calibrate once, so a laptop panel and an external monitor match at every level. Hardware brightness over DDC/CI and through Windows, with software dimming below the panel's floor. Windows' own Quick Settings slider and your laptop's brightness keys can drive them all.</p>
-        <div class="fig"><img src="assets/screenshots/unison.png" alt="The unison brightness control" loading="lazy"></div>
+
+    <div class="spot reveal">
+      <div>
+        <span class="eyebrow">The headline act</span>
+        <h3>One slider. Every display. In step.</h3>
+        <p>Calibrate each monitor's range once, and a laptop panel and an external monitor match at every level after that. External monitors are driven over DDC/CI and built-in screens through Windows, with software dimming below the panel's own floor.</p>
+        <p>Turn on <b>Replace Windows brightness</b> and the Quick Settings slider and your laptop's brightness keys move every display, not just the one they were made for.</p>
+        <div class="tags"><span>DDC/CI</span><span>Calibrated ranges</span><span>Brightness keys</span><span>Hot-plug aware</span></div>
       </div>
-      <div class="cell w2 tall reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg></div>
-        <h3>Keep awake &amp; stay active</h3>
-        <p>Stop the PC sleeping indefinitely, for a set time or until an hour, without touching your power plan.</p>
-        <p style="margin-top:12px"><b style="color:var(--text)">Stay active</b> keeps the screen on and stops the lock screen, and chat apps like Teams, marking you Away. It nudges the pointer by one pixel, and only after a minute idle.</p>
-        <p style="margin-top:12px">External monitors can power down on their own after inactivity, and come back when you return.</p>
-      </div>
-      <div class="cell w2 reveal">
+      <img src="assets/screenshots/unison.png" alt="Unison brightness in DispCtrl" loading="lazy">
+    </div>
+
+    <div class="fgrid4">
+      <div class="card feat reveal" style="--hue:linear-gradient(135deg,#ffb46b,#f07a3a)">
         <div class="ic"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></div>
         <h3>Night light, per display</h3>
-        <p>Warmer and dimmer than Windows allows, down to 1900K: per monitor or in unison, scheduled or following Windows.</p>
+        <p>Warmer and dimmer than Windows allows, down to 1900K, per monitor or in unison.</p>
+        <div class="tags"><span>Scheduled</span><span>Follows Windows</span></div>
       </div>
-      <div class="cell w2 reveal">
+      <div class="card feat reveal" style="--hue:linear-gradient(135deg,#5ec8ff,#2f7bf0)">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <h3>Keep awake &amp; stay active</h3>
+        <p>No sleep for as long as you need, and no "Away" status in Teams while you read.</p>
+        <div class="tags"><span>Timed</span><span>Power plan untouched</span></div>
+      </div>
+      <div class="card feat reveal" style="--hue:linear-gradient(135deg,#c4a6ff,#8b5cf6)">
         <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M3 14h18M8 21h8"/></svg></div>
         <h3>Taskbar, where you want it</h3>
-        <p>Hide it on some displays and keep it on others, with a native slide. Optional glass blur, tint and transparency.</p>
+        <p>Hide it on some displays and keep it on others, with a native-feeling slide.</p>
+        <div class="tags"><span>Per monitor</span><span>Glass &amp; tint</span></div>
       </div>
-      <div class="cell w3 reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h16M4 18h7"/><circle cx="17" cy="6" r="2"/><circle cx="14" cy="18" r="2"/></svg></div>
-        <h3>Your monitor's own controls</h3>
-        <p>Contrast, input source, picture mode, colour preset, volume and more, over DDC/CI. It only ever offers values the monitor itself accepts, and a shared device library names the codes manufacturers leave undocumented.</p>
-      </div>
-      <div class="cell w3 reveal">
+      <div class="card feat reveal" style="--hue:linear-gradient(135deg,#7ee2a8,#2fa46a)">
         <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/></svg></div>
-        <h3>OLED care &amp; focus</h3>
-        <p>Two-stage idle dimming for OLED panels that pauses for full-screen video and games, plus an instant screen rest. Focus mode dims everything around the window you're using.</p>
+        <h3>OLED care</h3>
+        <p>Two-stage idle dimming that pauses for full-screen video and games.</p>
+        <div class="tags"><span>Screen rest</span><span>Burn-in aware</span></div>
       </div>
-      <div class="cell w3 reveal">
+      <div class="card feat reveal" style="--hue:linear-gradient(135deg,#ff8fc7,#db61a2)">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h16M4 18h7"/><circle cx="17" cy="6" r="2"/><circle cx="14" cy="18" r="2"/></svg></div>
+        <h3>Monitor controls</h3>
+        <p>Contrast, input, picture mode, volume and more, with only the values your monitor accepts.</p>
+        <div class="tags"><span>DDC/CI</span><span>Device library</span></div>
+      </div>
+      <div class="card feat reveal" style="--hue:linear-gradient(135deg,#9aa4ff,#5a5ee8)">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <h3>Focus mode</h3>
+        <p>Dims everything around the window you're using, per monitor, following the mouse if you like.</p>
+        <div class="tags"><span>Per monitor</span><span>Hover aware</span></div>
+      </div>
+      <div class="card feat reveal" style="--hue:linear-gradient(135deg,#ffd36b,#e0a21a)">
         <div class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></div>
         <h3>Global hotkeys</h3>
-        <p>Brightness, night light, focus, keep awake and more, even with the window closed. It warns you when another program already owns a shortcut.</p>
-        <div class="kbd"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>PgUp</kbd><kbd>PgDn</kbd><kbd>N</kbd><kbd>D</kbd></div>
+        <p>Brightness, night light, focus and more, even with the window closed.</p>
+        <div class="tags"><span>Conflict warnings</span><span>21 actions</span></div>
       </div>
-      <div class="cell w3 reveal">
+      <div class="card feat reveal" style="--hue:linear-gradient(135deg,#6be0d6,#1a9e97)">
         <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 15h8M8 9h3"/></svg></div>
-        <h3>Display setup, done properly</h3>
-        <p>Resolution, refresh rate, scaling, HDR and orientation per monitor, per-monitor wallpaper, and an arrangement you drag by each display's real physical size.</p>
+        <h3>Display setup</h3>
+        <p>Modes, scaling, HDR, orientation, per-monitor wallpaper, and an arrangement by real size.</p>
+        <div class="tags"><span>HDR</span><span>Wallpaper</span></div>
       </div>
     </div>
   </div>
@@ -440,79 +458,91 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   </div>
 </section>
 
-<section style="padding-top:20px">
-  <div class="wrap">
-    <div class="band">
-      <div class="cell reveal">
-        <span class="eyebrow">Private by design</span>
-        <h3 style="font-size:26px;margin:10px 0">Your desk stays on your desk</h3>
-        <p>DispCtrl never phones home. Reporting a problem or sharing a monitor opens a prefilled GitHub issue in your own browser, with serial numbers, device paths and your account name removed. Nothing is sent until you press Submit.</p>
+<section id="privacy-by-design">
+  <div class="wrap priv">
+    <div class="reveal">
+      <div class="shield"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></div>
+      <span class="eyebrow">Private by design</span>
+      <h2>Your desk stays<br>on your desk</h2>
+      <p class="sub">DispCtrl never phones home. When you report a problem or share a monitor, it opens a prefilled GitHub issue in your own browser, scrubbed of serial numbers, device paths and your account name, and nothing goes anywhere until you press Submit.</p>
+      <div class="mini">
+        <div><b>0</b><span>network requests</span></div>
+        <div><b>~16 ms</b><span>CPU a minute, idle</span></div>
+        <div><b>MIT</b><span>read it, change it</span></div>
       </div>
-      <div class="cell reveal"><div class="num">0</div><p>network requests, accounts or trackers</p></div>
-      <div class="cell reveal"><div class="num">~16&nbsp;ms</div><p>of CPU a minute while idle in the background</p></div>
-      <div class="cell reveal"><div class="num">MIT</div><p>licensed. Read it, change it, ship it.</p></div>
+    </div>
+    <div class="ledger reveal">
+      <div class="top">What leaves your PC</div>
+      <div class="row"><span class="mark no">✕</span><span class="k">Telemetry &amp; analytics</span><span class="v">None</span></div>
+      <div class="row"><span class="mark no">✕</span><span class="k">Accounts &amp; sign-in</span><span class="v">None</span></div>
+      <div class="row"><span class="mark no">✕</span><span class="k">Ads &amp; trackers</span><span class="v">None</span></div>
+      <div class="row"><span class="mark no">✕</span><span class="k">Background network requests</span><span class="v">None</span></div>
+      <div class="row"><span class="mark ok">✓</span><span class="k">Settings &amp; logs</span><span class="v">Stay in %LOCALAPPDATA%</span></div>
+      <div class="row"><span class="mark ok">✓</span><span class="k">Bug reports &amp; monitor records</span><span class="v">Only when you press Submit</span></div>
     </div>
   </div>
 </section>
 
-<section id="download">
+<section id="download" style="padding-top:40px">
   <div class="wrap">
-    <div class="head c reveal">
+    <div class="dlhead reveal">
+      <img src="assets/logo.png" alt="DispCtrl logo">
       <span class="eyebrow">Download</span>
       <h2>Get DispCtrl</h2>
       <p class="sub">Windows 11 on x64. Installs per user; nothing needs administrator rights.</p>
+      <span class="ver" id="ver" hidden>Latest <b id="vername"></b> · <span id="verdate"></span></span>
     </div>
     <div class="dl">
-      <div class="cell rec reveal">
+      <div class="card rec reveal">
         <span class="badge">Recommended</span>
+        <div class="lg" style="background:linear-gradient(135deg,#2a8cff,#0052cc)"><svg viewBox="0 0 24 24" fill="#fff"><path d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zm8.5 1.2L21 21v-8.5h-9.5zm0-15.4V11.5H21V3z"/></svg></div>
         <h3>Microsoft Store</h3>
         <p>Automatic updates, installed and removed like any other Store app.</p>
         <a class="btn primary" href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">Open in the Store</a>
       </div>
-      <div class="cell reveal">
-        <h3>Installer</h3>
-        <p>The classic setup: a desktop shortcut, <code class="i">dispctrl</code> on your PATH, and repair and reset options.</p>
-        <a class="btn ghost" href="https://github.com/jesvijonathan/Display-Control/releases/latest">Latest release</a>
+      <div class="card reveal">
+        <div class="lg" style="background:linear-gradient(135deg,#c4a6ff,#8b5cf6)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+        <h3>Direct download</h3>
+        <p>The setup program: a desktop shortcut, <code class="i">dispctrl</code> on your PATH, and repair options.</p>
+        <a class="btn ghost" id="dlSetup" href="https://github.com/jesvijonathan/Display-Control/releases/latest">Download installer</a>
       </div>
-      <div class="cell reveal">
-        <h3>Portable &amp; source</h3>
-        <p>Zips for the app and the command line, or build it yourself with <code class="i">build.cmd</code>.</p>
-        <a class="btn ghost" href="https://github.com/jesvijonathan/Display-Control#build-from-source">Build from source</a>
+      <div class="card reveal">
+        <div class="lg" style="background:linear-gradient(135deg,#3a3148,#1c1628)"><svg viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></div>
+        <h3>Portable zip</h3>
+        <p>Unzip and run, for the app or just the command line. Nothing installed.</p>
+        <a class="btn ghost" id="dlZip" href="https://github.com/jesvijonathan/Display-Control/releases/latest">Download zip</a>
+      </div>
+      <div class="card reveal">
+        <span class="badge soon">Soon</span>
+        <div class="lg" style="background:linear-gradient(135deg,#1a1a1a,#3b3b3b)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-5-6-5M12 19h8"/></svg></div>
+        <h3>winget</h3>
+        <p>Install and update from the Windows Package Manager. Coming after the first stable release.</p>
+        <div class="cmd">winget install DispCtrl</div>
       </div>
     </div>
+    <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/Display-Control#build-from-source">Build from source</a> with a single <code class="i">build.cmd</code>. Every release lists <a href="https://github.com/jesvijonathan/Display-Control/releases">SHA-256 checksums</a>.</p>
   </div>
 </section>
 
-<section id="donate" style="padding-top:20px">
+<section id="support" style="padding-top:20px">
   <div class="wrap">
     <div class="donate reveal">
-      <div class="grid">
-        <div>
-          <span class="eyebrow">Support the project</span>
-          <h2>Made in spare time.<br>Free for everyone.</h2>
-          <p class="sub">DispCtrl has no ads, no paid tier and no tracking, and it never will. If it saves you a little every day, you can help keep it going: donations pay for development time and for test hardware, since every new monitor teaches it something.</p>
-          <p class="sub" style="margin-top:14px">Can't donate? Star the repository, report a bug, or <a href="https://github.com/jesvijonathan/Display-Control/tree/master/devices">add your monitor to the device library</a>. That helps just as much.</p>
-        </div>
-        <div class="ways">
-          <a class="way gh" href="https://github.com/sponsors/jesvijonathan">
-            <span class="logo">♥</span><span><b>GitHub Sponsors</b><small>Monthly or one-time</small></span><span class="go">→</span>
-          </a>
-          <a class="way pp" id="paypal" hidden>
-            <span class="logo">P</span><span><b>PayPal</b><small>One-time, any currency</small></span><span class="go">→</span>
-          </a>
-          <a class="way upi" id="upiLink" hidden>
-            <span class="logo">UPI</span><span><b>UPI</b><small>Open in your UPI app (India)</small></span><span class="go">→</span>
-          </a>
-          <div class="qrbox" id="upiQr" hidden>
-            <canvas id="qr" width="132" height="132" aria-label="UPI QR code"></canvas>
-            <div>
-              <p>Scan with any UPI app: GPay, PhonePe, Paytm or BHIM.</p>
-              <p style="margin-top:6px"><code id="upiId"></code></p>
-              <button class="btn ghost copy" id="copyUpi">Copy UPI ID</button>
-            </div>
-          </div>
-        </div>
+      <div class="heart"><svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1 5.4 3 2-2 3.4-3 5.4-3 3.6 0 5.7 3.6 4.2 7.2C19.5 16.4 12 21 12 21z"/></svg></div>
+      <span class="eyebrow" style="display:block">Support the project</span>
+      <h2>Made in spare time.<br>Free for everyone.</h2>
+      <p class="sub">No ads, no paid tier, no tracking, ever. If DispCtrl saves you a little every day, a small donation keeps it going. It pays for development time and for the test monitors that teach it something new.</p>
+      <div class="pay">
+        <span class="payitem"><a class="paybtn p-gh" href="https://github.com/sponsors/jesvijonathan">
+          <svg viewBox="0 0 24 24" fill="#fff"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.1 3 4.5 6.6 4.5c2 0 3.4 1 5.4 3 2-2 3.4-3 5.4-3 3.6 0 5.7 3.6 4.2 7.2C19.5 16.4 12 21 12 21z"/></svg>
+          Sponsor on GitHub<span class="tip">Honestly? I really want a MacBook 💻</span></a></span>
+        <span class="payitem" id="payPal" hidden><a class="paybtn p-pp" id="payPalLink" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="#fff"><path d="M7.1 21.5H3.6L6.5 3h7.1c3.4 0 5.6 1.8 5 5.1-.6 3.9-3.3 5.6-6.9 5.6H9.4l-1 6.2zm2.7-9.9h1.9c2 0 3.2-.9 3.5-2.8.3-1.7-.7-2.5-2.4-2.5h-2z"/></svg>
+          Donate with PayPal<span class="tip">Every bit gets me closer to that MacBook ✨</span></a></span>
+        <span class="payitem" id="payUpi" hidden><button class="paybtn p-upi" id="payUpiBtn">
+          <svg viewBox="0 0 24 24" fill="#fff"><path d="M14.6 2 9 22h3.2L17.8 2zM6.8 5 2 12l4.8 7h3.3l-4.8-7 4.8-7z"/></svg>
+          Pay with UPI<span class="tip">Scan, send, and make my day 🙌</span></button></span>
       </div>
+      <p class="help">Can't donate? <a href="https://github.com/jesvijonathan/Display-Control">Star the repository</a>, <a href="https://github.com/jesvijonathan/Display-Control/issues">report a bug</a>, or <a href="https://github.com/jesvijonathan/Display-Control/tree/master/devices">add your monitor</a>. It helps just as much.</p>
     </div>
   </div>
 </section>
@@ -534,7 +564,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
           <h4>When you choose to share</h4>
           <p>"Report a problem" and "Share a monitor" open a prefilled GitHub issue in your own browser. Serial numbers, device paths, file paths and your account name are removed first, and you can read the whole text before sending. Nothing is sent unless you press Submit on GitHub, and what you then publish is covered by <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>.</p>
           <h4>This website</h4>
-          <p>Hosted on GitHub Pages. It sets no cookies and uses no analytics. It asks GitHub's public API for the star count and draws the donation QR code in your browser.</p>
+          <p>Hosted on GitHub Pages. It sets no cookies and uses no analytics; it remembers your light or dark choice in your own browser only. It asks GitHub's public API for the star count and latest release, and draws the UPI QR code in your browser.</p>
           <h4>Contact</h4>
           <p><a href="mailto:jesvi22j@gmail.com">jesvi22j@gmail.com</a></p>
         </div>
@@ -560,7 +590,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 
 <footer>
   <div class="wrap">
-    <div class="fgrid">
+    <div class="fcols">
       <div class="fbrand">
         <a class="brand" href="#top"><img src="assets/logo.png" alt="">DispCtrl</a>
         <p>Per-monitor display control for Windows 11. Free and open source, made by <a href="https://www.jesvi.net">Jesvi Jonathan</a>.</p>
@@ -568,43 +598,56 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <div><h5>Product</h5><a href="#features">Features</a><a href="#panel">Quick panel</a><a href="#tour">Tour</a><a href="#cli">Command line</a></div>
       <div><h5>Download</h5><a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">Microsoft Store</a><a href="https://github.com/jesvijonathan/Display-Control/releases/latest">Installer</a><a href="https://github.com/jesvijonathan/Display-Control/releases">All releases</a><a href="https://github.com/jesvijonathan/Display-Control/blob/master/docs/CHANGELOG.md">Changelog</a></div>
       <div><h5>Project</h5><a href="https://github.com/jesvijonathan/Display-Control">Source code</a><a href="https://github.com/jesvijonathan/Display-Control/issues">Report an issue</a><a href="https://github.com/jesvijonathan/Display-Control/tree/master/devices">Device library</a><a href="https://github.com/jesvijonathan/Display-Control/blob/master/.github/CONTRIBUTING.md">Contributing</a></div>
-      <div><h5>More</h5><a href="#donate">Donate</a><a href="#privacy" data-open="privacy">Privacy</a><a href="#terms" data-open="terms">Terms</a><a href="mailto:jesvi22j@gmail.com">Contact</a></div>
+      <div><h5>More</h5><a href="#support">Donate</a><a href="#privacy" data-open="privacy">Privacy</a><a href="#terms" data-open="terms">Terms</a><a href="mailto:jesvi22j@gmail.com">Contact</a></div>
     </div>
-    <div class="wordmark">DispCtrl</div>
+    <div class="wordmark" aria-hidden="true"><img src="assets/logo.png" alt=""><span>DispCtrl</span></div>
     <div class="fbot"><span>© 2026 Jesvi Jonathan · MIT licence</span><span>Not affiliated with Microsoft.</span></div>
   </div>
 </footer>
 
+<div class="modal" id="upiModal" role="dialog" aria-modal="true" aria-label="Pay with UPI">
+  <div class="sheet">
+    <h3 style="margin:0">Pay with UPI</h3>
+    <p style="margin:6px 0 0;color:var(--muted);font-size:14px">Scan with GPay, PhonePe, Paytm or BHIM.</p>
+    <canvas id="qr" width="220" height="220"></canvas>
+    <div class="id" id="upiId"></div>
+    <div class="row">
+      <a class="btn primary" id="upiOpen">Open UPI app</a>
+      <button class="btn ghost" id="upiCopy">Copy ID</button>
+      <button class="btn ghost" id="upiClose">Close</button>
+    </div>
+  </div>
+</div>
 <div class="lb" id="lb"><img alt=""></div>
 <div class="toast" id="toast">Copied</div>
 
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
 <script>
-/* ------- Donation settings: fill these in to show each option. ------- */
+/* =========================== DONATION SETTINGS ===========================
+   Fill these in. Each button stays hidden until its value is set.        */
 const DONATE = {
-  paypal: '',      // e.g. 'https://paypal.me/yourname'
-  upiId: '',       // e.g. 'yourname@okaxis'
+  paypal:  '',                // e.g. 'https://paypal.me/yourname'
+  upiId:   '',                // e.g. 'yourname@okaxis'
   upiName: 'Jesvi Jonathan'
 };
-/* --------------------------------------------------------------------- */
+/* ======================================================================= */
 
-// Interactive desk
-const range = document.getElementById('unison'), pct = document.getElementById('pct');
-const screens = document.querySelectorAll('#desk .screen');
-function level(){
-  const v = +range.value; pct.textContent = v + '%';
-  range.style.setProperty('--fill', ((v - 10) / 90 * 100) + '%');
-  screens.forEach(s => s.style.setProperty('--b', (0.25 + v / 100 * 0.8).toFixed(2)));
-}
-range.addEventListener('input', level); level();
-const night = document.getElementById('night');
-night.onclick = () => { const on = night.getAttribute('aria-pressed') !== 'true'; night.setAttribute('aria-pressed', on);
-  screens.forEach(s => s.style.setProperty('--warm', on ? .38 : 0)); };
-const bar = document.getElementById('bar'), monB = document.getElementById('monB');
-bar.onclick = () => { const on = bar.getAttribute('aria-pressed') !== 'true'; bar.setAttribute('aria-pressed', on); monB.classList.toggle('hidden-bar', on); };
+const $ = id => document.getElementById(id);
+const toast = m => { const t = $('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1600); };
 
-// Marquee: duplicate for a seamless loop
-const track = document.getElementById('track'); track.innerHTML += track.innerHTML;
+// Light and dark
+$('theme').onclick = () => {
+  const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('theme', t); } catch (e) {}
+};
+
+// Marquee: duplicated for a seamless loop
+$('track').innerHTML += $('track').innerHTML;
+
+// Hero screenshot straightens as it scrolls into view
+const show = $('show');
+addEventListener('scroll', () => { show.classList.toggle('flat', scrollY > 120); }, { passive: true });
 
 // Tour
 const shots = [
@@ -616,13 +659,15 @@ const shots = [
   ['Devices', 'Monitors and their codes', 'devices.png'],
   ['Settings', 'Updates, repair, reset', 'settings.png']
 ];
-const glist = document.getElementById('glist'), gimg = document.getElementById('gimg');
-function show(i){ [...glist.children].forEach((b, j) => b.setAttribute('aria-selected', i === j));
+const glist = $('glist'), gimg = $('gimg');
+function pick(i) {
+  [...glist.children].forEach((b, j) => b.setAttribute('aria-selected', i === j));
   gimg.style.opacity = .2; const src = 'assets/screenshots/' + shots[i][2];
-  const pre = new Image(); pre.onload = () => { gimg.src = src; gimg.alt = shots[i][0]; gimg.style.opacity = 1; }; pre.src = src; }
+  const pre = new Image(); pre.onload = () => { gimg.src = src; gimg.alt = shots[i][0]; gimg.style.opacity = 1; }; pre.src = src;
+}
 shots.forEach((s, i) => { const b = document.createElement('button'); b.className = 'gbtn'; b.setAttribute('role', 'tab');
-  b.innerHTML = s[0] + '<small>' + s[1] + '</small>'; b.onclick = () => show(i); glist.appendChild(b); });
-show(0);
+  b.innerHTML = s[0] + '<small>' + s[1] + '</small>'; b.onclick = () => pick(i); glist.appendChild(b); });
+pick(0);
 
 // Typing terminal
 const lines = [
@@ -631,55 +676,63 @@ const lines = [
   ['c', '# switch the Dell to HDMI 1'], ['p', 'dispctrl display control --monitor 2 --name input-source --value hdmi-1'], ['', ''],
   ['c', '# keep the screen on and stay Available'], ['p', 'dispctrl awake set --stay-active on']
 ];
-const term = document.getElementById('term'); let started = false;
-function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
-async function type(){
-  if (started) return; started = true; let html = '';
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const term = $('term'); let typed = false;
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+async function type() {
+  if (typed) return; typed = true; let html = '';
+  const quick = matchMedia('(prefers-reduced-motion: reduce)').matches;
   for (const [k, t] of lines) {
     const pre = k === 'p' ? '<span class="p">&gt;</span> ' : '';
-    if (k === 'p' && !reduce) { for (let i = 1; i <= t.length; i++) { term.innerHTML = html + pre + esc(t.slice(0, i)) + '<span class="cursor"></span>'; await new Promise(r => setTimeout(r, 22)); } }
+    if (k === 'p' && !quick) for (let i = 1; i <= t.length; i++) { term.innerHTML = html + pre + esc(t.slice(0, i)) + '<span class="cursor"></span>'; await new Promise(r => setTimeout(r, 22)); }
     html += pre + (k && k !== 'p' ? '<span class="' + k + '">' + esc(t) + '</span>' : esc(t)) + '\n';
     term.innerHTML = html + '<span class="cursor"></span>';
-    if (!reduce) await new Promise(r => setTimeout(r, k === 'p' ? 260 : 60));
+    if (!quick) await new Promise(r => setTimeout(r, k === 'p' ? 260 : 60));
   }
 }
 
-// Reveal on scroll, and start the terminal when it appears
+// Reveal on scroll
 const io = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) return;
   e.target.classList.add('in'); if (e.target.classList.contains('term')) type(); io.unobserve(e.target); }), { threshold: .15 });
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
 // Lightbox
-const lb = document.getElementById('lb');
-document.querySelectorAll('.gview img, .panelshot img, .cell .fig img').forEach(el => el.addEventListener('click', () => { lb.querySelector('img').src = el.src; lb.classList.add('open'); }));
+const lb = $('lb');
+document.querySelectorAll('.gview img, .panelshot img, .spot img, .show img').forEach(el => el.addEventListener('click', () => { lb.querySelector('img').src = el.src; lb.classList.add('open'); }));
 lb.onclick = () => lb.classList.remove('open');
-addEventListener('keydown', e => { if (e.key === 'Escape') lb.classList.remove('open'); });
 
-// Footer links open their section
-document.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', () => { document.getElementById(a.dataset.open).open = true; }));
+// Legal links open their section
+document.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', () => { $(a.dataset.open).open = true; }));
 if (location.hash === '#privacy' || location.hash === '#terms') document.querySelector(location.hash).open = true;
 
-// Star count (public API, no cookies)
-fetch('https://api.github.com/repos/jesvijonathan/Display-Control').then(r => r.ok ? r.json() : null).then(d => {
-  if (d && d.stargazers_count >= 0) { const s = document.getElementById('stars'); s.textContent = '· ' + d.stargazers_count; s.hidden = false; }
+// GitHub: star count and the latest release's files (public API, no cookies)
+const repo = 'https://api.github.com/repos/jesvijonathan/Display-Control';
+fetch(repo).then(r => r.ok ? r.json() : null).then(d => { if (d && d.stargazers_count >= 0) { $('stars').textContent = '· ' + d.stargazers_count; $('stars').hidden = false; } }).catch(() => {});
+fetch(repo + '/releases?per_page=5').then(r => r.ok ? r.json() : null).then(list => {
+  const rel = (list || []).find(x => !x.draft); if (!rel) return;
+  $('vername').textContent = rel.tag_name; $('verdate').textContent = new Date(rel.published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); $('ver').hidden = false;
+  const asset = re => (rel.assets || []).find(a => re.test(a.name));
+  const setup = asset(/setup\.exe$/i), zip = asset(/desktop\.zip$/i);
+  if (setup) $('dlSetup').href = setup.browser_download_url;
+  if (zip) $('dlZip').href = zip.browser_download_url;
 }).catch(() => {});
 
-// Donations: each option appears only once it is configured
-const toast = m => { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1600); };
-if (DONATE.paypal) { const p = document.getElementById('paypal'); p.href = DONATE.paypal; p.hidden = false; }
+// Donations
+if (DONATE.paypal) { $('payPalLink').href = DONATE.paypal; $('payPal').hidden = false; }
 if (DONATE.upiId) {
   const uri = 'upi://pay?pa=' + encodeURIComponent(DONATE.upiId) + '&pn=' + encodeURIComponent(DONATE.upiName) + '&cu=INR&tn=' + encodeURIComponent('DispCtrl donation');
-  const link = document.getElementById('upiLink'); link.href = uri; link.hidden = false;
-  document.getElementById('upiId').textContent = DONATE.upiId; document.getElementById('upiQr').hidden = false;
-  document.getElementById('copyUpi').onclick = () => navigator.clipboard.writeText(DONATE.upiId).then(() => toast('UPI ID copied'));
-  addEventListener('load', () => { if (!window.qrcode) return;
+  $('payUpi').hidden = false; $('upiId').textContent = DONATE.upiId; $('upiOpen').href = uri;
+  let drawn = false;
+  const draw = () => { if (drawn || !window.qrcode) return; drawn = true;
     const q = qrcode(0, 'M'); q.addData(uri); q.make();
-    const c = document.getElementById('qr'), ctx = c.getContext('2d'), n = q.getModuleCount(), s = c.width / n;
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.fillStyle = '#120d1c';
-    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) ctx.fillRect(Math.floor(k * s), Math.floor(r * s), Math.ceil(s), Math.ceil(s));
-  });
+    const c = $('qr'), x = c.getContext('2d'), n = q.getModuleCount(), s = c.width / n;
+    x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.fillStyle = '#120d1c';
+    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) x.fillRect(Math.floor(k * s), Math.floor(r * s), Math.ceil(s), Math.ceil(s)); };
+  $('payUpiBtn').onclick = () => { draw(); $('upiModal').classList.add('open'); };
+  $('upiClose').onclick = () => $('upiModal').classList.remove('open');
+  $('upiModal').onclick = e => { if (e.target.id === 'upiModal') $('upiModal').classList.remove('open'); };
+  $('upiCopy').onclick = () => navigator.clipboard.writeText(DONATE.upiId).then(() => toast('UPI ID copied'));
 }
+addEventListener('keydown', e => { if (e.key === 'Escape') { lb.classList.remove('open'); $('upiModal').classList.remove('open'); } });
 </script>
 </body>
 </html>
