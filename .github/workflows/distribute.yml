@@ -51,7 +51,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       # For the Store identity in build/packaging/AppxManifest.xml.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download the MSIX from the release
         id: msix
         shell: pwsh
@@ -74,7 +74,7 @@ jobs:
           $expected = if ($env:STORE_IDENTITY) { $env:STORE_IDENTITY } else { ([xml](Get-Content build/packaging/AppxManifest.xml -Raw)).Package.Identity.Name }
           if ($name -ne $expected) { throw "The MSIX identity is '$name', not the Store's '$expected'." }
           "path=$($package.FullName)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-      - uses: microsoft/microsoft-store-apppublisher@v1.1
+      - uses: microsoft/microsoft-store-apppublisher@v1.4
       - name: Submit to Partner Center
         shell: pwsh
         env:
