@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jesvijonathan/Display-Control/devices/schema/definition.schema.json",
+  "$id": "https://raw.githubusercontent.com/jesvijonathan/Display-Control/master/devices/schema/definition.schema.json",
   "title": "DispCtrl device definition",
-  "description": "What a monitor model's, a manufacturer's or every monitor's VCP codes mean. Validated by tools/devicecheck with the same rules DispCtrl loads it with; see docs/DEVICE-LIBRARY.md.",
+  "description": "What a monitor model's, a manufacturer's or every monitor's VCP codes mean, and for a model what its panel is. Validated by tools/devicecheck with the same rules DispCtrl loads it with; see docs/DEVICE-LIBRARY.md.",
   "type": "object",
   "required": ["schema", "target", "controls"],
   "additionalProperties": false,
@@ -11,6 +11,16 @@
     "target": { "type": "string", "pattern": "^(\\*|[A-Z]{3}(-[0-9A-F]{4})?)$", "description": "* for every monitor, DEL for a manufacturer, DEL-A234 for a model." },
     "name": { "type": ["string", "null"], "maxLength": 120 },
     "extends": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z]{3}(-[0-9A-F]{4})?$" }, "description": "Targets whose mappings this one takes first." },
+    "panel": {
+      "type": ["object", "null"],
+      "description": "What the panel is, for a model only. The one thing a built-in panel can be described by: it has no DDC/CI channel.",
+      "required": ["technology"],
+      "additionalProperties": false,
+      "properties": {
+        "technology": { "type": "string", "minLength": 1, "maxLength": 40, "examples": ["LCD", "OLED", "QD-OLED", "Mini-LED"] },
+        "notes": { "type": ["string", "null"], "maxLength": 600 }
+      }
+    },
     "controls": {
       "type": "array",
       "items": {

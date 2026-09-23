@@ -16,6 +16,7 @@ using DispCtrl, not for people reading the diff.
 - Sponsor entry in the navigation, and contact details on the About page.
 - **Stay active**: keeps the screen on and stops the lock screen and chat apps showing you as Away, with a one-pixel pointer nudge after a minute idle. A quick panel tile, a switch under Keep awake, a hotkey action and `dispctrl awake set --stay-active on`.
 - The tray icon is drawn bolder while Stay active or Keep awake is on, and can use the Windows accent colour.
+- The device library can say what a model's panel is, so built-in laptop panels, which have no DDC/CI, can be described too. A panel the library knows as OLED gets burn-in protection without being marked by hand. `dispctrl devices panel --monitor 1 --technology OLED` sets it; sharing carries it.
 
 ### Changed
 - Thirteen default shortcuts, four switched on; existing desks keep theirs and get the new ones switched off.
@@ -27,6 +28,9 @@ using DispCtrl, not for people reading the diff.
 - A display's Reset also factory-reset the monitor without asking; that is now an unticked option in a confirmation.
 - Share opened an empty issue when a record was too long for a link.
 - An exception on an engine background thread could leave a hidden taskbar off-screen.
+- A click outside the quick panel sometimes left it open. Windows had refused it the focus, so it never lost the focus either.
+- Device records: "Dell U2424H" rather than "DEL U2424H", "HDMI" rather than "Hdmi", and an unnamed value is no longer printed twice.
+- Task Manager, Startup apps and the tray icon settings name the programs "DispCtrl engine" and "DispCtrl" rather than their file names.
 
 ## [0.1.0] - Unreleased
 

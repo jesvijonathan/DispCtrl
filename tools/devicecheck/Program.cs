@@ -74,6 +74,25 @@ static int SelfTest()
             "single-model shares still merge without removing existing codes");
         File.WriteAllText(input, "Paste the complete device share here.");
         Check(Intake(input, refused) == 3 && !Directory.Exists(refused), "a link placeholder is never ingested as a record");
+        Check(DeviceDefinitions.Validate(new DeviceDefinition { Target = "TST-0303", Panel = new() { Technology = "OLED" } }).Count == 0,
+            "a model's definition may say what its panel is, with no controls at all");
+        Check(DeviceDefinitions.Validate(new DeviceDefinition { Target = "TST", Panel = new() { Technology = "OLED" } }).Count == 1,
+            "a manufacturer's definition may not: a maker ships both kinds");
+        Check(DeviceDefinitions.Validate(new DeviceDefinition { Target = "TST-0303", Panel = new() { Technology = " " } }).Count == 1,
+            "a panel needs a technology");
+        string library = Path.Combine(temp, "library");
+        Directory.CreateDirectory(Path.GetDirectoryName(DeviceLayout.DefinitionPath(library, "TST-0404"))!);
+        File.WriteAllText(DeviceLayout.DefinitionPath(library, "TST-0404"), "{\"schema\":1,\"target\":\"TST-0404\",\"panel\":{\"technology\":\"OLED\"},\"controls\":[]}");
+        Directory.CreateDirectory(Path.GetDirectoryName(DeviceLayout.DefinitionPath(library, "TST-0505"))!);
+        File.WriteAllText(DeviceLayout.DefinitionPath(library, "TST-0505"), "{\"schema\":1,\"target\":\"TST-0505\",\"extends\":[\"TST-0404\"],\"controls\":[]}");
+        var saved = DeviceLibrary.FoldersOverride;
+        DeviceLibrary.FoldersOverride = (library, Path.Combine(temp, "user"));
+        try
+        {
+            Check(DeviceLibrary.Panel("TST-0404")?.IsOled == true && DeviceLibrary.Panel("TST-0505")?.IsOled == true
+                && DeviceLibrary.Panel("TST-0606") is null, "the panel resolves from the model, then what it extends, and is absent otherwise");
+        }
+        finally { DeviceLibrary.FoldersOverride = saved; }
         Console.WriteLine($"{checks} intake checks passed.");
         return 0;
     }
@@ -116,7 +135,7 @@ static int Validate(string root)
     }
 
     foreach (var (target, d) in definitions.OrderBy(p => p.Key, StringComparer.Ordinal))
-        Console.WriteLine($"ok   {target}: {d.Controls.Count} control(s)");
+        Console.WriteLine($"ok   {target}: {d.Controls.Count} control(s){(d.Panel is { } panel ? ", panel " + panel.Technology : "")}");
     foreach (string p in problems) Console.WriteLine($"FAIL {p}");
     Console.WriteLine($"{definitions.Count} definition(s), {DeviceLayout.Models(root).Count()} model(s), {problems.Count} problem(s)");
     return problems.Count == 0 ? 0 : 1;
@@ -132,23 +151,40 @@ static IEnumerable<string> RecordProblems(string text, string key)
     if (Regex.IsMatch(text, @"\b\d&[0-9a-f]{6,8}&\d&UID\d+", RegexOptions.IgnoreCase)) yield return "carries a device instance id";
 }
 
+// A row of a record's table, or null.
+static string? RecordRow(string root, string model, string label)
+{
+    string record = DeviceLayout.RecordPath(root, model);
+    if (!File.Exists(record)) return null;
+    return Regex.Match(File.ReadAllText(record), $@"^\|\s*{Regex.Escape(label)}\s*\|\s*(?<v>[^|]+?)\s*\|", RegexOptions.Multiline) is { Success: true } m
+        ? m.Groups["v"].Value : null;
+}
+
 // The name a model goes by: its definition's, else the record's table.
 static string? NameOf(string root, string model, DeviceDefinition? d)
 {
     if (!string.IsNullOrWhiteSpace(d?.Name)) return d!.Name;
-    string record = DeviceLayout.RecordPath(root, model);
-    if (!File.Exists(record)) return null;
-    string text = File.ReadAllText(record);
-    string? Row(string label) => Regex.Match(text, $@"^\|\s*{label}\s*\|\s*(?<v>[^|]+?)\s*\|", RegexOptions.Multiline) is { Success: true } m ? m.Groups["v"].Value : null;
+    string? Row(string label) => RecordRow(root, model, label);
     string? maker = Row("Manufacturer") is { } mk ? Regex.Replace(mk, @"\s*\([A-Z]{3}\)$", "") : null;
     string? product = Row("Model");
-    if (product is null)
+    if (Row("Connector") == "Internal" && (product is null || product == model))
     {
         // Built-in panels rarely name themselves; say what the record does know.
         string? inches = Row("Physical size") is { } size && Regex.Match(size, @"\((?<in>[\d.]+) in\)") is { Success: true } s ? s.Groups["in"].Value + " inch" : null;
-        return Row("Connector") == "Internal" ? $"Built-in panel{(inches is null ? "" : ", " + inches)}" : null;
+        string? machine = Row("Built into");
+        return $"Built-in panel{(inches is null ? "" : ", " + inches)}{(machine is null ? "" : ", in " + machine)}";
     }
+    if (product is null) return null;
     return maker is null || product.StartsWith(maker, StringComparison.OrdinalIgnoreCase) ? product : $"{maker} {product}";
+}
+
+// What the panel is: the definition's word, else the record's, without its hedge.
+static string? PanelOf(string root, string model, DeviceDefinition? d)
+{
+    if (d?.Panel is { } panel) return panel.Technology;
+    string? row = RecordRow(root, model, "Panel technology");
+    if (row is null || row.StartsWith("not ", StringComparison.OrdinalIgnoreCase)) return null;
+    return Regex.Replace(row, @"\s*\((reported by owner|device library)\)$", "");
 }
 
 static int Index(string root, bool check)
@@ -180,6 +216,7 @@ static int Index(string root, bool check)
             ["name"] = NameOf(root, m, d),
             ["record"] = File.Exists(DeviceLayout.RecordPath(root, m)),
             ["codes"] = d?.Controls.Count ?? 0,
+            ["panel"] = PanelOf(root, m, d),
             ["writable"] = d?.Controls.Count(c => c.Writable) ?? 0,
             ["extends"] = new JsonArray((d?.Extends ?? []).Select(e => (JsonNode?)JsonValue.Create(e)).ToArray()),
         };
@@ -196,17 +233,19 @@ static int Index(string root, bool check)
     foreach (string b in brands)
     {
         var inBrand = models.Where(m => m.StartsWith(b + "-", StringComparison.Ordinal)).ToList();
-        md.Append($"\n## {b}\n\n");
+        string maker = DispCtrl.Core.Displays.PnpNames.For(b);
+        md.Append(maker.Length > 0 ? $"\n## {maker} ({b})\n\n" : $"\n## {b}\n\n");
         if (definitions.TryGetValue(b, out DeviceDefinition? bd)) md.Append($"Every {b} model: {bd.Controls.Count} mapped code(s), [brand.json]({b}/{DeviceLayout.BrandFile}).\n\n");
         if (inBrand.Count == 0) continue;
-        md.Append("| Model | Name | Record | Mapped codes |\n|---|---|---|---|\n");
+        md.Append("| Model | Name | Panel | Record | Mapped codes |\n|---|---|---|---|---|\n");
         foreach (string m in inBrand)
         {
             definitions.TryGetValue(m, out DeviceDefinition? d);
             string folder = $"{b}/{m[4..]}";
             string record = File.Exists(DeviceLayout.RecordPath(root, m)) ? $"[record]({folder}/{DeviceLayout.RecordFile})" : "";
-            string codes = d is null ? "" : $"[{d.Controls.Count}]({folder}/{DeviceLayout.DefinitionFile})";
-            md.Append($"| `{m}` | {(NameOf(root, m, d) ?? "").Replace("|", "\\|")} | {record} | {codes} |\n");
+            // A definition that only says what the panel is still gets its link.
+            string codes = d is null ? "" : $"[{(d.Controls.Count > 0 ? d.Controls.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) : "definition")}]({folder}/{DeviceLayout.DefinitionFile})";
+            md.Append($"| `{m}` | {(NameOf(root, m, d) ?? "").Replace("|", "\\|")} | {PanelOf(root, m, d) ?? ""} | {record} | {codes} |\n");
         }
     }
 
@@ -284,6 +323,8 @@ static int IntakeModel(string body, JsonNode payload, string root, Dictionary<st
             : new DeviceDefinition { Target = incoming.Target };
         current.Name ??= incoming.Name;
         foreach (string link in incoming.Extends) if (!current.Extends.Contains(link)) current.Extends.Add(link);
+        // A share that says what the panel is replaces what was said before.
+        if (incoming.Panel is not null) current.Panel = incoming.Panel;
         foreach (DefinedControl c in incoming.Controls)
         {
             DefinedControl? before = current.Controls.FirstOrDefault(x => x.CodeValue == c.CodeValue);
@@ -298,7 +339,7 @@ static int IntakeModel(string body, JsonNode payload, string root, Dictionary<st
         var merged = DeviceDefinitions.Validate(current);
         if (merged.Count > 0) { Console.Error.WriteLine($"{current.Target} after merge: {string.Join("; ", merged)}"); return 1; }
         pending[path] = JsonSerializer.Serialize(current, DeviceJsonContext.Default.DeviceDefinition).Replace("\r\n", "\n") + "\n";
-        Console.WriteLine($"definition {current.Target}: {incoming.Controls.Count} code(s) -> {Rel(root, path)}");
+        Console.WriteLine($"definition {current.Target}: {incoming.Controls.Count} code(s){(incoming.Panel is { } p ? ", panel " + p.Technology : "")} -> {Rel(root, path)}");
         written++;
     }
 

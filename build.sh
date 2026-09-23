@@ -94,7 +94,9 @@ test_() {
   cd "$repo"
   dotnet run --project tools/presetverify -c "$configuration" --property:EnableWindowsTargeting=true
   dotnet run --project tools/devicecheck -c "$configuration" --property:EnableWindowsTargeting=true -- validate devices
-  dotnet run --project tools/devicecheck -c "$configuration" --property:EnableWindowsTargeting=true -- index devices --check
+  # Not "index --check": the index is regenerated after each merge, so a pull
+  # request that adds a device is valid without it.
+  dotnet run --project tools/devicecheck -c "$configuration" --property:EnableWindowsTargeting=true -- selftest
   echo; echo "Passed. controlcheck and presetcheck call Windows display APIs: run them with build.cmd test."
 }
 

@@ -61,7 +61,7 @@ before local at each step.
 {
   "schema": 1,
   "target": "DEL-A234",
-  "name": "DELL U2424H",
+  "name": "Dell U2424H",
   "extends": ["DEL-A233"],
   "controls": [
     {
@@ -87,10 +87,44 @@ menu), `verified` (written and seen to do what the name says) or `documented`
 rules that count are `DeviceDefinitions.Validate`, which DispCtrl, the CLI and CI
 all run.
 
+### The panel
+
+A model's definition may also say what its panel is:
+
+```json
+{
+  "schema": 1,
+  "target": "SDC-4154",
+  "name": "Samsung Display 14.0 inch 2880 x 1800 panel",
+  "panel": { "technology": "OLED", "notes": "Built into the ASUSTeK Vivobook M7400QC, which ASUS sells as an OLED laptop." },
+  "controls": []
+}
+```
+
+This is how a **built-in panel** joins the library. It has no DDC/CI channel,
+so it has no codes to map, and nothing on the machine reports what it is made
+of: VCP `0xB6` is the only place a display ever says, and only an external
+monitor can answer it. Whether a panel is OLED is exactly what burn-in
+protection keys off, so one owner who knows says it once, and every laptop with
+that panel is covered.
+
+Only a model can carry a panel, never a brand or `*`: a manufacturer makes both
+kinds. It resolves from the model's own definition, local before shipped, then
+from whatever the model `extends`. The app prefers the monitor's own `0xB6`
+answer to the library, and a person's own OLED switch on the Displays page wins
+over both.
+
+```powershell
+dispctrl devices panel --monitor 1 --technology OLED --notes "The laptop's specification says OLED."
+dispctrl devices panel --monitor 1 --technology none     # forget it
+```
+
 ### What a definition changes
 
 - `display controls` and `display control` show a mapped code by its name,
   key and values, with where the mapping came from.
+- A panel's technology decides whether the display is treated as OLED, in the
+  app and in the engine's burn-in protection, when the monitor cannot say.
 - A mapped code becomes **writable only when its definition says so**, and only
   on a monitor that lists it. Standard codes stay behind the existing allow
   list. This is the one place the project's rule - never write a

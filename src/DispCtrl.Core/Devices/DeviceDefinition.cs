@@ -44,7 +44,29 @@ public sealed class DeviceDefinition
     /// <summary>Other targets whose mappings this one takes, before its own.</summary>
     public List<string> Extends { get; set; } = [];
 
+    /// <summary>What the panel is, for a model; null when the definition says nothing about it.</summary>
+    /// <remarks>
+    /// The one part of a definition that is not about VCP codes, and the only
+    /// part a built-in panel can use: it has no DDC/CI channel, so nothing on
+    /// the machine will ever say it is OLED. Somebody who knows says it here,
+    /// once, for every laptop with that panel.
+    /// </remarks>
+    public DefinedPanel? Panel { get; set; }
+
     public List<DefinedControl> Controls { get; set; } = [];
+}
+
+/// <summary>Facts about a model's panel that neither EDID nor Windows reports.</summary>
+public sealed class DefinedPanel
+{
+    /// <summary><c>LCD</c>, <c>OLED</c>, <c>QD-OLED</c>, <c>Mini-LED</c> and so on.</summary>
+    public string Technology { get; set; } = "";
+
+    /// <summary>How it is known: a data sheet, the machine's specification, the owner.</summary>
+    public string? Notes { get; set; }
+
+    [JsonIgnore]
+    public bool IsOled => Technology.Contains("OLED", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>One VCP code, as a definition describes it.</summary>
@@ -184,6 +206,14 @@ public static partial class DeviceDefinitions
         {
             if (!IsTarget(link) || link == "*") problems.Add($"extends '{link}' is not a manufacturer or a model");
             if (link == definition.Target) problems.Add("a definition cannot extend itself");
+        }
+
+        if (definition.Panel is { } panel)
+        {
+            if (!IsModel(definition.Target)) problems.Add("panel: only a model's definition can say what its panel is");
+            if (string.IsNullOrWhiteSpace(panel.Technology)) problems.Add("panel: needs a technology, such as LCD or OLED");
+            Text(panel.Technology, "panel technology", 40, problems);
+            Text(panel.Notes, "panel notes", 600, problems);
         }
 
         var codes = new HashSet<byte>();

@@ -145,6 +145,31 @@ public static class DeviceLibrary
         return result;
     }
 
+    /// <summary>What the library says a model's panel is, or null.</summary>
+    /// <remarks>
+    /// The model's own definition first, local then shipped, then whatever it
+    /// extends. Never a brand or <c>*</c>: a manufacturer makes both kinds.
+    /// </remarks>
+    public static DefinedPanel? Panel(string model)
+    {
+        if (!DeviceDefinitions.IsModel(model)) return null;
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        DefinedPanel? Look(string target)
+        {
+            if (!visited.Add(target) || !DeviceDefinitions.IsModel(target)) return null;
+            DeviceDefinition? local = Local(target), shipped = Shipped(target);
+            if ((local?.Panel ?? shipped?.Panel) is { } own) return own;
+            foreach (DeviceDefinition? d in new[] { local, shipped })
+                if (d is not null)
+                    foreach (string link in d.Extends)
+                        if (Look(link) is { } linked) return linked;
+            return null;
+        }
+
+        return Look(model);
+    }
+
     /// <summary>The local definition for a target, created empty when there is none.</summary>
     public static DeviceDefinition LoadLocal(string target)
     {

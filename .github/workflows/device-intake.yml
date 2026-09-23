@@ -37,7 +37,11 @@ jobs:
           $code = $LASTEXITCODE
           Get-Content intake.log
           "code=$code" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-          if ($code -notin 0, 3, 4) { exit 0 }
+          # The outcome travels in the output, and the steps below act on it.
+          # Left to itself, the runner would fail the job with devicecheck's
+          # exit code: red for an issue that simply was not a share (3) or
+          # changed nothing (4), and no comment for one it could not read.
+          exit 0
       - name: Open the pull request
         if: steps.intake.outputs.code == '0'
         shell: pwsh

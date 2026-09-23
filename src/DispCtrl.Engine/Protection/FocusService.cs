@@ -74,6 +74,13 @@ internal sealed unsafe class FocusService : IDisposable
     {
         public DisplayInfo Display = display;
 
+        /// <summary>
+        /// Whether the device library says this model is OLED. Read once per
+        /// mask, because the loop runs every frame of a fade: a panel the app
+        /// has never been opened on is still protected.
+        /// </summary>
+        public readonly bool LibraryOled = Core.Devices.DeviceLibrary.Panel(display.Key.Model)?.IsOled == true;
+
         /// <summary>Holds the cut-out for the window in use.</summary>
         public nint Live = live;
 
@@ -537,7 +544,7 @@ internal sealed unsafe class FocusService : IDisposable
         foreach (Mask mask in _masks)
         {
             _settings.Monitors.TryGetValue(mask.Display.Token, out MonitorSettings? monitor);
-            bool oled = monitor?.TreatAsOled == true;
+            bool oled = monitor?.IsOled ?? (monitor?.OledDetected == true || mask.LibraryOled);
             // A fullscreen window on a different panel must not suppress this
             // panel's idle protection. Ordinary maximized windows are not media
             // fullscreen, even when taskbar hiding reclaims the entire work area.

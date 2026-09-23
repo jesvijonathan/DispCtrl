@@ -8,11 +8,14 @@ labels: device
 <!--
   DispCtrl writes this for you:
 
-      dispctrl contribute --display 2 --open
+      dispctrl devices share --monitor 2 --open
+
+  or the Devices page in the app. It also carries any codes you have named with
+  `dispctrl devices map`, which the intake workflow turns into a pull request.
 
   It strips the serial number, the device path, file paths, your Windows account
   name and your current settings before it shows you anything. If you are
-  filling this in by hand, take those out yourself — a record describes a model,
+  filling this in by hand, take those out yourself - a record describes a model,
   not your desk.
 -->
 
@@ -30,6 +33,11 @@ labels: device
 ### Controls it lists
 
 <!-- Each VCP code, with its range or the values it permits. -->
+
+### Panel technology
+
+<!-- LCD, OLED, QD-OLED, Mini-LED... Especially useful for a laptop screen,
+     which cannot report it. Say how you know (spec sheet, the laptop's model). -->
 
 ### Anything that did not work
 

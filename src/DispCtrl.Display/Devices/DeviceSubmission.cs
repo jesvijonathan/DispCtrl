@@ -184,7 +184,12 @@ public sealed record DeviceSubmission
             if (c.Values.Count > 0)
             {
                 var values = new List<string>(c.Values.Count);
-                foreach (VcpValue v in c.Values) values.Add($"0x{v.Value:X2} {v.Name}");
+                foreach (VcpValue v in c.Values)
+                {
+                    // A value nobody has named is named its own number; "0x0F 0x0F" says it twice.
+                    string hex = $"0x{v.Value:X2}";
+                    values.Add(string.IsNullOrWhiteSpace(v.Name) || v.Name.Equals(hex, StringComparison.OrdinalIgnoreCase) ? hex : $"{hex} {v.Name}");
+                }
 
                 line.Append(": ").Append(string.Join(", ", values));
             }
@@ -209,11 +214,11 @@ public sealed record DeviceSubmission
             Manufacturer = Redact.Manufacturer(display.Key.Model),
             Model = model,
             Product = Redact.Product(display.Key.Model),
-            Connector = display.Connector.ToString(),
+            Connector = ConnectorName(display.Connector),
             BuiltInto = display.IsInternal && MachineInfo.Read() is { Present: true } machine
                 ? machine.Label
                 : "",
-            PanelTechnology = ReadPanelTechnology(capability, isOled),
+            PanelTechnology = ReadPanelTechnology(capability, isOled, display.Key.Model),
             WidthMm = display.PhysicalWidthMm,
             HeightMm = display.PhysicalHeightMm,
             DiagonalInches = display.DiagonalInches,
@@ -270,7 +275,18 @@ public sealed record DeviceSubmission
     private static string Known(string? value) =>
         string.IsNullOrWhiteSpace(value) || value == "—" ? "" : value;
 
-    private static string ReadPanelTechnology(MonitorCapability capability, bool? isOled)
+    /// <summary>"Hdmi" is an enum name; a record is read by people.</summary>
+    private static string ConnectorName(ConnectorKind kind) => kind switch
+    {
+        ConnectorKind.Hdmi => "HDMI",
+        ConnectorKind.Dvi => "DVI",
+        ConnectorKind.Vga => "VGA",
+        ConnectorKind.Usb => "USB",
+        // The catalogue reads this word to tell a built-in panel from a monitor.
+        _ => kind.ToString(),
+    };
+
+    private static string ReadPanelTechnology(MonitorCapability capability, bool? isOled, string model)
     {
         // 0xB6 is the display technology code, and the only place a monitor
         // states outright whether it is LCD, OLED or something else.
@@ -279,6 +295,8 @@ public sealed record DeviceSubmission
 
         string type = Known(capability.Type);
         if (type.Length > 0) return type;
+
+        if (Core.Devices.DeviceLibrary.Panel(model) is { } known) return $"{known.Technology} (device library)";
 
         // Marked as reported rather than measured, so a reader knows how far to
         // trust it.
@@ -614,17 +632,21 @@ public sealed record DeviceSubmission
     /// How the device is named in the issue title.
     /// </summary>
     /// <remarks>
-    /// The manufacturer is dropped when the model already opens with it, which
-    /// happens on panels that report no name of their own and fall back to the
-    /// EDID key: "SDC SDC-4154" reads like a mistake.
+    /// The manufacturer is not repeated when the model already opens with it:
+    /// "Dell DELL U2424H" reads like a mistake. A panel with no name of its own
+    /// falls back to its EDID key and reads "Samsung Display SDC-4154".
     /// </remarks>
     public string IssueTitle
     {
         get
         {
-            string name = Model.StartsWith(Manufacturer, StringComparison.OrdinalIgnoreCase)
-                ? Model
-                : $"{Manufacturer} {Model}";
+            // The maker's name where the EDID gives one: "Dell U2424H", not
+            // "DEL U2424H". A model that already opens with it is left alone,
+            // and one that opens with the bare code gets the name in front.
+            string brand = Edid.ManufacturerName.Length > 0 ? Edid.ManufacturerName : Manufacturer;
+            string name = Model.StartsWith(brand, StringComparison.OrdinalIgnoreCase) ? Model
+                : Model.StartsWith(Manufacturer + " ", StringComparison.OrdinalIgnoreCase) ? $"{brand} {Model[(Manufacturer.Length + 1)..]}"
+                : $"{brand} {Model}";
 
             // A laptop panel's own name is usually nothing at all, so the
             // machine goes in the title where it can be searched for.

@@ -88,6 +88,10 @@ SHDefExtractIcon
 DestroyIcon
 PostMessage
 SetForegroundWindow
+// The click grants this process the foreground; the panel is another process
+// and cannot take it unless it is passed on.
+AllowSetForegroundWindow
+ASFW_ANY
 WINDOW_EX_STYLE
 WINDOW_STYLE
 CreatePopupMenu

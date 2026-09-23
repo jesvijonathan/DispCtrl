@@ -10,6 +10,8 @@
 
     <!-- `dispctrl`, because that is what someone types. -->
     <AssemblyName>dispctrl</AssemblyName>
+    <!-- The file description: what Task Manager, Startup apps and the tray settings call it. -->
+    <AssemblyTitle>DispCtrl command line</AssemblyTitle>
     <ApplicationIcon>..\DispCtrl.App\Assets\DispCtrl.ico</ApplicationIcon>
     <RootNamespace>DispCtrl.Cli</RootNamespace>
 

@@ -233,7 +233,16 @@ ship. The app's **Devices** page sends the same
   lost whenever a short-lived CLI process exited first.
 - **"Unnamed" means not in the MCCS table** (`MonitorCapabilities.IsNamed`), not
   "not in DispCtrl's allow list": firmware level is named, just read-only.
-- `dispctrl contribute` still works for the Markdown record alone.
+- **A model's definition can carry `panel.technology`** (`DeviceLibrary.Panel`),
+  the one fact a built-in panel can be described by: it has no DDC/CI, and
+  VCP `0xB6` is the only place any display says it is OLED. The user's `IsOled`
+  wins; the app then prefers `0xB6` to the library and persists the result as
+  `OledDetected`. The engine cannot tell "reported LCD" from "never asked", so
+  it takes `OledDetected` or the library, read once per mask
+  (`FocusService.Mask.LibraryOled`), never per frame.
+  Never on a brand or `*` - a maker ships both kinds. `devices panel` sets it.
+- `dispctrl contribute` still works for the Markdown record alone; the docs
+  point at `devices share`.
 
 ### Hotkeys
 
@@ -281,6 +290,12 @@ event carries no data; the control broker separately handles structured requests
 - `QuickPanelSettings.Reorder` **hides** whatever it is not handed. The page's
   remove button works by leaving an item out; keeping its old visibility made
   that button do nothing, and a `presetcheck` assertion caught it.
+- **The engine passes the foreground on** (`AllowSetForegroundWindow(ASFW_ANY)`)
+  before signalling the panel, from a tray click or a hotkey. Without it the
+  panel's `Activate()` fails quietly, the panel is never active, never
+  deactivated, and a click elsewhere does not close it. When it still is not
+  foreground (a CLI summons, an older engine), `WatchOutsideIfInactive` polls
+  the mouse buttons at 50 ms until a click lands outside or the panel activates.
 - The tray icon **toggles**. Clicking it while the panel is open takes focus
   first, closing the panel, and then asks for it again - so a summons within
   500 ms of a focus-loss close is treated as the same click.

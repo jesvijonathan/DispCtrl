@@ -38,6 +38,7 @@ public static class ControlTerminal
       devices map --monitor ID --code 0xE2 --name "Preset mode" [--values "0x0B=ComfortView"]
                   [--kind range|choice|action|information] [--writable] [--scope model|brand|all]
       devices unmap|link|definitions        Remove, cross-link (--to DEL-A233), inspect layers
+      devices panel --monitor ID --technology OLED [--notes TEXT]   What the panel is (none clears); built-in panels too
       devices share --monitor ID [--open]   Record and mappings as one prefilled issue
       devices share --all [--open]          Every recorded model in one issue
       devices validate FILE                 Check a definition before sharing it

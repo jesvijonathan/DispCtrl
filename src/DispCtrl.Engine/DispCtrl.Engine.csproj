@@ -8,6 +8,8 @@
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <AssemblyName>DispCtrl.Engine</AssemblyName>
+    <!-- The file description: what Task Manager, Startup apps and the tray settings call it. -->
+    <AssemblyTitle>DispCtrl engine</AssemblyTitle>
     <RootNamespace>DispCtrl.Engine</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 

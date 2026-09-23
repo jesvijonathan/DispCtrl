@@ -4,6 +4,8 @@
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <AssemblyName>DispCtrl.Core</AssemblyName>
+    <!-- The file description: what Task Manager, Startup apps and the tray settings call it. -->
+    <AssemblyTitle>DispCtrl core</AssemblyTitle>
     <RootNamespace>DispCtrl.Core</RootNamespace>
 
     <!-- Referenced by both the AOT engine and the WinUI app, so it must stay

@@ -6,6 +6,7 @@ body:
     attributes:
       value: |
         Thanks for reporting. Hardware differs a great deal between desks, so the details below are what make a bug fixable.
+        **The quickest route:** Help > Report a problem in the app, or `dispctrl report --what "..."`, fills in a report with serials, device paths and your account name already removed.
         **Before pasting logs or diagnostics, read them.** They name your monitors by an identity token that includes the serial number, and contain paths under your user folder.
   - type: textarea
     id: what

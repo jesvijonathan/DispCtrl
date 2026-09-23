@@ -24,9 +24,10 @@ devices/
     A234/                  DEL-A234, the U2424H
       record.md            what the model reports about itself
       definition.json      what its codes mean
-  SDC/
-    4154/
+  SDC/                     Samsung Display
+    4154/                  a laptop's built-in panel
       record.md
+      definition.json      says it is OLED: nothing on the laptop can
 ```
 
 A model folder holds a record, a definition, or both, and nothing else. The key
@@ -76,7 +77,12 @@ interesting controls usually hide. `brand.json` does the same for every model
 of a manufacturer, and `common.json` for every monitor. DispCtrl layers them,
 most specific last: every monitor, the brand, the models this one `extends`,
 then the model itself. A code is writable only when its definition says so, and
-only on a monitor that lists it. [schema/definition.schema.json](schema/definition.schema.json)
+only on a monitor that lists it.
+
+A model's definition can also say what its **panel** is (`"panel": {
+"technology": "OLED" }`). That is how built-in laptop panels belong here: they
+have no DDC/CI, so no codes, and nothing on the machine reports whether they
+are OLED. DispCtrl uses it to offer burn-in protection to the right panels. [schema/definition.schema.json](schema/definition.schema.json)
 is the format, and [docs/DEVICE-LIBRARY.md](../docs/DEVICE-LIBRARY.md) the design.
 
 ## Contributing one
@@ -86,6 +92,7 @@ dispctrl devices list                    # every monitor this PC has seen
 dispctrl devices show --monitor 2        # every code, and which nobody has named
 dispctrl devices probe --monitor 2       # watch the unnamed ones while you use the OSD
 dispctrl devices map --monitor 2 --code 0xE2 --name "Preset mode" --values "0x00=Standard,0x0B=ComfortView"
+dispctrl devices panel --monitor 1 --technology OLED   # a laptop screen: say what it is
 dispctrl devices share --monitor 2 --open
 ```
 

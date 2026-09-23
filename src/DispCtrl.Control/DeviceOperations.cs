@@ -26,10 +26,11 @@ public sealed partial class ControlService
         "map" => DevicesMap(args),
         "unmap" => DevicesUnmap(args),
         "link" => DevicesLink(args),
+        "panel" => DevicesPanel(args),
         "definitions" => DevicesDefinitions(args),
         "share" => DevicesShare(args),
         "validate" => DevicesValidate(args),
-        _ => throw new ArgumentException("devices actions: list, show, scan, forget, map, unmap, link, definitions, share, validate. probe runs in the terminal."),
+        _ => throw new ArgumentException("devices actions: list, show, scan, forget, map, unmap, link, panel, definitions, share, validate. probe runs in the terminal."),
     };
 
     private static void Only(JsonObject args, string command, params string[] allowed)
@@ -114,7 +115,7 @@ public sealed partial class ControlService
             }
         }
 
-        return new JsonObject { ["model"] = model, ["source"] = source, ["codes"] = codes };
+        return new JsonObject { ["model"] = model, ["source"] = source, ["panel"] = DeviceLibrary.Panel(model)?.Technology, ["codes"] = codes };
     }
 
     private static JsonObject CodeEntry(byte code, string name, string kind, IEnumerable<int> listed, int? current,
@@ -270,6 +271,30 @@ public sealed partial class ControlService
         return new JsonObject { ["state"] = "saved", ["model"] = model, ["extends"] = to, ["path"] = path };
     }
 
+    /// <summary>Says what a model's panel is, which nothing on the machine may report.</summary>
+    /// <remarks>
+    /// The way to describe a built-in panel: it has no DDC/CI channel, so it has
+    /// no codes to map, but whether it is OLED is what burn-in protection keys
+    /// off, and every owner of the same laptop gets the answer once it is shared.
+    /// </remarks>
+    private static JsonNode DevicesPanel(JsonObject args)
+    {
+        Only(args, "panel", "monitor", "model", "technology", "notes", "dryRun");
+        var (model, _) = ModelOf(args);
+        string technology = Text(args, "technology")
+            ?? throw new ArgumentException("--technology is what the panel is: LCD, OLED, QD-OLED, Mini-LED, or none to clear it.");
+        DeviceDefinition d = DeviceLibrary.LoadLocal(model);
+        d.Panel = technology.Equals("none", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : new DefinedPanel { Technology = technology.Trim(), Notes = Text(args, "notes") ?? d.Panel?.Notes };
+        d.Name ??= DisplayRegistry.Enumerate().FirstOrDefault(x => x.Key.Model == model)?.Label;
+        List<string> problems = DeviceDefinitions.Validate(d);
+        if (problems.Count > 0) throw new ArgumentException(string.Join("; ", problems));
+        if (Flag(args, "dryRun")) return new JsonObject { ["state"] = "validated", ["model"] = model };
+        string path = DeviceLibrary.SaveLocal(d);
+        return new JsonObject { ["state"] = "saved", ["model"] = model, ["panel"] = d.Panel?.Technology, ["path"] = path };
+    }
+
     private static JsonNode DevicesDefinitions(JsonObject args)
     {
         Only(args, "definitions", "monitor", "model");
@@ -290,6 +315,7 @@ public sealed partial class ControlService
         var localFound = new JsonArray();
         foreach (DeviceDefinition d in DeviceLibrary.LoadFolder(DeviceLibrary.UserFolder, problems).Values)
             localFound.Add((JsonNode)new JsonObject { ["target"] = d.Target, ["name"] = d.Name, ["controls"] = d.Controls.Count,
+                ["panel"] = d.Panel?.Technology,
                 ["extends"] = new JsonArray(d.Extends.Select(e => (JsonNode?)JsonValue.Create(e)).ToArray()) });
         foreach (string p in problems) localFound.Add((JsonNode)new JsonObject { ["problem"] = p });
 

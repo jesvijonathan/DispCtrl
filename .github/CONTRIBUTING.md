@@ -7,19 +7,23 @@ more than almost any code.
 ## The most useful contribution: your monitor
 
 ```powershell
-dispctrl contribute --open        # or: Displays > Monitor library in the app
+dispctrl devices share --monitor 2 --open     # or: the Devices page in the app
 ```
 
 This builds a record of what your monitor is (its EDID, modes and DDC/CI codes),
 with serial numbers, device paths and your account name removed. It shows you
 the text and opens a prefilled issue for you to submit. Nothing is sent without
 your press. If the monitor has manufacturer-specific codes you can identify,
-`dispctrl devices probe` and `dispctrl devices map` name them. See
+`dispctrl devices probe` and `dispctrl devices map` name them. A laptop screen
+has no codes, but you can still say what it is, which nothing on the machine
+reports: `dispctrl devices panel --monitor 1 --technology OLED`. See
 [docs/DEVICE-LIBRARY.md](../docs/DEVICE-LIBRARY.md).
 
 ## Reporting a bug
 
-Use the **Bug report** issue form. The most useful attachments are:
+`dispctrl report --what "what happened"` (or **Help > Report a problem** in the
+app) builds the report for you, scrubbed, and opens it as a prefilled issue.
+Otherwise use the **Bug report** issue form. The most useful attachments are:
 
 - `dispctrl diagnostics --json`;
 - the last lines of `%LOCALAPPDATA%\DispCtrl\engine.log`;
@@ -29,8 +33,8 @@ Use the **Bug report** issue form. The most useful attachments are:
 Read these before you attach them. Diagnostics and the logs name your monitors
 by identity token, which includes the serial number, and contain paths under
 your user folder. The logs may also name the apps you use. Replace anything you
-would rather not publish. `dispctrl contribute` is the only output that is
-scrubbed for you.
+would rather not publish. `dispctrl report` and `dispctrl devices share` are
+the outputs that are scrubbed for you.
 
 ## Changing code
 

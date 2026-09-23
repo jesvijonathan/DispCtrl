@@ -5,6 +5,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using DispCtrl.Core.Devices;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
 using DispCtrl.Display;
@@ -1968,7 +1969,17 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             if (c.Code != 0xB6 || c.Current < 0) continue;
 
             _panelTechnology = c.Display;
+            _panelFrom = "the monitor";
             break;
+        }
+
+        // What the monitor cannot say - and a built-in panel can say nothing -
+        // the device library may know, because somebody with the same panel
+        // wrote it down.
+        if (_panelTechnology is null && DeviceLibrary.Panel(d.Key.Model) is { } known)
+        {
+            _panelTechnology = known.Technology;
+            _panelFrom = "the device library";
         }
 
         _capabilitiesRead = true;
@@ -2038,16 +2049,19 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     public string OledAutomationName => $"OLED {Number}";
 
     private string? _panelTechnology;
+    private string _panelFrom = "the monitor";
 
     /// <summary>
     /// What the panel is made of, when anything says.
     /// </summary>
     /// <remarks>
-    /// Only ever comes from the monitor itself, over DDC/CI. EDID has no field
-    /// for it, Windows exposes none, and a built-in panel has no DDC/CI channel
-    /// — so the honest answer for a laptop screen is that nothing reports it.
+    /// From the monitor itself over DDC/CI, or failing that from the device
+    /// library. EDID has no field for it, Windows exposes none, and a built-in
+    /// panel has no DDC/CI channel, so for a laptop screen the library is the
+    /// only source there is.
     /// </remarks>
-    public string PanelTechnology => _panelTechnology
+    public string PanelTechnology => (_panelTechnology is null ? null
+            : _panelFrom == "the monitor" ? _panelTechnology : $"{_panelTechnology} (device library)")
         ?? (_display.IsInternal
             ? "Not reported \u2014 built-in panels have no DDC/CI channel"
             : "Not reported by this monitor");
@@ -2083,7 +2097,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
                 return chosen ? "Set by you: treated as OLED." : "Set by you: treated as not OLED.";
 
             if (_panelTechnology is not null)
-                return $"From the monitor: {_panelTechnology}.";
+                return $"From {_panelFrom}: {_panelTechnology}.";
 
             return "Nothing reports this. Set it yourself if this panel is OLED \u2014 "
                  + "it is what the burn-in protection will key off.";

@@ -1,4 +1,4 @@
-# Device submissions arrive as a prefilled issue from `dispctrl contribute`, which
+# Device submissions arrive as a prefilled issue from `dispctrl devices share`, which
 # links straight to issues/new with a body already written. That link only works
 # while blank issues are allowed — turning them off sends it to the chooser
 # instead and silently drops the body.
@@ -7,4 +7,4 @@ blank_issues_enabled: true
 contact_links:
   - name: Contribute a monitor
     url: https://github.com/jesvijonathan/Display-Control/blob/master/devices/README.md
-    about: Run `dispctrl contribute --open` and DispCtrl fills this in for you.
+    about: Run `dispctrl devices share --monitor 2 --open`, or use the app's Devices page, and DispCtrl fills this in for you.

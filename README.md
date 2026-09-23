@@ -37,7 +37,7 @@ Brightness in step across every screen, night light and dimming per display, a t
 ### Your monitor's own controls
 - Contrast, input, picture mode, volume and more, over DDC/CI
 - Only the values the monitor accepts; nothing written blind
-- A device library that learns unnamed codes, and shares them
+- A device library that learns unnamed codes, and shares them, laptop panels included
 
 </td>
 <td width="50%" valign="top">
@@ -49,7 +49,7 @@ Brightness in step across every screen, night light and dimming per display, a t
 
 ### OLED care
 - Two-stage idle dimming, paused for full-screen video and games
-- Limited to OLED panels if you like; pairs with taskbar hiding
+- Knows OLED panels from the monitor or the device library; pairs with taskbar hiding
 
 ### Automation
 - A quick panel on the tray icon: tiles, sliders, a row per display

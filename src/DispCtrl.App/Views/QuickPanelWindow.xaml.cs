@@ -3,6 +3,7 @@ using DispCtrl.App.Services;
 using DispCtrl.App.ViewModels;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -262,6 +263,7 @@ public sealed partial class QuickPanelWindow : Window
         AfterFrames(2, () =>
         {
             if (token != _animation || _closing) return;
+            WatchOutsideIfInactive();
             Fit();
             if (animate) Slide(show: true, token);
             else { TuckUnderTaskbar(false); Cloak(false); }
@@ -729,6 +731,62 @@ public sealed partial class QuickPanelWindow : Window
             // usable size; leaving it be is better than throwing.
         }
     }
+
+    /// <summary>Closes an unfocused panel on a click elsewhere; null until first needed.</summary>
+    private DispatcherQueueTimer? _outside;
+
+    /// <summary>
+    /// Stands in for losing focus when the panel never had it.
+    /// </summary>
+    /// <remarks>
+    /// Windows refuses the foreground to a background process unless the one
+    /// holding it passes it on. The engine does, for a tray click or a hotkey,
+    /// but a summons from anywhere else - the command line, a second launch, an
+    /// engine from an older build - leaves the panel shown and inactive. An
+    /// inactive window is never deactivated, so it stayed open over everything
+    /// until it was clicked and then clicked away from. Polled only while that
+    /// is the case: a click inside activates the panel, and the ordinary path
+    /// takes over.
+    /// </remarks>
+    private void WatchOutsideIfInactive()
+    {
+        if (GetForegroundWindow() == _hwnd) return;
+        if (_outside is null)
+        {
+            _outside = DispatcherQueue.CreateTimer();
+            _outside.Interval = TimeSpan.FromMilliseconds(50);
+            _outside.Tick += OnOutsideTick;
+        }
+        _outside.Start();
+    }
+
+    private void OnOutsideTick(DispatcherQueueTimer timer, object e)
+    {
+        if (_closing || _leaving || !_appWindow.IsVisible || GetForegroundWindow() == _hwnd) { timer.Stop(); return; }
+        if (_pinned) return;
+
+        bool pressed = GetAsyncKeyState(0x01) < 0 || GetAsyncKeyState(0x02) < 0 || GetAsyncKeyState(0x04) < 0;
+        if (!pressed || !GetCursorPos(out NativePoint at) || !GetWindowRect(_hwnd, out NativeRect r)) return;
+        if (at.X >= r.Left && at.X < r.Right && at.Y >= r.Top && at.Y < r.Bottom) return;
+
+        timer.Stop();
+        _deactivatedAt = Environment.TickCount64;
+        Dismiss();
+    }
+
+    private struct NativePoint { public int X, Y; }
+    private struct NativeRect { public int Left, Top, Right, Bottom; }
+
+    [LibraryImport("user32.dll")]
+    private static partial nint GetForegroundWindow();
+    [LibraryImport("user32.dll")]
+    private static partial short GetAsyncKeyState(int key);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetCursorPos(out NativePoint point);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetWindowRect(nint hwnd, out NativeRect rect);
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)
     {

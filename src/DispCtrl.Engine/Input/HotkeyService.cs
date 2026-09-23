@@ -246,6 +246,9 @@ internal sealed class HotkeyService : IDisposable
                 break;
 
             case HotkeyAction.QuickPanel:
+                // The hotkey makes this process the one allowed to take the
+                // foreground; the panel is another, and needs it passed on.
+                _ = Windows.Win32.PInvoke.AllowSetForegroundWindow(Windows.Win32.PInvoke.ASFW_ANY);
                 if (!QuickPanelSignal.Summon()) Log.Write("hotkey: the quick panel needs the app, which could not be found");
                 break;
 

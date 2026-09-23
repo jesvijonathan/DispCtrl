@@ -456,6 +456,11 @@ internal sealed class TrayIconService : IDisposable
 
     private static void Summon()
     {
+        // Explorer lets the icon's owner take the foreground for this click,
+        // and nobody else. The panel lives in another process: without this its
+        // Activate() quietly fails, it never becomes active, never loses
+        // activation, and so a click elsewhere never closes it.
+        _ = PInvoke.AllowSetForegroundWindow(PInvoke.ASFW_ANY);
         if (!QuickPanelSignal.Summon())
             Log.Write("tray: nothing to summon - the panel app has not been run yet");
     }
