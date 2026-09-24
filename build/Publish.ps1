@@ -71,9 +71,26 @@ try {
     # A release that cannot start must not be packaged: launch it and watch.
     # Skipped on CI runners, which may have no interactive desktop.
     if (-not $env:CI) {
+        # Only one DispCtrl app runs at a time: a second launch hands its window
+        # to the one already running and exits with code 0. So any other copy -
+        # the Store's, an installed one - has to be out of the way first, or the
+        # probe reports that handover as a failure to start. The app may be
+        # closed outright; the engine is left alone.
+        $others = @(Get-Process DispCtrl.App -ErrorAction SilentlyContinue)
+        if ($others.Count -gt 0) {
+            Write-Host "  Closing the DispCtrl app already running ($(@($others | ForEach-Object { $_.Path } | Select-Object -Unique) -join ', ')) so the published one can be started on its own."
+            $others | Stop-Process -Force -ErrorAction SilentlyContinue
+            $others | ForEach-Object { $_.WaitForExit(5000) | Out-Null }
+        }
         $probe = Start-Process -FilePath (Join-Path $desktop 'DispCtrl.App.exe') -PassThru
         Start-Sleep -Seconds 8
-        if ($probe.HasExited) { throw "The published app exits at start (code $($probe.ExitCode)); see app-crash.log in %LOCALAPPDATA%\DispCtrl." }
+        if ($probe.HasExited) {
+            $still = @(Get-Process DispCtrl.App -ErrorAction SilentlyContinue)
+            if ($probe.ExitCode -eq 0 -and $still.Count -gt 0) {
+                throw "The published app handed over to another DispCtrl that started meanwhile ($(@($still | ForEach-Object { $_.Path } | Select-Object -Unique) -join ', ')) and exited. Close it and run the release again."
+            }
+            throw "The published app exits at start (code $($probe.ExitCode)); see app-crash.log in %LOCALAPPDATA%\DispCtrl."
+        }
         Stop-Process -Id $probe.Id -Force -ErrorAction SilentlyContinue
     }
     if ($Sign) {
