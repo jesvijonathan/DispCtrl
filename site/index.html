@@ -297,6 +297,9 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 .lhead b{display:block;font-size:16px}.lhead small{color:var(--dim);font-size:12.5px;font-family:var(--mono)}
 .lic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#c4a6ff,var(--a2))}
 .lic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.lfoot .lshare{margin-left:auto;font-family:inherit;cursor:pointer}
+#library{scroll-margin-top:90px}
+.lshare svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ok);padding:3px 10px;border-radius:999px;border:1px solid var(--line2)}
 .live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);animation:redact 2s ease-in-out infinite}
 @keyframes redact{0%,100%{opacity:1}50%{opacity:.35}}
@@ -335,7 +338,7 @@ a.lrow:hover,a.lrow:focus-visible{background:var(--soft);outline:none}
 .libtip dt{color:var(--dim)}.libtip dd{margin:0;color:var(--text)}
 .libtip .more{color:var(--dim);margin-top:8px;font-size:12px}
 .lfoot{display:flex;gap:10px;padding:16px 20px;flex-wrap:wrap}
-.lfoot .btn{padding:10px 16px;font-size:14px}
+.lfoot .btn{padding:7px 14px;font-size:14px}
 
 /* download */
 .dlhead{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:48px}
@@ -513,6 +516,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   .lhead{padding:16px}.lhead>div{min-width:0}.lhead small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .lstats div{padding:14px 16px}.lstats span{white-space:nowrap}
   .lrow{padding:12px 16px}
+  .lfoot .lshare{margin-left:0;flex:1 1 100%}
   .lfoot{padding:14px 16px;display:grid;grid-template-columns:1fr;gap:8px}.lfoot .btn{padding:12px 14px;white-space:nowrap}
   .cta .btn,.dl .btn{white-space:nowrap}
   .dlhead h2{gap:14px}
@@ -755,7 +759,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       </div>
       <p class="note">No telemetry, ever. Sharing is always your choice, and serial numbers are removed before you see the text.</p>
     </div>
-    <div class="lib reveal">
+    <div class="lib reveal" id="library">
       <div class="lhead">
         <span class="lic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
         <div><b>Device library</b><small>devices/ · open to everyone</small></div>
@@ -783,6 +787,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <div class="lfoot">
         <a class="btn ghost" href="https://github.com/jesvijonathan/DispCtrl/blob/master/devices/CATALOG.md">Browse the library</a>
         <a class="btn primary" href="https://github.com/jesvijonathan/DispCtrl/tree/master/devices#contributing-one">Add your monitor</a>
+        <button type="button" class="btn ghost lshare" id="libShare" data-tooltip="Copy a link to the device library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L12 5.6"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg>Share</button>
       </div>
     </div>
   </div>
@@ -1180,6 +1185,15 @@ function drawLib() {
   libRows.scrollTop = 0;
 }
 libFind.oninput = drawLib;
+// Share: a link that opens the page at the library. A phone offers its own share
+// sheet; elsewhere, or if that is declined, the link is copied.
+$('libShare').onclick = async () => {
+  const url = location.origin + location.pathname + '#library';
+  const data = { title: 'DispCtrl device library', text: 'Every monitor DispCtrl knows, and what each one can do:', url };
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share(data); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch { toast(url); }
+};
+
 // Search sits behind a button beside the order; opening it focuses the box,
 // and Escape (or the button again) clears and closes it.
 const libFindBtn = $('libFindBtn');
