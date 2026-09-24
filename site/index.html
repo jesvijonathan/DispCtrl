@@ -86,9 +86,9 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .ghost:hover{border-color:var(--a1)}
 
 /* hero */
-.hero{padding:84px 0 20px;text-align:center}
+.hero{padding-top:84px;padding-bottom:20px;text-align:center}
 .pill{display:inline-flex;gap:10px;align-items:center;padding:6px 14px 6px 6px;border:1px solid var(--line2);border-radius:999px;color:var(--muted);font-size:13px;background:var(--soft)}
-.pill b{background:linear-gradient(135deg,#c4a6ff,var(--a2));color:#120d1c;border-radius:999px;padding:2px 10px;font-weight:650;font-size:12px}
+.pill b{flex:none;white-space:nowrap;background:linear-gradient(135deg,#c4a6ff,var(--a2));color:#120d1c;border-radius:999px;padding:2px 10px;font-weight:650;font-size:12px}
 h1{font-size:clamp(46px,7.4vw,96px);line-height:1;margin:24px auto 22px;letter-spacing:-.04em;font-weight:750}
 .grad{background:linear-gradient(110deg,var(--h1a) 8%,var(--a1) 45%,var(--a3) 72%,var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
 .lead{font-size:clamp(17px,1.8vw,20px);color:var(--muted);max-width:700px;margin:0 auto 32px}
@@ -266,9 +266,9 @@ a.lrow:hover,a.lrow:focus-visible{background:var(--soft);outline:none}
 .donate{position:relative;overflow:hidden;border-radius:28px;border:1px solid var(--line);padding:52px;background:var(--bg2);
   display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:start}
 .donate::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(55% 100% at 100% 0%,var(--glow),transparent 62%);opacity:.55}
-.donate>*{position:relative}
+.donate>*{position:relative;min-width:0}
 .donate h2{margin:14px 0 16px}
-.who{display:inline-flex;align-items:center;gap:12px;padding:7px 16px 7px 7px;border-radius:999px;
+.who{display:inline-flex;justify-self:start;max-width:100%;align-items:center;gap:12px;padding:7px 16px 7px 7px;border-radius:999px;
   border:1px solid var(--line);background:var(--soft);color:var(--text);transition:border-color .2s,background .2s}
 .who:hover{border-color:var(--line2);background:var(--card-hi);text-decoration:none}
 .who img{width:36px;height:36px;border-radius:50%}
@@ -288,8 +288,8 @@ a.lrow:hover,a.lrow:focus-visible{background:var(--soft);outline:none}
 .help{margin:18px 0 0;color:var(--dim);font-size:13.5px;line-height:1.75}
 .swap{position:relative}
 /* Two cards in one cell: the author and the pitch give way to the ask. */
-.swap.two{display:grid}
-.swap.two>*{grid-area:1/1;align-self:start;margin-top:0;transition:opacity .45s ease,transform .45s ease,visibility .45s}
+.swap.two{display:grid;grid-template-columns:minmax(0,1fr)}
+.swap.two>*{grid-area:1/1;min-width:0;align-self:start;margin-top:0;transition:opacity .45s ease,transform .45s ease,visibility .45s}
 .swap.two>.then{opacity:0;visibility:hidden;transform:translateY(12px)}
 .swap.two.qr>.first{opacity:0;visibility:hidden;transform:translateY(-12px)}
 .swap.two.qr>.then{opacity:1;visibility:visible;transform:none}
@@ -359,6 +359,10 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 @media (max-width:1040px){
   .split,.priv,.spot,.donate,#cli .split{grid-template-columns:1fr}
   .donate{gap:34px;padding:40px}
+  /* The drop lines the buttons up with the QR beside them; stacked, nothing is beside them. */
+  .donate.qr .ways{margin-top:34px}
+  /* Stacked, the side not showing would hold open a gap the height of the other. */
+  .swap.two:not(.qr)>.then,.swap.two.qr>.first{display:none}
   .fgrid4,.dl{grid-template-columns:1fr 1fr}
   .gallery{grid-template-columns:1fr}.glist{position:static;flex-direction:row;overflow:auto}.gbtn small{display:none}
   .fcols{grid-template-columns:1fr 1fr 1fr}.fbrand{grid-column:1/-1}
@@ -368,6 +372,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 @media (max-width:640px){
   .fgrid4,.dl,.legal{grid-template-columns:1fr}
   section{padding:76px 0}.donate{padding:44px 22px}.spot{padding:24px}
+  .pill{text-align:left;border-radius:18px}
   .fcols{grid-template-columns:1fr 1fr}.navstar{display:none}
   /* The last footer column leaves a wide gutter on the right; match it a little on the left. */
   footer .wrap{padding-left:40px}
