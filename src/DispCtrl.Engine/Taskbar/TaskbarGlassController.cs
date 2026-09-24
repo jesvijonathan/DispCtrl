@@ -74,13 +74,14 @@ internal sealed class TaskbarGlassController : IDisposable
         {
             if (Environment.TickCount64 < _retryAt) return;
             int hr = _attach!(pid);
+            if (hr == RevisionMismatch && RetireStaleHelper(pid)) hr = _attach!(pid);
             _lastConfig = 0;
             if (hr < 0)
             {
                 Log.Write($"taskbar glass: Explorer attach failed (0x{hr:X8})");
                 _retryAt = Environment.TickCount64 + 10000;
-                WriteStatus(hr == unchecked((int)0x8007051A)
-                    ? "Explorer has an older glass helper loaded. Restart Windows Explorer to load this build."
+                WriteStatus(hr == RevisionMismatch
+                    ? "Explorer has another DispCtrl build's glass helper loaded. Restart Windows Explorer to load this one."
                     : $"Explorer integration failed (0x{hr:X8})");
                 return;
             }
@@ -110,6 +111,46 @@ internal sealed class TaskbarGlassController : IDisposable
         WriteStatus(result == 0
             ? "Connected to Explorer; waiting for the taskbar surface"
             : $"Applied to {result} taskbar surface(s) · blur {radius}px · tint {tint}%");
+    }
+
+    /// <summary><c>HRESULT_FROM_WIN32(ERROR_REVISION_MISMATCH)</c>: Explorer holds another build's helper.</summary>
+    private const int RevisionMismatch = unchecked((int)0x8007051A);
+
+    /// <summary>The Explorer a stale helper was last retired in; once per Explorer is enough.</summary>
+    private uint _retiredIn;
+
+    /// <summary>
+    /// Retires a helper another DispCtrl build left in Explorer, so this one can attach.
+    /// </summary>
+    /// <remarks>
+    /// Explorer keeps a helper mapped until it restarts, and each build's helper
+    /// carries its own revision. Attaching refuses while a helper of another
+    /// revision is there, and the helper's own way out - <c>GlassUpdate</c>
+    /// sends it <c>Retire</c>, which puts the taskbar's brush back and removes
+    /// its window - ran only after an attach had succeeded. So switching between
+    /// the installer, a zip and the Store left glass dead, retried every ten
+    /// seconds, until Explorer was restarted: measured on a laptop that ran the
+    /// installer build and then the Store one in the same Explorer. Now one
+    /// update with glass off retires the stale helper first. Not while another
+    /// DispCtrl engine is running: that helper is live, and the two would retire
+    /// each other in turn.
+    /// </remarks>
+    private bool RetireStaleHelper(uint explorerPid)
+    {
+        if (_retiredIn == explorerPid) return false;
+        _retiredIn = explorerPid;
+        int self = Environment.ProcessId;
+        Process[] engines = Process.GetProcessesByName("DispCtrl.Engine");
+        bool another = engines.Any(p => p.Id != self);
+        foreach (Process p in engines) p.Dispose();
+        if (another)
+        {
+            Log.Write("taskbar glass: Explorer holds another build's helper, and another DispCtrl engine is running; leaving it");
+            return false;
+        }
+        _ = InvokeUpdate(explorerPid, 0);
+        Log.Write("taskbar glass: retired another DispCtrl build's helper in Explorer, attaching this one");
+        return true;
     }
 
     private int InvokeUpdate(uint explorerPid, uint config)

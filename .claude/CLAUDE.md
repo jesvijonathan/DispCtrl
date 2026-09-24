@@ -999,8 +999,16 @@ unrecallable.
   Windows' decoded copy, when the reported file is missing, online-only or
   undecodable (HEIC, WebP). One laptop's preview stayed empty without it.
 - Switching between the installer, the Store and a development build leaves
-  Explorer holding the other build's glass helper (`0x8007051A`); the Taskbar
-  page offers Restart Windows Explorer when the engine reports it.
+  Explorer holding the other build's glass helper (`0x8007051A`). Attach
+  refused while it was there, and the helper's own `Retire` path ran only in
+  `GlassUpdate` after a successful attach, so glass stayed dead until Explorer
+  restarted (seen: installer, then Store, same Explorer). The engine now sends
+  one glass-off update on a mismatch, which retires the stale helper (brush
+  restored, window gone), and attaches again - once per Explorer, and never
+  while another `DispCtrl.Engine` runs, or two live engines would retire each
+  other in turn. Restart Windows Explorer on the Taskbar page remains the way
+  out if the second attach still fails. Engine-side only: touching the helper
+  would change its revision and need yet another Explorer restart.
 - An MSIX signs only with a certificate whose subject equals its `Publisher`.
   The release workflow compares them and leaves it unsigned rather than failing.
 - **Read a process's `Path` before stopping it.** `Process.Path` comes from
