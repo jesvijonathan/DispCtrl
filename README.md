@@ -311,18 +311,7 @@ Your support funds development and more monitors to test on.
 
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on_GitHub-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
 [![Donate with PayPal](https://img.shields.io/badge/Donate_with_PayPal-0070ba?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/jesvijon)
-[![Donate with UPI](https://img.shields.io/badge/Donate_with_UPI-168a5b?style=for-the-badge)](#pay-with-upi)
-
-<a id="pay-with-upi"></a>
-
-#### Scan to donate with UPI
-
-<a href="site/assets/donations/upi-qr.png">
-  <img src="site/assets/donations/upi-qr.png" alt="UPI donation QR code for Jesvi Jonathan, with the payment note DispCtrl donation" width="256" height="256">
-</a>
-
-Scan with your UPI app, or use **`jesvi22j-2@okaxis`**.<br>
-Recipient: **Jesvi Jonathan** · Payment note: **DispCtrl donation**
+[![Donate with UPI](https://img.shields.io/badge/Donate_with_UPI-168a5b?style=for-the-badge)](https://jesvijonathan.github.io/DispCtrl/#upi)
 
 [Visit the support page](https://jesvijonathan.github.io/DispCtrl/#support)
 
