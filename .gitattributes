@@ -1,0 +1,31 @@
+# Normalise line endings in the repository, whatever core.autocrlf says on the
+# machine that checks the files out.
+* text=auto
+
+# Line endings the tools reading these files require.
+*.sh   text eol=lf
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+*.iss  text eol=crlf
+
+# Never touched as text.
+*.png  binary
+*.gif  binary
+*.jpg  binary
+*.ico  binary
+*.dll  binary
+*.exe  binary
+*.msix binary
+*.zip  binary
+
+# Better diffs.
+*.cs   text diff=csharp
+*.md   text diff=markdown
+
+# Generated after every merge by the Device library workflow; collapsed in
+# pull request diffs and left out of language statistics.
+devices/index.json  linguist-generated=true
+devices/CATALOG.md  linguist-generated=true
+# The website is not the product's code.
+site/**             linguist-documentation=true

@@ -1,0 +1,74 @@
+<UserControl x:Class="DispCtrl.App.Views.ArrangeCanvas"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             SizeChanged="OnControlSizeChanged">
+
+  <!-- MinHeight rather than Height, and stretched: a fixed height collapsed the
+       surface when the card was narrow, and left it stranded at 220px when the
+       window was maximised. -->
+  <Border CornerRadius="6"
+          MinHeight="300"
+          HorizontalAlignment="Stretch"
+          Background="{ThemeResource LayerFillColorDefaultBrush}"
+          BorderThickness="1"
+          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+
+    <!-- The controls live inside the surface, the way Windows puts Identify
+         and the topology picker inside its arrangement box. Outside, they read
+         as page furniture that happens to sit near the diagram; inside, they
+         are plainly the diagram's own controls. -->
+    <Grid RowSpacing="8" Padding="12">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <!-- Transparent, not unset. A panel with no brush is not hit-testable
+           where it is empty, so a press on blank canvas reached nothing and
+           middle-drag panning only worked with the pointer over a display. -->
+      <Canvas x:Name="Surface" Grid.Row="0" Background="Transparent"
+              SizeChanged="OnSurfaceSizeChanged"
+              PointerPressed="OnSurfacePointerPressed"
+              PointerMoved="OnSurfacePointerMoved"
+              PointerReleased="OnSurfacePointerReleased"
+              PointerCaptureLost="OnSurfacePointerCaptureLost"
+              PointerWheelChanged="OnSurfacePointerWheelChanged"/>
+
+      <Grid Grid.Row="1" ColumnSpacing="12">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Text set in the constructor, so the resting wording has one source
+             and Reset can put the same words back. -->
+        <TextBlock x:Name="Hint" Grid.Column="0"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+        <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+          <!-- A view, not a setting of the desk: highlighted while on, so
+               which picture is showing is never in doubt. -->
+          <ToggleButton x:Name="ResolutionToggle" Click="OnResolutionToggled"
+                        ToolTipService.ToolTip="Size each display by its resolution, as Windows does. Off: by its real size."
+                        AutomationProperties.Name="Arrange by resolution">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE740;" FontSize="13"/>
+              <TextBlock Text="By resolution"/>
+            </StackPanel>
+          </ToggleButton>
+          <Button Content="Identify" Click="OnIdentify"
+                  ToolTipService.ToolTip="Flash each display's number on it — changes nothing"
+                  AutomationProperties.Name="Identify"/>
+          <Button x:Name="ResetButton" Content="Reset" Click="OnReset"
+                  ToolTipService.ToolTip="Arrange displays side by side with their top edges aligned"/>
+          <Button x:Name="ApplyButton" Content="Apply"
+                  Style="{StaticResource AccentButtonStyle}"
+                  IsEnabled="False" Click="OnApply"
+                  AutomationProperties.Name="Apply arrangement"/>
+        </StackPanel>
+      </Grid>
+    </Grid>
+  </Border>
+</UserControl>

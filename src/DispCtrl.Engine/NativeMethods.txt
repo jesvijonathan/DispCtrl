@@ -1,0 +1,147 @@
+// CsWin32 generates P/Invoke for exactly the names listed here, from the
+// official Win32 metadata. Keep this list tight: every entry is code generated
+// into the AOT binary.
+//
+// Display ENUMERATION lives in DispCtrl.Core, which both processes share. What is
+// left here is window and taskbar manipulation, which only the engine does.
+
+// ---- taskbar window manipulation ----
+FindWindowEx
+IsWindow
+GetWindowRect
+GetCursorPos
+SetWindowPos
+SET_WINDOW_POS_FLAGS
+GetForegroundWindow
+GetClassName
+SystemParametersInfo
+SYSTEM_PARAMETERS_INFO_ACTION
+SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS
+
+// ---- work-area lookup for a managed bar's monitor ----
+MonitorFromPoint
+GetMonitorInfo
+
+// ---- DPI ----
+SetProcessDpiAwarenessContext
+DPI_AWARENESS_CONTEXT
+
+// ---- console attach ----
+// The engine is a WinExe so it shows no window when autostarted; it attaches to
+// the parent console only when a CLI command is actually run from one.
+AttachConsole
+
+// ---- timer resolution ----
+// Held only while a slide is in flight; a 1ms system timer at rest would be a
+// pointless power cost on a laptop.
+timeBeginPeriod
+timeEndPeriod
+
+// ---- per-app presets ----
+// Which app is in front, polled once a second. A WinEvent hook would put this
+// process in the message path of every activation on the machine; two syscalls
+// on a timer cannot slow anything else down.
+GetWindowThreadProcessId
+
+// ---- Windows' own night light ----
+// Its state lives in a registry value, and polling for it would make a toggle
+// pressed in Quick Settings take up to a tick to show here. The key signals
+// instead, so the two switches move together.
+RegNotifyChangeKeyValue
+REG_NOTIFY_FILTER
+
+// ---- global hotkeys ----
+// WM_HOTKEY goes to the queue of the thread that registered it, and the engine
+// polls rather than pumping, so the hotkey service owns a thread of its own.
+RegisterHotKey
+UnregisterHotKey
+GetMessage
+PostThreadMessage
+GetCurrentThreadId
+MSG
+HOT_KEY_MODIFIERS
+WM_HOTKEY
+WM_APP
+WM_QUIT
+
+// ---- tray icon ----
+// The panel is summoned from the notification area, which needs a real window
+// to receive the callback: Shell_NotifyIcon posts to an HWND, not to a thread.
+// Hidden and top-level rather than message-only, because Explorer restarting
+// broadcasts TaskbarCreated and a message-only window does not hear broadcasts.
+Shell_NotifyIcon
+NOTIFYICONDATAW
+NOTIFY_ICON_MESSAGE
+NOTIFY_ICON_DATA_FLAGS
+RegisterClassEx
+UnregisterClass
+WNDCLASSEXW
+CreateWindowEx
+DestroyWindow
+DefWindowProc
+DispatchMessage
+TranslateMessage
+RegisterWindowMessage
+GetModuleHandle
+ExtractIconEx
+SHDefExtractIcon
+DestroyIcon
+PostMessage
+SetForegroundWindow
+// The click grants this process the foreground; the panel is another process
+// and cannot take it unless it is passed on.
+AllowSetForegroundWindow
+ASFW_ANY
+WINDOW_EX_STYLE
+WINDOW_STYLE
+CreatePopupMenu
+AppendMenu
+TrackPopupMenu
+DestroyMenu
+MENU_ITEM_FLAGS
+TRACK_POPUP_MENU_FLAGS
+WM_LBUTTONUP
+WM_RBUTTONUP
+WM_CONTEXTMENU
+WM_COMMAND
+WM_DESTROY
+WM_CLOSE
+
+// ---- tray glyph ----
+// The icon is drawn at runtime from Segoe Fluent Icons, the font Windows draws
+// its own tray icons from, so it can follow the taskbar's theme and the
+// display's scale instead of being one coloured .ico for every case.
+CreateCompatibleDC
+DeleteDC
+CreateDIBSection
+CreateBitmap
+SelectObject
+DeleteObject
+CreateFontIndirect
+LOGFONTW
+SetBkMode
+SetTextColor
+DrawText
+CreateIconIndirect
+ICONINFO
+BITMAPINFO
+BITMAPINFOHEADER
+DIB_USAGE
+BI_COMPRESSION
+FONT_QUALITY
+BACKGROUND_MODE
+DRAW_TEXT_FORMAT
+GetSystemMetrics
+SYSTEM_METRICS_INDEX
+GetDpiForSystem
+WM_SETTINGCHANGE
+WM_DPICHANGED
+WM_DISPLAYCHANGE
+
+// ---- taskbar repaint after a reveal settles ----
+RedrawWindow
+GetWindowRgnBox
+SetWindowRgn
+REDRAW_WINDOW_FLAGS
+SetTimer
+WM_TIMER

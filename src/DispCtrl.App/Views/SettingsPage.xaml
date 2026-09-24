@@ -1,0 +1,87 @@
+<Page x:Class="DispCtrl.App.Views.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:views="using:DispCtrl.App.Views"
+      xmlns:tk="using:CommunityToolkit.WinUI.Controls">
+
+  <ScrollViewer Padding="0,0,0,32">
+    <!-- Stretch with no MaxWidth. The cap was the problem: a Stretch panel
+           with a MaxWidth centres itself once the window exceeds that width,
+           which is what pushed content off to one side. Pinning it Left instead
+           fixed the drift but made the panel size to its content, so cards
+           stopped filling. Filling at every width is what Windows Settings
+           does, and the side padding already keeps line length sane. -->
+      <StackPanel Padding="36,12,36,0" Spacing="0"
+                  HorizontalAlignment="Stretch">
+
+      <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}"/>
+      <TextBlock Text="DispCtrl itself. Display settings live on the Displays page; taskbar behaviour has its own."
+                 Style="{StaticResource BodyTextBlockStyle}"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                 Margin="0,4,0,28"/>
+
+      <views:EngineSettings/>
+
+      <views:StartupSettings/>
+
+      <TextBlock Text="Diagnostics"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,8"/>
+
+      <tk:SettingsCard Header="Write a log"
+                       Description="Records starts, layout changes and errors. The only way to diagnose a failure after the fact.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE9D9;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.Logging, Mode=TwoWay}"/>
+      </tk:SettingsCard>
+
+      <TextBlock Text="Updates and maintenance"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,8"/>
+
+      <InfoBar x:Name="MaintenanceResult" IsOpen="False" IsClosable="True" Margin="0,0,0,8"/>
+
+      <tk:SettingsCard x:Name="UpdateCard" Header="Updates"
+                       Description="DispCtrl never checks by itself. Download the latest release and run it: it updates in place and keeps your settings.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE895;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Check for updates" Click="OnCheckUpdates" AutomationProperties.Name="CheckForUpdates"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Repair"
+                       Description="Puts back the sign-in task and the Start menu shortcut if something removed them, and restarts the engine. No setting changes.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE90F;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button x:Name="RepairButton" Content="Repair" Click="OnRepair" AutomationProperties.Name="Repair"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Clear logs and cached data"
+                       Description="Logs, and what DispCtrl learned about your monitors, which it reads again by itself. Settings, presets and codes you named are kept.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE74D;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Clear" Click="OnClearCache" AutomationProperties.Name="ClearCache"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Undo the way back"
+                       Description="Ctrl+Alt+Backspace switches off everything that can darken, tint or hide a screen. This switches back on what it last turned off: taskbar hiding and dimming on each monitor, night light, focus, OLED care and taskbar opacity.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE7A7;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Put back" Click="OnUndoRestore" AutomationProperties.Name="UndoRestore"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Reset everything"
+                       Description="Returns all of DispCtrl's settings, every monitor's and the shortcuts, to their defaults. Windows' own display settings are left alone.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE777;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Reset all" Click="OnResetAll" AutomationProperties.Name="ResetAll"/>
+      </tk:SettingsCard>
+
+    </StackPanel>
+  </ScrollViewer>
+</Page>

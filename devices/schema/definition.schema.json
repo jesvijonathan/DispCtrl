@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jesvijonathan/DispCtrl/master/devices/schema/definition.schema.json",
+  "title": "DispCtrl device definition",
+  "description": "What a monitor model's, a manufacturer's or every monitor's VCP codes mean, and for a model what its panel is. Validated by tools/devicecheck with the same rules DispCtrl loads it with; see docs/DEVICE-LIBRARY.md.",
+  "type": "object",
+  "required": ["schema", "target", "controls"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": 1 },
+    "target": { "type": "string", "pattern": "^(\\*|[A-Z]{3}(-[0-9A-F]{4})?)$", "description": "* for every monitor, DEL for a manufacturer, DEL-A234 for a model." },
+    "name": { "type": ["string", "null"], "maxLength": 120 },
+    "extends": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z]{3}(-[0-9A-F]{4})?$" }, "description": "Targets whose mappings this one takes first." },
+    "panel": {
+      "type": ["object", "null"],
+      "description": "What the panel is, for a model only. The one thing a built-in panel can be described by: it has no DDC/CI channel.",
+      "required": ["technology"],
+      "additionalProperties": false,
+      "properties": {
+        "technology": { "type": "string", "minLength": 1, "maxLength": 40, "examples": ["LCD", "OLED", "QD-OLED", "Mini-LED"] },
+        "notes": { "type": ["string", "null"], "maxLength": 600 }
+      }
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "name", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string", "pattern": "^0[xX][0-9A-Fa-f]{2}$" },
+          "key": { "type": ["string", "null"], "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "kind": { "enum": ["range", "choice", "action", "information"] },
+          "writable": { "type": "boolean", "description": "Only true once somebody has written it and seen what the monitor does." },
+          "maximum": { "type": ["integer", "null"], "minimum": 0, "maximum": 65535 },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["value", "name"],
+              "additionalProperties": false,
+              "properties": {
+                "value": { "type": "string", "pattern": "^(0[xX][0-9A-Fa-f]{1,4}|[0-9]{1,5})$" },
+                "name": { "type": "string", "minLength": 1, "maxLength": 60 }
+              }
+            }
+          },
+          "confidence": { "enum": ["observed", "verified", "documented"] },
+          "sources": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z]{3}-[0-9A-F]{4}$" } },
+          "notes": { "type": ["string", "null"], "maxLength": 600 }
+        }
+      }
+    }
+  }
+}

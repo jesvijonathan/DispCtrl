@@ -1,0 +1,91 @@
+<UserControl x:Class="DispCtrl.App.Views.QuickPanelListEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:DispCtrl.App.Views">
+
+  <StackPanel Spacing="8">
+
+    <TextBlock x:Name="Empty"
+               Visibility="Collapsed"
+               Text="Nothing here is shown. Add something below."
+               Style="{StaticResource CaptionTextBlockStyle}"
+               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+    <!-- Drag to reorder. Move up and Move down on the right-click menu do the
+         same from the keyboard and for a screen reader, which a drag cannot. -->
+    <ListView x:Name="List"
+              ItemsSource="{x:Bind Items}"
+              SelectionMode="None"
+              CanDragItems="True"
+              CanReorderItems="True"
+              AllowDrop="True"
+              DragItemsCompleted="OnDragCompleted"
+              AutomationProperties.Name="{x:Bind AutomationName}">
+      <ListView.ItemContainerStyle>
+        <Style TargetType="ListViewItem">
+          <Setter Property="Padding" Value="4,0,4,0"/>
+          <Setter Property="MinHeight" Value="44"/>
+          <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+      </ListView.ItemContainerStyle>
+      <ListView.ItemTemplate>
+        <DataTemplate x:DataType="local:QuickPanelEditorItem">
+          <Grid ColumnSpacing="12" Padding="0,6" Background="Transparent"
+                ToolTipService.ToolTip="{x:Bind Hint}"
+                AutomationProperties.Name="{x:Bind Label}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Grid.ContextFlyout>
+              <MenuFlyout>
+                <MenuFlyoutItem Text="Move up" Click="OnMoveUp" Tag="{x:Bind Id}">
+                  <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70E;"/></MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+                <MenuFlyoutItem Text="Move down" Click="OnMoveDown" Tag="{x:Bind Id}">
+                  <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70D;"/></MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+                <MenuFlyoutSeparator/>
+                <MenuFlyoutItem Text="Remove from the panel" Click="OnRemove" Tag="{x:Bind Id}">
+                  <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;"/></MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+              </MenuFlyout>
+            </Grid.ContextFlyout>
+
+            <FontIcon Glyph="&#xE76F;" FontSize="12" VerticalAlignment="Center"
+                      Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+            <FontIcon Grid.Column="1" Glyph="{x:Bind Glyph}" FontSize="16" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+              <TextBlock Text="{x:Bind Label}" TextTrimming="CharacterEllipsis"/>
+              <TextBlock Text="{x:Bind Hint}"
+                         Style="{StaticResource CaptionTextBlockStyle}"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                         TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+            <Button Grid.Column="3"
+                    Click="OnRemove" Tag="{x:Bind Id}"
+                    Width="32" Height="32" Padding="0"
+                    Background="Transparent" BorderThickness="0"
+                    ToolTipService.ToolTip="Remove from the panel"
+                    AutomationProperties.Name="Remove">
+              <FontIcon Glyph="&#xE711;" FontSize="12"/>
+            </Button>
+          </Grid>
+        </DataTemplate>
+      </ListView.ItemTemplate>
+    </ListView>
+
+    <DropDownButton x:Name="AddButton" AutomationProperties.Name="{x:Bind AddAutomationName}">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <FontIcon Glyph="&#xE710;" FontSize="12"/>
+        <TextBlock Text="Add"/>
+      </StackPanel>
+      <DropDownButton.Flyout>
+        <MenuFlyout x:Name="AddMenu" Placement="BottomEdgeAlignedLeft"/>
+      </DropDownButton.Flyout>
+    </DropDownButton>
+
+  </StackPanel>
+</UserControl>

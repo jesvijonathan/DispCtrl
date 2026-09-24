@@ -1,0 +1,60 @@
+name: Bug report
+description: Something does not work, or works wrongly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Hardware differs a great deal between desks, so the details below are what make a bug fixable.
+        **The quickest route:** Help > Report a problem in the app, or `dispctrl report --what "..."`, fills in a report with serials, device paths and your account name already removed.
+        **Before pasting logs or diagnostics, read them.** They name your monitors by an identity token that includes the serial number, and contain paths under your user folder.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Turn on unison
+        2. Press the brightness-up key
+        3. ...
+  - type: input
+    id: version
+    attributes:
+      label: DispCtrl version
+      description: From About, or `dispctrl status`.
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How it was installed
+      options: [Installer, winget, Portable zip, Microsoft Store, Built from source]
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: From `winver`, for example 11 24H2 (26100.4061).
+  - type: textarea
+    id: displays
+    attributes:
+      label: Displays
+      description: Each monitor's model, connection (HDMI, DisplayPort, USB-C, dock), resolution and scaling. Which one is primary.
+      placeholder: |
+        1. Laptop panel, 2880x1800, 200%
+        2. Dell U2424H over DisplayPort, 1920x1080, 100%, primary
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The end of `%LOCALAPPDATA%\DispCtrl\engine.log`, `app-crash.log` if the window closed by itself, or `dispctrl diagnostics --json`.
+      render: text

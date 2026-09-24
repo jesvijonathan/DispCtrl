@@ -1,0 +1,164 @@
+name: Device library
+# The whole life of the device library, in one place:
+#  - check    every pull request and push that touches devices/ is validated
+#             with the same rules DispCtrl loads a definition with;
+#  - index    after a merge, CATALOG.md and index.json are regenerated (never in
+#             the pull request: every share would then conflict with the last);
+#  - intake   a share made with `dispctrl devices share` or the app's Devices
+#             page arrives as an issue, and becomes a pull request for review.
+# Linux runners: the checks need no Windows API, and they start faster.
+on:
+  pull_request:
+    paths: ['devices/**', 'src/DispCtrl.Core/Devices/**', 'tools/devicecheck/**']
+  push:
+    branches: [main, master]
+    paths: ['devices/**', 'src/DispCtrl.Core/Devices/**', 'tools/devicecheck/**']
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to run
+        type: choice
+        options: [validate, rebuild the index, intake an issue, self-test]
+        default: validate
+      issue:
+        description: Issue number, for "intake an issue"
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: devices-${{ github.event.issue.number || github.ref }}
+  cancel-in-progress: false
+env:
+  DEVICECHECK: dotnet run --project tools/devicecheck -c Release --property:EnableWindowsTargeting=true --
+# Named, not left to the default: only an explicit bash runs with pipefail, and
+# without it "validate | tee" reported success while devicecheck failed to start.
+defaults:
+  run:
+    shell: bash
+jobs:
+  check:
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'validate' || inputs.action == 'self-test' || inputs.action == 'rebuild the index'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Validate the library
+        run: $DEVICECHECK validate devices | tee validate.log
+      - name: Self-test the intake
+        run: $DEVICECHECK selftest
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Device library: ${{ job.status }}"
+            echo
+            echo '```'
+            tail -n 40 validate.log 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  index:
+    needs: check
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.action == 'rebuild the index')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Regenerate index.json and CATALOG.md
+        run: $DEVICECHECK index devices
+      - name: Commit them if they changed
+        run: |
+          git add devices/index.json devices/CATALOG.md
+          if git diff --cached --quiet; then
+            echo "Index already current." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name 'dispctrl-index'
+          git config user.email 'dispctrl-index@users.noreply.github.com'
+          git commit -m "Regenerate the device index"
+          git push
+          echo "Index regenerated and pushed: $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
+
+  intake:
+    # Recognised by the payload, not a label: GitHub drops the labels a
+    # prefilled link asks for when the author cannot triage.
+    if: (github.event_name == 'issues' && contains(github.event.issue.body, 'dispctrl-device-mapping')) || (github.event_name == 'workflow_dispatch' && inputs.action == 'intake an issue')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number || inputs.issue }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Turn the issue into files
+        id: intake
+        run: |
+          if [ -z "$ISSUE" ]; then echo "No issue number." >&2; exit 1; fi
+          # Untrusted text: fetched to a file, never interpolated into a script.
+          gh issue view "$ISSUE" --json body --jq .body > "$RUNNER_TEMP/issue.md"
+          set +e
+          # The issue number is recorded against the model; the author is not.
+          # Commits and pull requests carry the number too, never a name.
+          $DEVICECHECK intake "$RUNNER_TEMP/issue.md" devices --issue "$ISSUE" > intake.log 2>&1
+          code=$?
+          set -e
+          cat intake.log
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Open the pull request
+        id: pr
+        if: steps.intake.outputs.code == '0'
+        run: |
+          branch="device-share/$ISSUE"
+          git config user.name 'dispctrl-intake'
+          git config user.email 'dispctrl-intake@users.noreply.github.com'
+          git checkout -B "$branch"
+          git add devices
+          git commit -m "Device share from #$ISSUE"
+          git push --force origin "$branch"
+          url=$(gh pr list --head "$branch" --json url --jq '.[0].url')
+          if [ -z "$url" ]; then
+            url=$(gh pr create --head "$branch" --title "Device share from #$ISSUE" \
+              --body "Generated from #$ISSUE by the Device library workflow. Review the names, the writable flags and the record before merging.")
+          fi
+          gh issue comment "$ISSUE" --body "Thanks - this share is now a pull request for review: $url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Explain a share that could not be read
+        if: steps.intake.outputs.code != '0' && steps.intake.outputs.code != '3' && steps.intake.outputs.code != '4'
+        run: |
+          {
+            echo "The intake could not read this share:"
+            echo
+            echo '```'
+            sed 's/```/'"'''"'/g' intake.log
+            echo '```'
+            echo
+            echo "Edit the JSON block and the intake runs again."
+          } > comment.md
+          gh issue comment "$ISSUE" --body-file comment.md
+      - name: Summary
+        if: always()
+        run: |
+          case "${{ steps.intake.outputs.code }}" in
+            0) result="pull request: ${{ steps.pr.outputs.url }}" ;;
+            3) result="not a device share; nothing to do" ;;
+            4) result="the share changed nothing" ;;
+            *) result="could not be read; the issue has a comment explaining why" ;;
+          esac
+          echo "## Device share intake: issue #$ISSUE - $result" >> "$GITHUB_STEP_SUMMARY"

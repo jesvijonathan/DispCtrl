@@ -1,0 +1,40 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- One place to bump the shipping version. Local builds carry it; release
+         builds pass -p:Version from the tag, and release.yml refuses a stable
+         tag that disagrees with it, so bump this in the release commit. -->
+    <DispCtrlVersion>0.1.0</DispCtrlVersion>
+    <Version Condition="'$(Version)' == ''">$(DispCtrlVersion)</Version>
+
+    <!-- Presets are shelved until the beta implementation is ready. -->
+    <EnableBetaPresets Condition="'$(EnableBetaPresets)' == ''">false</EnableBetaPresets>
+    <DefineConstants Condition="'$(EnableBetaPresets)' == 'true'">$(DefineConstants);BETA_PRESETS</DefineConstants>
+
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- x64 only for now. The shell interop is not arm64-tested and shipping an
+         untested arm64 slice is worse than shipping none. -->
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+
+    <!-- Warnings are the cheapest bug detector available in interop code, where
+         a silent marshalling mistake reads as a runtime crash three layers away. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <Authors>Jesvi Jonathan</Authors>
+    <Company>Jesvi Jonathan</Company>
+    <Product>DispCtrl</Product>
+    <Description>Per-monitor display, brightness, taskbar and OLED controls for Windows, with a scriptable command line.</Description>
+    <Copyright>Copyright (c) 2026 Jesvi Jonathan (jesvi22j@gmail.com, www.jesvi.net). MIT licence.</Copyright>
+    <RepositoryUrl>https://github.com/jesvijonathan/DispCtrl</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/jesvijonathan/DispCtrl</PackageProjectUrl>
+  </PropertyGroup>
+
+</Project>

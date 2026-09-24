@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "target": "SDC-4154",
+  "name": "Samsung Display 14.0 inch 2880 x 1800 panel",
+  "panel": {
+    "technology": "OLED",
+    "notes": "Built into the ASUSTeK Vivobook M7400QC, which ASUS sells as an OLED laptop. A built-in panel has no DDC/CI channel to report its own technology."
+  },
+  "extends": [],
+  "controls": []
+}

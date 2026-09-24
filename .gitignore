@@ -1,0 +1,54 @@
+# Build output
+bin/
+obj/
+artifacts/
+TestResults/
+*.binlog
+*.log
+
+# Editors and IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+
+# Operating system clutter
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Packages built locally (the release workflow builds its own)
+*.msix
+*.msixbundle
+*.msixupload
+*.appx
+
+# Signing material and secrets must never be committed.
+*.pfx
+*.p12
+*.snk
+*.pem
+*.key
+*.cer
+.env
+.env.*
+
+# The website as the Pages workflow assembles it
+_site/
+
+# Working notes, Store assets and session logs: kept locally, never committed.
+.notes/
+
+# Developer tools fetched by build/dev.ps1 and build.sh, and local choices.
+.tools/
+build/local.json
+
+# Agent settings that belong to one machine; .claude/CLAUDE.md is shared.
+.claude/settings.local.json
+
+# Conversation exports and agent session logs: private, never committed.
+/*-this-session-*.txt
+/codex-session-*.md
+/*.session.md

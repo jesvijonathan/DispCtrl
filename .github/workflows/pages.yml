@@ -1,0 +1,46 @@
+name: Website
+# Publishes site/ to GitHub Pages as it is: the page, its legal pages and its
+# images all live there, so what you open locally is what gets published.
+# One-time setup: Settings > Pages > Source: GitHub Actions.
+on:
+  push:
+    branches: [main, master]
+    paths: ['site/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp -r site/. _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Website: ${{ job.status }}"
+            echo
+            echo "Live at ${{ steps.deployment.outputs.page_url }}"
+            echo
+            echo "Privacy policy: ${{ steps.deployment.outputs.page_url }}privacy.html"
+          } >> "$GITHUB_STEP_SUMMARY"

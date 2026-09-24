@@ -1,0 +1,14 @@
+{
+  "schema": 2,
+  "generated": "tools/devicecheck index - do not edit; regenerated after every merge",
+  "counts": { "brands": 2, "models": 2, "records": 2, "definitions": 2 },
+  "common": 0,
+  "brands": {
+    "DEL": {"brandCodes":0,"models":1},
+    "SDC": {"brandCodes":0,"models":1}
+  },
+  "models": {
+    "DEL-A234": {"name":"Dell U2424H","record":true,"codes":1,"panel":"LCD (TFT)","writable":0,"reports":0,"extends":[]},
+    "SDC-4154": {"name":"Samsung Display 14.0 inch 2880 x 1800 panel","record":true,"codes":0,"panel":"OLED","writable":0,"reports":0,"extends":[]}
+  }
+}

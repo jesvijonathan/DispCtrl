@@ -1,0 +1,256 @@
+name: Release
+# Builds every package and creates the GitHub release: a draft by default, so
+# nothing reaches users until a person publishes it. Publishing a stable release
+# starts "Distribute" (winget and the Microsoft Store).
+#
+# Start it by pushing a v* tag, or from Actions > Release > Run workflow with
+# the options below. A run for a version that already has a release replaces
+# that release's files rather than failing.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, three numbers (the tag will be v<version>, plus -beta for beta)
+        required: true
+        default: '0.1.0'
+      channel:
+        type: choice
+        options: [stable, beta]
+        default: stable
+      publish:
+        description: Publish immediately instead of leaving a draft (a stable publish starts Distribute)
+        type: boolean
+        default: false
+      create_tag:
+        description: Create the tag from the selected branch if it does not exist yet
+        type: boolean
+        default: true
+      packages:
+        description: What to build
+        type: choice
+        options: [everything, installer and zips, MSIX only]
+        default: everything
+      sign:
+        description: Sign the binaries (needs the SIGNING_CERT_* secrets)
+        type: boolean
+        default: true
+      notes:
+        description: Extra text placed above the generated release notes (optional)
+        required: false
+permissions:
+  contents: write
+  actions: write   # to start Distribute after publishing a stable release
+concurrency:
+  group: release-${{ inputs.version || github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    env:
+      HAS_SIGNING_CERT: ${{ secrets.SIGNING_CERT_BASE64 != '' }}
+      DISPCTRL_SIGN_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+      PACKAGES: ${{ inputs.packages || 'everything' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: mingw-w64-ucrt-x86_64-gcc
+
+      - name: Resolve version, channel and tag
+        id: v
+        shell: pwsh
+        env:
+          IN_VERSION: ${{ inputs.version }}
+          IN_CHANNEL: ${{ inputs.channel }}
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $tag = $env:GITHUB_REF_NAME
+            $version = $tag -replace '^v','' -replace '-.*$',''
+            $channel = if ($tag -match '-') { 'beta' } else { 'stable' }
+          } else {
+            $version = $env:IN_VERSION; $channel = $env:IN_CHANNEL
+            $tag = "v$version" + $(if ($channel -eq 'beta') { '-beta' } else { '' })
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "'$version' is not <major>.<minor>.<patch>." }
+          $declared = ([xml](Get-Content Directory.Build.props -Raw)).Project.PropertyGroup.DispCtrlVersion | Where-Object { $_ } | Select-Object -First 1
+          if ($declared -ne $version) {
+            $message = "Directory.Build.props declares $declared but this release is $version."
+            if ($channel -eq 'stable') { throw "$message Bump DispCtrlVersion in the release commit." }
+            "::warning::$message"
+          }
+          $gpp = (Get-ChildItem $env:RUNNER_TEMP -Filter g++.exe -Recurse | Where-Object FullName -match 'ucrt64' | Select-Object -First 1).FullName
+          if (-not $gpp) { throw 'Native compiler not found.' }
+          "DISPCTRL_CXX=$gpp" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "version=$version", "channel=$channel", "tag=$tag" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Create the tag
+        if: github.ref_type != 'tag' && inputs.create_tag
+        shell: pwsh
+        env:
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          git ls-remote --exit-code --tags origin "refs/tags/$env:TAG" *> $null
+          if ($LASTEXITCODE -eq 0) { "Tag $env:TAG already exists; using it."; exit 0 }
+          git tag $env:TAG
+          git push origin $env:TAG
+          if ($LASTEXITCODE -ne 0) { throw "Could not push tag $env:TAG." }
+
+      - name: Load the signing certificate
+        if: env.HAS_SIGNING_CERT == 'true' && inputs.sign != false
+        shell: pwsh
+        env:
+          SIGNING_CERT_BASE64: ${{ secrets.SIGNING_CERT_BASE64 }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_CERT_BASE64))
+          "DISPCTRL_SIGN_PFX=$pfx" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build, test and publish the zips
+        id: publish
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          CHANNEL: ${{ steps.v.outputs.channel }}
+        run: |
+          ./build/Publish.ps1 -Version $env:VERSION -Channel $env:CHANNEL -Sign:([bool]$env:DISPCTRL_SIGN_PFX) | Out-Host
+          $bundle = Join-Path $PWD "artifacts/$env:CHANNEL-$env:VERSION"
+          if (-not (Test-Path (Join-Path $bundle 'desktop'))) { throw 'Publish produced no bundle.' }
+          "bundle=$bundle" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build the installer
+        if: env.PACKAGES != 'MSIX only'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          CHANNEL: ${{ steps.v.outputs.channel }}
+          BUNDLE: ${{ steps.publish.outputs.bundle }}
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup install failed.' }
+          }
+          ./build/Installer.ps1 -DesktopDirectory (Join-Path $env:BUNDLE 'desktop') -Version $env:VERSION -Channel $env:CHANNEL -Sign:([bool]$env:DISPCTRL_SIGN_PFX)
+
+      - name: Pack the MSIX
+        if: env.PACKAGES != 'installer and zips'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          BUNDLE: ${{ steps.publish.outputs.bundle }}
+          STORE_IDENTITY: ${{ vars.STORE_IDENTITY }}
+          STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+        run: |
+          # The Store identity is in build/packaging/AppxManifest.xml; the
+          # repository variables only override it, and must come as a pair.
+          if ([bool]$env:STORE_IDENTITY -ne [bool]$env:STORE_PUBLISHER) { throw 'Set both STORE_IDENTITY and STORE_PUBLISHER repository variables, or neither.' }
+          $template = [xml](Get-Content build/packaging/AppxManifest.xml -Raw)
+          $identity = if ($env:STORE_IDENTITY) { $env:STORE_IDENTITY } else { $template.Package.Identity.Name }
+          $publisher = if ($env:STORE_PUBLISHER) { $env:STORE_PUBLISHER } else { $template.Package.Identity.Publisher }
+          # An MSIX can be signed only by a certificate whose subject equals its
+          # Publisher. Partner Center signs a Store upload itself, so a
+          # mismatch leaves it unsigned rather than failing.
+          $sign = $false
+          if ($env:DISPCTRL_SIGN_PFX) {
+            $certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($env:DISPCTRL_SIGN_PFX, $env:DISPCTRL_SIGN_PASSWORD)
+            $sign = $certificate.Subject -eq $publisher
+            if (-not $sign) { "::notice::MSIX left unsigned: the certificate is '$($certificate.Subject)', the package publisher '$publisher'." }
+          }
+          ./build/Package.ps1 -DesktopDirectory (Join-Path $env:BUNDLE 'desktop') -IdentityName $identity -Publisher $publisher -Version "$env:VERSION.0" -Sign:$sign
+
+      - name: Forget the signing certificate
+        if: always()
+        shell: pwsh
+        run: Remove-Item (Join-Path $env:RUNNER_TEMP 'signing.pfx') -ErrorAction SilentlyContinue
+
+      - name: Write the release notes
+        shell: pwsh
+        env:
+          TAG: ${{ steps.v.outputs.tag }}
+          EXTRA: ${{ inputs.notes }}
+        run: |
+          $notes = ./build/ReleaseNotes.ps1 -Version $env:TAG -ArtifactsDirectory artifacts
+          if ($env:EXTRA) { $notes = $env:EXTRA + "`n`n" + ($notes -join "`n") }
+          $notes | Set-Content artifacts/RELEASE-NOTES.md -Encoding utf8
+
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: DispCtrl-${{ steps.v.outputs.version }}-${{ steps.v.outputs.channel }}
+          retention-days: 30
+          compression-level: 0
+          path: |
+            artifacts/**/*.zip
+            artifacts/**/*.msix
+            artifacts/**/*-setup.exe
+            artifacts/**/*SHA256SUMS.txt
+            artifacts/RELEASE-NOTES.md
+
+      - name: Create or update the release
+        id: gh
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+          CHANNEL: ${{ steps.v.outputs.channel }}
+          PUBLISH: ${{ inputs.publish && 'true' || 'false' }}
+        run: |
+          $files = @(Get-ChildItem artifacts -Recurse -File | Where-Object {
+            $_.Extension -in @('.zip','.msix') -or $_.Name -like '*-setup.exe' -or $_.Name -like '*SHA256SUMS.txt'
+          } | ForEach-Object FullName)
+          $duplicates = $files | ForEach-Object { Split-Path $_ -Leaf } | Group-Object | Where-Object Count -gt 1
+          if ($duplicates) { throw "Two release assets share a name: $($duplicates.Name -join ', ')" }
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # A re-run replaces the files rather than failing.
+            gh release upload $env:TAG @files --clobber
+            gh release edit $env:TAG --notes-file artifacts/RELEASE-NOTES.md
+          } else {
+            $options = @('--title', "DispCtrl $env:TAG", '--notes-file', 'artifacts/RELEASE-NOTES.md', '--verify-tag')
+            if ($env:PUBLISH -ne 'true') { $options += '--draft' }
+            if ($env:CHANNEL -eq 'beta') { $options += '--prerelease' }
+            gh release create $env:TAG @options @files
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Creating the release failed.' }
+          $url = gh release view $env:TAG --json url --jq .url
+          "url=$url" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Start Distribute
+        # A release published by this workflow's token does not raise the
+        # "released" event, so Distribute is started explicitly instead.
+        if: inputs.publish && steps.v.outputs.channel == 'stable'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: gh workflow run distribute.yml -f tag=$env:TAG -f targets=both
+
+      - name: Summary
+        if: always()
+        shell: pwsh
+        env:
+          STATUS: ${{ job.status }}
+          TAG: ${{ steps.v.outputs.tag }}
+          URL: ${{ steps.gh.outputs.url }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+          PUBLISH: ${{ inputs.publish && 'published' || 'draft' }}
+        run: |
+          $lines = @("## Release $env:TAG`: $env:STATUS", '', '| | |', '|---|---|')
+          if ($env:URL) { $lines += "| Release | [$env:TAG]($env:URL) ($env:PUBLISH) |" }
+          if ($env:ARTIFACT_URL) { $lines += "| Workflow artifact | [download]($env:ARTIFACT_URL) (kept 30 days) |" }
+          $lines += "| Signed | $([bool]$env:HAS_SIGNING_CERT) |"
+          $files = Get-ChildItem artifacts -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.zip', '.msix' -or $_.Name -like '*-setup.exe' }
+          if ($files) { $lines += '', '| File | Size | For |', '|---|---|---|'
+            foreach ($f in $files) {
+              $for = if ($f.Extension -eq '.msix') { 'Microsoft Store' } elseif ($f.Name -like '*setup.exe') { 'installer' } else { 'portable' }
+              $lines += "| $($f.Name) | $([math]::Round($f.Length / 1MB, 1)) MB | $for |" } }
+          if ($env:PUBLISH -eq 'draft' -and $env:URL) { $lines += '', "Review the draft and press **Publish release** to ship it." }
+          $lines -join "`n" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

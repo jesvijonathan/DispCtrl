@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="DispCtrl.App.Views.QuickPanelWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:DispCtrl.App.ViewModels"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+  <!-- Rounded to match what DwmSetWindowAttribute rounds the window to. A
+       square window behind a rounded border shows chopped corners, which is a
+       trap this project has already paid for once. -->
+  <Border x:Name="Root"
+          CornerRadius="8"
+          BorderThickness="0">
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+      <!-- Title row. Only the title is the drag handle: a flyout that cannot be
+           moved is fine until it lands on the display being adjusted, and a
+           handle the width of the row swallowed presses meant for the controls
+           beside it. Transparent, not unset, so the whole word is hit-testable
+           rather than only its glyphs. -->
+      <!-- Each control does one thing nothing else in the panel does: simple
+           mode, the density, keep it open, customise it. A "more" menu used to
+           sit here too; everything in it was already on the Quick panel page
+           and the icon's own right-click menu. -->
+      <Grid Grid.Row="0" Padding="8,8,8,8" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+        <Border x:Name="TitleRow" Background="Transparent" Padding="8,4" VerticalAlignment="Center">
+          <TextBlock Text="DispCtrl"
+                     Style="{StaticResource BodyStrongTextBlockStyle}"/>
+        </Border>
+
+        <!-- Simple mode from the panel itself: the switch is found by looking at
+             the panel, not by remembering which settings page holds it. -->
+        <Button Grid.Column="2"
+                x:Name="SimpleButton"
+                Click="OnSimple"
+                Background="Transparent" BorderThickness="0"
+                Width="36" Height="32" Padding="0"
+                AutomationProperties.Name="QuickPanelSimpleToggle">
+          <FontIcon x:Name="SimpleGlyph" FontSize="16" Glyph="&#xE915;"/>
+        </Button>
+
+        <!-- Cycles the layout: compact, comfortable, spacious. One button rather
+             than a trip to the settings, because the right density is found by
+             looking at it. -->
+        <Button Grid.Column="3"
+                x:Name="DensityButton"
+                Click="OnDensity"
+                Background="Transparent" BorderThickness="0"
+                Width="36" Height="32" Padding="0"
+                AutomationProperties.Name="QuickPanelDensityCycle">
+          <FontIcon FontSize="14" Glyph="&#xF0E2;"/>
+        </Button>
+
+        <Button Grid.Column="4"
+                x:Name="PinButton"
+                Click="OnPin"
+                Background="Transparent" BorderThickness="0"
+                Width="36" Height="32" Padding="0"
+                AutomationProperties.Name="QuickPanelPin"
+                ToolTipService.ToolTip="Keep the panel open when it loses focus">
+          <FontIcon x:Name="PinGlyph" FontSize="14" Glyph="&#xE718;"/>
+        </Button>
+
+        <Button Grid.Column="5"
+                Click="OnCustomise"
+                Background="Transparent" BorderThickness="0"
+                Width="36" Height="32" Padding="0"
+                AutomationProperties.Name="QuickPanelSettings"
+                ToolTipService.ToolTip="Choose what this panel shows">
+          <FontIcon FontSize="14" Glyph="&#xE713;"/>
+        </Button>
+        <!-- The drag region while the panel is locked: nothing. -->
+        <Border x:Name="NoDrag" Width="0" Height="0"/>
+      </Grid>
+
+      <ScrollViewer Grid.Row="1"
+                    x:Name="Scroller"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled"
+                    Padding="0,0,0,4">
+        <StackPanel x:Name="Sections" Padding="12,0,12,8" Spacing="4"/>
+      </ScrollViewer>
+
+      <!-- What a tile somebody made has just done. Its own row, so it shows
+           whether or not the link below is switched on. -->
+      <TextBlock Grid.Row="2"
+                 x:Name="Status"
+                 Visibility="Collapsed"
+                 Margin="16,2,16,6"
+                 FontSize="12"
+                 TextWrapping="Wrap"
+                 AutomationProperties.LiveSetting="Polite"
+                 AutomationProperties.AutomationId="QuickPanelStatus"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+      <Border Grid.Row="3"
+              x:Name="Footer"
+              Padding="12,8,12,12"
+              BorderThickness="0,1,0,0"
+              BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+        <Button Click="OnOpenApp"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                AutomationProperties.Name="QuickPanelOpenApp">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <FontIcon FontSize="14" Glyph="&#xE7F4;"/>
+            <TextBlock Text="All display settings"/>
+          </StackPanel>
+        </Button>
+      </Border>
+
+    </Grid>
+  </Border>
+</Window>

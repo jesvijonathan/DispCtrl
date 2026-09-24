@@ -1,0 +1,8 @@
+# Every change needs the owner's review when branch protection or a ruleset
+# requires code-owner review. The workflows, build scripts and packaging are
+# listed separately so the rule stays explicit if the catch-all ever changes.
+*                    @jesvijonathan
+/.github/            @jesvijonathan
+/.github/workflows/  @jesvijonathan
+/build/              @jesvijonathan
+/devices/schema/     @jesvijonathan

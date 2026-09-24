@@ -1,0 +1,45 @@
+/* Shared by the landing page and the standalone legal pages. A label, not a
+   card: small, quiet, and only where it says something the control does not. */
+.site-tooltip {
+  position: fixed;
+  z-index: 1000;
+  width: max-content;
+  max-width: min(240px, calc(100vw - 24px));
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgb(24 19 36 / 92%);
+  color: #f4f1fa;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 14%);
+  font: 500 12px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .01em;
+  pointer-events: none;
+  opacity: 0;
+  translate: 0 2px;
+  transition: opacity 120ms ease, translate 120ms ease;
+}
+.site-tooltip.on { opacity: 1; translate: 0 0; }
+.site-tooltip[hidden] { display: none; }
+[data-theme=dark] .site-tooltip { background: rgb(244 241 250 / 94%); color: #1b1428; }
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .site-tooltip { background: rgb(244 241 250 / 94%); color: #1b1428; }
+}
+@media (prefers-reduced-motion: reduce) { .site-tooltip { transition: none; translate: none; } }
+
+[data-preview] { cursor: zoom-in; }
+:is(a, button, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--a1, #7c4ddb);
+  outline-offset: 3px;
+}
+.preview-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  padding: 7px 14px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 8%);
+  color: #fff;
+  font: 600 13px "Segoe UI", system-ui, sans-serif;
+  cursor: pointer;
+}
+.preview-close:hover { background: rgb(255 255 255 / 14%); }

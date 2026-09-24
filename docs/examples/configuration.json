@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "displays": [
+    { "monitor": "office", "brightness": 65 }
+  ]
+}
