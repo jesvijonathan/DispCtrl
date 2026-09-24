@@ -116,6 +116,12 @@ internal sealed partial class QuickPanelContent
 
     private void Unison()
     {
+        if (!_vm.SeveralDisplays)
+        {
+            AloneBrightness();
+            return;
+        }
+
         ToggleSwitch on = HeaderSwitch(() => _vm.UnisonBrightness, v => _vm.UnisonBrightness = v,
             nameof(MainViewModel.UnisonBrightness), "QuickUnisonSwitch",
             "Unison brightness: one slider for every display. Switching it on again carries on from where it was left.");
@@ -144,6 +150,44 @@ internal sealed partial class QuickPanelContent
             IsEnabled = _vm.UnisonFollowsWindowsAvailable };
         Watch(_vm, nameof(MainViewModel.UnisonFollowsWindowsAvailable), () => windowsHost.IsEnabled = _vm.UnisonFollowsWindowsAvailable);
         target.Children.Add(windowsHost);
+    }
+
+    /// <summary>
+    /// The unison section with one display connected: that display's own brightness.
+    /// </summary>
+    /// <remarks>
+    /// A slider that moves every display, with nothing to move together, is
+    /// one control too many - and it was the laptop's slider squeezed into a
+    /// calibrated range meant for matching another panel. Brightness stays
+    /// where people look for it, and unison returns, switch and level as they
+    /// were, when a second display arrives: the list changing rebuilds this.
+    /// </remarks>
+    private void AloneBrightness()
+    {
+        if (_vm.Displays.FirstOrDefault() is not { } display) return;
+        const string note = "One display connected. Unison carries on from where it was left when another is plugged in.";
+        StackPanel target = Foldable("unison", SectionHeader("Brightness"));
+        // The display's own section below already has it: one slider, not two.
+        if (_panel.IsShown(QuickPanelGroup.Sections, "displays") && _panel.Shows(display.Token)
+            && _panel.IsShown(QuickPanelGroup.DisplayRows, "brightness"))
+        {
+            target.Children.Add(Note(note));
+            return;
+        }
+        if (!display.BrightnessSupported)
+        {
+            // Brightness arrives seconds after start on a DDC/CI monitor.
+            Watch(display, nameof(DisplayViewModel.BrightnessSupported), _rebuild);
+            target.Children.Add(Note("Waiting for the display to answer."));
+            return;
+        }
+        target.Children.Add(SliderRow(
+            "\uE706", display.Name,
+            display.BrightnessPercent, 0, 100,
+            v => display.BrightnessPercent = (int)Math.Round(v),
+            display, nameof(DisplayViewModel.BrightnessPercent), () => display.BrightnessPercent,
+            $"Brightness {display.Number}", "%"));
+        target.Children.Add(Note(note));
     }
 
     /// <summary>A switch that sits in a section's header, beside its chevron.</summary>
@@ -187,6 +231,13 @@ internal sealed partial class QuickPanelContent
         _host.Spacing = 10;
         _m = _m with { SliderLabels = false }; // the name is already above each slider
 
+        // "All displays" over one display is the same slider twice.
+        if (_vm.SeveralDisplays) SimpleUnison();
+        SimpleDisplays();
+    }
+
+    private void SimpleUnison()
+    {
         var all = SimpleSlider("All displays", _vm.UnisonLevel, _vm.UnisonMinimum,
             v => _vm.UnisonLevel = v, _vm, nameof(MainViewModel.UnisonLevel), () => _vm.UnisonLevel, "QuickUnisonLevel",
             HeaderSwitch(() => _vm.UnisonBrightness, v => _vm.UnisonBrightness = v,
@@ -197,12 +248,15 @@ internal sealed partial class QuickPanelContent
         Watch(_vm, nameof(MainViewModel.UnisonBrightness), RefreshEnabled);
         Watch(_vm, nameof(MainViewModel.Calibrating), RefreshEnabled);
         _host.Children.Add(all);
+    }
 
+    private void SimpleDisplays()
+    {
         bool any = false;
         foreach (DisplayViewModel display in _vm.Displays)
         {
             if (!_panel.Shows(display.Token)) continue;
-            if (!any) { _host.Children.Add(Divider()); any = true; }
+            if (!any) { if (_host.Children.Count > 0) _host.Children.Add(Divider()); any = true; }
 
             if (!display.BrightnessSupported)
             {
@@ -290,6 +344,9 @@ internal sealed partial class QuickPanelContent
             };
             AutomationProperties.SetName(b, $"QuickMode {m.Text}");
             ToolTipService.SetToolTip(b, m.Text);
+            // With one display connected there is nothing to extend to or
+            // duplicate on; the lit button still says which mode this is.
+            b.IsEnabled = _vm.ArrangementsApply || now == mode;
             b.Click += (_, _) =>
             {
                 // Lit by what Windows says afterwards, not by the click: a mode
@@ -300,7 +357,9 @@ internal sealed partial class QuickPanelContent
             buttons.Add(Labelled(b, m.Text));
         }
 
-        Foldable("displayMode", SectionHeader("Display mode")).Children.Add(Columns(buttons, 4, 6));
+        StackPanel section = Foldable("displayMode", SectionHeader("Display mode"));
+        section.Children.Add(Columns(buttons, 4, 6));
+        if (!_vm.ArrangementsApply) section.Children.Add(Note("Only one display is connected."));
     }
 
     /// <summary>Focus mode: its switch in the header, every option beneath.</summary>

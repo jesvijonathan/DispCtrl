@@ -504,6 +504,10 @@ internal static class Program
                 }
             });
 
+            // First, so every service below can hear a display arriving or
+            // leaving from the moment it exists.
+            List<DisplayInfo> attached = Color.DisplayChanges.Start();
+
             using var nightLight = new NightLightService(settings);
 
             // Persisting from the engine is new with app rules: applying a
@@ -534,7 +538,7 @@ internal static class Program
             // whether or not it is wanted, so switching it on in the app takes
             // effect without restarting the engine.
             using var brightnessBridge = new Color.WindowsBrightnessBridge(settings);
-            using var hotplug = new Color.UnisonHotplug();
+            using var hotplug = new Color.UnisonHotplug(attached);
             // Like the bridge: always there, idle until switched on, and then
             // woken by the sensor rather than polling it.
             using var ambient = new Color.AmbientSync(settings);
@@ -558,6 +562,7 @@ internal static class Program
             // Unregister before the event handle is disposed, or the wait can
             // fire against a closed handle during shutdown.
             stopWait.Unregister(stopEvent);
+            Color.DisplayChanges.Stop();
         }
     }
 }

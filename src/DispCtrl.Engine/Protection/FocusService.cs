@@ -400,6 +400,9 @@ internal sealed unsafe partial class FocusService : IDisposable
                 if (message == 0x218) // suspend/resume: never leave a stale mask on resume
                 {
                     self._suspended = wparam == 4;
+                    // Monitors enumerate again on resume, and one unplugged
+                    // while asleep sends no display change of its own.
+                    if (wparam is 7 or 0x12) Color.DisplayChanges.Raise();
                     self.ForegroundChanged();
                     self.Tick();
                 }

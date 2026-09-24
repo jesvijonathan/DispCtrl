@@ -105,12 +105,13 @@
       <!-- The same four choices as Win+P, applied through the documented
            topology flags so Windows reuses the arrangement you last had. -->
       <tk:SettingsCard Header="Multiple displays"
-                       Description="How the desktop is spread across your monitors.">
+                       Description="{x:Bind ViewModel.ArrangementsDescription, Mode=OneWay}">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE7F4;"/>
         </tk:SettingsCard.HeaderIcon>
         <ComboBox ItemsSource="{x:Bind ViewModel.Arrangements}"
                   SelectedItem="{x:Bind ViewModel.SelectedArrangement, Mode=TwoWay}"
+                  IsEnabled="{x:Bind ViewModel.ArrangementsApply, Mode=OneWay}"
                   MinWidth="240"/>
       </tk:SettingsCard>
 
@@ -138,7 +139,7 @@
       </tk:SettingsCard>
 
       <tk:SettingsExpander Header="Unison brightness"
-                           Description="One control for every display, relative to the level each is already at."
+                           Description="{x:Bind ViewModel.UnisonDescription, Mode=OneWay}"
                            Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
           <FontIcon Glyph="&#xE706;"/>

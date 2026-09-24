@@ -160,26 +160,44 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// enough to run every couple of seconds. The rebuild behind it is not:
     /// it re-reads every monitor's capabilities over DDC/CI, which is seconds
     /// per panel. Hence the gate.
+    /// <para>
+    /// <paramref name="settled"/> is false from the window's own poll, which
+    /// can land in the middle of an arrival: the new layout then has to be seen
+    /// twice, a poll apart, before the list is rebuilt. The engine's signal and
+    /// a summons of the panel come after the change is over.
+    /// </para>
     /// </remarks>
-    public void RefreshIfDisplaysChanged()
+    public void RefreshIfDisplaysChanged(bool settled = true)
     {
         string now = DisplayRegistry.CheapSignature();
-        if (now == _layoutSignature) return;
+        if (now == _layoutSignature) { _candidateSignature = now; return; }
+        if (!settled && now != _candidateSignature) { _candidateSignature = now; return; }
 
         _layoutSignature = now;
-        Refresh();
+        Refresh(hotplug: true);
     }
 
-    public void Refresh()
+    private string _candidateSignature = "";
+
+    public void Refresh() => Refresh(hotplug: false);
+
+    /// <summary>Builds the display list again from the hardware.</summary>
+    /// <param name="hotplug">
+    /// A display arrived, left or changed. What the monitors said about
+    /// themselves is kept, since a capabilities string describes the monitor,
+    /// not the desk; Rescan asks them all again.
+    /// </param>
+    private void Refresh(bool hotplug)
     {
         FlushPendingSave();
         int loadVersion = ++_displayLoadVersion;
         ShowFooterStatus("Loading display information…", busy: true);
-        _layoutSignature = DisplayRegistry.CheapSignature();
+        _layoutSignature = _candidateSignature = DisplayRegistry.CheapSignature();
         _settings = SettingsStore.Load();
         _settingsStamp = SettingsStamp();
         DispCtrl.Display.Presets.PresetService.InvalidateHardware();
-        foreach (DisplayViewModel existing in Displays) MonitorCapabilities.Forget(existing.Info);
+        var before = Displays.Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
+        if (!hotplug) foreach (DisplayViewModel existing in Displays) MonitorCapabilities.Forget(existing.Info);
         Displays.Clear();
 
         List<DisplayInfo> found = DisplayRegistry.Enumerate();
@@ -224,11 +242,59 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         // refreshed once every display has reported in, rather than showing
         // only whichever panel happened to be fast.
         _ = RefreshSummaryWhenReadyAsync(loadVersion);
+        if (hotplug) _ = LookAgainAsync(loadVersion, Displays.Where(d => !before.Contains(d.Token)).ToList());
         Raise(nameof(HasDisplays));
+        Raise(nameof(SeveralDisplays));
+        Raise(nameof(UnisonDescription));
+        Raise(nameof(UnisonSliderEnabled));
         if (PresetsEnabled) Presets.Reload();
+        DisplaysRebuilt?.Invoke();
     }
 
+    /// <summary>Raised once the display list has been built again, for views drawn from the whole set.</summary>
+    public event Action? DisplaysRebuilt;
+
     public bool HasDisplays => Displays.Count > 0;
+
+    /// <summary>
+    /// Whether unison has anything to do: with one display, its own slider is
+    /// the whole story.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is switched off when a monitor leaves - the settings describe
+    /// the desk as it usually is, and unison takes up again, at the level it
+    /// was left, the moment another display arrives.
+    /// </remarks>
+    public bool SeveralDisplays => Displays.Count > 1;
+
+    public string UnisonDescription => SeveralDisplays
+        ? "One control for every display, relative to the level each is already at."
+        : "Only one display is connected, so its own brightness below is the one to use. Unison carries on from where it was left when another display is connected.";
+
+    /// <summary>
+    /// Reads a display that has just arrived again, a few seconds later, if it
+    /// did not answer the first time.
+    /// </summary>
+    /// <remarks>
+    /// A monitor's DDC/CI channel is not up when it enumerates, so the read
+    /// made on arrival came back empty - no brightness, no controls - and
+    /// stayed that way until Rescan. Monitorian scans again at widening
+    /// intervals after a change for the same reason. Only arrivals, and only
+    /// what came back empty: a monitor with no DDC/CI at all costs two more
+    /// attempts, once.
+    /// </remarks>
+    private async Task LookAgainAsync(int loadVersion, List<DisplayViewModel> arrived)
+    {
+        foreach (int delayMs in (int[])[3000, 8000])
+        {
+            if (arrived.Count == 0) return;
+            await Task.Delay(delayMs).ConfigureAwait(true);
+            if (loadVersion != _displayLoadVersion) return;
+            await Task.WhenAll(arrived.Select(d => d.ReadingsReady)).ConfigureAwait(true);
+            arrived = arrived.Where(d => d.AnsweredNothing).ToList();
+            foreach (DisplayViewModel d in arrived) _ = d.RefreshReadingsAsync();
+        }
+    }
 
     /// <summary>
     /// Sizes every preview against the physically largest panel.
@@ -275,6 +341,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         };
 
         List<string> inactive = DisplayRegistry.InactiveDisplays();
+        _connected = Displays.Count + inactive.Count;
         _inactiveText = inactive.Count == 0
             ? string.Empty
             : inactive.Count == 1
@@ -284,7 +351,24 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Raise(nameof(TopologyText));
         Raise(nameof(InactiveText));
         Raise(nameof(InactiveVisibility));
+        Raise(nameof(ArrangementsApply));
+        Raise(nameof(ArrangementsDescription));
     }
+
+    private int _connected;
+
+    /// <summary>
+    /// Whether there is a second display to extend to, duplicate on or switch to.
+    /// </summary>
+    /// <remarks>
+    /// Counts displays connected but switched off too: "PC screen only" with a
+    /// monitor plugged in is exactly when Extend is wanted.
+    /// </remarks>
+    public bool ArrangementsApply => _connected > 1;
+
+    public string ArrangementsDescription => ArrangementsApply
+        ? "How the desktop is spread across your monitors."
+        : "Only one display is connected. Extend, duplicate and the rest come back when another is plugged in.";
 
     /// <summary>
     /// Writes settings out. The engine watches this file, so a toggle takes
@@ -1247,7 +1331,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
 
     public bool Calibrating => _step != CalibrationStep.None;
 
-    public bool UnisonSliderEnabled => UnisonBrightness && !Calibrating;
+    public bool UnisonSliderEnabled => UnisonBrightness && !Calibrating && SeveralDisplays;
 
     private async Task ReleaseCalibrationAsync(int generation)
     {

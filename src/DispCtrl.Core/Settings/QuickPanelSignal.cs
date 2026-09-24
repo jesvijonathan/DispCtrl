@@ -29,6 +29,31 @@ public static class QuickPanelSignal
     private const string IdentifyName = @"Local\DispCtrl.Identify";
     private const string WindowName = @"Local\DispCtrl.App.ShowWindow";
     private const string QuitName = @"Local\DispCtrl.App.Quit";
+    private const string DisplaysName = @"Local\DispCtrl.Displays.Changed";
+
+    /// <summary>Opens, or creates, the event the engine sets when the displays have changed and settled.</summary>
+    public static EventWaitHandle OpenDisplaysChanged() =>
+        new EventWaitHandle(false, EventResetMode.AutoReset, DisplaysName);
+
+    /// <summary>
+    /// Tells a running app that a display arrived, left or changed, once the
+    /// change is over. Nothing when no app is running.
+    /// </summary>
+    /// <remarks>
+    /// The engine has already waited for the layout to hold; the app would
+    /// otherwise notice only when its window next polled, and a quick panel
+    /// open on screen never polls at all.
+    /// </remarks>
+    public static void DisplaysChanged()
+    {
+        if (!PanelIsListening()) return;
+        try
+        {
+            using EventWaitHandle changed = OpenDisplaysChanged();
+            changed.Set();
+        }
+        catch (Exception) { }
+    }
 
     /// <summary>Opens, or creates, the event that asks the running app to close everything and exit.</summary>
     public static EventWaitHandle OpenQuit() =>

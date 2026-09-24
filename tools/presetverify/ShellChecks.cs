@@ -21,6 +21,30 @@ internal static class ShellChecks
             && !TaskbarParking.Plan(right, TaskbarSide.Bottom, 48, [dell, right]).Blocked,
             "side-by-side monitors never block each other's bars");
 
+        // Hot-plug: a change counts only once the layout holds, and a cable
+        // that drops and comes back inside that time changes nothing.
+        var settle = new DisplaySettle("dell;laptop;");
+        check(!settle.Observe("laptop;", 0) && settle.Pending && !settle.Observe("laptop;", 1000),
+            "an unplugged monitor is not acted on until the layout holds");
+        check(settle.Observe("laptop;", DisplaySettle.QuietMs) && settle.Settled == "laptop;" && !settle.Pending,
+            "once the layout has held, the change counts, once");
+        check(!settle.Observe("laptop;", 10_000), "a settled layout is not reported again");
+        var flap = new DisplaySettle("dell;laptop;");
+        flap.Observe("laptop;", 0);
+        flap.Observe("dell;laptop;", 400);
+        check(!flap.Pending && !flap.Observe("dell;laptop;", 5000) && flap.Settled == "dell;laptop;",
+            "a loose cable that drops and returns changes nothing");
+        var steps = new DisplaySettle("laptop;");
+        steps.Observe("laptop;dell@0;", 0);
+        steps.Observe("dell;laptop;", 800);
+        check(!steps.Observe("dell;laptop;", 800 + DisplaySettle.QuietMs - 1) && steps.Observe("dell;laptop;", 800 + DisplaySettle.QuietMs),
+            "an arrival in steps waits for the last step");
+
+        // The external monitor unplugged: the laptop alone has nothing to park against.
+        var alone = new DisplayRect(0, 0, 1440, 900);
+        (blocked, beyond) = TaskbarParking.Plan(alone, TaskbarSide.Bottom, 48, [alone]);
+        check(!blocked && beyond == 900, "a lone display's bar hides past its own edge");
+
         // A corner that only touches is not in the way.
         var diagonal = new DisplayRect(1920, 1080, 3840, 2160);
         check(!TaskbarParking.Plan(dell, TaskbarSide.Bottom, 48, [dell, diagonal]).Blocked,

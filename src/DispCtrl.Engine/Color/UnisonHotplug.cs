@@ -14,53 +14,46 @@ namespace DispCtrl.Engine.Color;
 /// that looks like unison having broken. Only monitors that arrive are written;
 /// the ones that stayed attached are already where unison put them.
 /// <para>
-/// Woken by <c>WM_DISPLAYCHANGE</c> through <see cref="DisplayChanges"/>, then
-/// the GDI fingerprint is checked once a second until the layout settles; a
-/// slow check every half minute is only the safety net. It used to poll once
-/// a second forever. A DDC/CI channel is not ready the moment the
-/// monitor appears, so the write waits and retries rather than taking the first
-/// refusal as the answer.
+/// Told by <see cref="DisplayChanges"/> once a change is over, rather than
+/// polling for one of its own. A DDC/CI channel is not ready the moment the
+/// monitor appears, so the write waits and retries rather than taking the
+/// first refusal as the answer, and a newer change abandons it: the monitor
+/// it was for may have gone again.
 /// </para>
 /// </remarks>
 internal sealed class UnisonHotplug : IDisposable
 {
-    private const int PollMs = 1000;
-    private const int SafetyNetMs = 30_000;
-    /// <summary>How many one-second checks follow a display change, while monitors arrive.</summary>
-    private const int SettleChecks = 5;
-    private int _settling;
     private const int ReadyDelayMs = 1500;
     private const int Attempts = 3;
+    private const int StartupLearnDelayMs = 20_000;
 
-    private readonly Timer _timer;
-    private HashSet<string> _attached;
-    private string _signature;
-    private int _busy;
+    private int _generation;
     private volatile bool _disposed;
 
-    public UnisonHotplug()
+    public UnisonHotplug(List<DisplayInfo> attached)
     {
-        _signature = DisplayRegistry.CheapSignature();
-        List<DisplayInfo> now = DisplayRegistry.Enumerate();
-        _attached = now.Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
         // The same arrivals feed the local device history; it costs nothing
-        // more than the enumeration already done here.
-        Display.Devices.DeviceObserver.Attached(now);
+        // more than the enumeration already done.
+        Display.Devices.DeviceObserver.Attached(attached);
         // Well after sign-in: nothing about learning a model is urgent, and the
         // first seconds belong to the taskbar and the tray.
-        Learn(now, StartupLearnDelayMs);
-        _timer = new Timer(_ => Poll(), null, SafetyNetMs, SafetyNetMs);
-        DisplayChanges.Changed += OnDisplaysChanged;
+        Learn(attached, StartupLearnDelayMs);
+        DisplayChanges.Settled += OnSettled;
     }
 
-    private void OnDisplaysChanged()
+    private void OnSettled(DisplayChange change)
     {
         if (_disposed) return;
-        Volatile.Write(ref _settling, SettleChecks);
-        _timer.Change(PollMs / 2, PollMs);
+        int generation = Interlocked.Increment(ref _generation);
+        Display.Devices.DeviceObserver.Attached(change.Displays);
+        List<DisplayInfo> arrived = change.Arrived.Where(d => !d.IsInternal).ToList();
+        if (arrived.Count == 0) return;
+        // The DDC/CI channel is not up when the monitor enumerates.
+        Learn(change.Displays, ReadyDelayMs * 2);
+        // Off the watcher's thread: the waits below are seconds, and every
+        // other service is told about the same change after this one.
+        _ = Task.Run(() => Sync(arrived, generation));
     }
-
-    private const int StartupLearnDelayMs = 20_000;
 
     /// <summary>Reads the codes of any attached model never read here, in the background.</summary>
     private void Learn(IEnumerable<DisplayInfo> displays, int delayMs)
@@ -85,54 +78,38 @@ internal sealed class UnisonHotplug : IDisposable
         });
     }
 
-    private void Poll()
+    private void Sync(List<DisplayInfo> arrived, int generation)
     {
-        if (_disposed) return;
-        if (Volatile.Read(ref _settling) > 0 && Interlocked.Decrement(ref _settling) == 0)
-            _timer.Change(SafetyNetMs, SafetyNetMs);
-        if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0) return;
         try
         {
-            string signature = DisplayRegistry.CheapSignature();
-            if (signature == _signature) return;
-            _signature = signature;
-
-            List<DisplayInfo> displays = DisplayRegistry.Enumerate();
-            Display.Devices.DeviceObserver.Attached(displays);
-            List<DisplayInfo> arrived = displays.Where(d => !_attached.Contains(d.Token) && !d.IsInternal).ToList();
-            _attached = displays.Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
-            if (arrived.Count == 0) return;
-            // The DDC/CI channel is not up when the monitor enumerates.
-            Learn(displays, ReadyDelayMs * 2);
-
             DispCtrlSettings settings = SettingsStore.Load();
             if (!settings.Global.UnisonBrightness || UnisonCalibration.IsActive) return;
 
             Thread.Sleep(ReadyDelayMs);
             foreach (DisplayInfo display in arrived)
             {
-                if (_disposed) return;
+                if (_disposed || Volatile.Read(ref _generation) != generation) return;
                 MonitorSettings monitor = settings.For(display.Token);
                 if (!monitor.HasBrightnessRange && monitor.BrightnessBaseline <= 0) continue;
-                int target = UnisonResume.Target(monitor, settings.Global.UnisonCalibrated, settings.Global.UnisonLevel);
-                Log.Write($"hot-plug: {display.Label} {(Sync(display, target) ? "set" : "could not be set")} to {target}% for unison {settings.Global.UnisonLevel}%");
+                // Read again at the moment of writing: the level may have moved
+                // while this waited, from a key on the laptop alone, say.
+                int level = SettingsStore.Load().Global.UnisonLevel;
+                int target = UnisonResume.Target(monitor, settings.Global.UnisonCalibrated, level);
+                Log.Write($"hot-plug: {display.Label} {(Write(display, target, generation) ? "set" : "could not be set")} to {target}% for unison {level}%");
             }
         }
         catch (Exception ex)
         {
             Log.Write($"hot-plug: {ex.Message}");
         }
-        finally
-        {
-            Volatile.Write(ref _busy, 0);
-        }
     }
 
-    private bool Sync(DisplayInfo display, int target)
+    private bool Write(DisplayInfo display, int target, int generation)
     {
         for (int attempt = 0; attempt < Attempts && !_disposed; attempt++)
         {
             if (attempt > 0) Thread.Sleep(ReadyDelayMs);
+            if (Volatile.Read(ref _generation) != generation) return false;
             using var operations = new Mutex(false, @"Local\DispCtrl.Control.Operations");
             bool held;
             try { held = operations.WaitOne(2000); }
@@ -151,19 +128,134 @@ internal sealed class UnisonHotplug : IDisposable
     public void Dispose()
     {
         _disposed = true;
-        DisplayChanges.Changed -= OnDisplaysChanged;
-        _timer.Dispose();
+        DisplayChanges.Settled -= OnSettled;
     }
 }
 
-/// <summary>A display was added, removed or changed mode.</summary>
+/// <summary>A change to the displays that is over: what is attached now, and what came and went.</summary>
+internal sealed record DisplayChange(List<DisplayInfo> Displays, List<DisplayInfo> Arrived, List<string> Departed);
+
+/// <summary>
+/// Tells the engine's services when the displays have changed, once the change is over.
+/// </summary>
 /// <remarks>
-/// Raised from a window that hears <c>WM_DISPLAYCHANGE</c>, which Windows
-/// broadcasts to every top-level window, so nothing has to poll to notice.
+/// Woken by <c>WM_DISPLAYCHANGE</c> and by resume, which Windows broadcasts to
+/// every top-level window, so nothing polls to notice; a check every half
+/// minute is only the safety net. Once woken it looks four times a second and
+/// raises <see cref="Settled"/> only when the layout has held for
+/// <see cref="DisplaySettle.QuietMs"/>: before, each service reacted to every
+/// step of an arrival - the taskbar manager adopting Explorer's bars while
+/// Explorer was still rebuilding them, the brightness written to a monitor
+/// that was gone again a moment later. A loose cable that drops and returns
+/// inside that window raises nothing at all.
+/// <para>
+/// Every service hears the same change in the same order, from one
+/// enumeration, instead of each keeping a fingerprint and a timer of its own.
+/// </para>
 /// </remarks>
 internal static class DisplayChanges
 {
-    public static event Action? Changed;
+    private const int PollMs = 250;
+    private const int SafetyNetMs = 30_000;
 
-    public static void Raise() => Changed?.Invoke();
+    /// <summary>How long after an event to keep looking, for a change that lands after the message.</summary>
+    private const int WatchForMs = 5000;
+
+    public static event Action<DisplayChange>? Settled;
+
+    private static readonly Lock Gate = new();
+    private static Timer? _timer;
+    private static DisplaySettle? _settle;
+    private static HashSet<string> _attached = [];
+    private static long _watchUntil;
+    private static bool _fast;
+    private static int _busy;
+
+    /// <summary>Starts watching, and hands back what is attached now.</summary>
+    public static List<DisplayInfo> Start()
+    {
+        List<DisplayInfo> now = DisplayRegistry.Enumerate();
+        lock (Gate)
+        {
+            _settle = new DisplaySettle(DisplayRegistry.CheapSignature());
+            _attached = now.Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
+            _timer ??= new Timer(_ => Poll(), null, SafetyNetMs, SafetyNetMs);
+        }
+        return now;
+    }
+
+    /// <summary>Something says the displays may have changed: look closely for a while.</summary>
+    public static void Raise()
+    {
+        lock (Gate)
+        {
+            if (_timer is null) return;
+            _watchUntil = Environment.TickCount64 + WatchForMs;
+            Pace(fast: true);
+        }
+    }
+
+    private static void Pace(bool fast)
+    {
+        if (fast == _fast) return;
+        _fast = fast;
+        int ms = fast ? PollMs : SafetyNetMs;
+        _timer?.Change(fast ? 0 : ms, ms);
+    }
+
+    private static void Poll()
+    {
+        if (Interlocked.Exchange(ref _busy, 1) != 0) return;
+        try
+        {
+            string signature = DisplayRegistry.CheapSignature();
+            lock (Gate)
+            {
+                if (_settle is null) return;
+                long now = Environment.TickCount64;
+                bool settled = _settle.Observe(signature, now);
+                Pace(_settle.Pending || now < _watchUntil);
+                if (!settled) return;
+            }
+
+            // Outside the gate: this is a CCD query and registry reads, and
+            // Raise is called from a window procedure. Only this callback
+            // touches the attached set, one at a time.
+            List<DisplayInfo> displays = DisplayRegistry.Enumerate();
+            var tokens = displays.Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
+            var change = new DisplayChange(
+                displays,
+                displays.Where(d => !_attached.Contains(d.Token)).ToList(),
+                _attached.Where(t => !tokens.Contains(t)).ToList());
+            _attached = tokens;
+
+            Log.Write($"displays settled: {change.Displays.Count} attached"
+                + (change.Arrived.Count > 0 ? $", arrived {string.Join(", ", change.Arrived.Select(d => d.Label))}" : "")
+                + (change.Departed.Count > 0 ? $", {change.Departed.Count} left" : ""));
+
+            foreach (Action<DisplayChange> handler in Settled?.GetInvocationList().Cast<Action<DisplayChange>>() ?? [])
+            {
+                try { handler(change); }
+                catch (Exception ex) { Log.Write($"displays settled: a service failed to follow: {ex.Message}"); }
+            }
+            QuickPanelSignal.DisplaysChanged();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"displays: {ex.Message}");
+        }
+        finally
+        {
+            Volatile.Write(ref _busy, 0);
+        }
+    }
+
+    public static void Stop()
+    {
+        lock (Gate)
+        {
+            _timer?.Dispose();
+            _timer = null;
+        }
+    }
 }
