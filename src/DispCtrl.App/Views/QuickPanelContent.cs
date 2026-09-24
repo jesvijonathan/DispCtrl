@@ -218,6 +218,12 @@ internal sealed partial class QuickPanelContent
         }
     }
 
+    /// <summary>
+    /// Simple mode's one edge, inside the panel's 12: the title bar's text
+    /// starts 16 from the window, and so do each name and each slider's track.
+    /// </summary>
+    private const double SimpleEdge = 4;
+
     /// <summary>A name, optionally a switch beside it, and a slider underneath.</summary>
     private FrameworkElement SimpleSlider(string name, double value, double minimum, Action<double> write,
         System.ComponentModel.INotifyPropertyChanged source, string property, Func<double> read,
@@ -233,7 +239,7 @@ internal sealed partial class QuickPanelContent
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(RowInset, 0, 0, 0),
+            Margin = new Thickness(SimpleEdge, 0, 0, 0),
         });
         if (beside is not null)
         {
@@ -241,10 +247,18 @@ internal sealed partial class QuickPanelContent
             head.Children.Add(beside);
         }
 
-        // The ordinary slider row with no symbol: its first column is the inset.
+        // The ordinary slider row with no symbol. With nothing to its left, the
+        // track starts on the name's edge (the empty column's spacing is the
+        // edge), and the value ends under the switch rather than past it.
         FrameworkElement row = SliderRow("", name, value, minimum, 100, write, source, property, read,
             automationName, "%", null, null, false, out slider);
-        if (row is Grid grid) grid.ColumnDefinitions[0].Width = new GridLength(0);
+        if (row is Grid grid)
+        {
+            grid.ColumnDefinitions[0].Width = new GridLength(0);
+            grid.ColumnSpacing = SimpleEdge;
+            slider.Margin = new Thickness(0, 0, 4, 0);
+            if (grid.Children.OfType<TextBlock>().LastOrDefault() is { } percent) percent.Margin = new Thickness(0, 0, SimpleEdge, 0);
+        }
 
         var stack = new StackPanel { Spacing = 0 };
         stack.Children.Add(head);
