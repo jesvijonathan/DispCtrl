@@ -116,21 +116,24 @@ public sealed class DispCtrlSettings
     /// <summary>Puts back what the last <see cref="RestoreVisibility"/> switched off.</summary>
     /// <returns>False when there is nothing recorded to put back.</returns>
     /// <remarks>
-    /// Monitors no longer in the file are skipped rather than recreated, and the
-    /// record is spent: a second undo does nothing.
+    /// Only switches back on: what the record holds as off was not touched by the
+    /// way back, and setting it would undo a choice made since - night light
+    /// switched on afterwards went off again. Monitors no longer in the file are
+    /// skipped rather than recreated, and the record is spent: a second undo does
+    /// nothing.
     /// </remarks>
     public bool UndoRestoreVisibility()
     {
         if (Global.BeforeRestore is not { } snapshot) return false;
-        Global.Focus.Enabled = snapshot.Focus;
-        Global.OledCare.Enabled = snapshot.OledCare;
-        Global.NightLight.Enabled = snapshot.NightLight;
-        Global.TaskbarOpacity = Math.Clamp(snapshot.TaskbarOpacity, 0, 100);
+        if (snapshot.Focus) Global.Focus.Enabled = true;
+        if (snapshot.OledCare) Global.OledCare.Enabled = true;
+        if (snapshot.NightLight) Global.NightLight.Enabled = true;
+        if (snapshot.TaskbarOpacity < 100) Global.TaskbarOpacity = Math.Clamp(snapshot.TaskbarOpacity, 0, 100);
         foreach (var (token, saved) in snapshot.Monitors)
         {
             if (!Monitors.TryGetValue(token, out MonitorSettings? monitor)) continue;
-            monitor.HideTaskbar = saved.HideTaskbar;
-            monitor.SoftwareBrightness = Math.Clamp(saved.SoftwareBrightness, 10, 100);
+            if (saved.HideTaskbar) monitor.HideTaskbar = true;
+            if (saved.SoftwareBrightness < 100) monitor.SoftwareBrightness = Math.Clamp(saved.SoftwareBrightness, 10, 100);
         }
         Global.BeforeRestore = null;
         return true;

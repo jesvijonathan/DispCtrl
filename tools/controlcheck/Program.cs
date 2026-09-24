@@ -249,6 +249,12 @@ try
     messy.RestoreVisibility();
     Check(messy.Global.BeforeRestore is { } kept && kept.Monitors.ContainsKey("panel") && kept.TaskbarOpacity == 20,
         "pressing the way back again with nothing left to switch off keeps the record of the first press");
+    var since = new DispCtrlSettings();
+    since.For("panel").HideTaskbar = true;
+    since.RestoreVisibility();
+    since.Global.NightLight.Enabled = true;
+    Check(since.UndoRestoreVisibility() && since.For("panel").HideTaskbar && since.Global.NightLight.Enabled,
+        "undo only switches back on: night light switched on after the way back stays on");
     var stale = new DispCtrlSettings();
     stale.Global.BeforeRestore = new VisibilitySnapshot { TakenUtc = DateTimeOffset.UtcNow.AddHours(-1), NightLight = true };
     stale.RestoreVisibility();

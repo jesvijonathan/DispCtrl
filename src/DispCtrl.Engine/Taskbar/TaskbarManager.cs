@@ -448,7 +448,11 @@ internal sealed class TaskbarManager
         // immediately even when that frame does not move by a pixel yet.
         // Clipped before it moves: set after, the first frame out of the
         // parking place showed the whole bar on the neighbouring monitor.
+        // At the end of a slide the clip goes: before the move when arriving in
+        // view, or the last frame shows the previous frame's cut; after it when
+        // parking, or the bar shows whole at its own edge for a frame.
         if (b.Blocked && b.Animating) Clip(b, r, newPos);
+        else if (b.Clipped && newPos != hiddenPos) Unclip(b);
         if (newPos != currentPos || raise || reassertZOrder) Move(b, r, newPos, raise || reassertZOrder);
         if (b.Clipped && !b.Animating) Unclip(b);
 
