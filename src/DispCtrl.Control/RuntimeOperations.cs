@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
 using DispCtrl.Display;
 
@@ -101,5 +102,55 @@ public sealed partial class ControlService
         // hardware failures separately rather than claiming the desk is atomic.
         steps.Add(new(10, "unison settings", null, () => { SettingsStore.Save(settings); return true; }));
         return RunSteps(steps, Flag(args, "dryRun"));
+    }
+
+    /// <summary>Unison following the room's light: the settings, what the sensor reads now, and calibration.</summary>
+    /// <remarks>
+    /// <c>get</c> reads the sensor itself rather than asking the engine, so
+    /// it answers with the engine stopped - which is when somebody is most
+    /// likely to be asking why nothing follows. <c>capture</c> is calibration
+    /// by holding the room there: cover the sensor and capture dark, shine a
+    /// light at it and capture bright.
+    /// </remarks>
+    private static JsonNode AmbientCommand(string action, JsonObject args)
+    {
+        if (args.ContainsKey("monitor")) throw new ArgumentException("Following the room's light applies to unison, not to one display.");
+        if (action is "set" or "reset") return GroupCommand("ambient." + action, args);
+        bool dryRun = Flag(args, "dryRun");
+        if (action == "get")
+        {
+            DispCtrlSettings settings = SettingsStore.Load();
+            AmbientSettings ambient = settings.Global.Ambient;
+            double? lux = AmbientSensors.ReadLux(ambient.SensorId);
+            return new JsonObject
+            {
+                ["value"] = SettingsDocument.Get(SettingsDocument.Read(), "/global/ambient")?.DeepClone(),
+                ["following"] = settings.Global.UnisonBrightness && ambient.Enabled,
+                ["sensors"] = new JsonArray(AmbientSensors.List().Select(s => (JsonNode?)new JsonObject { ["id"] = s.Id, ["name"] = s.Name }).ToArray()),
+                ["lux"] = lux is { } now ? Math.Round(now, 1) : null,
+                ["levelForLux"] = lux is { } reading ? AmbientCurve.Level(reading, ambient) : null,
+                ["unisonLevel"] = settings.Global.UnisonLevel,
+            };
+        }
+        if (action == "forget")
+            return SettingsDocument.Update(document => document["global"]!["ambient"]!["points"] = new JsonArray(), dryRun);
+        if (action == "capture")
+        {
+            string end = Text(args, "as") ?? throw new ArgumentException("--as dark or --as bright.");
+            if (end is not ("dark" or "bright")) throw new ArgumentException("--as dark or --as bright.");
+            AmbientSettings current = SettingsStore.Load().Global.Ambient;
+            double lux = AmbientSensors.ReadLux(current.SensorId) ?? throw new InvalidOperationException("No light sensor answered.");
+            int captured = (int)Math.Round(Math.Clamp(lux, 0, 100000));
+            // The ends need room between them, or the whole curve is one step.
+            if (end == "dark" && AmbientCurve.Coordinate(current.BrightLux) - AmbientCurve.Coordinate(captured) < 0.3)
+                throw new InvalidOperationException($"The sensor reads {captured} lx, too close to bright light at {current.BrightLux} lx. Cover it, or capture bright first.");
+            if (end == "bright" && AmbientCurve.Coordinate(captured) - AmbientCurve.Coordinate(current.DarkLux) < 0.3)
+                throw new InvalidOperationException($"The sensor reads {captured} lx, too close to the dark end at {current.DarkLux} lx. Light it, or capture dark first.");
+            JsonObject result = SettingsDocument.Update(document =>
+                document["global"]!["ambient"]![end == "dark" ? "darkLux" : "brightLux"] = Math.Max(end == "bright" ? 1 : 0, captured), dryRun);
+            result["captured"] = captured;
+            return result;
+        }
+        throw new ArgumentException("ambient get|set|reset|capture|forget.");
     }
 }

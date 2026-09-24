@@ -22,6 +22,7 @@ public sealed partial class ControlService
         "focus.get", "focus.set", "focus.reset", "oled.get", "oled.set", "oled.reset", "oled.preview", "oled.rest", "awake.displays-off",
         "restore.now", "restore.undo", "restore.get",
         "awake.get", "awake.set", "awake.reset", "nightlight.get", "nightlight.set", "nightlight.reset",
+        "ambient.get", "ambient.set", "ambient.reset", "ambient.capture", "ambient.forget",
         "taskbar.get", "taskbar.set", "taskbar.reset", "tray.get", "tray.set", "tray.reset", "windows.get", "windows.set",
         "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "maintenance.repair", "maintenance.clear-cache", "tray.show", "apply", "commands", "diagnostics", "report"];
 
@@ -54,7 +55,7 @@ public sealed partial class ControlService
             }
             bool mutation = command.EndsWith(".set", StringComparison.Ordinal) || command.EndsWith(".reset", StringComparison.Ordinal)
                 || command is "settings.import" or "oled.rest" or "restore.now" or "restore.undo" or "awake.displays-off" or "apply" or "display.factory-reset" or "display.reset"
-                or "hotkeys.add" or "hotkeys.remove"
+                or "hotkeys.add" or "hotkeys.remove" or "ambient.capture" or "ambient.forget"
                 || command == "display.control" && args.ContainsKey("value");
             using var gate = new Mutex(false, @"Local\DispCtrl.Control.Operations");
             bool held;
@@ -103,6 +104,7 @@ public sealed partial class ControlService
         if (command.StartsWith("devices.", StringComparison.Ordinal)) return DevicesCommand(command[8..], args);
         if (command.StartsWith("hotkeys.", StringComparison.Ordinal)) return HotkeysCommand(command[8..], args);
         if (command.StartsWith("unison.", StringComparison.Ordinal)) return UnisonCommand(command[7..], args);
+        if (command.StartsWith("ambient.", StringComparison.Ordinal)) return AmbientCommand(command[8..], args);
         if (command.StartsWith("maintenance.", StringComparison.Ordinal)) return MaintenanceCommand(command[12..], args);
         if (command == "gamma.get")
         {
@@ -296,7 +298,7 @@ public sealed partial class ControlService
             }, Flag(args, "dryRun"));
         }
         string path = group switch { "focus" => "/global/focus", "oled" => "/global/oledCare", "awake" => "/global/awake",
-            "nightlight" => "/global/nightLight", "tray" => "/global/quickPanel", "taskbar" => "/global", _ => throw new ArgumentException("Unknown settings group.") };
+            "nightlight" => "/global/nightLight", "ambient" => "/global/ambient", "tray" => "/global/quickPanel", "taskbar" => "/global", _ => throw new ArgumentException("Unknown settings group.") };
         string? selector = Text(args, "monitor");
         string? token = selector is null ? null : Resolve(selector, false).Single().Token;
         if (token is not null) path = "/monitors/" + token;
@@ -393,6 +395,9 @@ public sealed partial class ControlService
             "awake.displays-off" => ["enabled", "dryRun"],
             "restore.now" or "restore.undo" => ["dryRun"],
             "restore.get" => [],
+            "ambient.get" => [],
+            "ambient.capture" => ["as", "dryRun"],
+            "ambient.forget" => ["dryRun"],
             "display.reset" => ["monitor", "factory", "confirm", "dryRun"],
             _ when command.EndsWith(".get", StringComparison.Ordinal) => ["monitor"],
             _ when command.EndsWith(".reset", StringComparison.Ordinal) => ["monitor", "dryRun", "revision"],

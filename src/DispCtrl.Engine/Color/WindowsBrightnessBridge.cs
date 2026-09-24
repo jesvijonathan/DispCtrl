@@ -111,7 +111,8 @@ internal sealed class WindowsBrightnessBridge : IDisposable
                 {
                     // Turned-off displays taking the laptop's backlight down, and
                     // back, are not somebody moving Windows' slider.
-                    if (_disposed || UnisonCalibration.IsActive || Power.DisplaysOffBacklight.Busy) return;
+                    // Nor is following the room's light walking the panel.
+                    if (_disposed || UnisonCalibration.IsActive || Power.DisplaysOffBacklight.Busy || AmbientSync.Writing) return;
                     int value = Convert.ToInt32(e.NewEvent["Brightness"]);
                     long at = Environment.TickCount64;
                     if (value == Volatile.Read(ref _ownWrite) && at - Volatile.Read(ref _ownWriteAt) < 1500)

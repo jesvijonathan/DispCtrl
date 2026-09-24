@@ -8,6 +8,18 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+### Added
+- `dispctrl ambient get|set|reset|capture|forget`: every setting for following the room's light, what the sensor reads now, and calibration - cover the sensor and `capture --as dark`, light it and `capture --as bright`.
+- Following the room's light learns: a unison level set by hand while it follows - the slider, a hotkey, the brightness keys - is remembered for that light. `dispctrl ambient forget` starts again.
+
+### Changed
+- The Displays page's light sensor section is hidden while it is reworked; the engine and `dispctrl ambient` still follow the sensor. When it returns it sits last under Unison brightness, with its options folded under the switch.
+
+### Fixed
+- Following the room's light barely moved when the sensor was covered, never reached full brightness under a torch, and was slow to react: it stopped partway after the sensor's last reading, and a light that kept changing kept restarting its wait. It now reaches the new level within a few seconds, walks there in steps rather than jumping, and still ignores a hand passing the sensor.
+- Following the room's light no longer fights Replace Windows brightness over the built-in panel.
+- The quick panel takes focus when it opens from the tray icon, instead of opening inactive with a grey background until clicked.
+
 ## [0.1.1] - 2026-09-24
 
 ### Added

@@ -297,6 +297,11 @@ event carries no data; the control broker separately handles structured requests
   deactivated, and a click elsewhere does not close it. When it still is not
   foreground (a CLI summons, an older engine), `WatchOutsideIfInactive` polls
   the mouse buttons at 50 ms until a click lands outside or the panel activates.
+  That permission did not always survive the trip, and the panel opened
+  inactive (grey backdrop, no focus) until clicked. `TakeForeground` sends one
+  empty mouse input, which makes the panel's process the last to receive input,
+  and calls `SetForegroundWindow` - PowerToys' workaround (#1282) - on summons
+  only, and again once uncloaked.
 - The tray icon **toggles**. Clicking it while the panel is open takes focus
   first, closing the panel, and then asks for it again - so a summons within
   500 ms of a focus-loss close is treated as the same click.
@@ -396,12 +401,44 @@ default `Collapsed` list, which records only departures from it.
 ### Ambient light
 
 `Color/AmbientSync` follows a Windows light sensor (`AmbientSensors`; this
-desk has none, so it is untested on hardware here). It is told of changes,
-never polls: report interval of at least a second and a 15% threshold, then
-smoothing, a 1.5 s settle and a three-point hysteresis before `UnisonWriter`
-moves the displays. `AmbientCurve` is logarithmic and checked in presetverify.
-Windows' own adaptive brightness is switched off when it is switched on: two
-hands on one control fight.
+desk has none, so it is untested on hardware here). The first version
+was reported working badly on a laptop that has one: covering the sensor
+barely dimmed, a torch never reached the top, and it was slow. Two bugs, both
+now checked in presetverify:
+
+- **A sensor reports only on change.** The old filter averaged once per
+  reading, so when the light stopped changing the average stopped partway
+  (a covered sensor settled at ~3/5 of the old light). `AmbientFilter` keeps
+  the newest reading as the room's light, and `AmbientSync` runs a 250 ms clock
+  only while a change is being weighed or the level is walking.
+- **Its wait was a debounce**, restarted by every reading, so a flickering
+  torch never settled. Now Android's shape (`AutomaticBrightnessController`):
+  in log lux, +15% held 1.5 s brightens, -20% held 3 s darkens, the smoothed
+  value and the newest reading must agree (or a deep shadow's slow recovery
+  counts as darkening), and 2 lux near darkness is noise.
+
+The level then walks there in four steps and is saved once, at the end;
+`AmbientSync.Writing` tells `WindowsBrightnessBridge` to ignore the built-in
+panel's events meanwhile, or each step would read as a brightness key and be
+saved, and this service would then learn it as somebody's correction.
+`AmbientCurve` interpolates in log lux between `DarkLux`
+and `BrightLux` (captured from the sensor: `dispctrl ambient capture --as
+dark|bright`) through **learned points**: any unison change while following
+(slider, hotkey, brightness keys through the bridge) is a correction, learned
+for that light, newest winning, kept monotonic (wluma's idea). Report thresholds are
+5% and 1 lux (both must be met). Windows' own adaptive brightness is switched
+off when this is on, by the app and by the engine: two hands on one control fight.
+
+The Displays page's section is **commented out** in `DisplaysPage.xaml` at the
+owner's request until it is proven on a sensor; the view model and handlers
+behind it are live. It sits after "Each display now", its options folded by a
+chevron `ToggleButton` over cards with bound Visibility - not a nested
+expander (see WinUI traps).
+
+**Monitors do not share their sensors.** MCCS `0x66` is only on/off
+(ddcutil: 01 disabled, 02 enabled); no VCP code carries a reading. The Dell
+here lists `0x66` and answers `A1`. A monitor sensor reaches DispCtrl only if
+the monitor exposes it as a USB HID sensor, when it appears in the sensor list.
 
 ### The way back: Ctrl+Alt+Backspace
 
