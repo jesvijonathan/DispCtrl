@@ -10,7 +10,7 @@
     "TMX": {"brandCodes":0,"models":1}
   },
   "models": {
-    "DEL-A234": {"name":"Dell U2424H","record":true,"codes":1,"panel":"LCD (TFT)","writable":0,"reports":0,"extends":[]},
+    "DEL-A234": {"name":"Dell U2424H","record":true,"codes":1,"panel":"LCD (TFT)","writable":0,"reports":1,"extends":[]},
     "GSM-5C89": {"name":"LG Electronics FALCON","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"extends":[]},
     "SDC-4154": {"name":"Samsung Display 14.0 inch 2880 x 1800 panel","record":true,"codes":0,"panel":"OLED","writable":0,"reports":0,"extends":[]},
     "TMX-1400": {"name":"TMX TL140BDXP01-0","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"extends":[]}
