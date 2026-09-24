@@ -8,6 +8,9 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+### Fixed
+- Taskbar glass did nothing after switching between the installer or a zip and the Microsoft Store version until Windows Explorer was restarted: Explorer still held the other build's glass helper. The engine now retires that helper and attaches its own, as long as no other DispCtrl engine is running.
+
 ## [0.1.2] - 2026-09-25
 
 ### Added
