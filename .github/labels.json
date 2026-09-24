@@ -1,0 +1,31 @@
+{
+  "$comment": "Every label the workflows apply. Housekeeping creates and updates them from this file (it never deletes one). Renaming a label here creates a new one; rename it in the repository first.",
+  "labels": [
+    { "name": "bug", "color": "d73a4a", "description": "Something does not work, or works wrongly" },
+    { "name": "enhancement", "color": "a2eeef", "description": "Something DispCtrl should do" },
+    { "name": "device", "color": "7057ff", "description": "A monitor for the device library" },
+    { "name": "triage", "color": "fbca04", "description": "New; not yet looked at" },
+    { "name": "needs-info", "color": "d4c5f9", "description": "Waiting for the author; closes after three weeks without a reply" },
+    { "name": "stale", "color": "ededed", "description": "No activity for a while; closes unless someone replies" },
+    { "name": "pinned", "color": "0e8a16", "description": "Never marked stale" },
+    { "name": "security", "color": "b60205", "description": "Security relevant; never marked stale" },
+    { "name": "dependencies", "color": "0366d6", "description": "A dependency update" },
+    { "name": "first-contribution", "color": "c2e0c6", "description": "The author's first pull request here" },
+    { "name": "needs-maintainer", "color": "e99695", "description": "Touches what only a maintainer may change; see the policy comment" },
+    { "name": "maintainer-approved", "color": "0e8a16", "description": "A maintainer read the sensitive changes and lets the policy check pass" },
+    { "name": "area: app", "color": "c5def5", "description": "The WinUI panel" },
+    { "name": "area: engine", "color": "c5def5", "description": "The resident engine and the taskbar helper" },
+    { "name": "area: cli", "color": "c5def5", "description": "dispctrl and the control API" },
+    { "name": "area: core", "color": "c5def5", "description": "Core and Display libraries" },
+    { "name": "area: devices", "color": "c5def5", "description": "The device library" },
+    { "name": "area: docs", "color": "c5def5", "description": "Documentation" },
+    { "name": "area: site", "color": "c5def5", "description": "The website" },
+    { "name": "area: build", "color": "c5def5", "description": "Build scripts, tools and packaging" },
+    { "name": "area: ci", "color": "c5def5", "description": "Workflows and repository automation" },
+    { "name": "size: XS", "color": "ededed", "description": "Under 10 lines changed" },
+    { "name": "size: S", "color": "ededed", "description": "Under 50 lines changed" },
+    { "name": "size: M", "color": "ededed", "description": "Under 250 lines changed" },
+    { "name": "size: L", "color": "ededed", "description": "Under 1000 lines changed" },
+    { "name": "size: XL", "color": "ededed", "description": "1000 lines or more changed" }
+  ]
+}

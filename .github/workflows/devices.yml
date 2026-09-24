@@ -4,7 +4,7 @@ name: Device library
 #             with the same rules DispCtrl loads a definition with;
 #  - index    after a merge, CATALOG.md and index.json are regenerated (never in
 #             the pull request: every share would then conflict with the last);
-#  - intake   a share made with `dispctrl devices share` or the app's Devices
+#  - intake   a share made with `dispctrl devices contribute` or the app's Devices
 #             page arrives as an issue, and becomes a pull request for review;
 #             a weekly sweep takes in any the issue event missed.
 #  - guard    a pull request may add to the library; changing what was already
@@ -18,6 +18,9 @@ on:
     paths: ['devices/**', 'src/DispCtrl.Core/Devices/**', 'tools/devicecheck/**']
   issues:
     types: [opened, edited]
+  # "/intake" from a maintainer takes a share in whatever the filters said.
+  issue_comment:
+    types: [created]
   schedule:
     - cron: '23 4 * * 1'   # Mondays, 04:23 UTC: every open share not yet taken in
   workflow_dispatch:
@@ -30,8 +33,7 @@ on:
       issue:
         description: Issue number, for "intake an issue"
         required: false
-permissions:
-  contents: read
+permissions: {}
 concurrency:
   group: devices-${{ github.event.issue.number || github.ref }}
   cancel-in-progress: false
@@ -47,13 +49,16 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'validate' || inputs.action == 'self-test' || inputs.action == 'rebuild the index'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # A pull request is checked out as a merge commit; its first parent
           # is the base the guard compares against.
           fetch-depth: 2
-      - uses: actions/setup-dotnet@v4
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
       - name: Validate the library
@@ -120,8 +125,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
       - name: Regenerate index.json and CATALOG.md
@@ -146,7 +151,11 @@ jobs:
     # already; an issue closed after its merge is not taken in twice.
     # Automatic runs skip bots, accounts under two weeks old and anyone with
     # more than three shares open; naming an issue by hand takes it regardless.
-    if: (github.event_name == 'issues' && contains(github.event.issue.body, 'dispctrl-device-mapping')) || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'intake an issue' || inputs.action == 'intake every open share'))
+    if: >-
+      (github.event_name == 'issues' && contains(github.event.issue.body, 'dispctrl-device-mapping')) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && startsWith(github.event.comment.body, '/intake') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+      github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'intake an issue' || inputs.action == 'intake every open share'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -160,6 +169,7 @@ jobs:
       EVENT_AUTHOR: ${{ github.event.issue.user.login }}
       INPUT_ISSUE: ${{ inputs.issue }}
       ACTION: ${{ inputs.action }}
+      COMMENT_ID: ${{ github.event.comment.id }}
     steps:
       - name: Find the shares
         id: find
@@ -180,14 +190,18 @@ jobs:
             echo "- #$2 passed over: $why" >> "$GITHUB_STEP_SUMMARY"
             return 1
           }
-          if [ "$ACTION" = "intake an issue" ]; then
+          if [ -n "$COMMENT_ID" ]; then
+            # A maintainer's /intake: acknowledged with a reaction, no filters.
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID/reactions" -f content=rocket > /dev/null || true
+            list="[$EVENT_ISSUE]"
+          elif [ "$ACTION" = "intake an issue" ]; then
             case "$INPUT_ISSUE" in ''|*[!0-9]*) echo "An issue number is needed." >&2; exit 1 ;; esac
             list="[$INPUT_ISSUE]"
           elif [ -n "$EVENT_ISSUE" ]; then
             if eligible "$EVENT_AUTHOR" "$EVENT_ISSUE"; then list="[$EVENT_ISSUE]"; else
               list="[]"
               gh issue comment "$EVENT_ISSUE" --repo "$GITHUB_REPOSITORY" \
-                --body "Thanks for sharing. This one is waiting for a maintainer to take it in by hand, which happens for new accounts; nothing more is needed from you."
+                --body "Thanks for contributing your monitor. This one waits for a maintainer to take it in, which happens for new accounts; nothing more is needed from you. (Maintainers: comment /intake to take it in.)"
             fi
           else
             pending=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json headRefName \
@@ -222,12 +236,12 @@ jobs:
       ISSUE: ${{ matrix.issue }}
       BASE: ${{ github.event.repository.default_branch }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The branch as it is now, not as it was when the run started: the
           # share before this one may have just been committed to it.
           ref: ${{ github.event.repository.default_branch }}
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
       - name: Turn the issue into files

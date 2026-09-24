@@ -182,8 +182,8 @@ public sealed partial class DevicesPage : Page
         Grid.SetColumn(buttons, 1);
         if (DeviceDefinitions.IsModel(model))
         {
-            var share = new Button { Content = "Share", Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
-            AutomationProperties.SetName(share, $"Share {model}");
+            var share = new Button { Content = "Contribute", Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
+            AutomationProperties.SetName(share, $"Contribute {model}");
             ToolTipService.SetToolTip(share, "Shows exactly what would be published - the model's record, your mappings, and what its unnamed codes were seen to do - then opens a GitHub issue for you to submit.");
             share.Click += async (_, _) => await ShareAsync(model);
             buttons.Children.Add(share);
@@ -464,7 +464,7 @@ public sealed partial class DevicesPage : Page
         var error = new TextBlock { Foreground = Brush("SystemFillColorCriticalBrush"), TextWrapping = TextWrapping.Wrap };
 
         var form = new StackPanel { Spacing = 10, MinWidth = 420 };
-        form.Children.Add(Muted($"{code} on {model}. Saved on this PC and used at once; share it to make it everyone's."));
+        form.Children.Add(Muted($"{code} on {model}. Saved on this PC and used at once; contribute it to make it everyone's."));
         foreach (UIElement e in new UIElement[] { name, kind, values, maximum, scope, writable, notes, error }) form.Children.Add(e);
         void UpdateKind()
         {
@@ -519,7 +519,7 @@ public sealed partial class DevicesPage : Page
             finally { deferral.Complete(); }
         };
         await dialog.ShowAsync();
-        if (saved) Show($"{code} saved for {model}. Share it when you are happy with it.", InfoBarSeverity.Success);
+        if (saved) Show($"{code} saved for {model}. Contribute it when you are happy with it.", InfoBarSeverity.Success);
         return saved;
     }
 
@@ -553,19 +553,19 @@ public sealed partial class DevicesPage : Page
             content.Children.Add(notice);
             dialog = new ContentDialog
             {
-                XamlRoot = XamlRoot, Title = model is null ? "Share all devices" : $"Share {model}", Content = content,
+                XamlRoot = XamlRoot, Title = model is null ? "Contribute my monitors" : $"Contribute {model}", Content = content,
                 PrimaryButtonText = "Open GitHub issue", SecondaryButtonText = "Copy all", CloseButtonText = "Cancel",
                 IsPrimaryButtonEnabled = false, IsSecondaryButtonEnabled = false, DefaultButton = ContentDialogButton.None,
             };
             bool closed = false;
             dialog.Closed += (_, _) => closed = true;
             var shown = dialog.ShowAsync();
-            JsonNode? data = await RunAsync("devices.share", model is null
+            JsonNode? data = await RunAsync("devices.contribute", model is null
                 ? new JsonObject { ["all"] = true } : new JsonObject { ["model"] = model });
             if (closed || !_loaded) return;
             progress.IsActive = false;
             progress.Visibility = Visibility.Collapsed;
-            if (data is null) { notice.Text = "Could not prepare the share. Close this window to see the error and try again."; await shown; return; }
+            if (data is null) { notice.Text = "Could not prepare the contribution. Close this window to see the error and try again."; await shown; return; }
             string body = data["body"]!.GetValue<string>();
             string? paste = data["paste"]?.GetValue<string>();
             content.Children.Insert(0, Muted("Review the model records and mappings below. Monitor serials and user paths are removed. Nothing is submitted until you press Submit on GitHub."));
@@ -575,12 +575,12 @@ public sealed partial class DevicesPage : Page
                 FontFamily = new FontFamily("Consolas"), FontSize = 12, Height = 320, Text = body,
             });
             notice.Text = paste is null ? $"All {body.Length:N0} characters fit in the issue link."
-                : $"The complete share is {body.Length:N0} characters. Opening GitHub copies the text that needs pasting; replace the placeholder in the issue with it.";
+                : $"The complete contribution is {body.Length:N0} characters. Opening GitHub copies the text that needs pasting; replace the placeholder in the issue with it.";
             dialog.IsPrimaryButtonEnabled = dialog.IsSecondaryButtonEnabled = true;
             dialog.SecondaryButtonClick += (_, args) =>
             {
                 args.Cancel = true;
-                try { Copy(body); notice.Text = "Copied the complete share."; }
+                try { Copy(body); notice.Text = "Copied the complete contribution."; }
                 catch (Exception ex) { notice.Text = "Could not copy: " + ex.Message; }
             };
             dialog.PrimaryButtonClick += async (_, args) =>
@@ -590,7 +590,7 @@ public sealed partial class DevicesPage : Page
                 {
                     if (paste is not null) Copy(paste);
                     if (!await Windows.System.Launcher.LaunchUriAsync(new Uri(data["url"]!.GetValue<string>())))
-                        throw new InvalidOperationException("Windows could not open the browser. Copy the share and try again.");
+                        throw new InvalidOperationException("Windows could not open the browser. Copy the contribution and try again.");
                     Show(paste is null ? "Opened the prefilled issue. Review it and press Submit there."
                         : "Opened the issue. Paste the copied text over its placeholder, then press Submit there.", InfoBarSeverity.Success);
                 }
@@ -599,7 +599,7 @@ public sealed partial class DevicesPage : Page
             };
             await shown;
         }
-        catch (Exception ex) { dialog?.Hide(); Show("Could not share: " + ex.Message, InfoBarSeverity.Error); }
+        catch (Exception ex) { dialog?.Hide(); Show("Could not contribute: " + ex.Message, InfoBarSeverity.Error); }
         finally
         {
             _sharing = false;

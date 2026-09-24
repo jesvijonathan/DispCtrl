@@ -39,8 +39,8 @@ public static class ControlTerminal
                   [--kind range|choice|action|information] [--writable] [--scope model|brand|all]
       devices unmap|link|definitions        Remove, cross-link (--to DEL-A233), inspect layers
       devices panel --monitor ID --technology OLED [--notes TEXT]   What the panel is (none clears); built-in panels too
-      devices share --monitor ID [--open]   Record and mappings as one prefilled issue
-      devices share --all [--open]          Every recorded model in one issue
+      devices contribute --monitor ID [--open]  Record and mappings as one prefilled issue
+      devices contribute --all [--open]         Every recorded model in one issue (share is the old name)
       devices validate FILE                 Check a definition before sharing it
       settings get|schema                   Full settings tree or generated JSON schema
       settings set --path /global/... --value JSON

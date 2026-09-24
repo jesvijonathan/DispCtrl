@@ -98,7 +98,7 @@ dispctrl devices show --monitor 2        # every code, and which nobody has name
 dispctrl devices probe --monitor 2       # watch the unnamed ones while you use the OSD
 dispctrl devices map --monitor 2 --code 0xE2 --name "Preset mode" --values "0x00=Standard,0x0B=ComfortView"
 dispctrl devices panel --monitor 1 --technology OLED   # a laptop screen: say what it is
-dispctrl devices share --monitor 2 --open
+dispctrl devices contribute --monitor 2 --open
 ```
 
 `share` opens one GitHub issue for the model, with its record and a JSON block

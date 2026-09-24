@@ -19,7 +19,7 @@ calls it. The Devices page already works that way - it sends the same
 | Identify | `display identify` |
 | Detect | `displays list --refresh` |
 | Multiple displays (extend, duplicate, only one) | `topology get`, `topology set --mode extend` |
-| Monitor library | `devices list`, `devices show`, `devices map`, `devices share` (docs/DEVICE-LIBRARY.md) |
+| Monitor library | `devices list`, `devices show`, `devices map`, `devices contribute` (docs/DEVICE-LIBRARY.md) |
 | Connect to a wireless display | `windows open --page cast` |
 | Unison: on, level, Windows brightness | `unison set --enabled on --level 50 --follow-windows on` |
 | Unison: calibrated, and each display's limits | `unison set --calibrated on`, `unison set --monitor 2 --floor 20 --ceiling 80` |
@@ -85,7 +85,7 @@ calls it. The Devices page already works that way - it sends the same
 | Remove a model until the next explicit sync | `devices forget --model DEL-A234` |
 | Map codes, watch | `devices show --monitor 2`, `devices probe --monitor 2` |
 | Name it | `devices map --monitor 2 --code 0xE2 --name "Preset mode" --values "0x00=Standard,0x0B=ComfortView"` |
-| Share with the project | `devices share --monitor 2 --open` |
+| Share with the project | `devices contribute --monitor 2 --open` |
 
 ## Settings and startup
 

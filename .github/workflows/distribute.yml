@@ -20,8 +20,7 @@ on:
         description: Check everything but submit nothing
         type: boolean
         default: false
-permissions:
-  contents: read
+permissions: {}
 concurrency:
   group: distribute-${{ github.event.release.tag_name || inputs.tag }}
   cancel-in-progress: false
@@ -36,6 +35,7 @@ jobs:
     if: vars.WINGET_PACKAGE_ID != '' && (inputs.targets == '' || inputs.targets == 'both' || inputs.targets == 'winget' || github.event_name == 'release')
     runs-on: windows-latest
     timeout-minutes: 20
+    permissions: {}
     env:
       PACKAGE_ID: ${{ vars.WINGET_PACKAGE_ID }}
       # A classic token with public_repo scope: wingetcreate forks
@@ -74,6 +74,8 @@ jobs:
     if: vars.STORE_PRODUCT_ID != '' && (inputs.targets == '' || inputs.targets == 'both' || inputs.targets == 'microsoft store' || github.event_name == 'release')
     runs-on: windows-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     # Configure required reviewers on this environment: a Store submission
     # cannot be recalled once certification starts.
     environment: microsoft-store
@@ -81,7 +83,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       # For the Store identity in build/packaging/AppxManifest.xml.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Download the MSIX from the release
         id: msix
         shell: pwsh
@@ -105,7 +109,7 @@ jobs:
           if ($name -ne $expected) { throw "The MSIX identity is '$name', not the Store's '$expected'." }
           "path=$($package.FullName)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
           "name=$($package.Name)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-      - uses: microsoft/microsoft-store-apppublisher@v1.1
+      - uses: microsoft/microsoft-store-apppublisher@cc9910a8d59f2eb55cbb83df0a3800cf3b5300e0 # v1.4
         if: env.DRY_RUN != 'true'
       - name: Submit to Partner Center
         if: env.DRY_RUN != 'true'

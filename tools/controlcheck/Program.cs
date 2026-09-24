@@ -328,6 +328,8 @@ try
         "large combined shares retain the full body and avoid duplicate partial JSON in the issue");
     Check(service.Execute(Request("devices.share", new() { ["all"] = true, ["model"] = "DEL-A234" }))["exitCode"]!.GetValue<int>() == 2,
         "share all rejects an ambiguous single-model selector");
+    Check(service.Execute(Request("devices.contribute", new() { ["all"] = true, ["model"] = "DEL-A234" }))["exitCode"]!.GetValue<int>() == 2,
+        "contribute is the same command under its new name");
     DispCtrl.Core.Devices.DeviceHistory.Listed("TST-0101", "(vcp(E2))", [new(0xE2, "Unknown", "Information", [0, 1, 2], 2)]);
     var mapped = service.Execute(Request("devices.map", new() { ["model"] = "TST-0101", ["code"] = "0xE2", ["name"] = "Test range",
         ["kind"] = "range", ["maximum"] = 42, ["notes"] = "Documented test range" }));

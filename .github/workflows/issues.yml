@@ -1,0 +1,58 @@
+name: Issues
+# Triage for new issues, and the loop that closes one waiting on its author:
+# "needs-info" is asked for here, taken off when the author replies, and the
+# weekly Housekeeping run closes it after three weeks of silence. Device shares
+# are the Device library workflow's; this one only labels them.
+on:
+  issues:
+    types: [opened, reopened]
+  issue_comment:
+    types: [created]
+permissions: {}
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  ISSUE: ${{ github.event.issue.number }}
+jobs:
+  triage:
+    if: github.event_name == 'issues' && github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      ACTION: ${{ github.event.action }}
+      ASSOCIATION: ${{ github.event.issue.author_association }}
+      # Untrusted text: read from the environment, never pasted into the script.
+      BODY: ${{ github.event.issue.body }}
+    steps:
+      - name: Label, and ask for what is missing
+        run: |
+          if printf '%s' "$BODY" | grep -q 'dispctrl-device-mapping'; then
+            gh issue edit "$ISSUE" --add-label device || true
+            exit 0
+          fi
+          case "$ASSOCIATION" in OWNER|MEMBER|COLLABORATOR) exit 0 ;; esac
+          [ "$ACTION" = opened ] || exit 0
+          gh issue edit "$ISSUE" --add-label triage || true
+          # What is left once the template's comments, headings and "No
+          # response" placeholders are gone: under 40 characters says nothing.
+          said=$(printf '%s' "$BODY" | perl -0pe 's/<!--.*?-->//gs; s/^#+ .*$//mg; s/^_No response_$//mg; s/\s+//g')
+          if [ "${#said}" -lt 40 ]; then
+            gh issue edit "$ISSUE" --add-label needs-info || true
+            gh issue comment "$ISSUE" --body "Thanks for opening this. There is not quite enough here to act on yet: what you expected, what happened instead, and your displays (\`dispctrl displays\` prints them) usually make it fixable. Reply here and the \"needs-info\" label comes off by itself; without a reply it closes after three weeks, and a reply reopens it."
+          fi
+
+  replied:
+    # The author answered: back into triage, and reopened if it had closed.
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request == null && contains(github.event.issue.labels.*.name, 'needs-info') && github.event.comment.user.login == github.event.issue.user.login
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      STATE: ${{ github.event.issue.state }}
+    steps:
+      - run: |
+          gh issue edit "$ISSUE" --remove-label needs-info --remove-label stale --add-label triage || true
+          if [ "$STATE" = closed ]; then gh issue reopen "$ISSUE"; fi

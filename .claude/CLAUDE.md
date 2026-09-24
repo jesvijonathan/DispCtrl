@@ -216,7 +216,7 @@ records the model's codes into `%LOCALAPPDATA%\DispCtrl\devices\history.json`
 (`DeviceObserver`, no reads of its own); `devices probe` watches the codes the
 standard does not name while the owner uses the monitor's menu; `devices map`
 names one in a **definition** - per model (`DEL-A234`), brand (`DEL`) or every
-monitor (`*`), layered in that order with `extends` links - and `devices share`
+monitor (`*`), layered in that order with `extends` links - and `devices contribute`
 opens one prefilled issue with the record and the mappings. The repository is
 the backend: `.github/workflows/devices.yml` turns such an issue into a
 pull request through `tools/devicecheck intake` (its `intake` job), validates
@@ -243,7 +243,7 @@ ship. The app's **Devices** page sends the same
   (`FocusService.Mask.LibraryOled`), never per frame.
   Never on a brand or `*` - a maker ships both kinds. `devices panel` sets it.
 - `dispctrl contribute` still works for the Markdown record alone; the docs
-  point at `devices share`.
+  point at `devices contribute`.
 
 ### Hotkeys
 
@@ -1002,8 +1002,16 @@ unrecallable.
   `build/packaging/` MSIX and installer, `src/native/` the glass helper,
   `docs/design/` internal notes. Session exports stay in `.notes/`, ignored.
 - **Workflows** (`docs/RELEASING.md` has the table): Build and verify, Release,
-  Distribute, Device library, Website, Housekeeping. Each writes a summary with
-  links and sizes, and each has `workflow_dispatch` options. A release that the
+  Distribute, Device library, Pull requests, Issues, Website, Housekeeping.
+  Each writes a summary with links and sizes. Every action is pinned to a
+  commit with its tag in a comment, every workflow starts from
+  `permissions: {}` and each job asks for its own, and a checkout that pushes
+  nothing sets `persist-credentials: false`. Untrusted text (issue bodies,
+  titles, file names) reaches a script only through `env`. `pr.yml`'s policy
+  and triage run on `pull_request_target` and must never check out the pull
+  request - everything comes from the API. Lint locally with actionlint and
+  shellcheck (`pip install actionlint-py shellcheck-py`); CI runs the same.
+  Labels live in `.github/labels.json`. A release that the
   workflow publishes itself does not raise `released`, so Release starts
   Distribute with `gh workflow run`. Housekeeping deletes old artifacts, runs,
   caches and drafts weekly; a manual run defaults to a dry run.

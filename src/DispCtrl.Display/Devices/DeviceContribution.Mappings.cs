@@ -113,7 +113,7 @@ public static partial class DeviceContribution
         // Keep one JSON block per model. Prefilling a reduced block and asking
         // for the complete body to be pasted used to leave two conflicting ones.
         return new MappingShare(model, name, body, path,
-            new Uri(Link("Paste the complete device share copied by DispCtrl here, replacing this line.")), false, body);
+            new Uri(Link("Paste the complete device contribution copied by DispCtrl here, replacing this line.")), false, body);
     }
 
     /// <summary>Combines every model in the device list into one reviewable issue.</summary>
@@ -129,15 +129,15 @@ public static partial class DeviceContribution
     /// <summary>Fits a set of complete model shares into one link without discarding any model.</summary>
     public static MappingShare CombineMappings(IReadOnlyList<MappingShare> shares)
     {
-        if (shares.Count == 0) throw new ArgumentException("No devices to share.");
+        if (shares.Count == 0) throw new ArgumentException("No devices to contribute.");
         string body = string.Join("\n\n---\n\n", shares.Select(s => s.Body.Trim()));
         string title = $"Device library: {shares.Count} model(s)";
         string summary = "Devices: " + string.Join(", ", shares.Select(s => s.Model))
-            + "\n\nPaste the complete device share copied by DispCtrl here, replacing this text.";
+            + "\n\nPaste the complete device contribution copied by DispCtrl here, replacing this text.";
         string Link(string text) => $"https://github.com/{Repository}/issues/new?labels=device,{MappingLabel}"
             + $"&title={WebUtility.UrlEncode(title)}&body={WebUtility.UrlEncode(text)}";
         bool fits = Link(body).Length <= MaxUrlLength;
-        if (Link(summary).Length > MaxUrlLength) summary = "Paste the complete device share copied by DispCtrl here.";
+        if (Link(summary).Length > MaxUrlLength) summary = "Paste the complete device contribution copied by DispCtrl here.";
         string path = System.IO.Path.Combine(Outbox, "all-devices.md");
         Directory.CreateDirectory(Outbox);
         File.WriteAllText(path, body);

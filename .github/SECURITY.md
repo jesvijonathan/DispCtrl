@@ -25,7 +25,7 @@ matter:
 - **The engine's named-pipe command broker.** It is scoped to the current user and
   session. Any way for another user, another session, or a lower integrity level
   to send it commands is in scope.
-- **Monitor records.** `dispctrl contribute` and `devices share` build text meant
+- **Monitor records.** `dispctrl contribute` and `devices contribute` build text meant
   for publication. Any way for a serial number, a device path or instance id, a
   file path, or the account name to survive the scrub into that text is a
   vulnerability, and treated as one. See the "Publishing device records" section

@@ -1,14 +1,36 @@
 name: Housekeeping
-# Keeps the repository's Actions storage small. Every build uploads a few
-# hundred MB of packages; retention limits expire them eventually, but
-# expired-but-counted artifacts, old run records, stale caches and abandoned
-# release drafts still add up. Weekly, or from Actions > Housekeeping > Run
-# workflow with a dry run first.
+# The repository's weekly upkeep, each part a switch when run by hand:
+#  - storage   artifacts, run records, caches and release drafts past their use
+#  - labels    create and update every label in .github/labels.json
+#  - stale     close issues waiting on their author, and abandoned pull requests
+#  - lock      lock conversations closed and quiet for 90 days
+#  - branches  delete device-share and Dependabot branches nothing points at
+# Weekly it does all of it for real; by hand it defaults to a dry run. A change
+# to labels.json syncs the labels on its own.
 on:
   schedule:
     - cron: '17 3 * * 0'   # Sundays, 03:17 UTC
+  push:
+    branches: [main, master]
+    paths: ['.github/labels.json']
   workflow_dispatch:
     inputs:
+      labels:
+        description: Create and update the labels in .github/labels.json
+        type: boolean
+        default: true
+      stale:
+        description: Mark and close stale issues (needs-info only) and pull requests
+        type: boolean
+        default: true
+      lock:
+        description: Lock conversations closed and quiet for 90 days
+        type: boolean
+        default: true
+      branches:
+        description: Delete device-share and Dependabot branches with nothing open on them
+        type: boolean
+        default: true
       artifact_days:
         description: Delete workflow artifacts older than this many days
         type: number
@@ -29,25 +51,30 @@ on:
         description: Only report what would be deleted
         type: boolean
         default: true
-permissions:
-  actions: write
-  contents: write   # release drafts
+permissions: {}
 concurrency:
   group: housekeeping
   cancel-in-progress: false
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  # A schedule has no inputs: it does everything, for real. By hand, the
+  # switches decide and a dry run is the default.
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
 jobs:
   tidy:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write   # release drafts
     timeout-minutes: 30
     env:
-      GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
-      # A schedule has no inputs: it uses these defaults, and really deletes.
       ARTIFACT_DAYS: ${{ inputs.artifact_days || 7 }}
       RUN_DAYS: ${{ inputs.run_days || 90 }}
       CACHES: ${{ github.event_name == 'schedule' || inputs.caches }}
       DRAFTS: ${{ github.event_name == 'schedule' || inputs.drafts }}
-      DRY_RUN: ${{ github.event_name != 'schedule' && inputs.dry_run }}
     steps:
       - name: Tidy
         shell: bash
@@ -127,3 +154,107 @@ jobs:
             echo
             echo "Storage and billing: https://github.com/settings/billing"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  labels:
+    if: github.event_name != 'workflow_dispatch' || inputs.labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/labels.json
+          sparse-checkout-cone-mode: false
+      - name: Create and update the labels
+        run: |
+          # Never deletes: a label someone added by hand is theirs to remove.
+          jq -r '.labels[] | [.name, .color, .description] | @tsv' .github/labels.json |
+          while IFS=$'\t' read -r name color description; do
+            if [ "$DRY_RUN" = true ]; then echo "would set $name"; continue; fi
+            gh label create "$name" --color "$color" --description "$description" --force > /dev/null
+            echo "set $name"
+          done | tee -a "$GITHUB_STEP_SUMMARY"
+
+  stale:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.stale)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          # Issues are never closed for being old, only for an unanswered
+          # question: only those labelled needs-info are looked at.
+          only-issue-labels: needs-info
+          days-before-issue-stale: 14
+          days-before-issue-close: 7
+          stale-issue-message: This has been waiting for more information for two weeks. It closes in a week unless someone replies; a reply from the author reopens it at any time.
+          close-issue-message: Closed for now, as nobody replied. Reply here with the missing details and it reopens.
+          close-issue-reason: not_planned
+          days-before-pr-stale: 45
+          days-before-pr-close: 14
+          stale-pr-message: This pull request has had no activity for six weeks. It closes in two weeks unless someone pushes or replies.
+          close-pr-message: Closed as abandoned. Reopen it, or open a new one, whenever you pick it up again.
+          exempt-draft-pr: true
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: pinned,security
+          exempt-pr-labels: pinned,security,maintainer-approved,dependencies
+          operations-per-run: 200
+          debug-only: ${{ env.DRY_RUN == 'true' }}
+
+  lock:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.lock)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Lock quiet closed conversations
+        run: |
+          # A new comment on a long-closed thread is usually a different
+          # problem; locked, it becomes a new issue that links back instead.
+          before=$(date -u -d '90 days ago' +%Y-%m-%d)
+          count=0
+          while read -r number; do
+            [ -z "$number" ] && continue
+            if [ "$DRY_RUN" = true ]; then echo "would lock #$number"
+            else gh api -X PUT "repos/$GH_REPO/issues/$number/lock" -f lock_reason=resolved > /dev/null && echo "locked #$number"; fi
+            count=$((count + 1))
+          done < <(gh api -X GET search/issues --paginate -f q="repo:$GH_REPO is:closed is:unlocked updated:<$before" -f per_page=100 --jq '.items[].number')
+          echo "Conversations locked: $count" >> "$GITHUB_STEP_SUMMARY"
+
+  branches:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.branches)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Delete branches nothing points at
+        run: |
+          # Only the two prefixes automation creates; a person's branch is theirs.
+          open=$(gh pr list --state open --limit 500 --json headRefName --jq '.[].headRefName')
+          count=0
+          while read -r branch; do
+            [ -z "$branch" ] && continue
+            if printf '%s\n' "$open" | grep -qxF "$branch"; then continue; fi
+            case "$branch" in
+              device-share/*)
+                # Kept while its issue is open: the intake may come back to it.
+                state=$(gh issue view "${branch#device-share/}" --json state --jq .state 2>/dev/null || echo CLOSED)
+                [ "$state" = OPEN ] && continue ;;
+            esac
+            if [ "$DRY_RUN" = true ]; then echo "would delete $branch"
+            else gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$branch" > /dev/null && echo "deleted $branch"; fi
+            count=$((count + 1))
+          done < <(gh api --paginate "repos/$GH_REPO/branches?per_page=100" --jq '.[].name | select(startswith("device-share/") or startswith("dependabot/"))')
+          echo "Branches deleted: $count" >> "$GITHUB_STEP_SUMMARY"

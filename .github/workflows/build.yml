@@ -4,7 +4,9 @@ name: Build and verify
 # that caused it. The website, the device library and the docs have workflows
 # of their own and do not start this one. Only a run started by hand uploads
 # the packages: a push walks the same path to prove it, then lets them go, so
-# routine commits never count against the account's artifact storage.
+# routine commits never count against the account's artifact storage. A pull
+# request runs the tests only: packaging proves the shipping path, which a
+# contributor's change reaches once it is merged. Every run lints the workflows.
 on:
   push:
     branches: [main, master]
@@ -34,28 +36,45 @@ on:
         description: Days to keep the downloadable artifact (1-90)
         type: number
         default: 7
-permissions:
-  contents: read
+permissions: {}
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint the workflows
+        # actionlint checks every expression, and runs shellcheck (on the
+        # runner already) over every script, including script injection.
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
+
   windows:
     runs-on: windows-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
     env:
-      PACKAGES: ${{ inputs.packages || 'everything' }}
+      PACKAGES: ${{ github.event_name == 'pull_request' && 'nothing (tests only)' || inputs.packages || 'everything' }}
       CHANNEL: ${{ inputs.channel || 'beta' }}
       VERSION: ${{ inputs.version || format('0.1.{0}', github.run_number) }}
       NATIVE: ${{ inputs.native_helper == false && 'false' || 'true' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
           cache: true
           cache-dependency-path: src/**/*.csproj
-      - uses: msys2/setup-msys2@v2
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2.32.0
         if: env.NATIVE == 'true'
         with:
           msystem: UCRT64
@@ -98,7 +117,7 @@ jobs:
           }
           ./build/Installer.ps1 -DesktopDirectory "artifacts/$env:CHANNEL-$env:VERSION/desktop" -Version $env:VERSION -Channel $env:CHANNEL
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         id: upload
         if: env.PACKAGES != 'nothing (tests only)' && github.event_name == 'workflow_dispatch'
         with:

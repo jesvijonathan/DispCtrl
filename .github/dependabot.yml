@@ -1,9 +1,16 @@
 version: 2
+# Monthly, grouped, and never for a release under a week old: a compromised
+# version is usually caught and pulled within days, and waiting costs nothing.
+# Action updates arrive pinned by commit and merge themselves once the
+# required checks pass (pr.yml); NuGet updates wait for a person.
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
+    labels: [dependencies, 'area: ci']
     groups:
       actions:
         patterns: ['*']
@@ -13,6 +20,9 @@ updates:
       - /tools/*
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
+    labels: [dependencies, 'area: build']
     groups:
       # WinUI, the App SDK and the toolkit move together; a partial bump of
       # them is the likeliest way to break the window at runtime.

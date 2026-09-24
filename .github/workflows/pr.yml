@@ -1,0 +1,204 @@
+name: Pull requests
+# Labels, a welcome, and the policy that keeps changes out of the places only a
+# maintainer may touch. The policy and the labels run on pull_request_target -
+# the base branch's copy of this file, with a token that can label and comment -
+# and never check out or run anything from the pull request: every fact comes
+# from the API. The dependency review and Dependabot's merge run on
+# pull_request, with the pull request's own read-only token.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+  pull_request:
+    types: [opened, reopened, synchronize]
+permissions: {}
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  PR: ${{ github.event.pull_request.number }}
+jobs:
+  triage:
+    if: github.event_name == 'pull_request_target' && contains(fromJSON('["opened","reopened","synchronize","ready_for_review"]'), github.event.action)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      issues: write   # labels and comments live on the issue side
+    concurrency:
+      group: pr-triage-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      ACTION: ${{ github.event.action }}
+      ASSOCIATION: ${{ github.event.pull_request.author_association }}
+    steps:
+      - name: Label by area and size
+        run: |
+          files=$(gh api --paginate "repos/$GH_REPO/pulls/$PR/files?per_page=100" --jq '.[] | "\(.additions + .deletions)\t\(.filename)"')
+          lines=$(printf '%s\n' "$files" | awk -F'\t' '{ s += $1 } END { print s + 0 }')
+          want=()
+          while IFS=$'\t' read -r _ path; do
+            # First match wins: a record under devices/ is the library's, not docs.
+            case "$path" in
+              src/DispCtrl.App/*) want+=("area: app") ;;
+              src/DispCtrl.Engine/*|src/native/*) want+=("area: engine") ;;
+              src/DispCtrl.Cli/*|src/DispCtrl.Control/*) want+=("area: cli") ;;
+              src/DispCtrl.Core/*|src/DispCtrl.Display/*) want+=("area: core") ;;
+              devices/*|tools/devicecheck/*) want+=("area: devices") ;;
+              site/*) want+=("area: site") ;;
+              .github/*) want+=("area: ci") ;;
+              docs/*|*.md) want+=("area: docs") ;;
+              build/*|tools/*|Directory.Build.*|build.cmd|build.sh|global.json) want+=("area: build") ;;
+            esac
+          done <<< "$files"
+          if   [ "$lines" -lt 10 ];   then size="size: XS"
+          elif [ "$lines" -lt 50 ];   then size="size: S"
+          elif [ "$lines" -lt 250 ];  then size="size: M"
+          elif [ "$lines" -lt 1000 ]; then size="size: L"
+          else size="size: XL"; fi
+          want+=("$size")
+          # A size that no longer fits is taken off; areas only ever accumulate.
+          stale=$(gh pr view "$PR" --json labels --jq '.labels[].name | select(startswith("size: "))' | grep -vxF "$size" || true)
+          add=$(printf '%s\n' "${want[@]}" | sort -u | paste -sd, -)
+          remove=$(printf '%s\n' "$stale" | sed '/^$/d' | paste -sd, -)
+          gh pr edit "$PR" --add-label "$add" ${remove:+--remove-label "$remove"} \
+            || echo "::warning::Could not set labels; run Housekeeping with 'labels' to create them."
+          echo "$lines line(s) changed; labels: $add" >> "$GITHUB_STEP_SUMMARY"
+      - name: Welcome a first contribution
+        if: github.event.action == 'opened' && contains(fromJSON('["FIRST_TIME_CONTRIBUTOR","FIRST_TIMER"]'), github.event.pull_request.author_association)
+        run: |
+          gh pr edit "$PR" --add-label first-contribution || true
+          gh pr comment "$PR" --body "Thanks for your first pull request to DispCtrl. The checks below build and test it on Windows; a maintainer will read it soon. [CONTRIBUTING.md](https://github.com/$GH_REPO/blob/HEAD/.github/CONTRIBUTING.md) has what a change needs (verification on real displays, a changelog line), and the policy check explains itself if it fails."
+
+  policy:
+    # The check a ruleset should require. It passes for the repository's own
+    # people and bots; from anyone else it fails on changes to what builds,
+    # tests, ships or runs in CI, and on binaries, until a maintainer adds
+    # "maintainer-approved" - which a later push takes off again.
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      issues: write
+    concurrency:
+      group: pr-policy-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      ACTION: ${{ github.event.action }}
+      ASSOCIATION: ${{ github.event.pull_request.author_association }}
+      AUTHOR: ${{ github.event.pull_request.user.login }}
+      APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'maintainer-approved') }}
+    steps:
+      - name: Check what the pull request touches
+        run: |
+          marker='<!-- dispctrl-policy -->'
+          comment_id=$(gh api --paginate "repos/$GH_REPO/issues/$PR/comments?per_page=100" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"$marker\"))) | .id" | head -1)
+          say() {   # one comment per pull request, edited in place
+            if [ -n "$comment_id" ]; then gh api -X PATCH "repos/$GH_REPO/issues/comments/$comment_id" -f body="$1" > /dev/null
+            else gh pr comment "$PR" --body "$1"; fi
+          }
+
+          trusted=false
+          case "$ASSOCIATION" in OWNER|MEMBER|COLLABORATOR) trusted=true ;; esac
+          case "$AUTHOR" in 'dependabot[bot]'|'github-actions[bot]') trusted=true ;; esac
+          if [ "$trusted" = true ]; then
+            echo "Author $AUTHOR ($ASSOCIATION) is trusted; nothing to check." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          sensitive=(); opaque=(); total=0
+          while IFS=$'\t' read -r status lines patch path; do
+            [ -z "$path" ] && continue
+            total=$((total + lines))
+            # What builds, tests, ships or runs in CI.
+            case "$path" in
+              .github/*|build/*|tools/*|src/native/*|devices/schema/*|Directory.Build.*|global.json|[Nn]u[Gg]et.[Cc]onfig|build.cmd|build.sh|\
+              *.csproj|*.props|*.targets|*.ps1|*.psm1|*.cmd|*.bat|*.sh|*.vbs|*.js|*.mjs|*.py|*.exe.config|*.manifest)
+                sensitive+=("$status $path") ;;
+            esac
+            # Anything that cannot be read in a diff. Images are allowed.
+            lower=$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')
+            case "$lower" in
+              *.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|*.svg) ;;
+              *.exe|*.dll|*.so|*.dylib|*.sys|*.msi|*.msix|*.appx|*.cab|*.zip|*.7z|*.rar|*.tar|*.gz|*.jar|*.nupkg|*.pfx|*.p12|*.snk|*.pdb|*.bin|*.lnk|*.scr)
+                opaque+=("$status $path") ;;
+              *) if [ "$patch" = false ] && [ "$status" != removed ] && [ "$status" != renamed ]; then opaque+=("$status $path"); fi ;;
+            esac
+          done < <(gh api --paginate "repos/$GH_REPO/pulls/$PR/files?per_page=100" \
+                     --jq '.[] | "\(.status)\t\(.additions + .deletions)\t\(has("patch"))\t\(.filename)"')
+
+          # An approval covers what the maintainer read: new commits need a new look.
+          if [ "$APPROVED" = true ] && [ "$ACTION" = synchronize ]; then
+            gh pr edit "$PR" --remove-label maintainer-approved || true
+            APPROVED=false
+          fi
+
+          if [ ${#sensitive[@]} -eq 0 ] && [ ${#opaque[@]} -eq 0 ] && [ "$total" -lt 3000 ]; then
+            gh pr edit "$PR" --remove-label needs-maintainer > /dev/null 2>&1 || true
+            [ -n "$comment_id" ] && say "$marker
+          **Policy: passed.** Nothing in this pull request needs a maintainer's permission any more."
+            echo "Policy passed: $total line(s), nothing sensitive." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "$marker"
+            if [ "$APPROVED" = true ]; then
+              echo "**Policy: approved by a maintainer.** The changes below were read and allowed; a new push will ask again."
+            else
+              echo "**Policy: waiting for a maintainer.** Thanks for the pull request. Some of it touches what only a maintainer may change, so this check stays red until one reads it and adds the \`maintainer-approved\` label. Nothing is wrong with asking - it is how a public repository stays safe to build from."
+            fi
+            echo
+            if [ ${#sensitive[@]} -gt 0 ]; then
+              echo "Build, packaging, tools, scripts or CI:"
+              echo '```'
+              printf '%s\n' "${sensitive[@]}" | sed 's/```/ʼʼʼ/g'
+              echo '```'
+            fi
+            if [ ${#opaque[@]} -gt 0 ]; then
+              echo "Files a diff cannot show (binaries, archives, or too large to render):"
+              echo '```'
+              printf '%s\n' "${opaque[@]}" | sed 's/```/ʼʼʼ/g'
+              echo '```'
+            fi
+            [ "$total" -ge 3000 ] && echo "It changes $total lines; a change that size needs a maintainer to agree to its scope first."
+          } > "$RUNNER_TEMP/policy.md"
+          say "$(cat "$RUNNER_TEMP/policy.md")"
+          cat "$RUNNER_TEMP/policy.md" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$APPROVED" = true ]; then
+            gh pr edit "$PR" --remove-label needs-maintainer > /dev/null 2>&1 || true
+            exit 0
+          fi
+          gh pr edit "$PR" --add-label needs-maintainer || true
+          echo "::error::This pull request needs a maintainer's approval (the maintainer-approved label); see the comment."
+          exit 1
+
+  dependencies:
+    # New packages with known vulnerabilities, from the dependency graph.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never
+
+  dependabot:
+    # Action updates arrive grouped, pinned by commit and a week old
+    # (dependabot.yml); they merge themselves once the required checks pass.
+    # NuGet updates move WinUI and the App SDK, and wait for a person.
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' && startsWith(github.head_ref, 'dependabot/github_actions/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Approve and merge when green
+        run: |
+          gh pr review "$PR" --approve --body "An update to the workflows' actions, pinned by commit. Merging once the required checks pass."
+          gh pr merge "$PR" --auto --squash \
+            || gh pr comment "$PR" --body "Could not turn on auto-merge. Enable Settings > General > Allow auto-merge, or merge this by hand."

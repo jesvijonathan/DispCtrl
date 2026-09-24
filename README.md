@@ -298,7 +298,7 @@ site/                  the website (GitHub Pages) and every image the README use
 
 ## Contributing
 
-- **Send your monitor**: **Devices > Share** in the app, or `dispctrl devices share --monitor 2 --open`. It is the fastest way to make DispCtrl work on hardware other than the author's.
+- **Send your monitor**: **Devices > Share** in the app, or `dispctrl devices contribute --monitor 2 --open`. It is the fastest way to make DispCtrl work on hardware other than the author's.
 - **Report a problem**: **Help > Report a problem** in the app, or `dispctrl report --what "..."`, which gathers the diagnostics for you.
 - **Send code**: see [CONTRIBUTING](.github/CONTRIBUTING.md).
 

@@ -14,12 +14,12 @@
         <TextBlock Text="Devices" Style="{StaticResource TitleTextBlockStyle}"/>
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="Every monitor this PC has seen. DispCtrl reads each new model by itself the first time it is plugged in, and applies whatever the project already knows about it. The codes nobody has named are listed under each monitor: name one, share it, and every owner of that model gets the control."/>
+                   Text="Every monitor this PC has seen. DispCtrl reads each new model by itself the first time it is plugged in, and applies whatever the project already knows about it. The codes nobody has named are listed under each monitor: name one, contribute it, and every owner of that model gets the control."/>
       </StackPanel>
 
       <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-        <Button x:Name="ShareAllButton" Content="Share all devices" Click="OnShareAll"
-                Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Share all devices"
+        <Button x:Name="ShareAllButton" Content="Contribute my monitors" Click="OnShareAll"
+                Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Contribute my monitors"
                 ToolTipService.ToolTip="Review one issue containing every model in this list, including built-in and disconnected displays."/>
         <Button x:Name="ScanButton" Click="OnScan" AutomationProperties.Name="DevicesScan"
                 ToolTipService.ToolTip="Read every attached monitor again now, including any removed from this list. The engine does this by itself for new models.">

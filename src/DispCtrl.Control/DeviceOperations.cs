@@ -28,9 +28,10 @@ public sealed partial class ControlService
         "link" => DevicesLink(args),
         "panel" => DevicesPanel(args),
         "definitions" => DevicesDefinitions(args),
-        "share" => DevicesShare(args),
+        // "share" was the first name; scripts that use it keep working.
+        "contribute" or "share" => DevicesShare(args),
         "validate" => DevicesValidate(args),
-        _ => throw new ArgumentException("devices actions: list, show, scan, forget, map, unmap, link, panel, definitions, share, validate. probe runs in the terminal."),
+        _ => throw new ArgumentException("devices actions: list, show, scan, forget, map, unmap, link, panel, definitions, contribute, validate. probe runs in the terminal."),
     };
 
     private static void Only(JsonObject args, string command, params string[] allowed)

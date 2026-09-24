@@ -8,7 +8,7 @@ labels: device
 <!--
   DispCtrl writes this for you:
 
-      dispctrl devices share --monitor 2 --open
+      dispctrl devices contribute --monitor 2 --open
 
   or the Devices page in the app. It also carries any codes you have named with
   `dispctrl devices map`, which the intake workflow turns into a pull request.

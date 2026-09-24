@@ -79,17 +79,33 @@ nothing else needs administrator rights.
 
 ## Workflows
 
-Six workflows, each with a summary page (links, files, sizes, status) and a
-**Run workflow** button with options:
+Eight workflows. Each writes a summary page (links, files, sizes, status),
+asks for only the permissions its jobs need, and uses actions pinned to a
+commit (Dependabot keeps the pins current, a week behind each release):
 
 | Workflow | Runs on | Does |
 |---|---|---|
-| **Build and verify** (`build.yml`) | pushes and pull requests to the product | build, the hardware-free checks, then zips, installer and a development-identity MSIX. Only a manual run uploads them (kept 7 days by default); a push or pull request builds them to prove the path and keeps nothing. Options: what to package, channel, version, native helper, days to keep. Website, device-library and docs changes do not start it. |
+| **Build and verify** (`build.yml`) | pushes and pull requests to the product | lints every workflow (actionlint with shellcheck), builds, runs the hardware-free checks, then on a push walks the zips, installer and development-identity MSIX. A pull request runs the tests only. Only a manual run uploads packages (kept 7 days by default). Options: what to package, channel, version, native helper, days to keep. Website, device-library and docs changes do not start it. |
 | **Release** (`release.yml`) | a `v*` tag, or by hand | everything below; options: version, channel, publish now or draft, create the tag, packages, signing, extra notes |
 | **Distribute** (`distribute.yml`) | publishing a stable release, or by hand | winget and the Microsoft Store; options: tag, which targets, dry run |
-| **Device library** (`devices.yml`) | changes under `devices/`, issues carrying a device share, and Mondays | validate, regenerate the index after a merge, and turn a share into a pull request that only adds, and fail an outside pull request that changes reviewed data; by hand: validate, reindex, intake one issue or every open share without a pull request, self-test. A share whose pull request Actions may not open (setting 2 below) leaves its branch pushed and a link to open it in the run summary |
+| **Device library** (`devices.yml`) | changes under `devices/`, issues carrying a device contribution, a maintainer's `/intake` comment, and Mondays | validate and guard pull requests; take a clean contribution straight into the library (its issue closed with a link) and open a pull request for one that needs a look; by hand: validate, reindex, intake one issue or every open one, self-test |
+| **Pull requests** (`pr.yml`) | every pull request | area and size labels, a welcome for a first contribution, the **policy** check (below), a dependency review for known vulnerabilities, and auto-merge for Dependabot's action updates |
+| **Issues** (`issues.yml`) | new issues and comments | labels new issues `triage`, asks for what a near-empty one is missing (`needs-info`), and takes the label off - reopening if need be - when the author replies |
 | **Website** (`pages.yml`) | changes under `site/` | publishes GitHub Pages |
-| **Housekeeping** (`housekeeping.yml`) | Sundays, or by hand | deletes old artifacts, run records, unused caches and stale release drafts, and reports the space freed; a manual run is a dry run unless you untick it |
+| **Housekeeping** (`housekeeping.yml`) | Sundays, a change to `.github/labels.json`, or by hand | storage (old artifacts, run records, unused caches, stale drafts); labels from `labels.json`; stale (`needs-info` issues close after three quiet weeks, pull requests after two months); locks conversations closed and quiet for 90 days; deletes device-share and Dependabot branches nothing points at. Each is a switch; a manual run is a dry run unless you untick it |
+
+### The policy check
+
+`Pull requests / policy` runs from the base branch's copy of `pr.yml`, reads
+the pull request through the API and never checks it out. From the owner, a
+member, a collaborator, Dependabot or the intake it passes. From anyone else it
+fails when the pull request touches what builds, tests, ships or runs in CI -
+`.github/`, `build/`, `tools/`, `src/native/`, project and props files, any
+script - or adds a file a diff cannot show (a binary, an archive, a key), or
+changes more than 3,000 lines. It explains itself in one comment and labels
+the pull request `needs-maintainer`. Read the change, add
+`maintainer-approved`, and it passes; a new push takes the label off again, so
+an approval never covers code you have not seen. Make it a required check (step 3 below).
 
 ### Who can change them
 
@@ -97,18 +113,21 @@ Only accounts with write access can edit a workflow, and `.github/CODEOWNERS`
 names the owner for everything, workflows included. Three settings finish the
 job and are set once, by hand:
 
-1. **Settings > Actions > General > Fork pull request workflows from outside
-   collaborators: "Require approval for all outside collaborators".** A
-   stranger's pull request then runs nothing until you approve it.
+1. **Settings > Actions > General > Approval for running fork pull request
+   workflows: "Require approval for first-time contributors".** A stranger's
+   first pull request runs nothing until you approve it; after that the policy
+   check does the gatekeeping. (The stricter "all external contributors" also
+   works, at the cost of approving every run.)
 2. **Settings > Actions > General > Workflow permissions: "Read repository
    contents"**, with "Allow GitHub Actions to create and approve pull
-   requests" ticked (the device intake opens pull requests). Each workflow
-   asks for exactly what it needs on top.
+   requests" ticked (the device intake and Dependabot's merge need it). Each
+   workflow asks for exactly what it needs on top. On Settings > General, also
+   tick "Allow auto-merge" and "Automatically delete head branches".
 3. **Settings > Rules > Rulesets > New branch ruleset** for `master`: block
-   force pushes and deletion, and require a pull request with code-owner review
-   for everyone except you (add yourself as a bypass actor). The index commit
-   the Device library workflow pushes needs "GitHub Actions" in the bypass
-   list too, or turn that step into a pull request.
+   force pushes and deletion; require a pull request with code-owner review;
+   and require the status checks `policy` and `windows` (from Build and
+   verify). Add yourself and "GitHub Actions" as bypass actors: you push
+   directly, and the device intake commits contributions and the index.
 
 A pull request from a fork always runs its workflows with a read-only token and
 no secrets, and the Device library workflow's token cannot change files under

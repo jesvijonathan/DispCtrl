@@ -8,6 +8,9 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+### Changed
+- The Devices page offers to **contribute** a monitor rather than share it, and the command is `dispctrl devices contribute`; `devices share` still works.
+
 ## [0.1.1] - 2026-09-24
 
 ### Added

@@ -39,9 +39,7 @@ on:
       notes:
         description: Extra text placed above the generated release notes (optional)
         required: false
-permissions:
-  contents: write
-  actions: write   # to start Distribute after publishing a stable release
+permissions: {}
 concurrency:
   group: release-${{ inputs.version || github.ref }}
   cancel-in-progress: false
@@ -49,18 +47,21 @@ jobs:
   release:
     runs-on: windows-latest
     timeout-minutes: 75
+    permissions:
+      contents: write   # the tag and the release
+      actions: write    # to start Distribute after publishing a stable release
     env:
       HAS_SIGNING_CERT: ${{ secrets.SIGNING_CERT_BASE64 != '' }}
       DISPCTRL_SIGN_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
       PACKAGES: ${{ inputs.packages || 'everything' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
-      - uses: msys2/setup-msys2@v2
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2.32.0
         with:
           msystem: UCRT64
           install: mingw-w64-ucrt-x86_64-gcc
@@ -181,7 +182,7 @@ jobs:
           if ($env:EXTRA) { $notes = $env:EXTRA + "`n`n" + ($notes -join "`n") }
           $notes | Set-Content artifacts/RELEASE-NOTES.md -Encoding utf8
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         id: upload
         with:
           name: DispCtrl-${{ steps.v.outputs.version }}-${{ steps.v.outputs.channel }}

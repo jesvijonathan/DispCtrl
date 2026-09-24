@@ -18,7 +18,7 @@ public sealed partial class ControlService
         "display.set", "display.controls", "display.control", "display.identify", "display.factory-reset", "display.reset", "gamma.get", "gamma.set", "windows.open",
         "hotkeys.list", "hotkeys.add", "hotkeys.set", "hotkeys.remove", "hotkeys.reset",
         "devices.list", "devices.show", "devices.scan", "devices.forget", "devices.map", "devices.unmap", "devices.link", "devices.panel", "devices.definitions",
-        "devices.share", "devices.validate", "settings.get", "settings.set", "settings.reset", "settings.schema", "settings.validate", "settings.import",
+        "devices.contribute", "devices.share", "devices.validate", "settings.get", "settings.set", "settings.reset", "settings.schema", "settings.validate", "settings.import",
         "focus.get", "focus.set", "focus.reset", "oled.get", "oled.set", "oled.reset", "oled.preview", "oled.rest", "awake.displays-off",
         "restore.now", "restore.undo", "restore.get",
         "awake.get", "awake.set", "awake.reset", "nightlight.get", "nightlight.set", "nightlight.reset",

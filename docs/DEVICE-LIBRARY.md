@@ -162,7 +162,7 @@ the definition.
 ## Sharing
 
 ```powershell
-dispctrl devices share --monitor 2 --open
+dispctrl devices contribute --monitor 2 --open
 ```
 
 One issue per model, replacing the old collect, view, submit. The body is the
