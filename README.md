@@ -11,11 +11,9 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/jesvijonathan/DispCtrl/build.yml?branch=master&label=build&logo=github)](https://github.com/jesvijonathan/DispCtrl/actions/workflows/build.yml) [![GitHub stars](https://img.shields.io/github/stars/jesvijonathan/DispCtrl?label=stars&color=8b5cf6&logo=github)](https://github.com/jesvijonathan/DispCtrl/stargazers) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/DispCtrl/total?color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases) [![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
 
-<a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" height="48"></a>&nbsp;&nbsp;<a href="https://github.com/jesvijonathan/DispCtrl/releases/latest"><img src="https://img.shields.io/github/v/release/jesvijonathan/DispCtrl?label=Download%20installer&logo=github&style=for-the-badge&color=8b5cf6" alt="Download the installer from GitHub" height="48"></a>
-
-```
-winget install 9PNQWKNRGVR0 --source msstore
-```
+[![Get it from the Microsoft Store](https://img.shields.io/badge/Microsoft_Store-Get_it-8b5cf6?style=for-the-badge&logo=microsoft&logoColor=white)](https://apps.microsoft.com/detail/9PNQWKNRGVR0)&nbsp;
+[![Download the installer](https://img.shields.io/github/v/release/jesvijonathan/DispCtrl?style=for-the-badge&logo=github&label=Download&color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases/latest)&nbsp;
+[![Install with winget](https://img.shields.io/badge/winget-install-8b5cf6?style=for-the-badge&logo=windowsterminal&logoColor=white)](#install)
 
 [Install](#install) · [Getting started](#getting-started) · [Documentation](#documentation) · [Website](https://jesvijonathan.github.io/DispCtrl/)
 

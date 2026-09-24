@@ -45,7 +45,7 @@
 ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--line2);border:3px solid transparent;background-clip:content-box;border-radius:999px}
 ::-webkit-scrollbar-thumb:hover{background:var(--a2);border:3px solid transparent;background-clip:content-box}
-html{scroll-behavior:smooth}
+html{scroll-behavior:smooth;overflow-x:clip}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden;transition:background .3s,color .3s}
 a{color:var(--a1);text-decoration:none}
 a:hover{text-decoration:underline}
@@ -90,7 +90,25 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .ghost:hover{border-color:var(--a1)}
 
 /* hero */
-.hero{padding-top:84px;padding-bottom:20px;text-align:center}
+.hero{padding-top:84px;padding-bottom:20px;text-align:center;position:relative;isolation:isolate}
+.herover{display:inline-flex;gap:8px;align-items:center;margin-top:16px;font-size:13px;color:var(--muted)}
+.herover b{color:var(--text);font-weight:650}
+.herover a{color:var(--a1)}
+/* The name, huge and faint behind the hero: an outline with scanlines, a sheen
+   that crosses it now and then, and a split-second offset every few seconds.
+   Decoration only - hidden from assistive technology, never selectable. */
+.wordwrap{position:absolute;left:50%;width:100vw;margin-left:-50vw;top:14px;height:min(50vw,560px);overflow:hidden;z-index:-1;pointer-events:none;user-select:none;
+  -webkit-mask-image:linear-gradient(180deg,#000 35%,transparent 96%);mask-image:linear-gradient(180deg,#000 35%,transparent 96%)}
+.herowm{position:relative;margin:0;text-align:center;font-size:clamp(60px,23vw,600px);font-weight:800;letter-spacing:-.06em;line-height:1;white-space:nowrap;will-change:transform;
+  color:transparent;-webkit-text-stroke:1.5px color-mix(in srgb,var(--a1) 26%,transparent);
+  background:linear-gradient(100deg,transparent 42%,color-mix(in srgb,var(--a1) 30%,transparent) 50%,transparent 58%) 200% 0/300% 100% no-repeat,
+    repeating-linear-gradient(180deg,color-mix(in srgb,var(--a1) 11%,transparent) 0 1px,transparent 1px 7px);
+  -webkit-background-clip:text;background-clip:text;opacity:.7;animation:sheen 9s ease-in-out infinite}
+.herowm::before,.herowm::after{content:attr(data-text);position:absolute;inset:0;color:transparent;background:none;clip-path:inset(0 0 100% 0)}
+.herowm::before{-webkit-text-stroke:1px color-mix(in srgb,var(--a3) 55%,transparent);transform:translateX(-4px);animation:slice 7s steps(1) infinite}
+.herowm::after{-webkit-text-stroke:1px color-mix(in srgb,var(--a2) 60%,transparent);transform:translateX(4px);animation:slice 7s steps(1) infinite .12s}
+@keyframes sheen{0%,55%{background-position:200% 0,0 0}90%,100%{background-position:-100% 0,0 0}}
+@keyframes slice{0%,90%,100%{clip-path:inset(0 0 100% 0)}91%{clip-path:inset(20% 0 62% 0)}93%{clip-path:inset(58% 0 24% 0)}95%{clip-path:inset(38% 0 44% 0)}}
 .pill{display:inline-flex;gap:10px;align-items:center;padding:6px 14px 6px 6px;border:1px solid var(--line2);border-radius:999px;color:var(--muted);font-size:13px;background:var(--soft)}
 .pill .short{display:none}
 .pill b{flex:none;white-space:nowrap;background:linear-gradient(135deg,#c4a6ff,var(--a2));color:#120d1c;border-radius:999px;padding:2px 10px;font-weight:650;font-size:12px}
@@ -369,7 +387,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 .toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);opacity:0;background:var(--text);color:var(--bg);padding:10px 18px;border-radius:12px;font-weight:600;font-size:14px;transition:all .25s;z-index:80}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important}.reveal{opacity:1;transform:none;transition:none}.layer,.float{transition:none;translate:none;opacity:1}.stack .l-back{opacity:.5}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important}.herowm::before,.herowm::after{display:none}.reveal{opacity:1;transform:none;transition:none}.layer,.float{transition:none;translate:none;opacity:1}.stack .l-back{opacity:.5}}
 @media (max-width:1040px){
   .split,.priv,.spot,.donate,#cli .split{grid-template-columns:1fr}
   .donate{gap:34px;padding:40px}
@@ -477,6 +495,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 </nav>
 
 <header class="hero wrap" id="top">
+  <div class="wordwrap" aria-hidden="true"><p class="herowm" data-text="DispCtrl">DispCtrl</p></div>
   <div class="reveal">
     <span class="pill"><b>Open source</b> <span class="long">Free for Windows 11, under the MIT licence</span><span class="short">Free for Windows 11 · MIT</span></span>
     <h1><span class="grad">One App.<br>Full Ctrl.</span></h1>
@@ -491,6 +510,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         Installer
       </a>
     </div>
+    <div class="herover">Latest <b class="vername">v0.1.2</b> · <a class="vernotes" href="https://github.com/jesvijonathan/DispCtrl/releases/latest">What's new</a></div>
     <div class="trust"><span>No account</span><span>No telemetry</span><span>No admin rights</span></div>
   </div>
   <div class="stack" id="stack" aria-label="DispCtrl's main window and quick panel">
@@ -701,7 +721,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <!-- The product mark redrawn as one glyph: the monitor, downloading. -->
       <h2><svg class="dlglyph" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="4" width="28" height="19.5" rx="3.2" fill="currentColor" opacity=".09" stroke="none"/><rect x="2" y="4" width="28" height="19.5" rx="3.2"/><path d="M16 23.5v3.3M10.2 26.8h11.6"/><path class="arrow" d="M16 9.2v7.6m0 0-3.3-3.3M16 16.8l3.3-3.3"/></svg>Get DispCtrl</h2>
       <p class="sub">Windows 11 on x64. Installs per user; nothing needs administrator rights.</p>
-      <span class="ver" id="ver" hidden>Latest <b id="vername"></b> · <span id="verdate"></span></span>
+      <span class="ver" id="ver">Latest <b class="vername">v0.1.2</b><span id="verdate"></span> · <a class="vernotes" href="https://github.com/jesvijonathan/DispCtrl/releases/latest">What's new</a></span>
     </div>
     <div class="dl">
       <div class="card rec reveal">
@@ -724,14 +744,13 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <a class="btn ghost" id="dlZip" href="https://github.com/jesvijonathan/DispCtrl/releases/latest">Download zip</a>
       </div>
       <div class="card reveal">
-        <span class="badge soon">Soon</span>
         <div class="lg"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-5-6-5M12 19h8"/></svg></div>
         <h3>winget</h3>
-        <p>Install and update from the Windows Package Manager. Coming after the first stable release.</p>
-        <button class="cmd" id="wingetCmd" type="button" aria-label="Copy: winget install DispCtrl">winget install DispCtrl<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button>
+        <p>The Store version, from a terminal. Updates with <code class="i">winget upgrade</code>.</p>
+        <button class="cmd" id="wingetCmd" type="button" aria-label="Copy: winget install 9PNQWKNRGVR0 -s msstore">winget install 9PNQWKNRGVR0 -s msstore<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button>
       </div>
     </div>
-    <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/DispCtrl#build-from-source">Build from source</a> with a single <code class="i">build.cmd</code>. Every release lists <a href="https://github.com/jesvijonathan/DispCtrl/releases">SHA-256 checksums</a>.</p>
+    <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/DispCtrl#build-from-source">Build from source</a> with a single <code class="i">build.cmd</code>. Every release has its <a href="https://github.com/jesvijonathan/DispCtrl/releases">SHA-256 checksums</a> attached.</p>
   </div>
 </section>
 
@@ -893,6 +912,16 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   addEventListener('scroll', kick, { passive: true });
 }
 
+// The name behind the hero drifts down at a third of the scroll, so it lags
+// behind the page and sinks into its fade. Scroll only: the pointer moves the
+// screenshots in front of it, and both moving read as noise.
+const heroName = document.querySelector('.herowm');
+if (heroName && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  let pending = 0;
+  const drift = () => { pending = 0; heroName.style.transform = `translate3d(0, ${(Math.min(scrollY, 1400) * .35).toFixed(1)}px, 0)`; };
+  addEventListener('scroll', () => { if (!pending) pending = requestAnimationFrame(drift); }, { passive: true });
+}
+
 // Tour
 const shots = [
   ['Displays', 'Arrangement by real size', 'displays.png'],
@@ -1021,7 +1050,10 @@ const repo = 'https://api.github.com/repos/jesvijonathan/DispCtrl';
 fetch(repo).then(r => r.ok ? r.json() : null).then(d => { if (d && d.stargazers_count >= 0) { $('stars').textContent = '· ' + d.stargazers_count; $('stars').hidden = false; } }).catch(() => {});
 fetch(repo + '/releases?per_page=5').then(r => r.ok ? r.json() : null).then(list => {
   const rel = (list || []).find(x => !x.draft); if (!rel) return;
-  $('vername').textContent = rel.tag_name; $('verdate').textContent = new Date(rel.published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); $('ver').hidden = false;
+  // The version is written into the page so it shows without the API; this keeps it current.
+  document.querySelectorAll('.vername').forEach(e => e.textContent = rel.tag_name);
+  document.querySelectorAll('.vernotes').forEach(e => e.href = rel.html_url);
+  $('verdate').textContent = ' · ' + new Date(rel.published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
   const asset = re => (rel.assets || []).find(a => re.test(a.name));
   const setup = asset(/setup\.exe$/i), zip = asset(/desktop\.zip$/i);
   if (setup) $('dlSetup').href = setup.browser_download_url;
@@ -1066,7 +1098,7 @@ fetch('https://raw.githubusercontent.com/jesvijonathan/DispCtrl/master/devices/i
   drawLib();
 }).catch(() => {});
 
-$('wingetCmd').onclick = () => navigator.clipboard.writeText('winget install DispCtrl').then(() => toast('Command copied'));
+$('wingetCmd').onclick = () => navigator.clipboard.writeText('winget install 9PNQWKNRGVR0 -s msstore').then(() => toast('Command copied'));
 
 // Donations.
 // UPI works only with Indian bank accounts, so its button shows only to a
