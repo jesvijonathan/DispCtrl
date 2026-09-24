@@ -117,6 +117,13 @@ internal sealed class AmbientSync : IDisposable
         {
             if (_disposed || _sensor is null) return;
             _lux = e.Reading.IlluminanceInLux;
+            // Noise inside the threshold, with nothing under way: observed here,
+            // on the sensor's own wake-up, rather than starting the clock for it.
+            if (!_running && _level == _target && _filter.Ignores(_lux))
+            {
+                _filter.Observe(_lux, Environment.TickCount64);
+                return;
+            }
             Run();
         }
     }

@@ -10,6 +10,7 @@ using DispCtrl, not for people reading the diff.
 
 ### Fixed
 - Taskbar glass did nothing after switching between the installer or a zip and the Microsoft Store version until Windows Explorer was restarted: Explorer still held the other build's glass helper. The engine now retires that helper and attaches its own, as long as no other DispCtrl engine is running.
+- Following the room's light kept the engine waking about four times a second in a still room, because a light sensor's readings jitter. Readings too small to count are now noted without waking it at all.
 
 ## [0.1.2] - 2026-09-25
 

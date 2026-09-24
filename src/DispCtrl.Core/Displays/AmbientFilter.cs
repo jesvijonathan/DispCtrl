@@ -51,8 +51,27 @@ public sealed class AmbientFilter
     /// <summary>The room's light as last accepted, in lux; negative before the first reading.</summary>
     public double SettledLux => double.IsNaN(_settled) ? -1 : Math.Pow(10, _settled) - 1;
 
-    /// <summary>Whether another look is needed: a change still being weighed, or the smoothing not caught up.</summary>
-    public bool Busy => _direction != 0 || !double.IsNaN(_fast) && Math.Abs(_fast - _raw) > 0.005;
+    /// <summary>Whether another look is needed: a change being weighed, or a reading past the threshold.</summary>
+    /// <remarks>
+    /// Not "until the smoothing catches up": a real sensor jitters (24, 20, 26 lx
+    /// in a still room), each wobble is a report, and waiting for the average to
+    /// close on every one kept the engine's clock running about 3.8 times a
+    /// second, measured over a simulated ten minutes. A reading inside the
+    /// threshold cannot change anything until the next one arrives, and the
+    /// average's own clock makes up the gap when it does.
+    /// </remarks>
+    public bool Busy => _direction != 0 || !double.IsNaN(_raw) && Direction(_raw) != 0;
+
+    /// <summary>
+    /// Whether a reading could change nothing: nothing weighed, and inside the threshold.
+    /// </summary>
+    /// <remarks>
+    /// Such a reading is still observed, so the average stays true, but needs
+    /// no clock: this is what keeps a jittering sensor from waking the engine
+    /// twice for every report.
+    /// </remarks>
+    public bool Ignores(double lux) =>
+        !double.IsNaN(_fast) && _direction == 0 && Direction(AmbientCurve.Coordinate(lux)) == 0;
 
     /// <summary>Takes the sensor's newest reading, which stands until the next.</summary>
     /// <returns>True when the settled light changed: the first reading, or a change that held.</returns>
