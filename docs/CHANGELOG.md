@@ -8,25 +8,13 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
-### Changed
-- The Devices page offers to **contribute** a monitor rather than share it, and the command is `dispctrl devices contribute`; `devices share` still works.
-
 ## [0.1.1] - 2026-09-24
 
 ### Added
 - **Follow the room's light**: unison brightness can follow an ambient light sensor, from a level for a dark room to one for bright light, smoothed so passing shadows do not move it. Under Unison brightness, with the sensor to follow.
-
-### Changed
-- New installs start with the author's own setup: unison and Replace Windows brightness on, focus mode following the mouse with each display keeping its own window, OLED care's two-stage rest, taskbar glass and reveal timing, the quick panel's layout, and no logging.
-
-### Fixed
-- Focus mode kept a vanished notification (Teams, for one) clear in the dim until the next click.
-- Switching displays off from the quick panel left the tile's tooltip lit on top of the black.
-
-### Added
 - **Undo the way back**: Settings > Undo the way back, or `dispctrl restore undo`, switches back on what Ctrl+Alt+Backspace last turned off - each monitor's taskbar hiding and dimming, night light, focus, OLED care and taskbar opacity. `dispctrl restore now` does what the shortcut does.
 - **Ctrl+Alt+Backspace puts every display back**: it undoes displays off, dimming, night light, taskbar hiding and opacity, keeping every other setting. On by default, and the Hotkeys page asks before it is switched off or removed.
-- The device library counts how many times each model has been shared, by issue number only; the catalogue shows it.
+- The device library counts how many times each model has been contributed, by issue number only; the catalogue shows it.
 - Turn off displays shows Keep awake and Stay active beside it - the same switches as everywhere else, so what is on stays on and chat apps keep showing you as available while the displays are off.
 - Turn off displays can also turn each display's real backlight down, at 90% darkness and more, and puts it back as the display wakes.
 - Turn off displays can lock the computer when they wake: whoever brings them back meets the lock screen, however they do it.
@@ -35,11 +23,15 @@ using DispCtrl, not for people reading the diff.
 - **By resolution** on the arrangement: draws each display by its pixel count, as Windows does, instead of by its real size.
 
 ### Changed
+- The Devices page offers to **contribute** a monitor rather than share it, and the command is `dispctrl devices contribute`; `devices share` still works.
+- New installs start with the author's own setup: unison and Replace Windows brightness on, focus mode following the mouse with each display keeping its own window, OLED care's two-stage rest, taskbar glass and reveal timing, the quick panel's layout, and no logging.
 - Only one DispCtrl window runs at a time: opening it again brings the running one forward, restored if it was minimized.
 - The engine starts whenever DispCtrl is opened, and a Store install starts it at sign-in by default.
 - The quick panel opens in simple mode on a new install; the dot in its title bar switches to the full panel.
 
 ### Fixed
+- Focus mode kept a vanished notification (Teams, for one) clear in the dim until the next click.
+- Switching displays off from the quick panel left the tile's tooltip lit on top of the black.
 - A hidden taskbar on a monitor with another stacked against its edge appeared and disappeared instantly; it slides again, clipped to its own screen.
 - A resting or turned-off display no longer keeps the engine checking for you ten times a second: it waits for the keyboard or mouse instead.
 - With Stay active on, turned-off displays came back on by themselves after a minute: its pointer nudge counted as someone returning.

@@ -27,6 +27,8 @@ function Section([string]$name) {
     if ($start -ge 0) { return $lines[$start..($lines.Count - 1)] }
     return $null
 }
+# The release workflow passes the tag itself, v and all.
+$Version = $Version -replace '^v',''
 $numeric = $Version -replace '-.*$',''
 $body = $null
 foreach ($name in @($Version, $numeric, 'Unreleased')) {
