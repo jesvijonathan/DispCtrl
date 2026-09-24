@@ -381,20 +381,13 @@ public sealed class GlobalSettings
     }
 }
 
-/// <summary>
-/// Warmth applied across every display at once.
-/// </summary>
-/// <remarks>
-/// Global rather than per-monitor on purpose. The complaint night light
-/// answers is that the desk is too blue at night, and warming one screen while
-/// the other stays cold is worse than warming neither — the mismatch is more
-/// noticeable than the blue was.
-/// </remarks>
 /// <summary>Unison brightness following an ambient light sensor.</summary>
 /// <remarks>
-/// A level between <see cref="DarkLevel"/> in the dark and <see cref="BrightLevel"/>
-/// at <see cref="BrightLux"/> and above, each display inside its own calibrated
-/// range as unison always is. See <see cref="Displays.AmbientCurve"/>.
+/// A level between <see cref="DarkLevel"/> at <see cref="DarkLux"/> and below
+/// and <see cref="BrightLevel"/> at <see cref="BrightLux"/> and above, each
+/// display inside its own calibrated range as unison always is, bent through
+/// whatever the person has taught it (<see cref="Points"/>). See
+/// <see cref="Displays.AmbientCurve"/>.
 /// </remarks>
 public sealed class AmbientSettings
 {
@@ -406,10 +399,44 @@ public sealed class AmbientSettings
     public int DarkLevel { get; set; } = 25;
     public int BrightLevel { get; set; } = 100;
 
+    /// <summary>The light at and below which unison sits at <see cref="DarkLevel"/>.</summary>
+    /// <remarks>
+    /// Five lux is Twinkle Tray's floor too: a sensor's reading below that is
+    /// mostly its own noise, and a room that dark wants the dark level anyway.
+    /// Captured from the sensor by <c>ambient capture --as dark</c>.
+    /// </remarks>
+    public int DarkLux { get; set; } = 5;
+
     /// <summary>The light at which unison reaches <see cref="BrightLevel"/>: about a bright office.</summary>
     public int BrightLux { get; set; } = 800;
+
+    /// <summary>Learn from the unison slider, hotkeys and brightness keys while following.</summary>
+    /// <remarks>
+    /// A level somebody chose in this light is a better answer than any
+    /// default. wluma and Android both learn this way.
+    /// </remarks>
+    public bool LearnCorrections { get; set; } = true;
+
+    /// <summary>Levels chosen by hand in a given light, newest winning; see <see cref="Displays.AmbientCurve.Learn"/>.</summary>
+    public List<AmbientPoint> Points { get; set; } = [];
 }
 
+/// <summary>A unison level somebody chose while the room read <see cref="Lux"/>.</summary>
+public sealed class AmbientPoint
+{
+    public double Lux { get; set; }
+    public int Level { get; set; }
+}
+
+/// <summary>
+/// Warmth applied across every display at once.
+/// </summary>
+/// <remarks>
+/// Global rather than per-monitor on purpose. The complaint night light
+/// answers is that the desk is too blue at night, and warming one screen while
+/// the other stays cold is worse than warming neither — the mismatch is more
+/// noticeable than the blue was.
+/// </remarks>
 public sealed class NightLightSettings
 {
     /// <summary>Warm the displays, subject to <see cref="Scheduled"/>.</summary>

@@ -8,7 +8,7 @@ namespace DispCtrl.Control;
 
 public static class ControlTerminal
 {
-    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore"];
+    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient"];
     public static bool Handles(string[] args) => args.Length > 0 && (Roots.Contains(args[0])
         || args[0] == "nightlight" && args.Length > 1 && args[1] is "get" or "set" or "reset"
         || args[0] == "topology" && args.Length > 1 && args[1] is "get" or "set");
@@ -54,6 +54,10 @@ public static class ControlTerminal
       hotkeys list|add|set|remove|reset     --keys "Ctrl+Alt+PageUp" --action unison-up --step 5 --display 2
       unison get|set --level 50             Shared brightness and Windows-slider following
       unison set --monitor ID --floor 20 --ceiling 80   A display's calibrated range
+      ambient get                           Unison following the room's light, and what the sensor reads now
+      ambient set --enabled on --dark-level 20 --bright-level 100 --dark-lux 5 --bright-lux 800
+      ambient capture --as dark|bright      Calibrate: the sensor's reading now becomes that end
+      ambient forget|reset                  Drop learned levels, or every ambient setting
       startup get|set                       --engine, --preload-panel, --open-window, --start-menu, --desktop
       tray show                            Open the taskbar toolkit
       topology get|set --mode extend|duplicate|internal|external

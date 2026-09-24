@@ -178,48 +178,6 @@
                           AutomationProperties.Name="UnisonFollowsWindows"/>
           </tk:SettingsCard>
 
-          <!-- The room's light as the unison level. The engine follows the
-               sensor, so it works with the app shut, and only wakes when the
-               light changes. -->
-          <tk:SettingsCard Header="Follow the room's light"
-                           Description="{x:Bind ViewModel.AmbientStatus, Mode=OneWay}">
-            <tk:SettingsCard.HeaderIcon>
-              <FontIcon Glyph="&#xE706;"/>
-            </tk:SettingsCard.HeaderIcon>
-            <ToggleSwitch IsOn="{x:Bind ViewModel.AmbientEnabled, Mode=TwoWay}"
-                          IsEnabled="{x:Bind ViewModel.AmbientAvailable, Mode=OneWay}"
-                          AutomationProperties.Name="AmbientEnabled"/>
-          </tk:SettingsCard>
-          <tk:SettingsCard Header="Light sensor" Description="Which sensor's reading to follow."
-                           IsEnabled="{x:Bind ViewModel.AmbientAvailable, Mode=OneWay}">
-            <ComboBox ItemsSource="{x:Bind ViewModel.AmbientSensorNames}" SelectedIndex="{x:Bind ViewModel.AmbientSensorIndex, Mode=TwoWay}"
-                      MinWidth="240" AutomationProperties.Name="AmbientSensor"/>
-          </tk:SettingsCard>
-          <tk:SettingsCard Header="In the dark" Description="Unison level in a dark room."
-                           IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <Slider Value="{x:Bind ViewModel.AmbientDark, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="200" AutomationProperties.Name="AmbientDark"/>
-              <TextBlock Text="{x:Bind ViewModel.AmbientDark, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
-              <TextBlock Text="%" VerticalAlignment="Center"/>
-            </StackPanel>
-          </tk:SettingsCard>
-          <tk:SettingsCard Header="In bright light" Description="Unison level once the room reaches the light below."
-                           IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <Slider Value="{x:Bind ViewModel.AmbientBright, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="200" AutomationProperties.Name="AmbientBright"/>
-              <TextBlock Text="{x:Bind ViewModel.AmbientBright, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
-              <TextBlock Text="%" VerticalAlignment="Center"/>
-            </StackPanel>
-          </tk:SettingsCard>
-          <tk:SettingsCard Header="Bright light is" Description="About 300 lux is a lit room, 800 a bright office, 10,000 daylight by a window."
-                           IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <Slider Value="{x:Bind ViewModel.AmbientBrightLux, Mode=TwoWay}" Minimum="100" Maximum="5000" StepFrequency="50" Width="200" AutomationProperties.Name="AmbientBrightLux"/>
-              <TextBlock Text="{x:Bind ViewModel.AmbientBrightLux, Mode=OneWay}" VerticalAlignment="Center" MinWidth="40"/>
-              <TextBlock Text="lx" VerticalAlignment="Center"/>
-            </StackPanel>
-          </tk:SettingsCard>
-
           <!-- Calibration is a walkthrough rather than two number boxes: the
                limits are a judgement made by looking at the panels side by
                side, which no amount of typing reproduces. -->
@@ -259,6 +217,86 @@
               <FontIcon Glyph="&#xE7F4;"/>
             </tk:SettingsCard.HeaderIcon>
           </tk:SettingsCard>
+
+          <!-- Following the room's light: last, after a small gap, because it
+               is a way of driving unison rather than part of setting it up.
+               Hidden for now while the sensor's handling is proven on a laptop
+               that has one; the engine, `dispctrl ambient` and the view model
+               behind these bindings all stay live. To bring it back, remove
+               the comment markers around the block below.
+
+               The options fold under the switch with a chevron that shows or
+               hides the cards after it, not a nested expander: a
+               SettingsExpander inside Items takes the process down, and cards
+               with bound Visibility are the pattern the calibration step
+               already uses. Calibration is capture, not a lux slider: cover the
+               sensor for dark, shine a light at it for bright. A two-way slider
+               would also write its own maximum over a captured value above it.
+
+          <tk:SettingsCard Header="Follow the room's light"
+                           Description="{x:Bind ViewModel.AmbientStatus, Mode=OneWay}"
+                           Margin="0,8,0,0">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE706;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.AmbientEnabled, Mode=TwoWay}"
+                            IsEnabled="{x:Bind ViewModel.AmbientAvailable, Mode=OneWay}"
+                            AutomationProperties.Name="AmbientEnabled"/>
+              <ToggleButton IsChecked="{x:Bind ViewModel.AmbientOptionsOpen, Mode=TwoWay}"
+                            ToolTipService.ToolTip="Light sensor options"
+                            AutomationProperties.Name="AmbientOptions">
+                <FontIcon Glyph="{x:Bind ViewModel.AmbientOptionsGlyph, Mode=OneWay}" FontSize="12"/>
+              </ToggleButton>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Light sensor" Description="Which sensor's reading to follow."
+                           IsEnabled="{x:Bind ViewModel.AmbientAvailable, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <ComboBox ItemsSource="{x:Bind ViewModel.AmbientSensorNames}" SelectedIndex="{x:Bind ViewModel.AmbientSensorIndex, Mode=TwoWay}"
+                      MinWidth="240" AutomationProperties.Name="AmbientSensor"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="In the dark" Description="Unison level in a dark room."
+                           IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.AmbientDark, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="200" AutomationProperties.Name="AmbientDark"/>
+              <TextBlock Text="{x:Bind ViewModel.AmbientDark, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="In bright light" Description="Unison level once the room is as bright as the bright end below."
+                           IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.AmbientBright, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="200" AutomationProperties.Name="AmbientBright"/>
+              <TextBlock Text="{x:Bind ViewModel.AmbientBright, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Calibrate the sensor"
+                           Description="{x:Bind ViewModel.AmbientCalibrationSummary, Mode=OneWay}"
+                           IsEnabled="{x:Bind ViewModel.AmbientAvailable, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="This is dark" Click="OnAmbientCaptureDark"
+                      ToolTipService.ToolTip="Cover the sensor, or turn the room down to its darkest, then press."
+                      AutomationProperties.Name="AmbientCaptureDark"/>
+              <Button Content="This is bright" Click="OnAmbientCaptureBright"
+                      ToolTipService.ToolTip="Light the room as bright as it gets, or shine a light at the sensor, then press."
+                      AutomationProperties.Name="AmbientCaptureBright"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Learn from my adjustments"
+                           Description="When you move unison while following, remember that level for that light."
+                           IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Forget" Click="OnAmbientForget" AutomationProperties.Name="AmbientForget"/>
+              <ToggleSwitch IsOn="{x:Bind ViewModel.AmbientLearn, Mode=TwoWay}" AutomationProperties.Name="AmbientLearn"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          -->
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 

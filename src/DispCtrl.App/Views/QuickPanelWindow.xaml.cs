@@ -254,6 +254,7 @@ public sealed partial class QuickPanelWindow : Window
         // topmost. The activation is what makes a click on the tray icon feel
         // like the panel opened rather than appeared somewhere underneath.
         Activate();
+        TakeForeground();
         KeepOnTop();
         // Focus somewhere, but as a click would: activation otherwise gave the
         // first button keyboard focus, and its focus rectangle, on every opening.
@@ -268,6 +269,9 @@ public sealed partial class QuickPanelWindow : Window
         AfterFrames(2, () =>
         {
             if (token != _animation || _closing) return;
+            // Again, uncloaked: activation of a window still cloaked is not
+            // always honoured, and this is the frame it is first seen in.
+            TakeForeground();
             WatchOutsideIfInactive();
             Fit();
             if (animate) Slide(show: true, token);
@@ -820,6 +824,41 @@ public sealed partial class QuickPanelWindow : Window
         _deactivatedAt = Environment.TickCount64;
         Dismiss();
     }
+
+    /// <summary>
+    /// Makes the panel the foreground window when <see cref="Window.Activate"/> alone did not.
+    /// </summary>
+    /// <remarks>
+    /// The tray icon belongs to the engine, so Explorer's permission to take the
+    /// foreground goes to the engine, which passes it on with
+    /// <c>AllowSetForegroundWindow</c>. That permission does not always survive
+    /// the trip - a panel that had to rebuild first, a hotkey, a summons from the
+    /// command line - and then the panel opened inactive: acrylic drawn as its
+    /// grey fallback, and no keyboard focus, until clicked. Windows lets the
+    /// process that received the last input event take the foreground, so an
+    /// empty mouse input - no movement, no buttons - makes this process that
+    /// one. PowerToys does the same (microsoft/PowerToys#1282). Only ever from a
+    /// summons, which somebody asked for.
+    /// </remarks>
+    private void TakeForeground()
+    {
+        if (GetForegroundWindow() == _hwnd) return;
+        var nothing = new NativeInput { Type = 0 }; // INPUT_MOUSE, all zero
+        _ = SendInput(1, ref nothing, Marshal.SizeOf<NativeInput>());
+        _ = SetForegroundWindow(_hwnd);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeMouseInput { public int Dx, Dy; public uint Data, Flags, Time; public nint Extra; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeInput { public uint Type; public NativeMouseInput Mouse; }
+
+    [LibraryImport("user32.dll")]
+    private static partial uint SendInput(uint count, ref NativeInput input, int size);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetForegroundWindow(nint hwnd);
 
     private struct NativePoint { public int X, Y; }
     private struct NativeRect { public int Left, Top, Right, Bottom; }

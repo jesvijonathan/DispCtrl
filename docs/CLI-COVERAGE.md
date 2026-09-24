@@ -23,6 +23,7 @@ calls it. The Devices page already works that way - it sends the same
 | Connect to a wireless display | `windows open --page cast` |
 | Unison: on, level, Windows brightness | `unison set --enabled on --level 50 --follow-windows on` |
 | Unison: calibrated, and each display's limits | `unison set --calibrated on`, `unison set --monitor 2 --floor 20 --ceiling 80` |
+| Unison: follow the room's light, sensor, ends, calibration, learned levels | `ambient set --enabled on --sensor-id ID --dark-level 20 --bright-level 100 --dark-lux 5 --bright-lux 800 --learn-corrections on`, `ambient capture --as dark`, `ambient forget` (the page's section is hidden for now) |
 | Night light: on, strength, schedule, follow Windows | `nightlight set --enabled on --strength 60 --scheduled on --from 20:00 --to 07:00 --follow-windows off` (`--from`/`--to` are stored as `fromMinutes`/`toMinutes`) |
 | Lift the gamma limit | `gamma set --unlocked on` |
 | Windows night light, colours, colour management | `windows open --page nightlight`, `--page colors`, `--page colormanagement` |

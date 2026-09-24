@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Text.Json.Nodes;
+using DispCtrl.Control;
 using DispCtrl.Core.Settings;
 using DispCtrl.Display;
+using Microsoft.UI.Xaml;
 
 namespace DispCtrl.App.ViewModels;
 
@@ -66,7 +69,61 @@ public sealed partial class MainViewModel
 
     public double AmbientDark { get => Ambient.DarkLevel; set { int v = Number(value, 0, 100); if (Ambient.DarkLevel == v) return; Ambient.DarkLevel = v; PersistSoon(); Raise(); } }
     public double AmbientBright { get => Ambient.BrightLevel; set { int v = Number(value, 0, 100); if (Ambient.BrightLevel == v) return; Ambient.BrightLevel = v; PersistSoon(); Raise(); } }
-    public double AmbientBrightLux { get => Ambient.BrightLux; set { int v = Number(value, 50, 10000); if (Ambient.BrightLux == v) return; Ambient.BrightLux = v; PersistSoon(); Raise(); } }
+
+    /// <summary>Learn a level set by hand while following, for that light.</summary>
+    public bool AmbientLearn
+    {
+        get => Ambient.LearnCorrections;
+        set { if (Ambient.LearnCorrections == value) return; Ambient.LearnCorrections = value; Persist(); Raise(); }
+    }
+
+    private bool _ambientOptionsOpen;
+
+    /// <summary>The light sensor's options, folded under its switch; not saved, as a section's fold is not.</summary>
+    public bool AmbientOptionsOpen
+    {
+        get => _ambientOptionsOpen;
+        set
+        {
+            if (_ambientOptionsOpen == value) return;
+            _ambientOptionsOpen = value;
+            Raise();
+            Raise(nameof(AmbientOptionsVisibility));
+            Raise(nameof(AmbientOptionsGlyph));
+            if (value) _ = RefreshAmbientReadingAsync();
+        }
+    }
+
+    public Visibility AmbientOptionsVisibility => _ambientOptionsOpen ? Visibility.Visible : Visibility.Collapsed;
+    public string AmbientOptionsGlyph => _ambientOptionsOpen ? "\uE70E" : "\uE70D";
+
+    /// <summary>Where the two ends sit and what has been learned, in a sentence.</summary>
+    public string AmbientCalibrationSummary =>
+        $"Dark at {Ambient.DarkLux} lx or less, bright at {Ambient.BrightLux} lx or more"
+        + (_lux is { } lux ? $"; the sensor reads {lux:0} lx now" : "")
+        + (Ambient.Points.Count == 0 ? ". Nothing learned yet."
+            : $". {Ambient.Points.Count} level(s) learned from your own adjustments.");
+
+    /// <summary>Makes what the sensor reads now the dark or the bright end.</summary>
+    /// <returns>Null when done; otherwise why not, to show.</returns>
+    public Task<string?> CaptureAmbientAsync(bool dark) =>
+        AmbientRequestAsync("ambient.capture", new JsonObject { ["as"] = dark ? "dark" : "bright" });
+
+    /// <summary>Drops every learned level, back to the two ends.</summary>
+    public Task<string?> ForgetAmbientAsync() => AmbientRequestAsync("ambient.forget", new JsonObject());
+
+    private async Task<string?> AmbientRequestAsync(string command, JsonObject args)
+    {
+        FlushPendingSave();
+        JsonObject result = await Task.Run(() => new ControlService().Execute(new JsonObject
+        {
+            ["version"] = 1, ["command"] = command, ["args"] = args,
+        }));
+        ReloadFromDisk();
+        await RefreshAmbientReadingAsync();
+        return result["ok"]?.GetValue<bool>() == true ? null
+            : result["error"]?["message"]?.GetValue<string>() ?? "The sensor did not answer.";
+    }
 
     private double? _lux;
 
@@ -75,6 +132,7 @@ public sealed partial class MainViewModel
         string id = Ambient.SensorId;
         _lux = await Task.Run(() => AmbientSensors.ReadLux(id));
         Raise(nameof(AmbientStatus));
+        Raise(nameof(AmbientCalibrationSummary));
     }
 
     /// <summary>Which sensor is followed and what it sees, or why there is nothing to follow.</summary>

@@ -72,7 +72,11 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .navbtn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 13px;border-radius:10px;border:1px solid var(--line2);color:var(--text);font:inherit;font-size:14px;background:var(--soft);cursor:pointer}
 .navbtn:hover{border-color:var(--a1);text-decoration:none}
 .navbtn svg{width:17px;height:17px}
-.theme{width:38px;padding:0;justify-content:center}
+.theme,.menu{width:38px;padding:0;justify-content:center}
+/* Links, then the star, the theme and (on narrow screens) the menu, all on the right. */
+.navend{display:flex;align-items:center;gap:8px}
+.menu{display:none}
+.menu .x{display:none}nav.open .menu .x{display:block}nav.open .menu .bars{display:none}
 .theme .sun{display:none}[data-theme=light] .theme .sun{display:block}[data-theme=light] .theme .moon{display:none}
 
 /* buttons */
@@ -88,6 +92,7 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 /* hero */
 .hero{padding-top:84px;padding-bottom:20px;text-align:center}
 .pill{display:inline-flex;gap:10px;align-items:center;padding:6px 14px 6px 6px;border:1px solid var(--line2);border-radius:999px;color:var(--muted);font-size:13px;background:var(--soft)}
+.pill .short{display:none}
 .pill b{flex:none;white-space:nowrap;background:linear-gradient(135deg,#c4a6ff,var(--a2));color:#120d1c;border-radius:999px;padding:2px 10px;font-weight:650;font-size:12px}
 h1{font-size:clamp(46px,7.4vw,96px);line-height:1;margin:24px auto 22px;letter-spacing:-.04em;font-weight:750}
 .grad{background:linear-gradient(110deg,var(--h1a) 8%,var(--a1) 45%,var(--a3) 72%,var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -184,6 +189,15 @@ h2{font-size:clamp(32px,4.2vw,50px);line-height:1.08;margin:12px 0 16px;letter-s
 .gbtn:hover{color:var(--text);background:var(--soft)}
 .gbtn[aria-selected=true]{color:var(--text);border-color:var(--line2);background:linear-gradient(90deg,rgba(139,92,246,.18),transparent)}
 .gbtn small{display:block;color:var(--dim);font-size:12.5px;margin-top:2px}
+.gbtn{position:relative;overflow:hidden}
+/* The carousel's clock: a line filling under the tab on show. */
+.gbtn::after{content:"";position:absolute;left:14px;right:14px;bottom:5px;height:2px;border-radius:2px;background:var(--a1);transform:scaleX(0);transform-origin:left;opacity:0}
+.gallery.auto .gbtn[aria-selected=true]::after{opacity:.7;animation:gtimer var(--gms,5s) linear forwards}
+@keyframes gtimer{to{transform:scaleX(1)}}
+.gview{position:relative;touch-action:pan-y}
+.gdots{display:none;justify-content:center;gap:7px;margin-top:14px}
+.gdots i{width:7px;height:7px;border-radius:50%;background:var(--line2);transition:width .25s,background .25s}
+.gdots i.on{width:20px;border-radius:4px;background:var(--a1)}
 .gview img{border-radius:16px;border:1px solid var(--line2);box-shadow:0 30px 70px rgba(0,0,0,.35);cursor:zoom-in;transition:opacity .25s}
 
 /* terminal */
@@ -364,18 +378,71 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   /* Stacked, the side not showing would hold open a gap the height of the other. */
   .swap.two:not(.qr)>.then,.swap.two.qr>.first{display:none}
   .fgrid4,.dl{grid-template-columns:1fr 1fr}
-  .gallery{grid-template-columns:1fr}.glist{position:static;flex-direction:row;overflow:auto}.gbtn small{display:none}
+  .gallery{grid-template-columns:1fr;gap:16px}
+  /* A row of chips that scrolls sideways: one line each, never wrapped. */
+  .glist{position:static;flex-direction:row;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:none;
+    margin:0 -24px;padding:2px 24px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent)}
+  .glist::-webkit-scrollbar{display:none}
+  .gbtn{flex:none;white-space:nowrap;scroll-snap-align:center;padding:9px 16px;border-radius:999px;border-color:var(--line);font-size:14.5px}
+  .gbtn::after{left:16px;right:16px;bottom:4px}
+  .gbtn small{display:none}
+  .gdots{display:flex}
   .fcols{grid-template-columns:1fr 1fr 1fr}.fbrand{grid-column:1/-1}
-  .links{display:none}.float,.l-back,.pane{display:none}
+  .float,.l-back,.pane{display:none}
+  /* The section links fold into a menu under the bar. */
+  .menu{display:inline-flex}
+  .links{display:none;position:absolute;top:100%;left:0;right:0;margin:0;flex-direction:column;gap:0;padding:8px 16px 14px;
+    background:var(--bg2);border-bottom:1px solid var(--line);box-shadow:0 18px 40px rgba(0,0,0,.25)}
+  nav.open .links{display:flex}
+  .links a{padding:12px 8px;font-size:16px;border-bottom:1px solid var(--line)}
+  .links a:last-child{border-bottom:0}
+  .navend{margin-left:auto}
   .l-main{width:78%;left:0}.l-panel{width:30%}.stack{aspect-ratio:16/11}
 }
 @media (max-width:640px){
+  .wrap{padding:0 18px}
+  nav .wrap{height:58px;gap:12px}
+  .brand{font-size:17px}.brand img{width:28px;height:28px}
+  .navbtn{height:36px}.theme,.menu{width:36px}
+  .glist{margin:0 -18px;padding:2px 18px}
   .fgrid4,.dl,.legal{grid-template-columns:1fr}
-  section{padding:76px 0}.donate{padding:44px 22px}.spot{padding:24px}
-  .pill{text-align:left;border-radius:18px}
-  .fcols{grid-template-columns:1fr 1fr}.navstar{display:none}
-  /* The last footer column leaves a wide gutter on the right; match it a little on the left. */
-  footer .wrap{padding-left:40px}
+  section{padding:64px 0}.donate{padding:36px 20px;border-radius:22px}.spot{padding:22px;gap:26px;border-radius:22px}
+  .hero{padding-top:44px}
+  h1{margin:20px auto 18px}
+  .lead{margin-bottom:26px}
+  /* One line, centred: the short form of the pill's text. */
+  .pill{max-width:100%;padding-right:12px}
+  .pill .long{display:none}.pill .short{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Both buttons the same width, stacked, thumb-sized. */
+  .cta{flex-direction:column;align-items:stretch;max-width:380px;margin:0 auto;gap:10px}
+  .cta .btn{width:100%;padding:14px 18px}
+  .trust{gap:8px 16px;font-size:13px}
+  .trust span{white-space:nowrap}
+  .stack{margin-top:44px}
+  .marquee{margin-top:48px}
+  .head{margin-bottom:36px}
+  .card{padding:22px}
+  .fcols{grid-template-columns:1fr 1fr;gap:26px 20px;padding:44px 0 28px}
+  .lhead{padding:16px}.lhead>div{min-width:0}.lhead small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lstats div{padding:14px 16px}.lstats span{white-space:nowrap}
+  .lrow{padding:12px 16px}
+  .lfoot{padding:14px 16px;display:grid;grid-template-columns:1fr;gap:8px}.lfoot .btn{padding:12px 14px;white-space:nowrap}
+  .cta .btn,.dl .btn{white-space:nowrap}
+  .dlhead h2{gap:14px}
+  .donate h2{font-size:32px}
+  .upinow>img{width:88px;height:88px}
+  .toast{bottom:20px;max-width:calc(100% - 32px)}
+}
+@media (max-width:380px){
+  /* The star keeps its count and loses its word. */
+  .navstar span:not(#stars){display:none}
+  .navstar{padding:0 10px}
+  .trust{font-size:12.5px;gap:6px 12px}
+  .cta .btn{font-size:14.5px;padding:14px 12px;gap:8px}
+}
+@media (hover:none){
+  /* Hover lifts stick after a tap on a touch screen. */
+  .btn:hover,.card:hover,.doc:hover,.way:hover{transform:none}
 }
 </style>
 </head>
@@ -385,13 +452,14 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 <nav>
   <div class="wrap">
     <a class="brand" href="#top"><img src="assets/logo.png" alt="">DispCtrl</a>
-    <div class="links">
+    <div class="links" id="links">
       <a href="#features">Features</a>
       <a href="#tour">Tour</a>
       <a href="#cli">Command line</a>
       <a href="#download">Download</a>
       <a href="#support">Support</a>
     </div>
+    <div class="navend">
     <a class="navbtn navstar" href="https://github.com/jesvijonathan/DispCtrl" aria-label="DispCtrl on GitHub">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       <span>Star</span><span id="stars" hidden></span>
@@ -400,12 +468,17 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
       <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
     </button>
+    <button class="navbtn menu" id="menu" type="button" aria-label="Sections" aria-expanded="false" aria-controls="links">
+      <svg class="bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    </div>
   </div>
 </nav>
 
 <header class="hero wrap" id="top">
   <div class="reveal">
-    <span class="pill"><b>Open source</b> Free for Windows 11, under the MIT licence</span>
+    <span class="pill"><b>Open source</b> <span class="long">Free for Windows 11, under the MIT licence</span><span class="short">Free for Windows 11 · MIT</span></span>
     <h1><span class="grad">One App.<br>Full Ctrl.</span></h1>
     <p class="lead">Windows treats every monitor the same. DispCtrl treats each one on its own terms: brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own settings.</p>
     <div class="cta">
@@ -556,7 +629,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
     </div>
     <div class="gallery reveal">
       <div class="glist" role="tablist" id="glist"></div>
-      <div class="gview"><img id="gimg" alt="" loading="lazy"></div>
+      <div class="gview"><img id="gimg" alt="" loading="lazy"><div class="gdots" id="gdots" aria-hidden="true"></div></div>
     </div>
   </div>
 </section>
@@ -790,6 +863,13 @@ $('theme').onclick = () => {
   try { localStorage.setItem('theme', t); } catch (e) {}
 };
 
+// Section menu, on screens too narrow for the links
+const nav = document.querySelector('nav');
+const setMenu = open => { nav.classList.toggle('open', open); $('menu').setAttribute('aria-expanded', open); };
+$('menu').onclick = () => setMenu(!nav.classList.contains('open'));
+$('links').addEventListener('click', e => { if (e.target.closest('a')) setMenu(false); });
+document.addEventListener('click', e => { if (!nav.contains(e.target)) setMenu(false); });
+
 // Marquee: duplicated for a seamless loop
 $('track').innerHTML += $('track').innerHTML;
 
@@ -823,15 +903,55 @@ const shots = [
   ['Devices', 'Monitors and their codes', 'devices.png'],
   ['Settings', 'Updates, repair, reset', 'settings.png']
 ];
-const glist = $('glist'), gimg = $('gimg');
+const glist = $('glist'), gimg = $('gimg'), gdots = $('gdots'), gallery = document.querySelector('.gallery');
+let current = 0;
 function pick(i) {
-  [...glist.children].forEach((b, j) => b.setAttribute('aria-selected', i === j));
-  gimg.style.opacity = .2; const src = 'assets/screenshots/' + shots[i][2];
-  const pre = new Image(); pre.onload = () => { gimg.src = src; gimg.alt = shots[i][0]; gimg.setAttribute('aria-label', 'Enlarge ' + shots[i][0]); gimg.style.opacity = 1; }; pre.src = src;
+  current = (i + shots.length) % shots.length;
+  [...glist.children].forEach((b, j) => b.setAttribute('aria-selected', current === j));
+  [...gdots.children].forEach((d, j) => d.classList.toggle('on', current === j));
+  // The row scrolls itself, never the page: scrollIntoView would drag the
+  // whole page back to the tour every few seconds.
+  const b = glist.children[current];
+  if (glist.scrollWidth > glist.clientWidth) glist.scrollTo({ left: b.offsetLeft - (glist.clientWidth - b.offsetWidth) / 2, behavior: 'smooth' });
+  gimg.style.opacity = .2; const src = 'assets/screenshots/' + shots[current][2];
+  const pre = new Image(); pre.onload = () => { gimg.src = src; gimg.alt = shots[current][0]; gimg.setAttribute('aria-label', 'Enlarge ' + shots[current][0]); gimg.style.opacity = 1; }; pre.src = src;
 }
 shots.forEach((s, i) => { const b = document.createElement('button'); b.className = 'gbtn'; b.setAttribute('role', 'tab');
-  b.innerHTML = s[0] + '<small>' + s[1] + '</small>'; b.onclick = () => pick(i); glist.appendChild(b); });
+  b.innerHTML = s[0] + '<small>' + s[1] + '</small>'; b.onclick = () => { stopTour(); pick(i); }; glist.appendChild(b);
+  gdots.appendChild(document.createElement('i')); });
 pick(0);
+
+// It turns by itself while it is on screen, and stops for good once someone
+// picks, swipes or zooms: from then on it is theirs.
+const TOUR_MS = 5000;
+gallery.style.setProperty('--gms', TOUR_MS + 'ms');
+let tourTimer = 0, tourStopped = matchMedia('(prefers-reduced-motion: reduce)').matches, tourSeen = false, tourHeld = false;
+function restartTimerLine() { const b = glist.children[current]; b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; }
+function scheduleTour() {
+  clearTimeout(tourTimer);
+  const run = !tourStopped && tourSeen && !tourHeld && !document.hidden;
+  gallery.classList.toggle('auto', run);
+  if (run) { restartTimerLine(); tourTimer = setTimeout(() => { pick(current + 1); scheduleTour(); }, TOUR_MS); }
+}
+function stopTour() { tourStopped = true; scheduleTour(); }
+const tourWatch = new IntersectionObserver(es => es.forEach(e => { tourSeen = e.isIntersecting; scheduleTour(); }), { threshold: .4 });
+tourWatch.observe(gallery);
+document.addEventListener('visibilitychange', scheduleTour);
+gallery.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { tourHeld = true; scheduleTour(); } });
+gallery.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { tourHeld = false; scheduleTour(); } });
+glist.addEventListener('keydown', e => {
+  const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+  if (!step) return; e.preventDefault(); stopTour(); pick(current + step); glist.children[current].focus();
+});
+// Swipe the screenshot to turn it, as any phone carousel does.
+let swipeX = null, swipeY = 0;
+gimg.addEventListener('touchstart', e => { swipeX = e.touches[0].clientX; swipeY = e.touches[0].clientY; }, { passive: true });
+gimg.addEventListener('touchend', e => {
+  if (swipeX === null) return;
+  const dx = e.changedTouches[0].clientX - swipeX, dy = e.changedTouches[0].clientY - swipeY; swipeX = null;
+  if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  gimg.dataset.swiped = '1'; stopTour(); pick(current + (dx < 0 ? 1 : -1));
+}, { passive: true });
 
 // Typing terminal
 const lines = [
@@ -879,7 +999,11 @@ document.querySelectorAll('.gview img, .panelshot img, .spot img, .stack .layer'
   el.tabIndex = 0;
   el.setAttribute('role', 'button');
   el.setAttribute('aria-label', 'Enlarge ' + (el.alt || 'screenshot'));
-  el.addEventListener('click', () => openPreview(el));
+  el.addEventListener('click', () => {
+    if (el.dataset.swiped) { delete el.dataset.swiped; return; }
+    if (el === gimg) stopTour();
+    openPreview(el);
+  });
   el.addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
   });
@@ -1014,7 +1138,7 @@ const upiFromHash = () => {
 addEventListener('hashchange', upiFromHash);
 upiFromHash();
 $('upiModal').onclick = e => { if (e.target.id === 'upiModal') $('upiModal').classList.remove('open'); };
-addEventListener('keydown', e => { if (e.key === 'Escape') { closePreview(); $('upiModal').classList.remove('open'); } });
+addEventListener('keydown', e => { if (e.key === 'Escape') { closePreview(); setMenu(false); $('upiModal').classList.remove('open'); } });
 </script>
 </body>
 </html>

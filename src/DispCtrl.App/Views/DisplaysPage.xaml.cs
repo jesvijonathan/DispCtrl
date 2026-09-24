@@ -34,7 +34,9 @@ public sealed partial class DisplaysPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         LoadArrangement();
-        _ = ViewModel.LoadAmbientSensorsAsync();
+        // With the page's light sensor section, which is commented out for
+        // now; enumerating sensors is slow, and nothing on the page shows them.
+        // _ = ViewModel.LoadAmbientSensorsAsync();
         _wallpaperWindow = App.MainWindow;
         _wallpaperWindow.AppWindow.Changed += OnWallpaperWindowChanged;
         _wallpaperWindow.Activated += OnWallpaperWindowActivated;
@@ -321,6 +323,20 @@ public sealed partial class DisplaysPage : Page
 
     private void OnRecalibrate(object sender, RoutedEventArgs e) =>
         ViewModel.BeginCalibration();
+
+    private async void OnAmbientCaptureDark(object sender, RoutedEventArgs e) =>
+        SayAmbient(await ViewModel.CaptureAmbientAsync(dark: true));
+
+    private async void OnAmbientCaptureBright(object sender, RoutedEventArgs e) =>
+        SayAmbient(await ViewModel.CaptureAmbientAsync(dark: false));
+
+    private async void OnAmbientForget(object sender, RoutedEventArgs e) =>
+        SayAmbient(await ViewModel.ForgetAmbientAsync());
+
+    private void SayAmbient(string? problem)
+    {
+        if (problem is not null) ViewModel.ShowFooterStatus(problem);
+    }
 
     private async void OnPickWallpaper(object sender, RoutedEventArgs e)
     {

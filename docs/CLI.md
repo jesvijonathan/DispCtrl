@@ -57,6 +57,7 @@ Open GitHub issue; submission always happens in the browser.
 | Monitor hardware | brightness, contrast, volume, sharpness, red/green/blue gain, colour preset, input, power, explicit `--vcp-code`/`--vcp-value`; capabilities gate writes |
 | Shared policies | `focus`, `oled`, `awake`, `nightlight`, `taskbar`, `tray` each support `get/set/reset` |
 | Unison | `unison get/set`: enabled, level, calibrated, follow-windows |
+| Ambient light | `ambient get/set/reset`, `ambient capture --as dark\|bright`, `ambient forget` |
 | Windows preferences | auto-hide, transparency, small buttons, alignment, combining, task view, widgets, badges, flashing, desktop corner, VRR, adaptive brightness, auto-rotation, dark mode |
 | Startup | `startup get/set`: engine, start-menu, desktop; packaged startup uses the Windows startup task |
 | Toolkit | `tray show`; all composition, density, animation and custom-tile settings via `tray`/`settings` |
