@@ -1,14 +1,18 @@
 {
   "schema": 2,
   "generated": "tools/devicecheck index - do not edit; regenerated after every merge",
-  "counts": { "brands": 2, "models": 2, "records": 2, "definitions": 2 },
+  "counts": { "brands": 4, "models": 4, "records": 4, "definitions": 2 },
   "common": 0,
   "brands": {
     "DEL": {"brandCodes":0,"models":1},
-    "SDC": {"brandCodes":0,"models":1}
+    "GSM": {"brandCodes":0,"models":1},
+    "SDC": {"brandCodes":0,"models":1},
+    "TMX": {"brandCodes":0,"models":1}
   },
   "models": {
     "DEL-A234": {"name":"Dell U2424H","record":true,"codes":1,"panel":"LCD (TFT)","writable":0,"reports":0,"extends":[]},
-    "SDC-4154": {"name":"Samsung Display 14.0 inch 2880 x 1800 panel","record":true,"codes":0,"panel":"OLED","writable":0,"reports":0,"extends":[]}
+    "GSM-5C89": {"name":"LG Electronics FALCON","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"extends":[]},
+    "SDC-4154": {"name":"Samsung Display 14.0 inch 2880 x 1800 panel","record":true,"codes":0,"panel":"OLED","writable":0,"reports":0,"extends":[]},
+    "TMX-1400": {"name":"TMX TL140BDXP01-0","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"extends":[]}
   }
 }
