@@ -33,6 +33,8 @@ public static class SettingsDocument
         if (g.Focus is null || g.OledCare is null || g.Awake is null || g.NightLight is null || g.QuickPanel is null)
             throw new ArgumentException("Global settings sections cannot be null.");
         if (!Enum.IsDefined(g.Awake.Mode)) throw new ArgumentException("Unknown awake mode.");
+        if (g.BeforeRestore is { } restored && (restored.Monitors is null || restored.Monitors.Any(p => p.Value is null || string.IsNullOrWhiteSpace(p.Key))))
+            throw new ArgumentException("Invalid record of what the way back switched off.");
         if (settings.Hotkeys.Any(x => x is null) || settings.AppRules.Any(x => x is null))
             throw new ArgumentException("Rules and hotkeys cannot contain null entries.");
         var panel = g.QuickPanel;

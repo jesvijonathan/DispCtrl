@@ -9,6 +9,7 @@ using DispCtrl, not for people reading the diff.
 ## [Unreleased]
 
 ### Added
+- **Undo the way back**: Settings > Undo the way back, or `dispctrl restore undo`, switches back on what Ctrl+Alt+Backspace last turned off - each monitor's taskbar hiding and dimming, night light, focus, OLED care and taskbar opacity. `dispctrl restore now` does what the shortcut does.
 - **Ctrl+Alt+Backspace puts every display back**: it undoes displays off, dimming, night light, taskbar hiding and opacity, keeping every other setting. On by default, and the Hotkeys page asks before it is switched off or removed.
 - The device library counts how many times each model has been shared, by issue number only; the catalogue shows it.
 - Turn off displays shows Keep awake and Stay active beside it - the same switches as everywhere else, so what is on stays on and chat apps keep showing you as available while the displays are off.
@@ -19,7 +20,6 @@ using DispCtrl, not for people reading the diff.
 
 ### Changed
 - Only one DispCtrl window runs at a time: opening it again brings the running one forward, restored if it was minimized.
-- The first launch asks once for administrator rights to lift Windows' gamma limit (night light to 1900K, dimming to near-black). Declined, or on a machine without the rights, everything else works as before; the Displays page keeps the button.
 - The engine starts whenever DispCtrl is opened, and a Store install starts it at sign-in by default.
 - The quick panel opens in simple mode on a new install; the dot in its title bar switches to the full panel.
 

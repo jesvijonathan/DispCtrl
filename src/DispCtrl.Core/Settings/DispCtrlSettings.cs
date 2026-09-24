@@ -68,10 +68,17 @@ public sealed class DispCtrlSettings
     /// black or unreadable by a setting, a crash mid-fade or a misunderstanding.
     /// Deliberately narrower than <see cref="ResetAll"/>: hotkeys, presets,
     /// calibration and names stay, so the only thing lost is what was in the
-    /// way of seeing. Everything it turns off can be turned on again.
+    /// way of seeing. What it switches off is recorded in
+    /// <see cref="GlobalSettings.BeforeRestore"/>, and
+    /// <see cref="UndoRestoreVisibility"/> puts it back.
     /// </remarks>
     public void RestoreVisibility()
     {
+        // Pressed again with nothing left to switch off, the first press's
+        // record stands - but not one from long ago, which undo would then
+        // bring back over whatever was chosen since.
+        if (CaptureVisibility() is { } snapshot) Global.BeforeRestore = snapshot;
+        else if (Global.BeforeRestore is { } earlier && DateTimeOffset.UtcNow - earlier.TakenUtc > KeepRestoreRecord) Global.BeforeRestore = null;
         Global.Awake.DisplaysOffUtc = null;
         Global.Focus.Enabled = false;
         Global.OledCare.Enabled = false;
@@ -83,6 +90,50 @@ public sealed class DispCtrlSettings
             monitor.SoftwareBrightness = 100;
             monitor.HideTaskbar = false;
         }
+    }
+
+    private static readonly TimeSpan KeepRestoreRecord = TimeSpan.FromMinutes(10);
+
+    /// <summary>What <see cref="RestoreVisibility"/> would switch off, or null when nothing is on.</summary>
+    private VisibilitySnapshot? CaptureVisibility()
+    {
+        var snapshot = new VisibilitySnapshot
+        {
+            TakenUtc = DateTimeOffset.UtcNow,
+            Focus = Global.Focus.Enabled,
+            OledCare = Global.OledCare.Enabled,
+            NightLight = Global.NightLight.Enabled,
+            TaskbarOpacity = Global.TaskbarOpacity,
+        };
+        foreach (var (token, monitor) in Monitors)
+            if (monitor.HideTaskbar || monitor.SoftwareBrightness < 100)
+                snapshot.Monitors[token] = new MonitorVisibility { HideTaskbar = monitor.HideTaskbar, SoftwareBrightness = monitor.SoftwareBrightness };
+        bool anything = snapshot.Focus || snapshot.OledCare || snapshot.NightLight
+            || snapshot.TaskbarOpacity < 100 || snapshot.Monitors.Count > 0;
+        return anything ? snapshot : null;
+    }
+
+    /// <summary>Puts back what the last <see cref="RestoreVisibility"/> switched off.</summary>
+    /// <returns>False when there is nothing recorded to put back.</returns>
+    /// <remarks>
+    /// Monitors no longer in the file are skipped rather than recreated, and the
+    /// record is spent: a second undo does nothing.
+    /// </remarks>
+    public bool UndoRestoreVisibility()
+    {
+        if (Global.BeforeRestore is not { } snapshot) return false;
+        Global.Focus.Enabled = snapshot.Focus;
+        Global.OledCare.Enabled = snapshot.OledCare;
+        Global.NightLight.Enabled = snapshot.NightLight;
+        Global.TaskbarOpacity = Math.Clamp(snapshot.TaskbarOpacity, 0, 100);
+        foreach (var (token, saved) in snapshot.Monitors)
+        {
+            if (!Monitors.TryGetValue(token, out MonitorSettings? monitor)) continue;
+            monitor.HideTaskbar = saved.HideTaskbar;
+            monitor.SoftwareBrightness = Math.Clamp(saved.SoftwareBrightness, 10, 100);
+        }
+        Global.BeforeRestore = null;
+        return true;
     }
 
     /// <summary>Settings for a monitor, creating defaults on first sight.</summary>
@@ -272,18 +323,12 @@ public sealed class GlobalSettings
     /// </remarks>
     public bool EngineStartupOffered { get; set; }
 
+    /// <summary>What Ctrl+Alt+Backspace last switched off; null when there is nothing to put back.</summary>
+    public VisibilitySnapshot? BeforeRestore { get; set; }
+
     /// <summary>Draw the arrangement by pixel count, as Windows does, rather than by real size.</summary>
     /// <remarks>A view of the same arrangement: the positions applied are identical either way.</remarks>
     public bool ArrangeByResolution { get; set; }
-
-    /// <summary>Whether the first launch has asked, once, to lift Windows' gamma limit.</summary>
-    /// <remarks>
-    /// The one change DispCtrl can make with administrator rights that every
-    /// desk benefits from, so it is asked for up front, when someone is there to
-    /// answer. Declined, or on a machine without the rights, everything else
-    /// still works inside Windows' limit, and it is never asked again unprompted.
-    /// </remarks>
-    public bool GammaRangeOffered { get; set; }
 
     /// <summary>Warmth applied to every display together.</summary>
     public NightLightSettings NightLight { get; set; } = new();
@@ -324,6 +369,8 @@ public sealed class GlobalSettings
         UnisonFollowsWindows = fresh.UnisonFollowsWindows;
         PreloadQuickPanel = fresh.PreloadQuickPanel;
         OpenWindowAtSignIn = fresh.OpenWindowAtSignIn;
+        // What the way back switched off means nothing once everything is reset.
+        BeforeRestore = null;
     }
 }
 

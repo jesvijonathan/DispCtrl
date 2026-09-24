@@ -239,7 +239,7 @@ internal sealed class HotkeyService : IDisposable
             case HotkeyAction.RestoreDisplays:
                 settings.RestoreVisibility();
                 _persist(settings);
-                Log.Write("hotkey: every display put back (dimming, night light, hiding, displays off)");
+                Log.Write("hotkey: every display put back (dimming, night light, hiding, displays off); Settings > Undo the way back, or dispctrl restore undo, reverses it");
                 break;
 
             case HotkeyAction.DisplaysOffToggle:

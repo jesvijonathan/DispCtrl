@@ -20,6 +20,7 @@ public sealed partial class ControlService
         "devices.list", "devices.show", "devices.scan", "devices.forget", "devices.map", "devices.unmap", "devices.link", "devices.panel", "devices.definitions",
         "devices.share", "devices.validate", "settings.get", "settings.set", "settings.reset", "settings.schema", "settings.validate", "settings.import",
         "focus.get", "focus.set", "focus.reset", "oled.get", "oled.set", "oled.reset", "oled.preview", "oled.rest", "awake.displays-off",
+        "restore.now", "restore.undo", "restore.get",
         "awake.get", "awake.set", "awake.reset", "nightlight.get", "nightlight.set", "nightlight.reset",
         "taskbar.get", "taskbar.set", "taskbar.reset", "tray.get", "tray.set", "tray.reset", "windows.get", "windows.set",
         "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "maintenance.repair", "maintenance.clear-cache", "tray.show", "apply", "commands", "diagnostics", "report"];
@@ -52,7 +53,7 @@ public sealed partial class ControlService
                 args.Remove("coalesce");
             }
             bool mutation = command.EndsWith(".set", StringComparison.Ordinal) || command.EndsWith(".reset", StringComparison.Ordinal)
-                || command is "settings.import" or "oled.rest" or "apply" or "display.factory-reset" or "display.reset"
+                || command is "settings.import" or "oled.rest" or "restore.now" or "restore.undo" or "apply" or "display.factory-reset" or "display.reset"
                 or "hotkeys.add" or "hotkeys.remove"
                 || command == "display.control" && args.ContainsKey("value");
             using var gate = new Mutex(false, @"Local\DispCtrl.Control.Operations");
@@ -261,6 +262,26 @@ public sealed partial class ControlService
                 document["global"]!["awake"]!["displaysOffUtc"] = on ? DateTimeOffset.UtcNow.ToString("O") : null,
                 Flag(args, "dryRun"));
         }
+        if (command == "restore.get")
+        {
+            JsonNode? recorded = SettingsDocument.Read()["global"]?["beforeRestore"];
+            return new JsonObject { ["recorded"] = recorded is not null, ["beforeRestore"] = recorded?.DeepClone() };
+        }
+        if (command is "restore.now" or "restore.undo")
+        {
+            // The same two steps as Ctrl+Alt+Backspace and the Settings page, on
+            // the typed settings rather than paths, so the three can never differ.
+            bool undo = command == "restore.undo";
+            return SettingsDocument.Update(document =>
+            {
+                DispCtrlSettings settings = SettingsDocument.Validate(document);
+                if (undo && !settings.UndoRestoreVisibility())
+                    throw new InvalidOperationException("Nothing to put back: the way back has not switched anything off since it was last undone.");
+                if (!undo) settings.RestoreVisibility();
+                JsonObject encoded = SettingsDocument.Encode(settings);
+                foreach (var pair in encoded) document[pair.Key] = pair.Value?.DeepClone();
+            }, Flag(args, "dryRun"));
+        }
         if (command == "oled.rest")
         {
             var displays = Resolve(Text(args, "monitor"), false);
@@ -370,6 +391,8 @@ public sealed partial class ControlService
             "startup.get" or "unison.get" => [],
             "oled.rest" => ["monitor", "minutes", "dryRun"],
             "awake.displays-off" => ["enabled", "dryRun"],
+            "restore.now" or "restore.undo" => ["dryRun"],
+            "restore.get" => [],
             "display.reset" => ["monitor", "factory", "confirm", "dryRun"],
             _ when command.EndsWith(".get", StringComparison.Ordinal) => ["monitor"],
             _ when command.EndsWith(".reset", StringComparison.Ordinal) => ["monitor", "dryRun", "revision"],

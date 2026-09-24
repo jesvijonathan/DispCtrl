@@ -246,6 +246,19 @@ try
         && !messy.Global.OledCare.Enabled && messy.Global.TaskbarOpacity == 100 && messy.For("panel").SoftwareBrightness == 100
         && !messy.For("panel").HideTaskbar && messy.For("panel").Alias == "Desk" && messy.Hotkeys.Count == bindings,
         "restoring displays undoes everything that darkens, tints or hides a screen, and nothing else");
+    messy.RestoreVisibility();
+    Check(messy.Global.BeforeRestore is { } kept && kept.Monitors.ContainsKey("panel") && kept.TaskbarOpacity == 20,
+        "pressing the way back again with nothing left to switch off keeps the record of the first press");
+    var stale = new DispCtrlSettings();
+    stale.Global.BeforeRestore = new VisibilitySnapshot { TakenUtc = DateTimeOffset.UtcNow.AddHours(-1), NightLight = true };
+    stale.RestoreVisibility();
+    Check(stale.Global.BeforeRestore is null, "an old record is dropped, not kept for a later undo");
+    messy.For("other").HideTaskbar = false;
+    Check(messy.UndoRestoreVisibility() && messy.Global.Focus.Enabled && messy.Global.NightLight.Enabled && messy.Global.OledCare.Enabled
+        && messy.Global.TaskbarOpacity == 20 && messy.For("panel").SoftwareBrightness == 30 && messy.For("panel").HideTaskbar
+        && !messy.For("other").HideTaskbar && messy.Global.Awake.DisplaysOffUtc is null && messy.Global.BeforeRestore is null
+        && !messy.UndoRestoreVisibility(),
+        "undoing the way back puts back what it switched off, once, and not displays off");
     var fromTwo = new DispCtrlSettings();
     fromTwo.Global.HotkeyDefaultsVersion = 2;
     fromTwo.Hotkeys.Add(new Hotkey { Modifiers = 3, Key = 'L', Action = HotkeyAction.Identify });
@@ -362,6 +375,16 @@ try
         && offOff["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.Awake.DisplaysOffUtc is null
         && offBad["exitCode"]!.GetValue<int>() == 2,
         "awake displays-off records a request, clears it, and refuses anything but on or off");
+    var hiding = SettingsStore.Load(); hiding.For("FAKE-panel").HideTaskbar = true; SettingsStore.Save(hiding);
+    var restoreNow = service.Execute(Request("restore.now"));
+    bool cleared = !SettingsStore.Load().For("FAKE-panel").HideTaskbar;
+    var restoreGet = service.Execute(Request("restore.get"));
+    var restoreUndo = service.Execute(Request("restore.undo"));
+    var restoreAgain = service.Execute(Request("restore.undo"));
+    Check(restoreNow["ok"]!.GetValue<bool>() && cleared && restoreGet["data"]?["recorded"]?.GetValue<bool>() == true
+        && restoreUndo["ok"]!.GetValue<bool>() && SettingsStore.Load().For("FAKE-panel").HideTaskbar
+        && SettingsStore.Load().Global.BeforeRestore is null && restoreAgain["exitCode"]!.GetValue<int>() == 1,
+        "restore now and undo round-trip through the settings file, and a second undo is refused");
     var offTarget = service.Execute(Request("awake.set", new() { ["displaysOffTarget"] = "exceptPointer" }));
     Check(offTarget["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.Awake.DisplaysOffTarget == DisplaysOffTarget.ExceptPointer,
         "which displays turn off is set by name");
@@ -383,6 +406,15 @@ try
         && afterReset.Hotkeys.Count(h => h.Enabled) == 6 && afterReset.Hotkeys.Count == 15
         && afterReset.Global.QuickPanel.Simple == new QuickPanelSettings().Simple && afterReset.Global.Focus.DimPercent == new FocusSettings().DimPercent,
         "CLI reset all matches the app: all groups and default hotkeys reset while monitor names survive");
+    // A client holding settings while the file is broken by hand: its save used
+    // to throw on the merge and could never write the file back.
+    var holder = SettingsStore.Load();
+    File.WriteAllText(SettingsStore.Path_, "{ not json");
+    holder.Global.TaskbarOpacity = 41;
+    bool savedOverCorrupt = true;
+    try { SettingsStore.Save(holder); } catch (System.Text.Json.JsonException) { savedOverCorrupt = false; }
+    Check(savedOverCorrupt && SettingsStore.Load().Global.TaskbarOpacity == 41,
+        "a save replaces a settings file that no longer parses");
     Console.WriteLine($"{checks} control checks passed.");
 }
 finally

@@ -380,7 +380,14 @@ focus, night light, software dimming, taskbar hiding and opacity - and nothing
 else. It is the shortcut to give someone looking at a black screen, so it is on
 by default (hotkey defaults version 4, offered switched on), the README names it,
 and the Hotkeys page confirms before it is switched off or removed
-(`HotkeyViewModel.SafetyNetOffRequested`). Turn off displays also parks the
+(`HotkeyViewModel.SafetyNetOffRequested`). What it switches off is recorded in
+`Global.BeforeRestore` (`VisibilitySnapshot`) and put back by
+`UndoRestoreVisibility` - Settings > Undo the way back, or `dispctrl restore
+undo`; `restore now` is the hotkey's twin. A press with nothing left to switch
+off keeps an earlier record under ten minutes old, so pressing twice never
+loses the first press's work, while an old one is dropped rather than undone
+over later choices; displays off and a screen rest are moments, not settings, and are not
+recorded. Turn off displays also parks the
 pointer in a corner of a display it blacked out and puts it back when they come
 on again, unless the mouse has moved it.
 
@@ -398,11 +405,16 @@ What runs during one has to be pure geometry, or it is not covered. Exit code is
 count. **Add to this rather than writing throwaway probes** — several probes in
 this project's history should have been checks here.
 
----
+It includes the redaction checks: the scrub in isolation, then end to end over
+the monitors actually attached - asserting that the text the app would publish
+carries none of their serials, device paths, or the account name.
 
-Includes the redaction checks: the scrub in isolation, then end to end over the
-monitors actually attached - asserting that the text the app would publish
-carries none of their serials, device paths, or the account name. 69 assertions.
+`presetcheck` needs monitors. The hardware-free suites, which CI and
+`build.sh test` run, are `controlcheck` (the command API against a scratch
+settings folder), `presetverify` (parsing, geometry, the settings merge) and
+`devicecheck validate` / `selftest` (the device library and its intake).
+
+---
 
 ## Traps already paid for
 
@@ -879,11 +891,11 @@ unrecallable.
   `{6D809377-...}\WindowsApps\...` for the Store engine. Compared as a plain
   path it never matched, so the Store icon was never kept on the taskbar.
   `TrayIconPromotion.Expand` resolves it.
-- **Admin is asked for once, at first launch, and only for the gamma range**
-  (`GammaRangeOffered`). It is the one elevated write every desk benefits
-  from; auto-rotation still asks only when switched. Recorded before asking,
-  so a refused or impossible prompt (a managed laptop) never comes back by
-  itself. Nothing else needs elevation, and the app must never require it: a
+- **Nothing asks for admin unprompted.** Only lifting the gamma range and
+  auto-rotation need elevation, and each asks when the person switches it on.
+  A first-launch prompt for the gamma range was tried and dropped: the lift is
+  a nicety, and an unasked UAC prompt on first run costs trust (and Store
+  certification questions it). The app must never require elevation: a
   packaged app cannot run elevated at all.
 - **The wallpaper preview falls back to `%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper`**,
   Windows' decoded copy, when the reported file is missing, online-only or
@@ -1046,14 +1058,18 @@ Match what is there. It is deliberate and consistent.
 Working and verified on hardware: per-monitor taskbar hiding, per-monitor
 wallpaper, unison brightness (multiplier and calibrated range), night light
 (unison, per-monitor, calibrated, scheduled), software dimming, arrangement
-drag/apply, presets with per-app rules, monitor capability discovery and control,
+drag/apply, presets with per-app rules (shelved in release builds behind
+`EnableBetaPresets` in `Directory.Build.props` until the beta is ready),
+monitor capability discovery and control,
 display report, identify overlays, hotplug re-discovery, device contribution
 (anonymised, consent-gated), the quick panel and tray icon, Windows' brightness
 slider and keys driving unison, the control API and `dispctrl` JSON surface.
 `docs/design/IMPLEMENTATION-CHECKLIST.md` records how each recent item was verified and
-what is still unverified: CI has never run on GitHub, the MSIX has been
-packed but not installed, signed or certified, and the installer has been
-compiled but not installed (see "Release and installer").
+what is still unverified. Since then CI runs on GitHub (Build and verify
+passes; the Device library job failed until devicecheck stopped building a
+Windows apphost on Linux) and the MSIX has been accepted by Partner Center and
+installed from the Store; the installer has still only been compiled, not
+installed (see "Release and installer").
 
 Outstanding, roughly in the order last discussed:
 

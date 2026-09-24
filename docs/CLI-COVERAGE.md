@@ -95,6 +95,7 @@ calls it. The Devices page already works that way - it sends the same
 | Start at sign-in, keep the panel ready, open at sign-in, shortcuts | `startup set --engine on --preload-panel on --open-window off --start-menu on --desktop off` |
 | Logging | `settings set --path /global/logging --value true` |
 | Reset everything | `settings reset` |
+| Undo the way back | `restore undo` (and `restore now`, as Ctrl+Alt+Backspace; `restore get` shows the record) |
 | Open the log and the settings folder | `diagnostics` prints both paths |
 | Windows Startup apps | `windows open --page startup` |
 

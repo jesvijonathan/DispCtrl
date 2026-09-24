@@ -8,7 +8,7 @@ namespace DispCtrl.Control;
 
 public static class ControlTerminal
 {
-    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance"];
+    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore"];
     public static bool Handles(string[] args) => args.Length > 0 && (Roots.Contains(args[0])
         || args[0] == "nightlight" && args.Length > 1 && args[1] is "get" or "set" or "reset"
         || args[0] == "topology" && args.Length > 1 && args[1] is "get" or "set");
@@ -59,6 +59,7 @@ public static class ControlTerminal
       topology get|set --mode extend|duplicate|internal|external
       oled preview --percent 50             Two-second preview (engine + care enabled)
       oled rest --monitor ID --minutes 5    Manual screen rest policy
+      restore now|undo|get                  Put every display back (as Ctrl+Alt+Backspace), or undo that
       engine start|stop|status              Manage the resident engine
       maintenance repair|clear-cache        Fix the sign-in task and shortcuts; clear logs and cached data
       apply FILE [--dry-run]                Ordered display + settings operations

@@ -83,6 +83,22 @@ public sealed partial class SettingsPage : Page
         }
     }
 
+    /// <summary>The same step as <c>dispctrl restore undo</c>.</summary>
+    private async void OnUndoRestore(object sender, RoutedEventArgs e)
+    {
+        JsonObject result = await Task.Run(() => new ControlService().Execute(new JsonObject
+        {
+            ["version"] = 1, ["command"] = "restore.undo", ["args"] = new JsonObject(),
+        }));
+        if (result["ok"]?.GetValue<bool>() != true)
+        {
+            Say(result["error"]?["message"]?.GetValue<string>() ?? "Nothing was put back.", InfoBarSeverity.Informational);
+            return;
+        }
+        ViewModel.ReloadFromDisk();
+        Say("Put back what the way back had switched off.", InfoBarSeverity.Success);
+    }
+
     private void Say(string message, InfoBarSeverity severity)
     {
         MaintenanceResult.Message = message;

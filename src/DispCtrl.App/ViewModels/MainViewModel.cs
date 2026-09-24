@@ -1845,23 +1845,6 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             _settings.Global.EngineStartupOffered = true;
             Persist();
         }
-
-        // One UAC prompt, the first time, for the only machine-wide change
-        // every desk benefits from. Recorded before asking, so a dismissed or
-        // refused prompt - a managed laptop without the rights - is never
-        // raised again on its own; the Displays page keeps the button.
-        if (!_settings.Global.GammaRangeOffered)
-        {
-            _settings.Global.GammaRangeOffered = true;
-            Persist();
-            if (!NightLight.FullRange)
-            {
-                await ToggleGammaRangeAsync();
-                ShowFooterStatus(NightLight.FullRange
-                    ? "Windows' gamma limit lifted: night light and dimming now use their full range."
-                    : "Windows' gamma limit is unchanged. Everything works within it; lift it later from the Displays page.");
-            }
-        }
     }
 
     public void SetEngineRunning(bool running)

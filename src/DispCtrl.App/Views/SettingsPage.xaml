@@ -66,6 +66,14 @@
         <Button Content="Clear" Click="OnClearCache" AutomationProperties.Name="ClearCache"/>
       </tk:SettingsCard>
 
+      <tk:SettingsCard Header="Undo the way back"
+                       Description="Ctrl+Alt+Backspace switches off everything that can darken, tint or hide a screen. This switches back on what it last turned off: taskbar hiding and dimming on each monitor, night light, focus, OLED care and taskbar opacity.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE7A7;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <Button Content="Put back" Click="OnUndoRestore" AutomationProperties.Name="UndoRestore"/>
+      </tk:SettingsCard>
+
       <tk:SettingsCard Header="Reset everything"
                        Description="Returns all of DispCtrl's settings, every monitor's and the shortcuts, to their defaults. Windows' own display settings are left alone.">
         <tk:SettingsCard.HeaderIcon>
