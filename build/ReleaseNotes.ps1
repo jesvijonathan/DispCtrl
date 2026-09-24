@@ -55,17 +55,8 @@ $notes.Add('| `DispCtrl-*-cli.zip` | `dispctrl.exe` and the engine, with no wind
 $notes.Add('| `DispCtrl-*.msix` | The Microsoft Store package. Installs directly only when it is signed. |')
 $notes.Add('')
 $notes.Add('Windows 11, x64. Self-contained, so no .NET install is needed. Settings in `%LOCALAPPDATA%\DispCtrl` carry over between versions and between the installer and the zips.')
-if ($ArtifactsDirectory -and (Test-Path -LiteralPath $ArtifactsDirectory)) {
-    $sums = @(Get-ChildItem -LiteralPath $ArtifactsDirectory -Recurse -Filter '*SHA256SUMS.txt' | ForEach-Object { Get-Content -LiteralPath $_.FullName } | Where-Object { $_ } | Sort-Object -Unique)
-    if ($sums.Count) {
-        $notes.Add('')
-        $notes.Add('## SHA-256')
-        $notes.Add('')
-        $notes.Add('```')
-        $notes.AddRange([string[]]$sums)
-        $notes.Add('```')
-    }
-}
+# Checksums are attached as *SHA256SUMS.txt beside the files; repeated in the
+# notes they only pushed the install table and the rest of the page down.
 $notes.Add('')
 $notes.Add('DispCtrl is free and built in spare time. If it earns a place on your desk, [sponsoring](https://github.com/sponsors/jesvijonathan) pays for development and test hardware, and [sending your monitor](https://github.com/jesvijonathan/DispCtrl/blob/master/devices/README.md) helps just as much.')
 $notes -join "`n"

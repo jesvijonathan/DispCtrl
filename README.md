@@ -11,7 +11,13 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/jesvijonathan/DispCtrl/build.yml?branch=master&label=build&logo=github)](https://github.com/jesvijonathan/DispCtrl/actions/workflows/build.yml) [![GitHub stars](https://img.shields.io/github/stars/jesvijonathan/DispCtrl?label=stars&color=8b5cf6&logo=github)](https://github.com/jesvijonathan/DispCtrl/stargazers) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/DispCtrl/total?color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases) [![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
 
-[**Download**](https://github.com/jesvijonathan/DispCtrl/releases) · [Getting started](#getting-started) · [Documentation](#documentation) · [Website](https://jesvijonathan.github.io/DispCtrl/)
+<a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" height="48"></a>&nbsp;&nbsp;<a href="https://github.com/jesvijonathan/DispCtrl/releases/latest"><img src="https://img.shields.io/github/v/release/jesvijonathan/DispCtrl?label=Download%20installer&logo=github&style=for-the-badge&color=8b5cf6" alt="Download the installer from GitHub" height="48"></a>
+
+```
+winget install 9PNQWKNRGVR0 --source msstore
+```
+
+[Install](#install) · [Getting started](#getting-started) · [Documentation](#documentation) · [Website](https://jesvijonathan.github.io/DispCtrl/)
 
 <br>
 
@@ -85,7 +91,13 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 
 ## Install
 
-Browse the [download options on our website](https://jesvijonathan.github.io/DispCtrl/#download), or download directly from [**Releases**](https://github.com/jesvijonathan/DispCtrl/releases). **Windows · x64 · self-contained downloads** — no separate .NET installation needed.
+| Where | How |
+|---|---|
+| **Microsoft Store** | [**Get DispCtrl from the Microsoft Store**](https://apps.microsoft.com/detail/9PNQWKNRGVR0). Installs and updates itself. |
+| **winget** | `winget install 9PNQWKNRGVR0 --source msstore` installs the Store version from a terminal. |
+| **GitHub** | [**Download the latest release**](https://github.com/jesvijonathan/DispCtrl/releases/latest) and pick a file below. |
+
+Every download is **Windows · x64 · self-contained**: no separate .NET installation needed. The [website](https://jesvijonathan.github.io/DispCtrl/#download) has the same options.
 
 | Package | What you get |
 |---|---|
@@ -93,7 +105,7 @@ Browse the [download options on our website](https://jesvijonathan.github.io/Dis
 | `...-desktop.zip` | Portable: unzip anywhere and run `DispCtrl.App.exe` |
 | `...-cli.zip` | `dispctrl.exe` and the engine, without the window |
 
-Settings live in `%LOCALAPPDATA%\DispCtrl`. Uninstalling stops the engine cleanly, puts back any taskbar it hid, and asks whether to keep your settings. Unsigned builds may trigger SmartScreen; release downloads include SHA-256 checksums.
+Settings live in `%LOCALAPPDATA%\DispCtrl` (the Store version keeps them in its own folder, `%LOCALAPPDATA%\Packages\JustVStudio.DispCtrl_…\LocalCache\Local\DispCtrl`). Uninstalling stops the engine cleanly, puts back any taskbar it hid, and asks whether to keep your settings. Unsigned builds may trigger SmartScreen; each release has its SHA-256 checksums attached as `*SHA256SUMS.txt`.
 
 ## Getting started
 
