@@ -848,6 +848,13 @@ unrecallable.
   charset as four bytes and the runtime refuses at the first call - which ended
   the tray pump and removed the icon. Use `CreateFontIndirect` with a `LOGFONTW`.
   Read `obj/generated` before trusting any generated overload.
+- **No NuGet lock files, on purpose.** Generated, they pin packages the SDK
+  adds by itself - `Microsoft.DotNet.ILCompiler` (the engine's `PublishAot`)
+  and `Microsoft.NET.ILLink.Tasks` (`IsAotCompatible`) - at the SDK's own
+  runtime patch (10.0.12 under SDK 10.0.112, another under 10.0.203). Every
+  SDK patch would then rewrite them, or fail CI in locked mode. Every
+  `PackageReference` is an exact version, so restores are already
+  deterministic without them.
 - The engine must carry `<ApplicationIcon>` too: the tray's logo style reads it
   from the running binary, and without it drew an empty slot.
 
