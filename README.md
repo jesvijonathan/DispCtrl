@@ -87,6 +87,176 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 </tr>
 </table>
 
+<details>
+<summary><b>All features</b>: every setting, switch and command, in full</summary>
+
+<br>
+
+**Brightness and unison**
+- Unison brightness: one slider for every display, relative to the level each is already at
+- Captured limits: set how dim and how bright each display goes, and run unison between them
+  - A guided calibration that drives each display to the end being captured; Cancel puts the desk back
+  - Per display floor and ceiling (`dispctrl unison set --monitor 2 --floor 20 --ceiling 80`)
+- Replace Windows brightness: Quick Settings' slider and the laptop's brightness keys move every display, each within its range, with DispCtrl closed
+- Hardware brightness over DDC/CI (external monitors) and WMI (built-in panels), with a fallback to VCP `0x10`
+- Software dimming below the hardware floor, composed with night light in one gamma write
+- Unison on puts every display back at its remembered level; unison off leaves them alone
+- A monitor plugged back in is brought back in step after it wakes
+- Each display now: every display's level at a glance
+
+**Following the room's light**
+- Unison follows an ambient light sensor, from a level for a dark room to one for bright light
+- Choose the sensor; set the dark and bright levels
+- Calibrate: "This is dark" and "This is bright" take the sensor's reading now, shown live
+- Learns from your adjustments: a level you set by hand while it follows is remembered for that light, and can be forgotten
+- Waits out a hand passing the sensor; walks to the new level rather than jumping
+- Switches Windows' own adaptive brightness off while it runs, so the two never fight
+
+**Night light and colour**
+- Night light on every display at once, or per display with its own warmth
+- Strength, down to 1900 K with the expanded gamma range (one elevated write, asked for when you switch it on)
+- A schedule, including hours that run past midnight
+- Or use Windows' night light: one switch, both ways
+- Dark mode for apps and the taskbar together
+- Colour profile shown per display
+
+**Focus mode**
+- Dims everything but the active window
+- Background dimming level, delay after switching windows, fade duration
+- Transition between windows: fade or slide
+- One clear window per display
+- Keep the hovered window clear too
+- OLED displays only; match the dimming to each display's brightness
+- Follow the mouse; follow new and activated windows
+- Dim other monitors; keep the taskbar area clear
+- Pause for full-screen windows; excluded apps
+- Per display: let focus mode dim it or not
+
+**OLED care**
+- Rests OLED panels after a spell without input; non-OLED panels are never touched
+- Which displays; minutes before it dims; idle dimming level with a live preview
+- A second stage: after more minutes, dim further
+- Fade duration; pause during full-screen content
+- Wake when the pointer returns, per display
+- Rest now, on one display or all, for a set time (`dispctrl oled rest --monitor 2 --minutes 5`)
+- OLED panels known from the monitor itself (VCP `0xB6`), the device library, or your own marking
+
+**Keep awake, Stay active and Turn off displays**
+- Keep awake: indefinitely, for a time interval, or until a date and time; optionally keep the displays on too. The Windows power plan is never changed
+- Stay active: the screen stays on, and chat apps keep showing you as available
+- Turn off displays (Ctrl+Alt+L): black every display out while the computer keeps running
+  - Darkness level; which displays (all, all but the main one, all but the one with the pointer or the active window, only the main one)
+  - A delay before they go off
+  - Turn the real backlight down too, at 90% and darker
+  - Wake only by the pointer, per display, or on any input
+  - Hide the pointer while they are off
+  - Lock the computer when they wake
+
+**The way back**
+- Ctrl+Alt+Backspace puts every display back: displays off, dimming, night light, focus, OLED care, taskbar hiding and opacity, and nothing else
+- Undo the way back switches on again what it last turned off
+- The Hotkeys page asks before this shortcut is switched off or removed
+
+**Each display**
+- Resolution, refresh rate (rate-only changes applied without blanking), scale, orientation
+- HDR; variable refresh rate
+- Make main display
+- Brightness, software brightness and adaptive brightness
+- Night light warmth
+- Rotate with the device
+- Mark as an OLED panel
+- Monitor sleep
+- Hide the taskbar; reclaim the work area so maximised windows fill the display
+- Wallpaper per display, with the fit mode
+- Reset this display's DispCtrl settings
+
+**Your monitor's own controls (DDC/CI)**
+- Offered only when the monitor lists the control, and only with the values it lists
+- Written: colour temperature, brightness, contrast, colour preset, red, green and blue gain and black level, gamma, input source, volume, mute, sharpness, ambient light sensor, OSD and power-button lock, OSD language, power mode, picture mode
+- Read: firmware level, MCCS version, controller type, hours in use, display technology, sub-pixel layout
+- Factory reset of the monitor's own settings (`dispctrl display factory-reset`), confirmed first
+- Controls a model's definition names become usable, with writable ones only where someone tested them
+
+**Arrangement and display modes**
+- An arrangement drawn at each display's real size, or by resolution as Windows draws it
+- Drag a display between the positions Windows accepts, shown as outlines
+- Identify: each display's number on it; Detect: find monitors that are connected but asleep
+- PC screen only, duplicate, extend or second screen only
+- Connect to a wireless display
+
+**Taskbar**
+- Hide the taskbar on any secondary display, sliding in when the pointer reaches its edge
+- The main taskbar through Windows' own auto-hide
+- Aero glass blur, with blur radius and tint
+- Windows transparency; whole-bar opacity
+- Smaller buttons, alignment, combine buttons and labels (separately on other taskbars)
+- Task View and Widgets buttons, app badges, flashing apps, the show-desktop corner
+- Reveal: hide delay, slide or snap, slide duration, edge sensitivity
+- How often the engine checks the pointer, in five tiers, for a fast reveal at next to no cost
+
+**Quick panel and tray icon**
+- A panel that rises from the taskbar, like Windows' own flyouts
+- Simple mode: brightness only, one slider for all displays and one for each
+- Sections: unison, quick toggles, displays, night light, taskbar, focus, OLED care, display mode
+- Quick toggles: night light, dark mode, focus, keep awake, stay active, taskbar, OLED care, project, displays off, detect, unison, identify, cast, rest OLED, engine
+- Rows per display: brightness, switches, resolution, scale, refresh rate, software dimming, orientation, monitor controls, warmth, input source
+- Switches per display: hide taskbar, HDR, make main, focus dimming, OLED care, rest now, monitor sleep, variable refresh, adaptive brightness, auto-rotate, identify
+- Reorder and hide any of them; hide displays; fold sections
+- Your own tiles: run a `dispctrl` command or open a program
+- Density, width, toggles per row, fixed or fitted height, stay open, lock position, animation
+- The tray icon: Windows' own style, taskbar white or black or your accent colour, bolder while Keep awake or Stay active is on; kept on the taskbar
+- Its right-click menu: quick panel, open DispCtrl, simple view, keep on the taskbar, hide the icon, stop the engine, close the app, exit DispCtrl
+
+**Hotkeys**
+- Global shortcuts that work with the window closed, each on or off
+- Actions: brightness up and down, unison up, down and on or off, contrast up and down, night light on or off, warmer and cooler, focus, OLED care, rest now, keep awake, stay active, displays off, put every display back, dark mode, taskbar, taskbar glass, next input, identify, the quick panel, apply a preset
+- A step size per shortcut, and one display or all
+- Shows whether each shortcut is working or taken by another program, and warns about combinations Windows keeps
+- Windows' own display shortcuts listed alongside: project, move window, HDR, Quick Settings, cast, colour filters, restart the graphics driver
+
+**Device library**
+- Every monitor this PC has seen, read by itself the first time it is plugged in
+- Each monitor's codes: standard, named by the library, or not yet named
+- Probe: watch the unnamed codes while you use the monitor's own menu, then name them for the model, the brand or every monitor
+- Say what a panel is (OLED, LCD), built-in panels included
+- Contribute a monitor, or all of them, as one prefilled GitHub issue, with serials, paths and names removed first
+- What the project already knows about a model is applied by itself
+
+**Presets (beta)**
+- Save the whole desk under a name and apply it again
+- Shows what has drifted since it was saved
+- Per-app rules: apply a preset while an app is in front, and a preset to return to
+- Import, export, rename, map to other displays
+
+**Command line**
+- `dispctrl`: every feature, scriptable, with tables in a terminal and JSON when piped
+- Displays, modes, capabilities, monitor controls, gamma, the device library, settings (get, set, reset, export, import, validate, schema)
+- Focus, OLED care, keep awake, night light, taskbar, tray, unison, ambient light, topology, startup, hotkeys
+- `apply` an ordered file of display and settings changes, with a dry run
+- `watch` for display, settings and engine events, optionally running a script
+- `restore now|undo`, `engine start|stop|status`, `maintenance repair|clear-cache`, `diagnostics`, `report`
+- Talks to the running engine, or works on its own when the engine is not running
+- Stable exit codes; an isolated configuration folder through `DISPCTRL_DATA_DIR`
+
+**Startup and maintenance**
+- Start the engine at sign-in; keep the quick panel ready; open DispCtrl at sign-in
+- Start menu and desktop shortcuts; Windows' startup apps and folder
+- Write a log; open the settings file and the log
+- Check for updates, by hand only
+- Repair the sign-in task and shortcuts; clear logs and cached monitor data
+- Reset everything
+- Only one DispCtrl window at a time
+
+**Help, privacy and support**
+- Report a problem: a scrubbed report with display details and recent logs, reviewed before a prefilled GitHub issue opens
+- Request a feature; contribute code
+- Fixes for a taskbar stuck off-screen, a primary taskbar that will not hide, a monitor that forgot its settings
+- No account, no telemetry, no network calls of its own; nothing needs administrator rights
+- A taskbar is always put back, even after a crash
+- The installer is per user, stops the engine cleanly, and offers repair and a settings reset; uninstalling puts every taskbar back
+
+</details>
+
 ## Install
 
 | Where | How |
