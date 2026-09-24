@@ -29,7 +29,7 @@ internal sealed class TrayIconService : IDisposable
 
     /// <summary>Menu command ids. Any value; they only travel within this window.</summary>
     private const int CmdPanel = 1, CmdOpen = 2, CmdHide = 3, CmdPromote = 4,
-        CmdSimple = 5, CmdRestore = 6, CmdStopEngine = 7, CmdExit = 8;
+        CmdSimple = 5, CmdClose = 6, CmdStopEngine = 7, CmdExit = 8;
 
     private const string ClassName = "DispCtrl.Tray";
 
@@ -479,10 +479,6 @@ internal sealed class TrayIconService : IDisposable
             Item(menu, CmdOpen, "Open DispCtrl");
             Item(menu, CmdSimple, "Simple view", simple ? MENU_ITEM_FLAGS.MF_CHECKED : 0);
             _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_SEPARATOR, 0, default);
-            // The way back, where somebody looking at a dark or tinted screen
-            // may reach before they remember Ctrl+Alt+Backspace.
-            Item(menu, CmdRestore, "Put every display back");
-            _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_SEPARATOR, 0, default);
 
             // Windows' own per-icon switch, offered where somebody is looking at
             // the icon. Greyed until Windows has a record of it to change.
@@ -494,6 +490,9 @@ internal sealed class TrayIconService : IDisposable
             _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_SEPARATOR, 0, default);
             Item(menu, CmdStopEngine, "Stop the engine");
             Item(menu, CmdExit, "Exit DispCtrl");
+            // The window and the panel only: the engine, and with it this icon,
+            // the hotkeys and the hidden taskbars, carries on.
+            Item(menu, CmdClose, "Close the app");
 
             if (!PInvoke.GetCursorPos(out System.Drawing.Point point)) return;
 
@@ -552,13 +551,8 @@ internal sealed class TrayIconService : IDisposable
                 }
                 break;
 
-            case CmdRestore:
-                lock (_gate)
-                {
-                    _settings.RestoreVisibility();
-                    _persist(_settings);
-                }
-                Log.Write("tray: every display put back; Settings > Undo the way back reverses it");
+            case CmdClose:
+                if (!QuickPanelSignal.RequestQuit()) Log.Write("tray: no app running to close");
                 break;
 
             case CmdStopEngine:
