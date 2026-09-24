@@ -52,9 +52,10 @@ $notes.Add('|---|---|')
 $notes.Add('| `DispCtrl-*-setup.exe` | Most people. Per-user, no admin rights, starts at sign-in. |')
 $notes.Add('| `DispCtrl-*-desktop.zip` | Portable: unzip anywhere and run `DispCtrl.App.exe`. |')
 $notes.Add('| `DispCtrl-*-cli.zip` | `dispctrl.exe` and the engine, with no window. |')
+$notes.Add('| `DispCtrl-*-win-arm64-*.zip` | The same two, native for Windows on ARM: Snapdragon laptops, a Raspberry Pi. No taskbar glass there yet. |')
 $notes.Add('| `DispCtrl-*.msix` | The Microsoft Store package. Installs directly only when it is signed. |')
 $notes.Add('')
-$notes.Add('Windows 11, x64. Self-contained, so no .NET install is needed. Settings in `%LOCALAPPDATA%\DispCtrl` carry over between versions and between the installer and the zips.')
+$notes.Add('Windows 11, x64 or ARM64. The installer and the Store package are x64 and run emulated on ARM; the arm64 zips run natively. Self-contained, so no .NET install is needed. Settings in `%LOCALAPPDATA%\DispCtrl` carry over between versions and between the installer and the zips.')
 if ($ArtifactsDirectory -and (Test-Path -LiteralPath $ArtifactsDirectory)) {
     $sums = @(Get-ChildItem -LiteralPath $ArtifactsDirectory -Recurse -Filter '*SHA256SUMS.txt' | ForEach-Object { Get-Content -LiteralPath $_.FullName } | Where-Object { $_ } | Sort-Object -Unique)
     if ($sums.Count) {

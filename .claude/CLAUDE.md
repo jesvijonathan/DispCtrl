@@ -1060,6 +1060,15 @@ unrecallable.
   `bin`), publishes the app before adding the CLI files (publish keeps a newer
   destination, which left the app with the CLI's copies and a startup crash),
   and launches the result before packaging it.
+- **ARM64 is a second publish, not a second project.** `Directory.Build.props`
+  defaults `RuntimeIdentifier` to `win-x64` and follows `-r win-arm64`;
+  `Publish.ps1 -Architectures` (both by default) writes `desktop-arm64` and
+  `cli-arm64` beside the x64 folders and zips them `win-arm64-*`. Installer and
+  MSIX stay x64 (they run emulated on ARM). The glass helper is x64 MinGW and
+  Explorer is native ARM64 there, so an ARM engine builds without it
+  (`SkipTaskbarGlass`) and `TaskbarGlassController` reports it unavailable
+  whenever the OS is ARM64, emulated or not. Only the host's own architecture
+  is launch-probed. Untested on ARM hardware.
 - `DispCtrlVersion` in `Directory.Build.props` is the default `Version`; a
   stable tag that disagrees with it fails `release.yml`. Bump it in the
   release commit. See `docs/RELEASING.md` for the whole procedure and the
