@@ -220,19 +220,13 @@
 
           <!-- Following the room's light: last, after a small gap, because it
                is a way of driving unison rather than part of setting it up.
-               Hidden for now while the sensor's handling is proven on a laptop
-               that has one; the engine, `dispctrl ambient` and the view model
-               behind these bindings all stay live. To bring it back, remove
-               the comment markers around the block below.
-
                The options fold under the switch with a chevron that shows or
                hides the cards after it, not a nested expander: a
                SettingsExpander inside Items takes the process down, and cards
                with bound Visibility are the pattern the calibration step
                already uses. Calibration is capture, not a lux slider: cover the
                sensor for dark, shine a light at it for bright. A two-way slider
-               would also write its own maximum over a captured value above it.
-
+               would also write its own maximum over a captured value above it. -->
           <tk:SettingsCard Header="Follow the room's light"
                            Description="{x:Bind ViewModel.AmbientStatus, Mode=OneWay}"
                            Margin="0,8,0,0">
@@ -241,7 +235,7 @@
             </tk:SettingsCard.HeaderIcon>
             <StackPanel Orientation="Horizontal" Spacing="8">
               <ToggleSwitch IsOn="{x:Bind ViewModel.AmbientEnabled, Mode=TwoWay}"
-                            IsEnabled="{x:Bind ViewModel.AmbientAvailable, Mode=OneWay}"
+                            IsEnabled="{x:Bind ViewModel.AmbientToggleEnabled, Mode=OneWay}"
                             AutomationProperties.Name="AmbientEnabled"/>
               <ToggleButton IsChecked="{x:Bind ViewModel.AmbientOptionsOpen, Mode=TwoWay}"
                             ToolTipService.ToolTip="Light sensor options"
@@ -260,7 +254,7 @@
                            IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}"
                            Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="12">
-              <Slider Value="{x:Bind ViewModel.AmbientDark, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="200" AutomationProperties.Name="AmbientDark"/>
+              <Slider Value="{x:Bind ViewModel.AmbientDark, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="200" AutomationProperties.Name="AmbientDark"/>
               <TextBlock Text="{x:Bind ViewModel.AmbientDark, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
               <TextBlock Text="%" VerticalAlignment="Center"/>
             </StackPanel>
@@ -269,7 +263,7 @@
                            IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}"
                            Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="12">
-              <Slider Value="{x:Bind ViewModel.AmbientBright, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="200" AutomationProperties.Name="AmbientBright"/>
+              <Slider Value="{x:Bind ViewModel.AmbientBright, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="200" AutomationProperties.Name="AmbientBright"/>
               <TextBlock Text="{x:Bind ViewModel.AmbientBright, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
               <TextBlock Text="%" VerticalAlignment="Center"/>
             </StackPanel>
@@ -296,7 +290,6 @@
               <ToggleSwitch IsOn="{x:Bind ViewModel.AmbientLearn, Mode=TwoWay}" AutomationProperties.Name="AmbientLearn"/>
             </StackPanel>
           </tk:SettingsCard>
-          -->
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 

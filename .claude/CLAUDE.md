@@ -436,11 +436,13 @@ for that light, newest winning, kept monotonic (wluma's idea). Report thresholds
 5% and 1 lux (both must be met). Windows' own adaptive brightness is switched
 off when this is on, by the app and by the engine: two hands on one control fight.
 
-The Displays page's section is **commented out** in `DisplaysPage.xaml` at the
-owner's request until it is proven on a sensor; the view model and handlers
-behind it are live. It sits after "Each display now", its options folded by a
-chevron `ToggleButton` over cards with bound Visibility - not a nested
-expander (see WinUI traps).
+The Displays page's section sits after "Each display now", its options
+folded by a chevron `ToggleButton` over cards with bound Visibility - not a
+nested expander (see WinUI traps). Switching it on switches unison on (the
+engine follows only with both). The switch stays enabled while on even with no
+sensor (`AmbientToggleEnabled`), or one left on could never be turned off. The
+lux reading refreshes every 2 s only while the options are open and the window
+visible.
 
 **Monitors do not share their sensors.** MCCS `0x66` is only on/off
 (ddcutil: 01 disabled, 02 enabled); no VCP code carries a reading. The Dell
