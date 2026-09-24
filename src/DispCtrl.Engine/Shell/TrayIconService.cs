@@ -28,7 +28,8 @@ internal sealed class TrayIconService : IDisposable
     private const uint TrayCallback = PInvoke.WM_APP + 0x20;
 
     /// <summary>Menu command ids. Any value; they only travel within this window.</summary>
-    private const int CmdPanel = 1, CmdOpen = 2, CmdHide = 3, CmdPromote = 4;
+    private const int CmdPanel = 1, CmdOpen = 2, CmdHide = 3, CmdPromote = 4,
+        CmdSimple = 5, CmdClose = 6, CmdStopEngine = 7, CmdExit = 8;
 
     private const string ClassName = "DispCtrl.Tray";
 
@@ -472,8 +473,11 @@ internal sealed class TrayIconService : IDisposable
 
         try
         {
+            bool simple;
+            lock (_gate) simple = _settings.Global.QuickPanel.Simple;
             Item(menu, CmdPanel, "Quick panel");
             Item(menu, CmdOpen, "Open DispCtrl");
+            Item(menu, CmdSimple, "Simple view", simple ? MENU_ITEM_FLAGS.MF_CHECKED : 0);
             _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_SEPARATOR, 0, default);
 
             // Windows' own per-icon switch, offered where somebody is looking at
@@ -483,6 +487,12 @@ internal sealed class TrayIconService : IDisposable
                 (promoted == true ? MENU_ITEM_FLAGS.MF_CHECKED : 0)
                 | (promoted is null ? MENU_ITEM_FLAGS.MF_GRAYED : 0));
             Item(menu, CmdHide, "Hide this icon");
+            _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_SEPARATOR, 0, default);
+            Item(menu, CmdStopEngine, "Stop the engine");
+            Item(menu, CmdExit, "Exit DispCtrl");
+            // The window and the panel only: the engine, and with it this icon,
+            // the hotkeys and the hidden taskbars, carries on.
+            Item(menu, CmdClose, "Close the app");
 
             if (!PInvoke.GetCursorPos(out System.Drawing.Point point)) return;
 
@@ -531,6 +541,30 @@ internal sealed class TrayIconService : IDisposable
                     Log.Write("tray: Windows has no record of the icon to move yet");
                 break;
 
+            case CmdSimple:
+                // The same setting as the dot in the panel's title bar; an open
+                // panel follows the file, as it does for every other change.
+                lock (_gate)
+                {
+                    _settings.Global.QuickPanel.Simple = !_settings.Global.QuickPanel.Simple;
+                    _persist(_settings);
+                }
+                break;
+
+            case CmdClose:
+                if (!QuickPanelSignal.RequestQuit()) Log.Write("tray: no app running to close");
+                break;
+
+            case CmdStopEngine:
+                StopEngine();
+                break;
+
+            case CmdExit:
+                // The app first, while the engine can still log that it asked.
+                if (!QuickPanelSignal.RequestQuit()) Log.Write("tray: no app running to close");
+                StopEngine();
+                break;
+
             case CmdHide:
                 // Turned off in the file both processes read, so the panel's own
                 // switch shows it off too rather than disagreeing with the tray.
@@ -542,6 +576,27 @@ internal sealed class TrayIconService : IDisposable
 
                 Apply();
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Stops the engine the way <c>DispCtrl.Engine.exe stop</c> does.
+    /// </summary>
+    /// <remarks>
+    /// Through the same named event, never by ending the process: the engine
+    /// has to unwind to put hidden taskbars back, and this thread is its own
+    /// message pump, which the unwinding disposes. The icon leaves with it.
+    /// </remarks>
+    private static void StopEngine()
+    {
+        try
+        {
+            if (EventWaitHandle.TryOpenExisting(@"Local\DispCtrl.Engine.Stop", out EventWaitHandle? stop))
+                using (stop) stop.Set();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"tray: could not stop the engine: {ex.Message}");
         }
     }
 

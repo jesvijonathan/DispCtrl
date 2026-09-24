@@ -28,6 +28,26 @@ public static class QuickPanelSignal
     private const string AliveName = @"Local\DispCtrl.QuickPanel.Alive";
     private const string IdentifyName = @"Local\DispCtrl.Identify";
     private const string WindowName = @"Local\DispCtrl.App.ShowWindow";
+    private const string QuitName = @"Local\DispCtrl.App.Quit";
+
+    /// <summary>Opens, or creates, the event that asks the running app to close everything and exit.</summary>
+    public static EventWaitHandle OpenQuit() =>
+        new EventWaitHandle(false, EventResetMode.AutoReset, QuitName);
+
+    /// <summary>
+    /// Asks the DispCtrl app to exit: the window, the quick panel, and the
+    /// process that keeps it preloaded. False when no app is running.
+    /// </summary>
+    public static bool RequestQuit()
+    {
+        if (!PanelIsListening()) return false;
+        try
+        {
+            using EventWaitHandle quit = OpenQuit();
+            return quit.Set();
+        }
+        catch (Exception) { return false; }
+    }
 
     /// <summary>Opens, or creates, the event that asks the running app to bring up its window.</summary>
     public static EventWaitHandle OpenWindowEvent() =>
