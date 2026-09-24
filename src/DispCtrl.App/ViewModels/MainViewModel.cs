@@ -540,6 +540,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             Raise();
             Raise(nameof(UnisonVisibility));
             Raise(nameof(UnisonSliderEnabled));
+            Raise(nameof(AmbientStatus));
 
             if (value && !Calibrating) _ = CaptureBaselinesAsync();
         }

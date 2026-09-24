@@ -16,13 +16,22 @@ public sealed partial class DisplaysPage : Page
     // back to the window refreshes at once; the timer only catches a slideshow
     // changing while the page is watched.
     private readonly DispatcherTimer _wallpaperRefresh = new() { Interval = TimeSpan.FromSeconds(10) };
+    // The light sensor's reading, live while its options are open, so covering
+    // it or shining a light at it shows before "This is dark" or "bright" is
+    // pressed. Only then, and only while the window can be seen.
+    private readonly DispatcherTimer _ambientRefresh = new() { Interval = TimeSpan.FromSeconds(2) };
     private Window? _wallpaperWindow;
 
     public DisplaysPage()
     {
         InitializeComponent();
         _wallpaperRefresh.Tick += OnWallpaperRefresh;
-        Unloaded += (_, _) => StopWallpaperRefresh();
+        _ambientRefresh.Tick += (_, _) => _ = ViewModel.RefreshAmbientReadingAsync();
+        Unloaded += (_, _) =>
+        {
+            StopWallpaperRefresh();
+            ViewModel.PropertyChanged -= OnViewModelChanged;
+        };
 
         // Dark mode is read from Windows rather than stored here, so the switch
         // has to be told when something else moves it - Windows' own Settings,
@@ -34,9 +43,9 @@ public sealed partial class DisplaysPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         LoadArrangement();
-        // With the page's light sensor section, which is commented out for
-        // now; enumerating sensors is slow, and nothing on the page shows them.
-        // _ = ViewModel.LoadAmbientSensorsAsync();
+        _ = ViewModel.LoadAmbientSensorsAsync();
+        ViewModel.PropertyChanged -= OnViewModelChanged;
+        ViewModel.PropertyChanged += OnViewModelChanged;
         _wallpaperWindow = App.MainWindow;
         _wallpaperWindow.AppWindow.Changed += OnWallpaperWindowChanged;
         _wallpaperWindow.Activated += OnWallpaperWindowActivated;
@@ -78,8 +87,20 @@ public sealed partial class DisplaysPage : Page
     }
     private void OnWallpaperWindowClosed(object sender, WindowEventArgs args) => StopWallpaperRefresh();
 
+    private void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MainViewModel.AmbientOptionsOpen) or "") UpdateAmbientRefresh();
+    }
+
+    private void UpdateAmbientRefresh()
+    {
+        if (ViewModel.AmbientOptionsOpen && CanRefreshWallpaper) _ambientRefresh.Start();
+        else _ambientRefresh.Stop();
+    }
+
     private void UpdateWallpaperVisibility()
     {
+        UpdateAmbientRefresh();
         bool visible = CanRefreshWallpaper;
         if (ArrangeSurface.WallpapersActive == visible) return;
         ArrangeSurface.WallpapersActive = visible;
@@ -100,6 +121,7 @@ public sealed partial class DisplaysPage : Page
     private void StopWallpaperRefresh()
     {
         _wallpaperRefresh.Stop();
+        _ambientRefresh.Stop();
         ArrangeSurface.WallpapersActive = false;
         if (_wallpaperWindow is not { } window) return;
         window.AppWindow.Changed -= OnWallpaperWindowChanged;
