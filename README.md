@@ -134,7 +134,11 @@ Default shortcuts (change them on the Hotkeys page, where more are set up and sw
 <tr>
 <td width="40%" align="center" valign="middle">
 
-<img src="site/assets/screenshots/quick-panel.png" alt="The quick panel with brightness sliders and feature toggles" width="320">
+<img src="site/assets/screenshots/quick-panel-simple.png" alt="The quick panel in simple mode: one brightness slider for all displays and one for each" width="320"><br>
+<sub>Simple mode, how it opens on a new install</sub>
+
+<img src="site/assets/screenshots/quick-panel.png" alt="The full quick panel with brightness sliders and feature toggles" width="320"><br>
+<sub>The full panel, one click on the dot away</sub>
 
 </td>
 <td width="60%" valign="middle">
@@ -147,7 +151,10 @@ Click the tray icon to bring your display controls within reach.
 Adjust brightness, night light, dark mode, focus, keep-awake, taskbar hiding and OLED care. Each toggle's arrow opens its options.
 
 **Control each display**<br>
-Rows below the toggles give you individual monitor controls. Simple mode keeps the panel to brightness alone.
+Rows below the toggles give you individual monitor controls.
+
+**Simple mode**<br>
+New installs open with just brightness: one slider for every display together, and one for each. The dot in the title bar switches to the full panel and back.
 
 **Make it yours**<br>
 Fold, reorder or hide sections. Add custom tiles to run a `dispctrl` command or open a program.
