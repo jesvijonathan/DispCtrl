@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('stable','beta')][string]$Channel = 'beta',
-    [string]$Version = '0.1.1',
+    [string]$Version = '0.1.2',
     [switch]$SkipTests,
     [switch]$Sign,
     # Keep earlier builds in artifacts/. By default they are removed: every

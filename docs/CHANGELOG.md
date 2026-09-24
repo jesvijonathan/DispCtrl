@@ -8,6 +8,8 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-25
+
 ### Added
 - `dispctrl ambient get|set|reset|capture|forget`: every setting for following the room's light, what the sensor reads now, and calibration - cover the sensor and `capture --as dark`, light it and `capture --as bright`.
 - The tray icon's right-click menu can switch the quick panel between simple and full view, stop the engine, close the app while the engine carries on, or exit DispCtrl altogether - the app, the quick panel and the engine.
@@ -21,6 +23,7 @@ using DispCtrl, not for people reading the diff.
 - Taskbar glass did nothing in the Microsoft Store version: Windows would not let Explorer load its helper from the Store's install folder.
 - Following the room's light barely moved when the sensor was covered, never reached full brightness under a torch, and was slow to react: it stopped partway after the sensor's last reading, and a light that kept changing kept restarting its wait. It now reaches the new level within a few seconds, walks there in steps rather than jumping, and still ignores a hand passing the sensor.
 - Following the room's light no longer fights Replace Windows brightness over the built-in panel.
+- The simple quick panel lines up: each name, slider and value on the same edges as the title.
 - The quick panel takes focus when it opens from the tray icon, instead of opening inactive with a grey background until clicked.
 
 ## [0.1.1] - 2026-09-24
@@ -88,6 +91,7 @@ The first public release.
 - A per-user installer, portable and CLI zips, and an MSIX for the Microsoft
   Store.
 
-[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jesvijonathan/DispCtrl/releases/tag/v0.1.0

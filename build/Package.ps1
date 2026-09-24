@@ -5,7 +5,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9.-]{3,50}$')][string]$IdentityName,
     [string]$Publisher,
     [string]$PublisherDisplayName = 'JustVStudio',
-    [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')][string]$Version = '0.1.1.0',
+    [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')][string]$Version = '0.1.2.0',
     [string]$MakeAppx,
     # Signs with Sign.ps1. The certificate subject must equal -Publisher.
     [switch]$Sign,

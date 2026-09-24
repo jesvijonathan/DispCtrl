@@ -9,7 +9,7 @@
   <!-- The Store's identity, from Partner Center > Product identity. Not a
        secret: every published package carries it. build/Package.ps1 packs with
        it unless told otherwise; CI's validation build passes a development one. -->
-  <Identity Name="JustVStudio.DispCtrl" Publisher="CN=C082656A-D91F-4532-A22C-94A2FE40C410" Version="0.1.1.0" ProcessorArchitecture="x64"/>
+  <Identity Name="JustVStudio.DispCtrl" Publisher="CN=C082656A-D91F-4532-A22C-94A2FE40C410" Version="0.1.2.0" ProcessorArchitecture="x64"/>
   <Properties>
     <DisplayName>DispCtrl</DisplayName>
     <PublisherDisplayName>JustVStudio</PublisherDisplayName>
