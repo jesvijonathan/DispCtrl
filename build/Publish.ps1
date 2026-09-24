@@ -43,6 +43,13 @@ try {
     # app's publish skipped shared files the CLI's publish had just written
     # (it keeps a newer destination), the app ran with the CLI's copies, and it
     # crashed at start: "Cannot locate resource ...themeresources.xaml".
+    #
+    # The app's intermediates go first. MSBuild reuses a stale generated PRI and
+    # compiled XAML across incremental builds, and the app then dies at start
+    # with that same missing-themeresources parse error - in bin as well as in
+    # the published folder. Deleting obj is the only thing that clears it;
+    # dotnet clean leaves the PRI behind.
+    Remove-Item -Recurse -Force 'src/DispCtrl.App/obj' -ErrorAction SilentlyContinue
     & dotnet publish src/DispCtrl.App/DispCtrl.App.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -o $desktop
     if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed.' }
     Get-ChildItem -LiteralPath $cli -Recurse -File | ForEach-Object {
