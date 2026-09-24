@@ -317,6 +317,23 @@ a.lrow:hover,a.lrow:focus-visible{background:var(--soft);outline:none}
 .lrow code{font:12.5px var(--mono);color:var(--a1);background:var(--soft);padding:2px 7px;border-radius:6px}
 .lrow span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lrow em{font-style:normal;font-size:11.5px;color:var(--muted);border:1px solid var(--line2);border-radius:999px;padding:1px 8px}
+.lrow{grid-template-columns:auto 1fr auto auto}
+.lrow i{font-style:normal;font-size:11.5px;color:var(--dim);white-space:nowrap}
+.lsort{display:flex;gap:6px;padding:10px 20px;border-bottom:1px solid var(--line)}
+.lsort button{font:inherit;font-size:12.5px;color:var(--muted);background:none;border:1px solid transparent;border-radius:999px;padding:3px 11px;cursor:pointer}
+.lsort button[aria-pressed="true"]{color:var(--text);background:var(--soft);border-color:var(--line2)}
+.lsort button:focus-visible{outline:2px solid var(--a1);outline-offset:1px}
+.lsort .lfind{margin-left:auto;display:grid;place-items:center;width:30px;height:28px;padding:0}
+.lsort .lfind svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.lsort .lfind[aria-expanded="true"]{color:var(--text);background:var(--soft);border-color:var(--line2)}
+.libtip{position:fixed;z-index:60;width:300px;padding:14px 16px;border-radius:14px;border:1px solid var(--line2);background:var(--card);
+  box-shadow:0 20px 50px rgba(0,0,0,.35);font-size:13px;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
+.libtip.show{opacity:1;transform:none}
+.libtip b{display:block;font-size:14.5px;margin-bottom:2px}
+.libtip code{font:12px var(--mono);color:var(--a1)}
+.libtip dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:10px 0 0}
+.libtip dt{color:var(--dim)}.libtip dd{margin:0;color:var(--text)}
+.libtip .more{color:var(--dim);margin-top:8px;font-size:12px}
 .lfoot{display:flex;gap:10px;padding:16px 20px;flex-wrap:wrap}
 .lfoot .btn{padding:10px 16px;font-size:14px}
 
@@ -749,6 +766,11 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <div><b id="libBrands">2</b><span>makers</span></div>
         <div><b id="libCodes">1</b><span>mapped codes</span></div>
       </div>
+      <div class="lsort" role="group" aria-label="Order the library">
+        <button type="button" data-sort="new" aria-pressed="true">Newest</button>
+        <button type="button" data-sort="reports" aria-pressed="false">Most reported</button>
+        <button type="button" class="lfind" id="libFindBtn" aria-label="Search the library" aria-expanded="false" aria-controls="libSearch" data-tooltip="Search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg></button>
+      </div>
       <div class="lsearch" id="libSearch" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
         <input id="libFind" type="search" autocomplete="off" placeholder="Search a model, maker or token" aria-label="Search the device library">
@@ -950,9 +972,12 @@ const parts = [...stack.querySelectorAll('[data-depth]')];
 requestAnimationFrame(() => setTimeout(() => stack.classList.add('in'), 80));
 if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   let mx = 0, my = 0, tx = 0, ty = 0, frame = 0;
+  const narrowHero = matchMedia('(max-width: 640px)');
   const paint = () => {
     frame = 0; tx += (mx - tx) * .12; ty += (my - ty) * .12;
-    const scroll = Math.min(scrollY, 900);
+    // On a phone the pointer never moves them, and the full drift carried the
+    // screenshots away from the text; a third of it is enough to feel.
+    const scroll = Math.min(scrollY, 900) * (narrowHero.matches ? .3 : 1);
     for (const el of parts) {
       const d = +el.dataset.depth;
       el.style.transform = `translate3d(${(tx * d).toFixed(2)}px, ${(ty * d - scroll * d / 180).toFixed(2)}px, 0)`;
@@ -1044,7 +1069,8 @@ const lines = [
   ['c', '# keep the screen on and stay Available'], ['p', 'dispctrl awake set --stay-active on']
 ];
 const term = $('term'); let typed = false;
-const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+// Also quotes: model names from contributors go into attributes.
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 async function type() {
   if (typed) return; typed = true; let html = '';
   const quick = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1126,31 +1152,97 @@ const libHref = m => /^[A-Z]{3}-[0-9A-F]{4}$/.test(m.key)
   ? LIB_TREE + (m.record ? 'blob/master/devices/' + m.key.slice(0, 3) + '/' + m.key.slice(4) + '/record.md'
                          : 'tree/master/devices/' + m.key.slice(0, 3) + '/' + m.key.slice(4))
   : LIB_TREE + 'blob/master/devices/CATALOG.md';
+// Newest first by default: the order monitors reached the library. Or the ones
+// most owners have confirmed. Either way ties fall back to the other, then the key.
+let libOrder = 'new';
+const byNew = (a, b) => (b.added || '').localeCompare(a.added || '') || b.reports - a.reports || a.key.localeCompare(b.key);
+const byReports = (a, b) => b.reports - a.reports || (b.added || '').localeCompare(a.added || '') || a.key.localeCompare(b.key);
+document.querySelectorAll('.lsort button').forEach(button => button.onclick = () => {
+  libOrder = button.dataset.sort;
+  document.querySelectorAll('.lsort button').forEach(x => x.setAttribute('aria-pressed', String(x === button)));
+  drawLib();
+});
+// A mouse, not a finger: the preview card is for pointing, and a tap opens the record.
+const fineHover = matchMedia('(hover: hover) and (pointer: fine)').matches;
 function drawLib() {
   const q = libFind.value.trim().toLowerCase();
-  const hits = q ? libModels.filter(m => (m.key + ' ' + m.name + ' ' + m.panel).toLowerCase().includes(q)) : libModels;
+  const all = [...libModels].sort(libOrder === 'reports' ? byReports : byNew);
+  const hits = q ? all.filter(m => (m.key + ' ' + m.name + ' ' + m.panel).toLowerCase().includes(q)) : all;
   libCount.textContent = q ? hits.length + ' / ' + libModels.length : '';
   if (!hits.length) {
     libRows.innerHTML = '<div class="lnote">No model matches that yet. <a href="https://github.com/jesvijonathan/DispCtrl/tree/master/devices#contributing-one">Add yours</a>.</div>';
     return;
   }
   libRows.innerHTML = hits.slice(0, LIB_DRAWN).map(m =>
-    '<a class="lrow" href="' + libHref(m) + '" target="_blank" rel="noopener" title="See everything ' + esc(m.name) + ' reports"><code>' + esc(m.key) + '</code><span>' + esc(m.name) + '</span><em>' + esc(m.panel) + '</em></a>').join('') +
+    '<a class="lrow" href="' + libHref(m) + '" target="_blank" rel="noopener" data-key="' + esc(m.key) + '"' + (fineHover ? ' data-tooltip=""' : ' title="See everything ' + esc(m.name) + ' reports"') + '><code>' + esc(m.key) + '</code><span>' + esc(m.name) + '</span>'
+    + '<i>' + (m.reports ? m.reports + (m.reports === 1 ? ' report' : ' reports') : '') + '</i><em>' + esc(m.panel) + '</em></a>').join('') +
     (hits.length > LIB_DRAWN ? '<div class="lnote">' + (hits.length - LIB_DRAWN) + ' more. Keep typing, or browse the catalogue.</div>' : '');
   libRows.scrollTop = 0;
 }
 libFind.oninput = drawLib;
+// Search sits behind a button beside the order; opening it focuses the box,
+// and Escape (or the button again) clears and closes it.
+const libFindBtn = $('libFindBtn');
+const showSearch = open => {
+  $('libSearch').hidden = !open; libFindBtn.setAttribute('aria-expanded', String(open));
+  if (open) libFind.focus(); else if (libFind.value) { libFind.value = ''; drawLib(); }
+};
+libFindBtn.onclick = () => showSearch($('libSearch').hidden);
+libFind.addEventListener('keydown', e => { if (e.key === 'Escape') { showSearch(false); libFindBtn.focus(); } });
 fetch('https://raw.githubusercontent.com/jesvijonathan/DispCtrl/master/devices/index.json').then(r => r.ok ? r.json() : null).then(d => {
   if (!d || !d.models) return;
   const entries = Object.entries(d.models);
-  libModels = entries.map(([key, m]) => ({ key, name: m.name || 'Unnamed model', panel: m.panel || 'DDC/CI', record: !!m.record }));
+  libModels = entries.map(([key, m]) => ({ key, name: m.name || 'Unnamed model', panel: m.panel || 'DDC/CI', record: !!m.record,
+    reports: m.reports || 0, added: m.added || '', codes: m.codes || 0, writable: m.writable || 0 }));
   $('libModels').textContent = d.counts?.models ?? libModels.length;
   $('libBrands').textContent = d.counts?.brands ?? Object.keys(d.brands || {}).length;
   $('libCodes').textContent = entries.reduce((n, [, m]) => n + (m.codes || 0), 0);
-  // A search box over a handful of rows is furniture; it earns its place later.
-  $('libSearch').hidden = libModels.length < 9;
   drawLib();
 }).catch(() => {});
+
+// The preview card: what the index knows at once, then the model's own record,
+// fetched on first hover and kept. Record text comes from contributors, so every
+// value is escaped; nothing from it becomes markup.
+if (fineHover) {
+  const tip = document.createElement('div');
+  tip.className = 'libtip'; tip.setAttribute('role', 'tooltip'); document.body.appendChild(tip);
+  const records = new Map();
+  const RAW = 'https://raw.githubusercontent.com/jesvijonathan/DispCtrl/master/devices/';
+  const WANT = ['Highest mode', 'Physical size', 'HDR', 'Variable refresh', 'Connector', 'Bit depth', 'Made'];
+  const recordOf = key => {
+    if (!records.has(key)) records.set(key, fetch(RAW + key.slice(0, 3) + '/' + key.slice(4) + '/record.md').then(r => r.ok ? r.text() : '').then(text => {
+      const rows = {};
+      for (const m of text.matchAll(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$/gm)) if (WANT.includes(m[1]) && !(m[1] in rows)) rows[m[1]] = m[2];
+      const controls = text.match(/Controls it lists \((\d+), (\d+) DispCtrl will drive\)/);
+      return { rows, controls: controls ? controls[1] + ' listed, ' + controls[2] + ' DispCtrl drives' : '' };
+    }).catch(() => ({ rows: {}, controls: '' })));
+    return records.get(key);
+  };
+  let current = null;
+  const place = row => {
+    const r = row.getBoundingClientRect(), w = 300;
+    const left = r.left - w - 14 > 12 ? r.left - w - 14 : Math.min(r.right + 14, innerWidth - w - 12);
+    tip.style.left = left + 'px';
+    tip.style.top = Math.max(12, Math.min(r.top - 10, innerHeight - tip.offsetHeight - 12)) + 'px';
+  };
+  const draw = (m, record) => {
+    const facts = [['Panel', m.panel], ['Added', m.added ? new Date(m.added).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''],
+      ['Reports', m.reports ? String(m.reports) : 'none yet'], ['Mapped codes', m.codes ? m.codes + (m.writable ? ' (' + m.writable + ' writable)' : '') : '']];
+    if (record) { for (const k of WANT) if (record.rows[k]) facts.push([k, record.rows[k]]); if (record.controls) facts.push(['Controls', record.controls]); }
+    tip.innerHTML = '<b>' + esc(m.name) + '</b><code>' + esc(m.key) + '</code><dl>'
+      + facts.filter(f => f[1]).map(f => '<dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd>').join('') + '</dl>'
+      + (m.record && !record ? '<div class="more">Reading its record...</div>' : '<div class="more">Click for the full record on GitHub.</div>');
+  };
+  libRows.addEventListener('mouseover', e => {
+    const row = e.target.closest('.lrow[data-key]'); if (!row || row === current) return;
+    current = row;
+    const m = libModels.find(x => x.key === row.dataset.key); if (!m) return;
+    draw(m, null); place(row); tip.classList.add('show');
+    if (m.record) recordOf(m.key).then(record => { if (current === row) { draw(m, record); place(row); } });
+  });
+  libRows.addEventListener('mouseleave', () => { current = null; tip.classList.remove('show'); });
+  libRows.addEventListener('scroll', () => { current = null; tip.classList.remove('show'); }, { passive: true });
+}
 
 $('wingetCmd').onclick = () => navigator.clipboard.writeText('winget install 9PNQWKNRGVR0 -s msstore').then(() => toast('Command copied'));
 

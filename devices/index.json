@@ -11,11 +11,11 @@
     "TMX": {"brandCodes":0,"models":1}
   },
   "models": {
-    "BOE-0923": {"name":"Built-in panel, 15.5 inch, in Dell Latitude 5540","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"extends":[]},
-    "DEL-A234": {"name":"Dell U2424H","record":true,"codes":1,"panel":"LCD (TFT)","writable":0,"reports":1,"extends":[]},
-    "DEL-D146": {"name":"Dell P2723DE","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"extends":[]},
-    "GSM-5C89": {"name":"LG Electronics FALCON","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"extends":[]},
-    "SDC-4154": {"name":"Samsung Display 14.0 inch 2880 x 1800 panel","record":true,"codes":0,"panel":"OLED","writable":0,"reports":0,"extends":[]},
-    "TMX-1400": {"name":"TMX TL140BDXP01-0","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"extends":[]}
+    "BOE-0923": {"name":"Built-in panel, 15.5 inch, in Dell Latitude 5540","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-24T17:28:24Z","extends":[]},
+    "DEL-A234": {"name":"Dell U2424H","record":true,"codes":1,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T16:10:30Z","extends":[]},
+    "DEL-D146": {"name":"Dell P2723DE","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T17:28:24Z","extends":[]},
+    "GSM-5C89": {"name":"LG Electronics FALCON","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T16:35:53Z","extends":[]},
+    "SDC-4154": {"name":"Samsung Display 14.0 inch 2880 x 1800 panel","record":true,"codes":0,"panel":"OLED","writable":0,"reports":0,"added":"2026-09-24T16:10:30Z","extends":[]},
+    "TMX-1400": {"name":"TMX TL140BDXP01-0","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-24T16:35:53Z","extends":[]}
   }
 }

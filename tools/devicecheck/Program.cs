@@ -261,6 +261,7 @@ static int Index(string root, bool check)
 {
     var definitions = DeviceLibrary.LoadLibrary(root);
     var models = DeviceLayout.Models(root).ToList();
+    var added = AddedDates(root);
     var brands = models.Select(m => m[..3]).Concat(definitions.Keys.Where(k => k.Length == 3)).Distinct().Order(StringComparer.Ordinal).ToList();
     var opts = new JsonSerializerOptions { WriteIndented = false };
 
@@ -291,6 +292,9 @@ static int Index(string root, bool check)
             // How many shares it arrived in: a count to judge a mapping by,
             // with no name attached to any of them.
             ["reports"] = ReadReports(DeviceLayout.ReportsPath(root, m))?.Count ?? 0,
+            // When the model first reached the library, so the website can show
+            // the newest first. Null without git history (a shallow clone).
+            ["added"] = added.TryGetValue(m, out string? when) ? when : null,
             ["extends"] = new JsonArray((d?.Extends ?? []).Select(e => (JsonNode?)JsonValue.Create(e)).ToArray()),
         };
         return $"    \"{m}\": {entry.ToJsonString(opts)}";
@@ -533,6 +537,40 @@ static int Guard(string before, string after)
     return found.Count;
 
     static string Norm(string path) => File.ReadAllText(path).Replace("\r\n", "\n").TrimEnd();
+}
+
+// When each model's folder first appeared, from git history: the first commit
+// that added any file under BRAND/PRODUCT/. Renames count as additions, so a
+// model moved in from the old flat layout dates from the move. One git call for
+// the whole library; empty when git or its history is not there.
+static Dictionary<string, string> AddedDates(string root)
+{
+    var added = new Dictionary<string, string>(StringComparer.Ordinal);
+    try
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("git")
+        {
+            WorkingDirectory = root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,
+        };
+        foreach (string a in new[] { "log", "--reverse", "--no-renames", "--diff-filter=A", "--relative", "--name-only", "--format=@%cI", "--", "." })
+            start.ArgumentList.Add(a);
+        using var git = System.Diagnostics.Process.Start(start);
+        if (git is null) return added;
+        string output = git.StandardOutput.ReadToEnd();
+        git.WaitForExit();
+        if (git.ExitCode != 0) return added;
+        string? commit = null;
+        foreach (string raw in output.Split('\n'))
+        {
+            string line = raw.Trim();
+            // One form for every commit, whatever timezone it was made in.
+            if (line.StartsWith('@')) { commit = DateTimeOffset.Parse(line[1..], System.Globalization.CultureInfo.InvariantCulture).UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture); continue; }
+            var m = Regex.Match(line, @"^([A-Z]{3})/([0-9A-F]{4})/");
+            if (commit is not null && m.Success) added.TryAdd(m.Groups[1].Value + "-" + m.Groups[2].Value, commit);
+        }
+    }
+    catch (System.ComponentModel.Win32Exception) { }
+    return added;
 }
 
 // From the first, flat layout: definitions/DEL-A234.json, definitions/DEL.json,
