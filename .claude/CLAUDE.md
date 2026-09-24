@@ -970,7 +970,12 @@ unrecallable.
   `%LOCALAPPDATA%\DispCtrl` is written in place. Every DispCtrl process in the
   package sees the same view; anything outside it (Explorer, the glass helper,
   an unpackaged build) may not. Registry writes are not redirected - measured
-  with `Invoke-CommandInDesktopPackage`.
+  with `Invoke-CommandInDesktopPackage`. So `SettingsStore.Directory` resolves
+  the **real** folder when packaged (`PackagedFolder`: the package's
+  `LocalCache\Local\DispCtrl`, unless an earlier install's real
+  `%LOCALAPPDATA%\DispCtrl` is in use): through the merged view the data was
+  fine, but "open the log" handed Explorer a path that did not exist for it,
+  and people found no DispCtrl folder in %LOCALAPPDATA% at all.
 - **Explorer cannot load anything from WindowsApps.** The glass helper is
   loaded by Explorer itself (`InitializeXamlDiagnosticsEx` hands it a path),
   and a package's files carry a conditional ACE granting execute only to

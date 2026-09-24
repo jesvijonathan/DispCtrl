@@ -17,6 +17,7 @@ using DispCtrl, not for people reading the diff.
 - The Displays page's light sensor section sits last under Unison brightness, with its options folded under a chevron: the sensor, the levels for a dark room and bright light, calibration ("This is dark", "This is bright") with the sensor's reading shown live, and learning from your adjustments. Switching it on switches unison brightness on too, since that is what it drives.
 
 ### Fixed
+- In the Microsoft Store version, "open the log" and the other folder buttons opened nothing, and no DispCtrl folder appeared in `%LOCALAPPDATA%`. The data was always kept, in the app's own folder under `%LOCALAPPDATA%\Packages`; the app now uses and shows that real folder.
 - Taskbar glass did nothing in the Microsoft Store version: Windows would not let Explorer load its helper from the Store's install folder.
 - Following the room's light barely moved when the sensor was covered, never reached full brightness under a torch, and was slow to react: it stopped partway after the sensor's last reading, and a light that kept changing kept restarting its wait. It now reaches the new level within a few seconds, walks there in steps rather than jumping, and still ignores a hand passing the sensor.
 - Following the room's light no longer fights Replace Windows brightness over the built-in panel.

@@ -25,7 +25,7 @@ namespace DispCtrl.Core.Settings;
 public partial class SettingsJsonContext : JsonSerializerContext;
 
 /// <summary>Loads and saves <see cref="DispCtrlSettings"/>.</summary>
-public static class SettingsStore
+public static partial class SettingsStore
 {
     private sealed class Snapshot(JsonNode json) { public JsonNode Json = json; public bool ExternalChanges; }
     private static readonly ConditionalWeakTable<DispCtrlSettings, Snapshot> Snapshots = new();
@@ -56,6 +56,7 @@ public static class SettingsStore
         }
         string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string current = Path.Combine(local, "DispCtrl");
+        if (PackagedFolder(local, current) is { } packaged) return packaged;
 
         if (System.IO.Directory.Exists(current)) return current;
 
@@ -80,6 +81,45 @@ public static class SettingsStore
 
         return current;
     }
+
+    /// <summary>The data folder as it really is on disk, for a Store install.</summary>
+    /// <remarks>
+    /// Inside a package, %LOCALAPPDATA% is a merged view: a folder that existed
+    /// before the install is written in place, a new one lands in the
+    /// package's LocalCache. Every DispCtrl process sees the same view, so the
+    /// data itself was never lost - but each path handed to something outside
+    /// the package pointed nowhere: "open the log" opened nothing, and the
+    /// folder people looked for in %LOCALAPPDATA% did not exist. The real
+    /// folder works from both sides, and the package may write it directly.
+    /// Null when not packaged, or when an earlier install's real folder is the
+    /// one in use.
+    /// </remarks>
+    private static string? PackagedFolder(string local, string current)
+    {
+        if (!OperatingSystem.IsWindows() || PackageFamily() is not { } family) return null;
+        string redirected = Path.Combine(local, "Packages", family, "LocalCache", "Local", "DispCtrl");
+        if (System.IO.Directory.Exists(redirected)) return redirected;
+        // With nothing redirected yet, a folder seen here is the real one.
+        return System.IO.Directory.Exists(current) ? null : redirected;
+    }
+
+    private static unsafe string? PackageFamily()
+    {
+        try
+        {
+            uint length = 0;
+            // 15700 (APPMODEL_ERROR_NO_PACKAGE) for an ordinary process; 122
+            // (ERROR_INSUFFICIENT_BUFFER) with the length it needs for a packaged one.
+            if (GetCurrentPackageFamilyName(ref length, null) != 122 || length == 0) return null;
+            char* name = stackalloc char[(int)length];
+            return GetCurrentPackageFamilyName(ref length, name) == 0 ? new string(name, 0, (int)length - 1) : null;
+        }
+        catch (DllNotFoundException) { return null; }
+        catch (EntryPointNotFoundException) { return null; }
+    }
+
+    [System.Runtime.InteropServices.LibraryImport("kernel32.dll")]
+    private static unsafe partial int GetCurrentPackageFamilyName(ref uint length, char* name);
 
     public static string Path_ => Path.Combine(Directory, "settings.json");
 
