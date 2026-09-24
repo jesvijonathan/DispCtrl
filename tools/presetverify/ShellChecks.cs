@@ -73,6 +73,21 @@ internal static class ShellChecks
         var drift = new AmbientFilter(); drift.Observe(300, 0); Settle(drift, 320, 250);
         check(Math.Abs(drift.SettledLux - 300) < 0.5, "a few percent more light moves nothing");
 
+        // A real sensor jitters in a still room (24, 20, 26 lx), and each wobble
+        // is a report. Waiting for the average to close on every one kept the
+        // engine's clock running almost all the time.
+        var still = new AmbientFilter(); still.Observe(24, 0);
+        var jitter = new Random(1);
+        int woken = 0;
+        for (long t = 250; t < 60_000; t += 250)
+        {
+            double lux = 24 * (1 + (jitter.NextDouble() * 2 - 1) * 0.12);
+            if (!still.Ignores(lux)) woken++;
+            still.Observe(lux, t);
+        }
+        check(woken == 0 && !still.Busy && Math.Abs(still.SettledLux - 24) < 0.5,
+            "a jittering sensor in a still room never starts the clock");
+
         // Learning: a level chosen by hand is where the curve goes in that light,
         // the newest answer wins, and the curve never falls as the light rises.
         var taught = new AmbientSettings { DarkLevel = 20, BrightLevel = 90, BrightLux = 800 };

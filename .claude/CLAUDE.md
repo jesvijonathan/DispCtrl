@@ -417,7 +417,10 @@ now checked in presetverify:
   reading, so when the light stopped changing the average stopped partway
   (a covered sensor settled at ~3/5 of the old light). `AmbientFilter` keeps
   the newest reading as the room's light, and `AmbientSync` runs a 250 ms clock
-  only while a change is being weighed or the level is walking.
+  only while a change is being weighed or the level is walking. A reading inside the threshold (`AmbientFilter.Ignores`)
+  is observed in the sensor callback and starts no clock: waiting for the
+  average to close on each jittery report ran it ~3.8 times a second in a
+  still room.
 - **Its wait was a debounce**, restarted by every reading, so a flickering
   torch never settled. Now Android's shape (`AutomaticBrightnessController`):
   in log lux, +15% held 1.5 s brightens, -20% held 3 s darkens, the smoothed
