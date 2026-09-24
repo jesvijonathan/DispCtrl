@@ -4,7 +4,9 @@ param(
     [Parameter(Mandatory)][string]$Version,
     [string]$Changelog,
     # Folder searched for *SHA256SUMS.txt, whose lines are quoted in the notes.
-    [string]$ArtifactsDirectory
+    [string]$ArtifactsDirectory,
+    # The Store listing; winget installs it through its msstore source.
+    [string]$StoreId = '9PNQWKNRGVR0'
 )
 # Writes the release notes to stdout: the CHANGELOG section for this version,
 # then how to install and how to check a download. Looks for the exact version
@@ -40,6 +42,10 @@ if ($body -and ($body -join '').Trim()) { $notes.AddRange([string[]](($body -joi
 else { $notes.Add('No changelog entry was written for this version.') }
 $notes.Add('')
 $notes.Add('## Install')
+$notes.Add('')
+$notes.Add("- **Microsoft Store**, which keeps it up to date: [DispCtrl on the Microsoft Store](https://apps.microsoft.com/detail/$StoreId)")
+$notes.Add("- **winget**, the Store version from a terminal: ``winget install $StoreId --source msstore``")
+$notes.Add('- **Or download a file below:**')
 $notes.Add('')
 $notes.Add('| File | For |')
 $notes.Add('|---|---|')
