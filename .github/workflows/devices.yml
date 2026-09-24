@@ -320,6 +320,9 @@ jobs:
             sed -n 's/^review: /- /p' "$RUNNER_TEMP/intake.log"
             echo
             echo "Merge it as it is, or edit it first (for example to set \"writable\": true). The branch is deleted when it is merged or closed."
+            echo
+            # Merging closes the issue; the intake closes it itself for a share it commits.
+            echo "Closes #$ISSUE"
           } > "$RUNNER_TEMP/pr-body.md"
           if [ -z "$url" ] && ! url=$(gh pr create --head "$branch" --base "$BASE" --title "Device share from #$ISSUE" --body-file "$RUNNER_TEMP/pr-body.md"); then
             # Refused while the repository does not let Actions open pull
