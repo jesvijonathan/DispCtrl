@@ -250,8 +250,8 @@ ship. The app's **Devices** page sends the same
 Global shortcuts live in `settings.Hotkeys` and are registered by the **engine**,
 which also carries them out: 21 actions, from unison and night light to focus,
 OLED care, keep awake, taskbar, contrast and the quick panel. A new desk is
-offered thirteen defaults (`Hotkey.OfferDefaults`), four enabled: Ctrl+Alt with
-Page Up/Down, N and D. Nine more are configured but disabled. The defaults are
+offered fourteen defaults (`Hotkey.OfferDefaults`), five enabled: Ctrl+Alt with
+Page Up/Down, N, D and L. Nine more are configured but disabled. The defaults are
 versioned: upgrades offer newly added actions disabled once, preserving existing
 bindings and removals. Never use the arrows, which Intel drivers take for screen
 rotation. The page and `dispctrl hotkeys reset` restore
@@ -333,6 +333,56 @@ event carries no data; the control broker separately handles structured requests
   `HKCU\Control Panel\NotifyIconSettings\<id>\IsPromoted`, which Explorer
   applies live. `Shell_NotifyIconGetRect` cannot tell you whether it worked: a
   promoted icon and the `^` it replaced report the same rectangle. Screenshot.
+
+### Turn off displays
+
+"Off" to the eye: the overlay OLED care rests with, at `DisplaysOffPercent`
+(100, black), over every display - not only OLED ones, because this is about
+the person leaving, not panel wear. The monitors, their brightness and every
+window stay as they are, so nothing re-lays out when they come back. It lives
+under Keep awake (`AwakeSettings.DisplaysOff*`), in the Displays page's Keep
+awake section and the Keep awake tile's flyout, and has its own tile and a
+default shortcut, Ctrl+Alt+L (Win+L is Windows'). `DisplaysOffUtc` is a
+request, not a state: `FocusService` waits `DisplaysOffDelaySeconds`, picks
+the displays once (`DisplaysOffTarget`, so "all but the one with the pointer"
+means where the pointer is then), and writes the request back to null when
+every one has woken, so the switch goes off by itself. Any input wakes them
+after the manual-rest grace, or with `DisplaysOffWakeOnPointer` only the
+pointer moving on each. Staying awake or active meanwhile is Keep awake's and Stay active's own
+switches, shown again beside it (the owner's call: one setting, synced
+everywhere, rather than a copy that applies only while the displays are off). `DisplaysOffLockOnWake` locks the session when they
+come back, and **any** end locks - the first display woken, the shortcut, the
+panel, the CLI, Ctrl+Alt+Backspace - or pressing Ctrl+Alt+L would be the way
+round it. Captured when they go off, so changing it meanwhile does not unlock a
+session already under way. Not exercised live on the dev desk: it locks it. The hotkey defaults went to version 3, and
+Ctrl+Alt+L is the one upgrade offered switched on - the owner asked for it,
+and it never lands on a combination something else holds. Verified here: both
+displays at alpha 255 after the delay, back on when switched off.
+
+### Reports, not reporters
+
+The intake records each share's **issue number** against the model
+(`devices/BRAND/PRODUCT/reports.json`, `{"issues": [4, 5]}`), and the index
+and catalogue count them: how many owners have confirmed a model, with no name
+in the repository. Commits are made as `dispctrl-intake` and titled by number;
+the pull request body names only the issue. A repeat report of a known model
+now makes a small pull request, which is the point - it is a confirmation.
+Not shipped, like records.
+
+Stay active's nudge (`PowerService.LastNudgeTick`) is input, so "any input
+wakes the turned-off displays" ignores input within half a second of it.
+
+### The way back: Ctrl+Alt+Backspace
+
+`RestoreDisplays` (`DispCtrlSettings.RestoreVisibility`) undoes everything that
+can darken, tint or hide a screen - displays off, OLED rest and idle care,
+focus, night light, software dimming, taskbar hiding and opacity - and nothing
+else. It is the shortcut to give someone looking at a black screen, so it is on
+by default (hotkey defaults version 4, offered switched on), the README names it,
+and the Hotkeys page confirms before it is switched off or removed
+(`HotkeyViewModel.SafetyNetOffRequested`). Turn off displays also parks the
+pointer in a corner of a display it blacked out and puts it back when they come
+on again, unless the mouse has moved it.
 
 ### Tests
 
@@ -543,6 +593,13 @@ Every one of these was a real bug. Do not reintroduce them.
   `SharingConnector` counts. `DISPLAYPORT_USB_TUNNEL` is the only Thunderbolt
   signal and only its positive answer means anything — a dock that converts to
   plain DisplayPort looks like DisplayPort.
+- **A hidden bar must not park on a neighbour.** Parked just past its edge,
+  the bar of a monitor stacked above the laptop sat along the top of the
+  laptop's screen, and the next rescan's tie-break then gave it to the laptop,
+  stranding it there. `TaskbarParking.Plan` sends a bar whose strip is on
+  another monitor past the far side of the whole desktop, and it snaps rather
+  than slides; `ResolveMonitor` keeps a known bar with the monitor it was
+  managed on. Checked in `presetverify`, since stacking needs the desk moved.
 - **A monitor keeps its own brightness while unplugged**, so one reconnected
   after unison moved came back out of step. `UnisonHotplug` writes arrivals
   only, after 1.5 s, because the DDC/CI channel is not up when the monitor
@@ -804,6 +861,33 @@ unrecallable.
   the old development identity was rejected by Partner Center on upload. Only
   CI's validation build passes `DispCtrl.Development`. Run `Package.ps1` under
   pwsh 7: Windows PowerShell's `System.Drawing` cannot read the icon's 256 px frame.
+- **A Store install is never started for you.** Nothing runs at install, and
+  the sign-in task was declared `Enabled="false"`, so a fresh install had no
+  engine - no tray icon, hotkeys, taskbar hiding or glass - until someone found
+  the switch. The task is now declared enabled, the app starts the engine on
+  every launch, and it enables the sign-in task once (`EngineStartupOffered`).
+- **Under MSIX, new files in `%LOCALAPPDATA%` are redirected** to
+  `Packages\JustVStudio.DispCtrl_*\LocalCache\Local`, while an existing
+  `%LOCALAPPDATA%\DispCtrl` is written in place. Every DispCtrl process in the
+  package sees the same view; anything outside it (Explorer, the glass helper,
+  an unpackaged build) may not. Registry writes are not redirected - measured
+  with `Invoke-CommandInDesktopPackage`.
+- **Explorer records a tray icon's path by known-folder id**:
+  `{6D809377-...}\WindowsApps\...` for the Store engine. Compared as a plain
+  path it never matched, so the Store icon was never kept on the taskbar.
+  `TrayIconPromotion.Expand` resolves it.
+- **Admin is asked for once, at first launch, and only for the gamma range**
+  (`GammaRangeOffered`). It is the one elevated write every desk benefits
+  from; auto-rotation still asks only when switched. Recorded before asking,
+  so a refused or impossible prompt (a managed laptop) never comes back by
+  itself. Nothing else needs elevation, and the app must never require it: a
+  packaged app cannot run elevated at all.
+- **The wallpaper preview falls back to `%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper`**,
+  Windows' decoded copy, when the reported file is missing, online-only or
+  undecodable (HEIC, WebP). One laptop's preview stayed empty without it.
+- Switching between the installer, the Store and a development build leaves
+  Explorer holding the other build's glass helper (`0x8007051A`); the Taskbar
+  page offers Restart Windows Explorer when the engine reports it.
 - An MSIX signs only with a certificate whose subject equals its `Publisher`.
   The release workflow compares them and leaves it unsigned rather than failing.
 - **Read a process's `Path` before stopping it.** `Process.Path` comes from
@@ -813,6 +897,14 @@ unrecallable.
   MinGW). On Linux the helper step runs `pwsh`, not `powershell.exe`: through
   WSL interop the latter reached Windows' own MinGW with Linux paths and failed
   to link. The WinUI app cannot build off Windows at all (`GenXbf.dll`).
+- **A tool run on Linux must not have an apphost.** `Directory.Build.props`
+  builds for win-x64, so `dotnet run` on the Linux runner tried to execute
+  `devicecheck.exe` - "Exec format error" - and every shared monitor record
+  failed intake. WSL hid it: it runs Windows .exe files through interop, so
+  the check "passed on Linux" there. `devicecheck` and `presetverify` set
+  `UseAppHost=false` off Windows; verify on Linux by confirming no `.exe` was
+  built. The workflow's shell is named `bash` so `| tee` no longer hides a
+  failure (the default shell has no pipefail).
 - **MSBuild never deletes an output it has stopped copying.** When the device
   library moved to a folder per model, every `bin` kept the old flat
   `devices/definitions/` and the records, which must not ship.
@@ -838,6 +930,11 @@ unrecallable.
   - Hot-plug detection follows `WM_DISPLAYCHANGE` (`DisplayChanges`) with a
     30 s safety net.
   - The power loop sleeps to its next deadline.
+  - A rest (OLED idle or manual, displays off) is ended by input, so while one
+    shows the protection thread registers raw keyboard and mouse input
+    (`RIDEV_INPUTSINK`) and waits for it, with a one-second safety net for a
+    second stage or a pointer moved by software. It polled at 100 ms, all night.
+    One key press ends displays off in well under 150 ms, measured.
   - Engine idle: ~282 ms/min before, ~16 ms/min after.
 - **Slider saves are coalesced** (`PersistSoon`); a synchronous save per drag
   step also made the engine reload each time. `Persist()` flushes a pending one.

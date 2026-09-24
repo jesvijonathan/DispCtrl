@@ -30,6 +30,8 @@ public enum HotkeyAction
     ContrastUp,
     ContrastDown,
     StayActiveToggle,
+    DisplaysOffToggle,
+    RestoreDisplays,
 }
 
 /// <summary>One global keyboard shortcut.</summary>
@@ -140,7 +142,11 @@ public sealed class Hotkey
     /// Page Down for unison, because brightness is the thing reached for most;
     /// a letter for each switch, named for what it does.
     /// <para>
-    /// Only four are on: brightness both ways, night light and the quick panel.
+    /// Six are on: brightness both ways, night light, the quick panel,
+    /// Ctrl+Alt+L to turn the displays off - L as in Win+L, which locks and
+    /// which Windows keeps for itself - and Ctrl+Alt+Backspace, which puts every
+    /// display back however DispCtrl left it: the one to give somebody looking
+    /// at a black screen.
     /// The rest are set but off - a shortcut nobody asked for that fires by
     /// accident, or holds a combination another program wanted, is worse than
     /// one that is a switch away. Contrast takes Shift as well, beside
@@ -156,6 +162,8 @@ public sealed class Hotkey
             new() { Modifiers = CtrlAlt, Key = 0x22, Action = HotkeyAction.UnisonDown, Step = 5 },    // Page Down
             new() { Modifiers = CtrlAlt, Key = 'D', Action = HotkeyAction.QuickPanel },
             new() { Modifiers = CtrlAlt, Key = 'N', Action = HotkeyAction.NightLightToggle },
+            new() { Modifiers = CtrlAlt, Key = 'L', Action = HotkeyAction.DisplaysOffToggle },
+            new() { Modifiers = CtrlAlt, Key = 0x08, Action = HotkeyAction.RestoreDisplays },   // Backspace
             new() { Modifiers = CtrlAlt, Key = 'U', Action = HotkeyAction.UnisonToggle, Enabled = false },
             new() { Modifiers = CtrlAlt, Key = 'F', Action = HotkeyAction.FocusToggle, Enabled = false },
             new() { Modifiers = CtrlAlt, Key = 'K', Action = HotkeyAction.KeepAwakeToggle, Enabled = false },
@@ -185,12 +193,23 @@ public sealed class Hotkey
     }
 
     /// <summary>The defaults version this build offers; see <see cref="OfferDefaults"/>.</summary>
-    public const int DefaultsVersion = 2;
+    public const int DefaultsVersion = 4;
 
     /// <summary>Actions a defaults version added, offered to desks set up before it.</summary>
     private static readonly HotkeyAction[] AddedInVersion2 =
         [HotkeyAction.UnisonToggle, HotkeyAction.DarkModeToggle, HotkeyAction.TaskbarToggle, HotkeyAction.OledCareToggle,
          HotkeyAction.ContrastUp, HotkeyAction.ContrastDown];
+
+    /// <summary>
+    /// Added in version 3, and offered switched on - the one exception to
+    /// offering new actions off, because turning the displays off is only any
+    /// use as a keystroke that is already there. Never over a combination
+    /// something else holds.
+    /// </summary>
+    private static readonly HotkeyAction[] AddedInVersion3 = [HotkeyAction.DisplaysOffToggle];
+
+    /// <summary>Added in version 4, switched on for the same reason: a way back that has to be there already.</summary>
+    private static readonly HotkeyAction[] AddedInVersion4 = [HotkeyAction.RestoreDisplays];
 
     /// <summary>
     /// Adds the defaults once, to a desk that has never been offered them, and
@@ -210,12 +229,15 @@ public sealed class Hotkey
         foreach (Hotkey d in Defaults())
         {
             if (settings.Hotkeys.Any(h => h.Key == d.Key && h.Modifiers == d.Modifiers)) continue;
-            if (from == 0) settings.Hotkeys.Add(d);
-            else if (AddedInVersion2.Contains(d.Action) && !settings.Hotkeys.Any(h => h.Action == d.Action))
+            if (from == 0) { settings.Hotkeys.Add(d); continue; }
+            if (settings.Hotkeys.Any(h => h.Action == d.Action)) continue;
+            if (from < 2 && AddedInVersion2.Contains(d.Action))
             {
                 d.Enabled = false;
                 settings.Hotkeys.Add(d);
             }
+            else if (from < 3 && AddedInVersion3.Contains(d.Action)) settings.Hotkeys.Add(d);
+            else if (from < 4 && AddedInVersion4.Contains(d.Action)) settings.Hotkeys.Add(d);
         }
         g.HotkeyDefaultsOffered = true;
         g.HotkeyDefaultsVersion = DefaultsVersion;
@@ -245,6 +267,8 @@ public sealed class Hotkey
             HotkeyAction.OledRestNow => $"Rest the OLED displays on {where}",
             HotkeyAction.KeepAwakeToggle => "Keep the computer awake, or let it sleep",
             HotkeyAction.StayActiveToggle => "Stay active on or off: screen on, never Away",
+            HotkeyAction.DisplaysOffToggle => "Turn the displays off, or back on",
+            HotkeyAction.RestoreDisplays => "Put every display back: undo dimming, night light, hiding and displays off",
             HotkeyAction.DarkModeToggle => "Switch between dark and light mode",
             HotkeyAction.QuickPanel => "Open or close the quick panel",
             HotkeyAction.TaskbarToggle => $"Hide or show the taskbar on {where}",
@@ -278,6 +302,7 @@ public sealed class Hotkey
         0x2D => "Insert",
         0x2E => "Delete",
         0x20 => "Space",
+        0x08 => "Backspace",
         0xBB => "Plus",
         0xBD => "Minus",
         0xAE => "Volume Down",

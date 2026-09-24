@@ -145,6 +145,7 @@ Check(merged.Global.UnisonLevel == 90, "monitor-only commit preserves current sh
 Check(merged.For("panel-a").SoftwareBrightness == 60 && merged.For("panel-b").SoftwareBrightness == 80,
     "commit changes only owned monitor settings");
 CacheChecks.Run(Check);
+ShellChecks.Run(Check);
 var screen = new DispCtrl.Core.Displays.DisplayRect(0, 0, 1920, 1080);
 var active = new DispCtrl.Core.Displays.DisplayRect(500, 100, 1400, 900);
 var cut = DispCtrl.Core.Displays.FocusGeometry.Intersect(screen, active);

@@ -220,16 +220,41 @@ try
         "hotkey defaults are offered once, never over a binding, and a removed one stays removed");
     Check(Hotkey.Defaults().All(h => Hotkey.TryParse(h.Describe(), out uint k, out uint m) && k == h.Key && m == h.Modifiers),
         "every default shortcut reads back from how the page writes it");
-    Check(Hotkey.Defaults().Count(h => h.Enabled) == 4 && Hotkey.Defaults().All(h => h.IsComplete),
-        "four default hotkeys are enabled and the remaining shortcuts are ready to enable");
+    Check(Hotkey.Defaults().Count(h => h.Enabled) == 6 && Hotkey.Defaults().All(h => h.IsComplete),
+        "six default hotkeys are enabled and the remaining shortcuts are ready to enable");
     var upgraded = new DispCtrlSettings();
     upgraded.Global.HotkeyDefaultsOffered = true;
     upgraded.Hotkeys.Add(new Hotkey { Modifiers = 3, Key = 'U', Action = HotkeyAction.Identify });
     Check(Hotkey.OfferDefaults(upgraded) && upgraded.Hotkeys[0].Action == HotkeyAction.Identify
-        && upgraded.Hotkeys.Skip(1).All(h => !h.Enabled) && !Hotkey.OfferDefaults(upgraded),
-        "upgrading hotkeys keeps existing bindings and offers new actions disabled only once");
+        && upgraded.Hotkeys.Skip(1).All(h => h.Enabled == (h.Action is HotkeyAction.DisplaysOffToggle or HotkeyAction.RestoreDisplays))
+        && upgraded.Hotkeys.Any(h => h.Action == HotkeyAction.RestoreDisplays) && !Hotkey.OfferDefaults(upgraded),
+        "upgrading hotkeys keeps existing bindings, offers new actions once, and only Turn off displays and Restore switched on");
+    var fromThree = new DispCtrlSettings();
+    fromThree.Global.HotkeyDefaultsVersion = 3;
+    Check(Hotkey.OfferDefaults(fromThree) && fromThree.Hotkeys.Count == 1 && fromThree.Hotkeys[0].Action == HotkeyAction.RestoreDisplays
+        && fromThree.Hotkeys[0].Enabled, "a desk on version 3 is offered only the restore shortcut, switched on");
+    var messy = new DispCtrlSettings();
+    messy.Global.Awake.DisplaysOffUtc = DateTimeOffset.UtcNow;
+    messy.Global.Focus.Enabled = messy.Global.NightLight.Enabled = messy.Global.OledCare.Enabled = true;
+    messy.Global.TaskbarOpacity = 20;
+    messy.For("panel").SoftwareBrightness = 30;
+    messy.For("panel").HideTaskbar = true;
+    messy.For("panel").Alias = "Desk";
+    int bindings = messy.Hotkeys.Count;
+    messy.RestoreVisibility();
+    Check(messy.Global.Awake.DisplaysOffUtc is null && !messy.Global.Focus.Enabled && !messy.Global.NightLight.Enabled
+        && !messy.Global.OledCare.Enabled && messy.Global.TaskbarOpacity == 100 && messy.For("panel").SoftwareBrightness == 100
+        && !messy.For("panel").HideTaskbar && messy.For("panel").Alias == "Desk" && messy.Hotkeys.Count == bindings,
+        "restoring displays undoes everything that darkens, tints or hides a screen, and nothing else");
+    var fromTwo = new DispCtrlSettings();
+    fromTwo.Global.HotkeyDefaultsVersion = 2;
+    fromTwo.Hotkeys.Add(new Hotkey { Modifiers = 3, Key = 'L', Action = HotkeyAction.Identify });
+    Check(Hotkey.OfferDefaults(fromTwo) && fromTwo.Hotkeys.Count == 2
+        && !fromTwo.Hotkeys.Any(h => h.Action == HotkeyAction.DisplaysOffToggle)
+        && fromTwo.Hotkeys.Any(h => h.Action == HotkeyAction.RestoreDisplays),
+        "a version 3 default is never offered over a combination something else holds, nor are version 2's again");
     var resetAll = new DispCtrlSettings();
-    resetAll.Global.QuickPanel.Simple = true;
+    resetAll.Global.QuickPanel.Simple = !new QuickPanelSettings().Simple;
     resetAll.Global.UnisonFollowsWindows = true;
     resetAll.Global.NightLight.Enabled = true;
     resetAll.For("test-panel").Alias = "Desk";
@@ -329,13 +354,24 @@ try
         client.ExecuteAsync(Request("focus.set", new() { ["dimPercent"] = 47 })));
     Check(writes.All(r => r["ok"]!.GetValue<bool>()) && SettingsStore.Load().Global.Focus.DimPercent == 47
         && SettingsStore.Load().Global.OledCare.DimPercent == 55, "concurrent broker writes preserve both groups");
+    var offOn = service.Execute(Request("awake.displays-off", new() { ["enabled"] = true }));
+    DateTimeOffset? offAsked = SettingsStore.Load().Global.Awake.DisplaysOffUtc;
+    var offOff = service.Execute(Request("awake.displays-off", new() { ["enabled"] = false }));
+    var offBad = service.Execute(Request("awake.displays-off", new() { ["enabled"] = "soon" }));
+    Check(offOn["ok"]!.GetValue<bool>() && offAsked is { } asked && DateTimeOffset.UtcNow - asked < TimeSpan.FromMinutes(1)
+        && offOff["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.Awake.DisplaysOffUtc is null
+        && offBad["exitCode"]!.GetValue<int>() == 2,
+        "awake displays-off records a request, clears it, and refuses anything but on or off");
+    var offTarget = service.Execute(Request("awake.set", new() { ["displaysOffTarget"] = "exceptPointer" }));
+    Check(offTarget["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.Awake.DisplaysOffTarget == DisplaysOffTarget.ExceptPointer,
+        "which displays turn off is set by name");
     using var oversized = new MemoryStream(BitConverter.GetBytes(ControlTransport.MaxBytes + 1));
     bool rejected = false;
     try { await ControlTransport.ReadAsync(oversized, default); } catch (InvalidDataException) { rejected = true; }
     Check(rejected, "oversized protocol frames rejected before allocation");
     var beforeReset = SettingsStore.Load();
     beforeReset.For("FAKE-panel").Alias = "office";
-    beforeReset.Global.QuickPanel.Simple = true;
+    beforeReset.Global.QuickPanel.Simple = !new QuickPanelSettings().Simple;
     SettingsStore.Save(beforeReset);
     string beforeResetJson = File.ReadAllText(SettingsStore.Path_);
     var resetDry = service.Execute(Request("settings.reset", new() { ["dryRun"] = true }));
@@ -344,8 +380,8 @@ try
     var resetReply = service.Execute(Request("settings.reset"));
     var afterReset = SettingsStore.Load();
     Check(resetReply["ok"]!.GetValue<bool>() && afterReset.For("FAKE-panel").Alias == "office"
-        && afterReset.Hotkeys.Count(h => h.Enabled) == 4 && afterReset.Hotkeys.Count == 13
-        && !afterReset.Global.QuickPanel.Simple && afterReset.Global.Focus.DimPercent == new FocusSettings().DimPercent,
+        && afterReset.Hotkeys.Count(h => h.Enabled) == 6 && afterReset.Hotkeys.Count == 15
+        && afterReset.Global.QuickPanel.Simple == new QuickPanelSettings().Simple && afterReset.Global.Focus.DimPercent == new FocusSettings().DimPercent,
         "CLI reset all matches the app: all groups and default hotkeys reset while monitor names survive");
     Console.WriteLine($"{checks} control checks passed.");
 }

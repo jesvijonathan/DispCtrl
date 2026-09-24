@@ -109,6 +109,10 @@ Default shortcuts (change them on the Hotkeys page, where more are set up and sw
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>PgUp</kbd> / <kbd>PgDn</kbd> | Every display brighter / dimmer |
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>D</kbd> | Quick panel |
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>N</kbd> | Night light |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>L</kbd> | Turn the displays off, or back on |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Backspace</kbd> | **Put every display back**: undoes dimming, night light, displays off and taskbar hiding |
+
+> **A screen stuck black, dim or tinted?** Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Backspace</kbd>. It undoes everything DispCtrl does to how a screen looks, and keeps your other settings.
 
 ### Compatibility and feature status
 

@@ -52,6 +52,54 @@ internal sealed unsafe partial class FocusService : IDisposable
     /// <summary>Whether a screen rest is outstanding, so the idle clock is worth reading.</summary>
     private bool _restPending;
 
+    // "Turn off displays": the request being honoured, when it took effect (0 while
+    // its delay runs), one already finished, and where the pointer last was.
+    private DateTimeOffset? _dimRequest, _dimDone;
+    private long _dimAppliedAt;
+    private bool _dimCursorKnown;
+    private int _dimCursorX, _dimCursorY;
+
+    // Where the pointer was before it was parked, and where it was parked, so
+    // a turn-back-on that did not use the mouse can put it back.
+    private Point? _parkedFrom, _parkedAt;
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetCursorPos(int x, int y);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool LockWorkStation();
+
+    /// <summary>Whether the displays-off session now ending asked to lock on the way out.</summary>
+    private bool _lockOnWake;
+
+    // Raw input, registered only while a rest is showing. A rest is ended by
+    // somebody coming back, and waiting to be told costs nothing: polling for it
+    // ran this thread ten times a second for as long as a screen rested - all
+    // night, for an OLED idle rest or displays left off.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RawInputDevice { public ushort UsagePage, Usage; public uint Flags; public nint Target; }
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool RegisterRawInputDevices(RawInputDevice* devices, uint count, uint size);
+
+    private const uint WmInput = 0x00FF, RidevInputSink = 0x100, RidevRemove = 0x1;
+    private bool _inputSink;
+
+    private void WatchInput(bool on)
+    {
+        if (on == _inputSink || (on && _control == 0)) return;
+        RawInputDevice* devices = stackalloc RawInputDevice[2];
+        uint flags = on ? RidevInputSink : RidevRemove;
+        nint target = on ? _control : 0;
+        devices[0] = new RawInputDevice { UsagePage = 1, Usage = 2, Flags = flags, Target = target }; // mouse
+        devices[1] = new RawInputDevice { UsagePage = 1, Usage = 6, Flags = flags, Target = target }; // keyboard
+        if (RegisterRawInputDevices(devices, 2, (uint)sizeof(RawInputDevice))) _inputSink = on;
+        else if (on) Log.Write($"rest: input could not be watched ({Marshal.GetLastPInvokeError()}); polling instead");
+    }
+
     /// <summary>Whether the pointer announces itself, so it need not be polled for.</summary>
     private bool _pointerEvents;
 
@@ -110,6 +158,9 @@ internal sealed unsafe partial class FocusService : IDisposable
         public nint Owner, LastOwner;
         public DateTimeOffset? RestUntil;
         public long RestSince;
+
+        /// <summary>Chosen by "Turn off displays" when they went off, and whether it has since been woken.</summary>
+        public bool DimChosen, DimWoken;
         public OledIdleState IdleState { get; } = new();
         public double Alpha, From, Target;
         public long Started;
@@ -180,7 +231,8 @@ internal sealed unsafe partial class FocusService : IDisposable
         }
         if (rebuildMasks) ClearMasks();
         bool active = _settings.Global.Focus.Enabled || _settings.Global.OledCare.Enabled
-            || _settings.Monitors.Values.Any(monitor => monitor.OledRestUntilUtc > DateTimeOffset.UtcNow);
+            || _settings.Monitors.Values.Any(monitor => monitor.OledRestUntilUtc > DateTimeOffset.UtcNow)
+            || _settings.Global.Awake.DisplaysOffUtc is not null;
         bool focusMode = _settings.Global.Focus.Enabled;
         bool prioritize = focusMode && _settings.Global.Focus.PrioritizeNewWindows;
         var hookState = (Active: active, Focus: focusMode, Prioritize: prioritize);
@@ -208,7 +260,7 @@ internal sealed unsafe partial class FocusService : IDisposable
             _automaticClass = "";
         }
         _pointerMode = pointerMode;
-        if (!active) { _previewUntil = 0; ClearMasks(); }
+        if (!active) { _previewUntil = 0; ClearMasks(); WatchInput(false); }
         if (active)
         {
             // Out-of-context notifications: no DLL injection, no keyboard hook.
@@ -335,6 +387,9 @@ internal sealed unsafe partial class FocusService : IDisposable
                     self.Tick();
                 }
                 if (message == 0x113) { self.Tick(); return 0; }
+                // Somebody is at the keyboard or mouse. One tick shortly after,
+                // however many reports arrive: a mouse can send a thousand a second.
+                if (message == WmInput) self.Schedule(33);
 
             }
             if (message == 0x82) RemoveProp(window, "NonRudeHWND"); // WM_NCDESTROY
@@ -400,6 +455,7 @@ internal sealed unsafe partial class FocusService : IDisposable
         long now = Environment.TickCount64;
         FocusSettings focus = _settings.Global.Focus;
         OledCareSettings care = _settings.Global.OledCare;
+        AwakeSettings awake = _settings.Global.Awake;
         // Which window counts as the one being used. Normally the focused one;
         // with follow-mouse, whatever sits under the pointer, resolved to its
         // top-level window so hovering a control does not cut a hole the size of
@@ -590,7 +646,7 @@ internal sealed unsafe partial class FocusService : IDisposable
         _holeShown = holeRect;
         // Only the rest features read this, and it is a syscall: skipped entirely
         // when neither idle care nor a manual rest is waiting on it.
-        bool wantIdle = care.Enabled || _restPending;
+        bool wantIdle = care.Enabled || _restPending || awake.DisplaysOffUtc is not null;
         uint idleMs = 0;
         bool inputKnown = false;
         if (wantIdle)
@@ -603,10 +659,103 @@ internal sealed unsafe partial class FocusService : IDisposable
         bool frontMaximized = focusedUsable && IsZoomed(_foreground) != 0;
         bool frontHasCaption = focusedUsable && (GetWindowLongPtr(_foreground, -16) & 0x00C00000) == 0x00C00000;
         bool animating = false, anyRest = false, anyRestPending = false;
+
+        // "Turn off displays". Which screens it covers is decided once, when
+        // the delay runs out, so "except the one with the pointer" means where
+        // the pointer is then - not where the quick panel was when it was asked.
+        // Every display, not only OLED ones: this is about the person leaving,
+        // not the panel's wear.
+        DateTimeOffset? dimRequest = awake.DisplaysOffUtc == _dimDone ? null : awake.DisplaysOffUtc;
+        if (dimRequest != _dimRequest)
+        {
+            // Switched off from outside - the panel, the CLI, the hotkey - rather
+            // than woken: the pointer goes back the same way, and a session that
+            // was to lock on wake locks here too, or the shortcut would get round it.
+            if (_dimAppliedAt != 0) { RestorePointer(); LockIfAsked("switched back on"); }
+            _dimRequest = dimRequest;
+            _dimAppliedAt = 0;
+            foreach (Mask m in _masks) { m.DimChosen = false; m.DimWoken = false; }
+        }
+        bool dimWaiting = false;
+        uint dimWaitMs = 0;
+        if (dimRequest is { } asked && _dimAppliedAt == 0)
+        {
+            if (DateTimeOffset.UtcNow >= asked.AddSeconds(Math.Clamp(awake.DisplaysOffDelaySeconds, 0, 30)))
+            {
+                _dimAppliedAt = now;
+                _lockOnWake = awake.DisplaysOffLockOnWake;
+                _dimCursorKnown = pointerKnown;
+                (_dimCursorX, _dimCursorY) = (cursor.X, cursor.Y);
+                int chosen = 0;
+                foreach (Mask m in _masks)
+                {
+                    bool pointerHere = pointerKnown && Inside(m.Display.Bounds, cursor);
+                    bool windowHere = focusedUsable
+                        && FocusGeometry.Intersect(focusedRect, m.Display.Bounds) is { Width: > 0, Height: > 0 };
+                    m.DimChosen = awake.DisplaysOffTarget switch
+                    {
+                        DisplaysOffTarget.ExceptMain => !m.Display.IsPrimary,
+                        DisplaysOffTarget.ExceptPointer => !pointerHere,
+                        DisplaysOffTarget.ExceptActiveWindow => !windowHere,
+                        DisplaysOffTarget.OnlyMain => m.Display.IsPrimary,
+                        _ => true,
+                    };
+                    if (m.DimChosen) chosen++;
+                }
+                Log.Write($"displays off: {chosen} of {_masks.Count} display(s), at {Math.Clamp(awake.DisplaysOffPercent, 0, 100)}%");
+
+                // Into the bottom-right corner of the last display that went off.
+                // Recorded as the pointer's position, so parking it is not taken
+                // for the pointer moving there.
+                Mask? corner = null;
+                foreach (Mask m in _masks) if (m.DimChosen) corner = m;
+                if (awake.DisplaysOffHidePointer && pointerKnown && corner is not null)
+                {
+                    // One pixel in from the corner: Stay active's nudge goes a pixel
+                    // each way, and on the last pixel it could only come back.
+                    var park = new Point { X = corner.Display.Bounds.Right - 2, Y = corner.Display.Bounds.Bottom - 2 };
+                    if (SetCursorPos(park.X, park.Y))
+                    {
+                        _parkedFrom = cursor;
+                        _parkedAt = park;
+                        (_dimCursorX, _dimCursorY) = (park.X, park.Y);
+                        cursor = park;
+                    }
+                }
+            }
+            else
+            {
+                dimWaiting = true;
+                // One wake for the moment it is due, not five a second until then.
+                dimWaitMs = (uint)Math.Clamp((asked.AddSeconds(Math.Clamp(awake.DisplaysOffDelaySeconds, 0, 30)) - DateTimeOffset.UtcNow).TotalMilliseconds + 5, 16, 30_000);
+            }
+        }
+        bool dimPointerMoved = false;
+        bool dimEndedByInput = false;
+        if (_dimAppliedAt != 0)
+        {
+            // Stay active's nudge moves the pointer too, and is not somebody coming back.
+            dimPointerMoved = pointerKnown && _dimCursorKnown && (cursor.X != _dimCursorX || cursor.Y != _dimCursorY)
+                && now - Power.PowerService.LastNudgeTick > 500;
+            _dimCursorKnown = pointerKnown;
+            (_dimCursorX, _dimCursorY) = (cursor.X, cursor.Y);
+            // Without pointer waking, any input ends it, after the same grace a
+            // manual rest gets for the click that asked for it.
+            // Stay active's own nudge is input too, and is not somebody coming back.
+            long lastInput = now - idleMs;
+            bool nudged = Math.Abs(lastInput - Power.PowerService.LastNudgeTick) < 500;
+            dimEndedByInput = !awake.DisplaysOffWakeOnPointer && !nudged
+                && !FocusGeometry.RestingByHand(true, now - _dimAppliedAt, idleMs, inputKnown);
+        }
+
         foreach (Mask mask in _masks)
         {
             _settings.Monitors.TryGetValue(mask.Display.Token, out MonitorSettings? monitor);
             bool oled = monitor?.IsOled ?? (monitor?.OledDetected == true || mask.LibraryOled);
+            if (mask.DimChosen && !mask.DimWoken
+                && (dimEndedByInput || (awake.DisplaysOffWakeOnPointer && dimPointerMoved && Inside(mask.Display.Bounds, cursor))))
+                mask.DimWoken = true;
+            bool dimNow = mask.DimChosen && !mask.DimWoken;
             // A fullscreen window on a different panel must not suppress this
             // panel's idle protection. Ordinary maximized windows are not media
             // fullscreen, even when taskbar hiding reclaims the entire work area.
@@ -626,7 +775,7 @@ internal sealed unsafe partial class FocusService : IDisposable
 
             bool restRequested = restUntil is { } until && until > DateTimeOffset.UtcNow;
             bool manualRest = FocusGeometry.RestingByHand(restRequested, now - mask.RestSince, idleMs, inputKnown);
-            bool rest = (preview || manualRest || resting) && oled && monitor?.OledProtection == true;
+            bool rest = ((preview || manualRest || resting) && oled && monitor?.OledProtection == true) || dimNow;
             anyRest |= rest;
             anyRestPending |= restRequested;
             DisplayRect intersection = FocusGeometry.Intersect(active, mask.Display.Bounds);
@@ -686,7 +835,9 @@ internal sealed unsafe partial class FocusService : IDisposable
             int wanted = focus.ScaleWithBrightness
                 ? FocusGeometry.ScaledDim(focus.DimPercent, PanelLevel(monitor))
                 : focus.DimPercent;
-            int restDim = preview ? _previewPercent : manualRest ? 100 : care.DimAtIdle(panelIdle);
+            int restDim = preview ? _previewPercent : manualRest ? 100
+                : dimNow ? Math.Max(Math.Clamp(awake.DisplaysOffPercent, 0, 100), resting ? care.DimAtIdle(panelIdle) : 0)
+                : care.DimAtIdle(panelIdle);
             double target = rest ? FocusGeometry.Alpha(restDim) : dim ? FocusGeometry.Alpha(wanted) : 0;
             DisplayRect area = !rest && focus.KeepTaskbarVisible ? mask.Display.WorkArea : mask.Display.Bounds;
             // The hole has to outlive the dim it is cut from. Dropping it the
@@ -780,6 +931,18 @@ internal sealed unsafe partial class FocusService : IDisposable
         // fresh start. Clearing it there meant clicking the desktop or taskbar
         // and coming back sat at full brightness for the delay and then faded,
         // which reads as the dim washing out and returning.
+        // Every dimmed screen has woken, or there was none to dim: the request
+        // is done, and the switch in the panel goes off with it.
+        if (_dimAppliedAt != 0 && _dimRequest is { } finished)
+        {
+            bool stillDim = false, anyWoken = false;
+            foreach (Mask m in _masks) { stillDim |= m.DimChosen && !m.DimWoken; anyWoken |= m.DimChosen && m.DimWoken; }
+            // Locking waits for nobody: the first display woken ends it for all.
+            if (!stillDim || (_lockOnWake && anyWoken)) FinishDim(finished);
+        }
+
+        WatchInput(anyRest);
+
         bool interlude = shell || _menuOpen;
         _dimming = (focusAllowed && settled) || (interlude && _dimming);
         _restPending = anyRestPending;
@@ -811,8 +974,63 @@ internal sealed unsafe partial class FocusService : IDisposable
         // A manual rest can be running with idle care switched off entirely.
         // Waking only for care.Enabled left that black screen with nothing
         // scheduled to end it, so it stayed until some unrelated window event.
-        else if (anyRest) Schedule(100);
+        // With input watched, a still desk costs one wake a second - enough for a
+        // second rest stage coming due, or a pointer moved by software, which
+        // raw input does not see. Without it, the old poll.
+        else if (anyRest) Schedule(_inputSink ? 1000u : 100u);
+        else if (dimWaiting) Schedule(dimWaitMs);
         else if (care.Enabled || anyRestPending) Schedule(1000);
+    }
+
+    private static bool Inside(DisplayRect r, Point p) => p.X >= r.Left && p.X < r.Right && p.Y >= r.Top && p.Y < r.Bottom;
+
+    private void LockIfAsked(string how)
+    {
+        if (!_lockOnWake) return;
+        _lockOnWake = false;
+        bool locked = LockWorkStation();
+        Log.Write(locked ? $"displays off: {how}; computer locked" : $"displays off: {how}; locking was refused ({Marshal.GetLastPInvokeError()})");
+    }
+
+    /// <summary>Puts a parked pointer back, unless the mouse has already taken it somewhere of its own.</summary>
+    private void RestorePointer()
+    {
+        if (_parkedFrom is { } from && _parkedAt is { } at
+            && GetCursorPos(out Point now) != 0 && now.X == at.X && now.Y == at.Y)
+            _ = SetCursorPos(from.X, from.Y);
+        _parkedFrom = _parkedAt = null;
+    }
+
+    /// <summary>Marks a "Turn off displays" request done, here and in the settings file.</summary>
+    /// <remarks>
+    /// Written back so the switch in the panel and the CLI read it as off. Only
+    /// cleared if it is still the same request: a new one made meanwhile stands.
+    /// </remarks>
+    private void FinishDim(DateTimeOffset request)
+    {
+        RestorePointer();
+        LockIfAsked("woken");
+        _dimDone = request;
+        _dimRequest = null;
+        _dimAppliedAt = 0;
+        foreach (Mask m in _masks) { m.DimChosen = false; m.DimWoken = false; }
+        // Off this thread: it is the one drawing the fade back in, and a read
+        // and a rename of the settings file in the middle of it stuttered the
+        // first frames.
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                DispCtrlSettings saved = SettingsStore.Load();
+                if (saved.Global.Awake.DisplaysOffUtc == request)
+                {
+                    saved.Global.Awake.DisplaysOffUtc = null;
+                    SettingsStore.Save(saved);
+                }
+            }
+            catch (Exception ex) { Log.Write($"displays off: could not clear the request: {ex.Message}"); }
+        });
+        Log.Write("displays off: every display is back on");
     }
 
     /// <summary>Corner radius Windows 11 draws a window with, in DIP.</summary>

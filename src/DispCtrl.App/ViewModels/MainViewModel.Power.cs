@@ -41,6 +41,71 @@ public sealed partial class MainViewModel
         set { if (Awake.StayActive == value) return; Awake.StayActive = value; SaveAwake(); }
     }
 
+    // ---- turn off displays ----
+
+    /// <summary>"Turn off displays": on from the moment it is asked for until every display it turned off is woken.</summary>
+    /// <remarks>
+    /// A request the engine carries out after <see cref="DisplaysOffDelay"/> and
+    /// clears itself, so this reads as off again once they are all back; the
+    /// settings watcher raises it when that happens.
+    /// </remarks>
+    public bool DisplaysOff
+    {
+        get => Awake.DisplaysOffUtc is not null;
+        set
+        {
+            if ((Awake.DisplaysOffUtc is not null) == value) return;
+            Awake.DisplaysOffUtc = value ? DateTimeOffset.UtcNow : null;
+            SaveAwake();
+        }
+    }
+
+    public double DisplaysOffLevel { get => Awake.DisplaysOffPercent; set { int v = Number(value, 50, 100); if (Awake.DisplaysOffPercent == v) return; Awake.DisplaysOffPercent = v; PersistSoon(); Raise(); } }
+    public double DisplaysOffDelay { get => Awake.DisplaysOffDelaySeconds; set { int v = Number(value, 0, 30); if (Awake.DisplaysOffDelaySeconds == v) return; Awake.DisplaysOffDelaySeconds = v; PersistSoon(); Raise(); } }
+    public bool DisplaysOffWakeOnPointer { get => Awake.DisplaysOffWakeOnPointer; set { if (Awake.DisplaysOffWakeOnPointer == value) return; Awake.DisplaysOffWakeOnPointer = value; SaveAwake(); } }
+    public bool DisplaysOffHidePointer { get => Awake.DisplaysOffHidePointer; set { if (Awake.DisplaysOffHidePointer == value) return; Awake.DisplaysOffHidePointer = value; SaveAwake(); } }
+    public bool DisplaysOffLockOnWake { get => Awake.DisplaysOffLockOnWake; set { if (Awake.DisplaysOffLockOnWake == value) return; Awake.DisplaysOffLockOnWake = value; SaveAwake(); } }
+
+    /// <summary>The choices for <see cref="DisplaysOffTargetName"/>, in <see cref="DisplaysOffTarget"/> order.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<string> DisplaysOffTargets { get; } =
+    [
+        "Every display",
+        "All but the main display",
+        "All but the one with the pointer",
+        "All but the active window's",
+        "Only the main display",
+    ];
+
+    public string? DisplaysOffTargetName
+    {
+        get => DisplaysOffTargets[Math.Clamp((int)Awake.DisplaysOffTarget, 0, DisplaysOffTargets.Count - 1)];
+        set
+        {
+            int i = value is null ? -1 : DisplaysOffTargets.IndexOf(value);
+            if (i < 0 || (int)Awake.DisplaysOffTarget == i) return;
+            Awake.DisplaysOffTarget = (DisplaysOffTarget)i;
+            SaveAwake();
+        }
+    }
+
+    public int DisplaysOffTargetIndex
+    {
+        get => (int)Awake.DisplaysOffTarget;
+        set => DisplaysOffTargetName = value >= 0 && value < DisplaysOffTargets.Count ? DisplaysOffTargets[value] : null;
+    }
+
+    /// <summary>The shortcut that turns the displays off, as bound on the Hotkeys page, if one is.</summary>
+    public string DisplaysOffShortcut
+    {
+        get
+        {
+            Hotkey? key = _settings.Hotkeys.FirstOrDefault(h => h.Action == HotkeyAction.DisplaysOffToggle && h.Enabled && h.Key != 0);
+            return key is null
+                ? "No shortcut: add one for Turn the displays off on the Hotkeys page."
+                : $"{key.Describe()} turns them off, and again back on.";
+        }
+    }
+
     public double AwakeHours
     {
         get => Awake.IntervalHours;
@@ -126,8 +191,10 @@ public sealed partial class MainViewModel
     private void SaveAwake()
     {
         Persist();
-        if (Awake.ActiveAt(DateTimeOffset.UtcNow) || Awake.StayActive) _engine.Start();
+        if (Awake.ActiveAt(DateTimeOffset.UtcNow) || Awake.StayActive || Awake.DisplaysOffUtc is not null) _engine.Start();
         foreach (string name in new[] { nameof(AwakeModeIndex), nameof(AwakeKeepDisplaysOn), nameof(AwakeStayActive), nameof(AwakeHours),
+            nameof(DisplaysOff), nameof(DisplaysOffLevel), nameof(DisplaysOffDelay), nameof(DisplaysOffWakeOnPointer),
+            nameof(DisplaysOffHidePointer), nameof(DisplaysOffLockOnWake), nameof(DisplaysOffTargetName), nameof(DisplaysOffTargetIndex), nameof(DisplaysOffShortcut),
             nameof(AwakeMinutes), nameof(AwakeExpirationDate), nameof(AwakeExpirationTime), nameof(AwakeTimedVisibility),
             nameof(AwakeExpirationVisibility), nameof(AwakeOptionsEnabled), nameof(AwakeStatus) }) Raise(name);
     }
@@ -135,6 +202,8 @@ public sealed partial class MainViewModel
     public void RaiseAwakeSettings()
     {
         foreach (string name in new[] { nameof(AwakeModeIndex), nameof(AwakeKeepDisplaysOn), nameof(AwakeStayActive), nameof(AwakeHours),
+            nameof(DisplaysOff), nameof(DisplaysOffLevel), nameof(DisplaysOffDelay), nameof(DisplaysOffWakeOnPointer),
+            nameof(DisplaysOffHidePointer), nameof(DisplaysOffLockOnWake), nameof(DisplaysOffTargetName), nameof(DisplaysOffTargetIndex), nameof(DisplaysOffShortcut),
             nameof(AwakeMinutes), nameof(AwakeExpirationDate), nameof(AwakeExpirationTime), nameof(AwakeTimedVisibility),
             nameof(AwakeExpirationVisibility), nameof(AwakeOptionsEnabled), nameof(AwakeStatus) }) Raise(name);
     }

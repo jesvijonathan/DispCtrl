@@ -42,7 +42,13 @@
             </StackPanel>
           </tk:SettingsCard>
           <tk:SettingsCard ContentAlignment="Left">
-            <TextBlock Text="{x:Bind ViewModel.TaskbarGlassStatus, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <StackPanel Spacing="8">
+              <TextBlock Text="{x:Bind ViewModel.TaskbarGlassStatus, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <Button Content="Restart Windows Explorer" Click="OnRestartExplorer"
+                      Visibility="{x:Bind ViewModel.TaskbarGlassRestartVisibility, Mode=OneWay}"
+                      AutomationProperties.Name="RestartExplorer"
+                      ToolTipService.ToolTip="Windows Explorer still has another DispCtrl build's glass loaded. The taskbar disappears for a moment and open File Explorer windows close."/>
+            </StackPanel>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Taskbar opacity" Description="100% leaves the taskbar unchanged. Lower values fade the whole bar, including icons. Requires the engine.">
             <StackPanel Orientation="Horizontal" Spacing="8">

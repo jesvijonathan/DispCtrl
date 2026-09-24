@@ -32,6 +32,11 @@ concurrency:
   cancel-in-progress: false
 env:
   DEVICECHECK: dotnet run --project tools/devicecheck -c Release --property:EnableWindowsTargeting=true --
+# Named, not left to the default: only an explicit bash runs with pipefail, and
+# without it "validate | tee" reported success while devicecheck failed to start.
+defaults:
+  run:
+    shell: bash
 jobs:
   check:
     if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'validate' || inputs.action == 'self-test' || inputs.action == 'rebuild the index'))
@@ -109,7 +114,9 @@ jobs:
           # Untrusted text: fetched to a file, never interpolated into a script.
           gh issue view "$ISSUE" --json body --jq .body > "$RUNNER_TEMP/issue.md"
           set +e
-          $DEVICECHECK intake "$RUNNER_TEMP/issue.md" devices > intake.log 2>&1
+          # The issue number is recorded against the model; the author is not.
+          # Commits and pull requests carry the number too, never a name.
+          $DEVICECHECK intake "$RUNNER_TEMP/issue.md" devices --issue "$ISSUE" > intake.log 2>&1
           code=$?
           set -e
           cat intake.log

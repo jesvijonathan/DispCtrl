@@ -48,6 +48,16 @@
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
 
         <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+          <!-- A view, not a setting of the desk: highlighted while on, so
+               which picture is showing is never in doubt. -->
+          <ToggleButton x:Name="ResolutionToggle" Click="OnResolutionToggled"
+                        ToolTipService.ToolTip="Size each display by its resolution, as Windows does. Off: by its real size."
+                        AutomationProperties.Name="Arrange by resolution">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <FontIcon Glyph="&#xE740;" FontSize="13"/>
+              <TextBlock Text="By resolution"/>
+            </StackPanel>
+          </ToggleButton>
           <Button Content="Identify" Click="OnIdentify"
                   ToolTipService.ToolTip="Flash each display's number on it — changes nothing"
                   AutomationProperties.Name="Identify"/>

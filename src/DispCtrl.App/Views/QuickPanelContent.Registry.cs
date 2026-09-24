@@ -51,6 +51,8 @@ internal sealed partial class QuickPanelContent
                 nameof(MainViewModel.AwakeModeIndex), AwakeFlyout()),
             "stayActive" => Tile(e, () => _vm.AwakeStayActive, v => _vm.AwakeStayActive = v,
                 nameof(MainViewModel.AwakeStayActive)),
+            "displaysOff" => Tile(e, () => _vm.DisplaysOff, v => _vm.DisplaysOff = v,
+                nameof(MainViewModel.DisplaysOff), DisplaysOffFlyout()),
 
             // Everything about the taskbar behind one tile: the wide half is the
             // glass, the effect people reach for; the arrow opens the rest.
@@ -344,6 +346,62 @@ internal sealed partial class QuickPanelContent
 
     private Flyout OledFlyout() => OptionsFlyout("OLED care", "displays", OledRows());
 
+    private Flyout DisplaysOffFlyout() => OptionsFlyout("Displays off", "displays", DisplaysOffRows(inKeepAwake: false));
+
+    /// <summary>"Turn off displays": how dark, which displays, how soon, what wakes them, and staying awake meanwhile.</summary>
+    /// <remarks>Used by its own tile and inside Keep awake's, which is where people look for "walk away".</remarks>
+    private FrameworkElement?[] DisplaysOffRows(bool inKeepAwake)
+    {
+        var shortcut = new TextBlock
+        {
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(RowInset, 0, 0, 4),
+            Foreground = Res("TextFillColorSecondaryBrush"),
+            Text = _vm.DisplaysOffShortcut,
+        };
+        Watch(_vm, nameof(MainViewModel.DisplaysOffShortcut), () => shortcut.Text = _vm.DisplaysOffShortcut);
+
+        Button? now = null;
+        if (inKeepAwake)
+        {
+            now = new Button { Content = "Turn off displays now", HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 6, 0, 2) };
+            AutomationProperties.SetName(now, "QuickDisplaysOffNow");
+            now.Click += (_, _) => { _vm.DisplaysOff = true; _dismiss(); };
+        }
+
+        return
+        [
+            now,
+            shortcut,
+            SliderRow("", "Darkness", _vm.DisplaysOffLevel, 50, 100,
+                v => _vm.DisplaysOffLevel = v, _vm, nameof(MainViewModel.DisplaysOffLevel), () => _vm.DisplaysOffLevel,
+                "QuickDisplaysOffLevel", "%", labelled: true),
+            ComboRow("Which", _vm.DisplaysOffTargets, () => _vm.DisplaysOffTargetName, v => _vm.DisplaysOffTargetName = v,
+                _vm, nameof(MainViewModel.DisplaysOffTargetName), "QuickDisplaysOffTarget"),
+            SliderRow("", "After", _vm.DisplaysOffDelay, 0, 30,
+                v => _vm.DisplaysOffDelay = v, _vm, nameof(MainViewModel.DisplaysOffDelay), () => _vm.DisplaysOffDelay,
+                "QuickDisplaysOffDelay", " s", labelled: true),
+            SwitchRow("Wake only by the pointer", "A display comes back when the pointer moves on it; typing leaves it off. Off: any input wakes them all.",
+                () => _vm.DisplaysOffWakeOnPointer, v => _vm.DisplaysOffWakeOnPointer = v,
+                nameof(MainViewModel.DisplaysOffWakeOnPointer), "QuickDisplaysOffWake"),
+            SwitchRow("Hide the pointer", "Parks it in a corner of a display that went off, so no arrow floats on the black.",
+                () => _vm.DisplaysOffHidePointer, v => _vm.DisplaysOffHidePointer = v,
+                nameof(MainViewModel.DisplaysOffHidePointer), "QuickDisplaysOffPointer"),
+            SwitchRow("Lock when they wake", "Whoever brings them back meets the lock screen, so nobody passing can use the computer.",
+                () => _vm.DisplaysOffLockOnWake, v => _vm.DisplaysOffLockOnWake = v,
+                nameof(MainViewModel.DisplaysOffLockOnWake), "QuickDisplaysOffLock"),
+            // The real switches, not copies: in Keep awake's own flyout they are
+            // already above, so they are shown only in this tile's.
+            inKeepAwake ? null : SwitchRow("Keep awake", "No sleep while you are away. The same switch as Keep awake's.",
+                () => ReadAwake() != 0, v => WriteAwake(v ? 1 : 0),
+                nameof(MainViewModel.AwakeModeIndex), "QuickDisplaysOffKeepAwake"),
+            inKeepAwake ? null : SwitchRow("Stay active", "Teams and other chat apps keep showing you as available. The same switch as Stay active's.",
+                () => _vm.AwakeStayActive, v => _vm.AwakeStayActive = v,
+                nameof(MainViewModel.AwakeStayActive), "QuickDisplaysOffStayActive"),
+        ];
+    }
+
     private Flyout AwakeFlyout()
     {
         (string Text, Func<bool> On, Action Pick) For(string text, int mode, int hours, int minutes) =>
@@ -362,6 +420,7 @@ internal sealed partial class QuickPanelContent
              });
 
         return OptionsFlyout("Keep awake", "displays",
+        [
             Choices(
                 For("Let the computer sleep", 0, 0, 0),
                 For("Keep awake indefinitely", 1, 0, 0),
@@ -374,7 +433,11 @@ internal sealed partial class QuickPanelContent
                 nameof(MainViewModel.AwakeStayActive), "QuickStayActive"),
             SwitchRow("Keep the displays on too", "Otherwise the displays still turn off on Windows' schedule.",
                 () => _vm.AwakeKeepDisplaysOn, v => _vm.AwakeKeepDisplaysOn = v,
-                nameof(MainViewModel.AwakeKeepDisplaysOn), "QuickAwakeDisplays"));
+                nameof(MainViewModel.AwakeKeepDisplaysOn), "QuickAwakeDisplays"),
+            Divider(),
+            Caption("Turn off displays"),
+            .. DisplaysOffRows(inKeepAwake: true),
+        ]);
     }
 
     // ---- taskbar ----

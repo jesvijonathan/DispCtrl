@@ -89,6 +89,15 @@ internal sealed class TaskbarManager
         public int Thickness { get; set; }
         public bool ReclaimWorkArea { get; set; }
 
+        /// <summary>
+        /// Another monitor lies against the edge the bar hides past, so the
+        /// strip just beyond its own monitor is on that one.
+        /// </summary>
+        public bool Blocked { get; set; }
+
+        /// <summary>The far side of the whole desktop along the hiding axis, used when <see cref="Blocked"/>.</summary>
+        public int Beyond { get; set; }
+
         public bool Shown { get; set; } = true;
         public long HideAtTick { get; set; }
 
@@ -400,7 +409,8 @@ internal sealed class TaskbarManager
             b.AnimFrom = currentPos;
             b.TargetPos = want;
             b.AnimStart = now;
-            b.Animating = _settings.Global.AnimMs > 0;
+            // A blocked bar snaps: its slide would cross the neighbouring monitor.
+            b.Animating = _settings.Global.AnimMs > 0 && !b.Blocked;
             raise = b.Shown;       // coming into view: lift above maximized windows
         }
 
@@ -519,7 +529,17 @@ internal sealed class TaskbarManager
     };
 
     /// <summary>Fully off the monitor — not one row short of it. See the class remarks.</summary>
-    private static int HiddenPosition(Bar b) => b.Edge switch
+    /// <remarks>
+    /// Just past the edge, unless another monitor is there: a monitor stacked
+    /// on top of the laptop parked its bar along the top of the laptop's screen,
+    /// in plain view. A blocked bar goes past the far side of the whole desktop,
+    /// where no monitor is.
+    /// </remarks>
+    private static int HiddenPosition(Bar b) => b.Blocked ? b.Edge switch
+    {
+        Edge.Top or Edge.Left => b.Beyond - b.Thickness,
+        _ => b.Beyond,
+    } : b.Edge switch
     {
         Edge.Bottom => b.Monitor.Bottom,
         Edge.Top => b.Monitor.Top - b.Thickness,
@@ -643,7 +663,7 @@ internal sealed class TaskbarManager
             int thickness = horizontal ? ht : w;
             if (thickness is <= 0 or > MaxPlausibleThickness) continue;   // not a real bar
 
-            DisplayInfo? d = ResolveMonitor(displays, r, horizontal);
+            DisplayInfo? d = ResolveMonitor(displays, h, r, horizontal);
             if (d is null) continue;
 
             string token = d.Token;
@@ -657,7 +677,7 @@ internal sealed class TaskbarManager
             // nothing happens.
             if (!ms.ManagesTaskbar) continue;
 
-            bars.Add(new Bar
+            var bar = new Bar
             {
                 Hwnd = h,
                 MonitorToken = token,
@@ -666,7 +686,9 @@ internal sealed class TaskbarManager
                 Edge = DetectEdge(r, d.Bounds, horizontal),
                 Thickness = thickness,
                 ReclaimWorkArea = ms.ReclaimWorkArea,
-            });
+            };
+            PlanParking(bar, displays);
+            bars.Add(bar);
         }
 
         return bars;
@@ -696,8 +718,19 @@ internal sealed class TaskbarManager
     /// bar only ever moves vertically, so its X centre is stable and identifies
     /// the monitor; the reverse holds for a vertical bar.
     /// </remarks>
-    private static DisplayInfo? ResolveMonitor(List<DisplayInfo> displays, RECT r, bool horizontal)
+    private DisplayInfo? ResolveMonitor(List<DisplayInfo> displays, HWND h, RECT r, bool horizontal)
     {
+        // A bar this engine parked is where it put it, not where it belongs.
+        // Parked against a monitor stacked below, it sat exactly on that
+        // monitor's top edge, the tie-break below chose that monitor, and the
+        // bar was stranded on it at the next rescan.
+        foreach (Bar known in _bars)
+        {
+            if (known.Hwnd != h) continue;
+            foreach (DisplayInfo d in displays)
+                if (d.Token == known.MonitorToken) return d;
+        }
+
         int cx = r.left + (r.right - r.left) / 2;
         int cy = r.top + (r.bottom - r.top) / 2;
 
@@ -723,6 +756,21 @@ internal sealed class TaskbarManager
         }
 
         return best;
+    }
+
+    /// <summary>Decides where the bar hides; see <see cref="TaskbarParking.Plan"/>.</summary>
+    private static void PlanParking(Bar b, List<DisplayInfo> displays)
+    {
+        TaskbarSide side = b.Edge switch
+        {
+            Edge.Top => TaskbarSide.Top,
+            Edge.Left => TaskbarSide.Left,
+            Edge.Right => TaskbarSide.Right,
+            _ => TaskbarSide.Bottom,
+        };
+        (b.Blocked, b.Beyond) = TaskbarParking.Plan(b.Monitor, side, b.Thickness, displays.Select(d => d.Bounds));
+        if (b.Blocked)
+            Log.Write($"taskbar on {b.MonitorLabel}: another monitor is past its {side.ToString().ToLowerInvariant()} edge; it hides beyond the desktop and snaps");
     }
 
     private static Edge DetectEdge(RECT r, DisplayRect mon, bool horizontal)

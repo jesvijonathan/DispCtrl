@@ -117,7 +117,7 @@ public static partial class QuickPanelHost
     /// as it is. Null when another process already holds it, in which case this
     /// one has nothing to listen for.
     /// </returns>
-    public static Mutex? Listen(DispatcherQueue queue, Action summon, Action? identify = null)
+    public static Mutex? Listen(DispatcherQueue queue, Action summon, Action? identify = null, Action? window = null)
     {
         Mutex alive = QuickPanelSignal.OpenAlive(out bool held);
         if (!held) return null;
@@ -130,7 +130,8 @@ public static partial class QuickPanelHost
             {
                 using EventWaitHandle show = QuickPanelSignal.OpenShow();
                 using EventWaitHandle number = QuickPanelSignal.OpenIdentify();
-                WaitHandle[] both = [show, number];
+                using EventWaitHandle full = QuickPanelSignal.OpenWindowEvent();
+                WaitHandle[] both = [show, number, full];
 
                 while (true)
                 {
@@ -139,7 +140,7 @@ public static partial class QuickPanelHost
                     // Enqueued rather than called: this is not the UI thread,
                     // and touching a XAML tree from here is the kind of bug
                     // that shows up as a crash somewhere unrelated later.
-                    Action? handler = which == 0 ? _onSummon : identify;
+                    Action? handler = which switch { 0 => _onSummon, 1 => identify, _ => window };
                     if (handler is not null) _ = queue.TryEnqueue(() => handler());
                 }
             }

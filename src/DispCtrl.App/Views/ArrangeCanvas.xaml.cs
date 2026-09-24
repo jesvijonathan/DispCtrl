@@ -25,6 +25,9 @@ public sealed partial class ArrangeCanvas : UserControl
         public required DisplayInfo Display { get; init; }
         public required Brush EmptyBackground { get; init; }
         public WallpaperStamp? WallpaperSignature { get; set; }
+
+        /// <summary>The reported file that last failed to decode, so it is not decoded again every ten seconds.</summary>
+        public WallpaperStamp? Undecodable { get; set; }
         public int X { get; set; }
         public int Y { get; set; }
         public int Width => Display.Bounds.Width;
@@ -33,8 +36,9 @@ public sealed partial class ArrangeCanvas : UserControl
         public int Bottom => Y + Height;
     }
 
-    private const string RestingHint =
-        "Drag to arrange; nearby edges and centres snap into alignment. Tiles reflect physical display size when available.";
+    private static string RestingHint => App.ViewModel.ArrangeByResolution
+        ? "Drag to arrange; nearby edges and centres snap into alignment. Tiles are sized by resolution, as in Windows."
+        : "Drag to arrange; nearby edges and centres snap into alignment. Tiles reflect physical display size when available.";
     private const double GridSpacing = 24;
 
     private readonly List<Tile> _tiles = [];
@@ -65,6 +69,7 @@ public sealed partial class ArrangeCanvas : UserControl
     {
         InitializeComponent();
         Hint.Text = RestingHint;
+        ResolutionToggle.IsChecked = App.ViewModel.ArrangeByResolution;
 
         _settle.Interval = SettleAfter;
         _settle.Tick += OnSettled;
@@ -364,13 +369,26 @@ public sealed partial class ArrangeCanvas : UserControl
 
     private PhysicalLayout.Panel PreviewPanel(Tile tile)
     {
-        // Use one unit system for the whole preview if EDID size is unavailable.
-        bool physical = _tiles.All(item => item.Display.HasPhysicalSize);
+        // Use one unit system for the whole preview if EDID size is unavailable,
+        // or pixels throughout when asked to draw it the way Windows does.
+        bool physical = !App.ViewModel.ArrangeByResolution && _tiles.All(item => item.Display.HasPhysicalSize);
         bool rotated = tile.Display.OrientationDegrees is 90 or 270;
         double width = physical ? (rotated ? tile.Display.PhysicalHeightMm : tile.Display.PhysicalWidthMm) : tile.Width;
         double height = physical ? (rotated ? tile.Display.PhysicalWidthMm : tile.Display.PhysicalHeightMm) : tile.Height;
         return new(tile.Display.Token, tile.X, tile.Y, tile.Width, tile.Height,
             width / tile.Width, height / tile.Height);
+    }
+
+    private void OnResolutionToggled(object sender, RoutedEventArgs e)
+    {
+        App.ViewModel.ArrangeByResolution = ResolutionToggle.IsChecked == true;
+        if (ApplyButton.IsEnabled is false) Hint.Text = RestingHint;
+        if (_dragging is not null || _tiles.Count == 0) return;
+        UpdatePreview();
+        // Millimetres to pixels changes every coordinate; refit rather than
+        // animate between two scales that measure different things.
+        _hasView = false;
+        Layout();
     }
 
     private void UpdatePreview()
@@ -496,36 +514,51 @@ public sealed partial class ArrangeCanvas : UserControl
 
     private async Task LoadTileWallpaperAsync(Tile tile)
     {
-        try
+        WallpaperStamp? previous = tile.WallpaperSignature;
+        // The path Windows reports first, then Windows' own decoded copy: the
+        // reported file can be gone (deleted or moved after it was set), online
+        // only, or a format this decoder cannot read (HEIC, WebP), and on one
+        // laptop the preview stayed empty for exactly that.
+        foreach (bool transcoded in new[] { false, true })
         {
-            WallpaperStamp? previous = tile.WallpaperSignature;
-            var snapshot = await Task.Run(() => ReadWallpaper(tile.Display, previous));
-            using var file = snapshot.Stream;
-            if (!WallpapersActive || !_tiles.Contains(tile) || snapshot.Stamp == previous) return;
-            if (file is null)
+            try
             {
-                tile.WallpaperSignature = null;
-                tile.Element.Background = tile.EmptyBackground;
+                var snapshot = await Task.Run(() => ReadWallpaper(tile.Display, previous, transcoded));
+                using var file = snapshot.Stream;
+                if (!WallpapersActive || !_tiles.Contains(tile)) return;
+                if (snapshot.Stamp is not null && snapshot.Stamp == previous) return;
+                if (file is null) continue;
+                // Known not to decode: straight to Windows' copy, until it changes.
+                if (!transcoded && snapshot.Stamp == tile.Undecodable) continue;
+                // Decode from the file stream: no full-sized byte array or second
+                // in-memory copy of a potentially large wallpaper.
+                using var stream = file.AsRandomAccessStream();
+                var bitmap = new BitmapImage { DecodePixelWidth = 320 };
+                try { await bitmap.SetSourceAsync(stream); }
+                catch (Exception) { if (!transcoded) tile.Undecodable = snapshot.Stamp; throw; }
+                if (!WallpapersActive || !_tiles.Contains(tile)) return;
+                tile.Element.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
+                tile.WallpaperSignature = snapshot.Stamp;
                 return;
             }
-            // Decode from the file stream: no full-sized byte array or second
-            // in-memory copy of a potentially large wallpaper.
-            using var stream = file.AsRandomAccessStream();
-            var bitmap = new BitmapImage { DecodePixelWidth = 320 };
-            await bitmap.SetSourceAsync(stream);
-            if (!WallpapersActive || !_tiles.Contains(tile)) return;
-            tile.Element.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
-            tile.WallpaperSignature = snapshot.Stamp;
+            catch (Exception) { }
         }
-        catch (Exception) { }
+        if (!WallpapersActive || !_tiles.Contains(tile)) return;
+        tile.WallpaperSignature = null;
+        tile.Element.Background = tile.EmptyBackground;
     }
 
-    private static (WallpaperStamp? Stamp, FileStream? Stream) ReadWallpaper(DisplayInfo display, WallpaperStamp? previous)
+    /// <summary>Windows' decoded copy of the current wallpaper, kept whatever the original was.</summary>
+    private static readonly string TranscodedWallpaper = System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "Microsoft", "Windows", "Themes", "TranscodedWallpaper");
+
+    private static (WallpaperStamp? Stamp, FileStream? Stream) ReadWallpaper(DisplayInfo display, WallpaperStamp? previous, bool transcoded)
     {
-        string? path = Wallpaper.Read(display);
+        string? path = transcoded ? TranscodedWallpaper : Wallpaper.Read(display);
         if (string.IsNullOrEmpty(path)) return (null, null);
         var info = new FileInfo(path);
-        if (!info.Exists) return (null, null);
+        if (!info.Exists || info.Length == 0) return (null, null);
         var stamp = new WallpaperStamp(path, info.Length, info.LastWriteTimeUtc);
         if (stamp == previous) return (stamp, null);
         return (stamp, new FileStream(path, FileMode.Open, FileAccess.Read,

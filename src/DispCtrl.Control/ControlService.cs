@@ -19,7 +19,7 @@ public sealed partial class ControlService
         "hotkeys.list", "hotkeys.add", "hotkeys.set", "hotkeys.remove", "hotkeys.reset",
         "devices.list", "devices.show", "devices.scan", "devices.forget", "devices.map", "devices.unmap", "devices.link", "devices.panel", "devices.definitions",
         "devices.share", "devices.validate", "settings.get", "settings.set", "settings.reset", "settings.schema", "settings.validate", "settings.import",
-        "focus.get", "focus.set", "focus.reset", "oled.get", "oled.set", "oled.reset", "oled.preview", "oled.rest",
+        "focus.get", "focus.set", "focus.reset", "oled.get", "oled.set", "oled.reset", "oled.preview", "oled.rest", "awake.displays-off",
         "awake.get", "awake.set", "awake.reset", "nightlight.get", "nightlight.set", "nightlight.reset",
         "taskbar.get", "taskbar.set", "taskbar.reset", "tray.get", "tray.set", "tray.reset", "windows.get", "windows.set",
         "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "maintenance.repair", "maintenance.clear-cache", "tray.show", "apply", "commands", "diagnostics", "report"];
@@ -251,6 +251,16 @@ public sealed partial class ControlService
             if (!Flag(args, "dryRun") && !OledPreview.TryShow(level)) throw new InvalidOperationException("Start the engine and enable OLED idle protection to preview.");
             return new JsonObject { ["state"] = Flag(args, "dryRun") ? "validated" : "requested" };
         }
+        if (command == "awake.displays-off")
+        {
+            // A request the engine carries out after the delay and clears when
+            // every display it turned off has woken; see AwakeSettings.DisplaysOffUtc.
+            if (args["enabled"] is not JsonValue flag || !flag.TryGetValue(out bool on))
+                throw new ArgumentException("--enabled on or off.");
+            return SettingsDocument.Update(document =>
+                document["global"]!["awake"]!["displaysOffUtc"] = on ? DateTimeOffset.UtcNow.ToString("O") : null,
+                Flag(args, "dryRun"));
+        }
         if (command == "oled.rest")
         {
             var displays = Resolve(Text(args, "monitor"), false);
@@ -359,6 +369,7 @@ public sealed partial class ControlService
             "tray.show" => ["dryRun"],
             "startup.get" or "unison.get" => [],
             "oled.rest" => ["monitor", "minutes", "dryRun"],
+            "awake.displays-off" => ["enabled", "dryRun"],
             "display.reset" => ["monitor", "factory", "confirm", "dryRun"],
             _ when command.EndsWith(".get", StringComparison.Ordinal) => ["monitor"],
             _ when command.EndsWith(".reset", StringComparison.Ordinal) => ["monitor", "dryRun", "revision"],
