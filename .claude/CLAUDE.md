@@ -971,6 +971,15 @@ unrecallable.
   package sees the same view; anything outside it (Explorer, the glass helper,
   an unpackaged build) may not. Registry writes are not redirected - measured
   with `Invoke-CommandInDesktopPackage`.
+- **Explorer cannot load anything from WindowsApps.** The glass helper is
+  loaded by Explorer itself (`InitializeXamlDiagnosticsEx` hands it a path),
+  and a package's files carry a conditional ACE granting execute only to
+  processes whose SYSAPPID is that package: everyone else may read, not map an
+  image. The Store build's glass therefore did nothing at all, with no visible
+  error, while the installer and zips worked. `TaskbarGlassController.ExplorerLoadable`
+  copies the helper to the package's real `LocalCacheFolder` (the user's ACL)
+  and loads that. Anything else handed to another process by path from a
+  Store install needs the same.
 - **Explorer records a tray icon's path by known-folder id**:
   `{6D809377-...}\WindowsApps\...` for the Store engine. Compared as a plain
   path it never matched, so the Store icon was never kept on the taskbar.

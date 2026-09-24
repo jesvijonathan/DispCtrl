@@ -128,6 +128,7 @@ internal sealed class TaskbarGlassController : IDisposable
             string name = File.ReadAllText(versionFile).Trim();
             string path = Path.Combine(directory, name);
             if (!File.Exists(path)) throw new FileNotFoundException("native helper is missing", path);
+            path = ExplorerLoadable(path, name);
             _module = NativeLibrary.Load(path);
             _attach = Marshal.GetDelegateForFunctionPointer<AttachDelegate>(NativeLibrary.GetExport(_module, "GlassAttach"));
             _update = Marshal.GetDelegateForFunctionPointer<UpdateDelegate>(NativeLibrary.GetExport(_module, "GlassUpdate"));
@@ -143,6 +144,40 @@ internal sealed class TaskbarGlassController : IDisposable
             WriteStatus("Native Explorer bridge is unavailable");
             return false;
         }
+    }
+
+    /// <summary>A path to the helper that Explorer is allowed to load.</summary>
+    /// <remarks>
+    /// Explorer loads the helper itself, from the path the engine hands it. In
+    /// a Store install that path is under WindowsApps, where a conditional ACE
+    /// grants execute only to processes whose SYSAPPID is the package's own:
+    /// Explorer may read the file but not map it as an image, so the glass did
+    /// nothing at all there while the installer and the zips worked. A copy in
+    /// the package's LocalCache - its real path, not the redirected
+    /// %LOCALAPPDATA% view - has the user's own ACL. The name carries the
+    /// revision, so an existing copy is the same bytes and is never rewritten:
+    /// Explorer may have it mapped.
+    /// </remarks>
+    private static string ExplorerLoadable(string path, string name)
+    {
+        string cache;
+        try { _ = Windows.ApplicationModel.Package.Current.Id; cache = Windows.Storage.ApplicationData.Current.LocalCacheFolder.Path; }
+        catch (InvalidOperationException) { return path; }
+        string directory = Path.Combine(cache, "TaskbarGlass");
+        string copy = Path.Combine(directory, name);
+        if (!File.Exists(copy))
+        {
+            Directory.CreateDirectory(directory);
+            File.Copy(path, copy + ".tmp", true);
+            File.Move(copy + ".tmp", copy, true);
+            Log.Write($"taskbar glass: helper copied out of the package to {copy}");
+        }
+        // Earlier revisions go when nothing holds them; one Explorer still has
+        // mapped stays until it restarts, and is tried again next time.
+        foreach (string old in Directory.EnumerateFiles(directory, "DispCtrl.TaskbarGlass.*.dll"))
+            if (!string.Equals(old, copy, StringComparison.OrdinalIgnoreCase))
+                try { File.Delete(old); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        return copy;
     }
 
     public void Dispose()
