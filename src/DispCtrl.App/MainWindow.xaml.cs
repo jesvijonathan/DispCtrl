@@ -92,7 +92,7 @@ public sealed partial class MainWindow : Window
     private void OnNavigationItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
     {
         if ((args.InvokedItemContainer as NavigationViewItem)?.Tag as string == "sponsor")
-            DispCtrl.App.Services.ProjectLinks.Open(DispCtrl.App.Services.ProjectLinks.Sponsor);
+            DispCtrl.App.Services.ProjectLinks.Open(DispCtrl.App.Services.ProjectLinks.SupportPage);
     }
 
     private void OnNavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

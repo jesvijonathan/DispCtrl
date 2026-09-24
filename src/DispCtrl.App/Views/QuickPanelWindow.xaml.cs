@@ -257,7 +257,12 @@ public sealed partial class QuickPanelWindow : Window
         KeepOnTop();
         // Focus somewhere, but as a click would: activation otherwise gave the
         // first button keyboard focus, and its focus rectangle, on every opening.
-        _ = DensityButton.Focus(FocusState.Pointer);
+        // Simple mode hides the density button, and a collapsed control takes no focus.
+        // Queued as well: activation hands out keyboard focus after this call
+        // returns, and the button that got it drew its rectangle.
+        _ = SimpleButton.Focus(FocusState.Pointer);
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+            () => SimpleButton.Focus(FocusState.Pointer));
         RoundCorners();
 
         AfterFrames(2, () =>
@@ -558,6 +563,7 @@ public sealed partial class QuickPanelWindow : Window
         QuickPanelSettings panel = App.ViewModel.QuickPanel;
         _pinned = panel.StayOpen;
         UpdatePinGlyph();
+        UpdateSimpleGlyph();
         ApplyLock();
 
         Footer.Visibility = panel.ShowFooter && !panel.Simple ? Visibility.Visible : Visibility.Collapsed;
@@ -870,27 +876,35 @@ public sealed partial class QuickPanelWindow : Window
         UpdateDensityTip();
     }
 
-    /// <summary>Locks the panel where it opens, or lets its title drag it again.</summary>
-    /// <remarks>
-    /// Locked, the title row stops being a drag handle - a panel nudged while
-    /// reaching for a slider no longer wanders - and a panel dragged away goes
-    /// back to where it belongs.
-    /// </remarks>
-    private void OnLock(object sender, RoutedEventArgs e)
+    /// <summary>Brightness sliders only, or the full panel.</summary>
+    private void OnSimple(object sender, RoutedEventArgs e)
     {
-        App.ViewModel.QuickPanelLocked = !App.ViewModel.QuickPanelLocked;
-        ApplyLock();
-        if (App.ViewModel.QuickPanelLocked) Place(App.ViewModel.QuickPanel);
+        App.ViewModel.QuickPanelSimple = !App.ViewModel.QuickPanelSimple;
+        UpdateSimpleGlyph();
     }
 
+    // A dot: lit while on, grey while off, so the state reads without a tooltip.
+    private void UpdateSimpleGlyph()
+    {
+        bool simple = App.ViewModel.QuickPanel.Simple;
+        SimpleGlyph.Foreground = simple
+            ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"]
+            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"];
+        ToolTipService.SetToolTip(SimpleButton, simple
+            ? "Simple mode: brightness only. Click for the full panel."
+            : "Click for simple mode: brightness only.");
+    }
+
+    /// <remarks>
+    /// Locked, the title stops being a drag handle, so a panel nudged while
+    /// reaching for a slider no longer wanders. Set on the Quick panel page;
+    /// the title bar's own lock button gave way to the simple mode switch.
+    /// </remarks>
     private void ApplyLock()
     {
         bool locked = App.ViewModel.QuickPanel.Locked;
         SetTitleBar(locked ? NoDrag : TitleRow);
-        LockGlyph.Glyph = locked ? "\uE72E" : "\uE785";
-        ToolTipService.SetToolTip(LockButton, locked
-            ? "Locked where it opens. Click to let the title drag it."
-            : "Can be dragged by its title. Click to lock it where it opens.");
+        ToolTipService.SetToolTip(TitleRow, locked ? null : "Drag to move");
     }
 
     private void OnOpenApp(object sender, RoutedEventArgs e)

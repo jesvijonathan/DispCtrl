@@ -46,4 +46,11 @@
     <ProjectReference Include="..\DispCtrl.Display\DispCtrl.Display.csproj" />
   </ItemGroup>
 
+  <!-- The UPI QR on the About page. One file, shared with the website and the
+       README, copied beside the executable rather than duplicated here. -->
+  <ItemGroup>
+    <Content Include="..\..\site\assets\donations\upi-qr.png" Link="Assets\upi-qr.png"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

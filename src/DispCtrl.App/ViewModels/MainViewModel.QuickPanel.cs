@@ -75,6 +75,8 @@ public sealed partial class MainViewModel
             if (QuickPanel.Simple == value) return;
             QuickPanel.Simple = value;
             SaveQuickPanel(composition: true);
+            // Two switches now show it, the page's and the panel's own.
+            Raise();
             Raise(nameof(QuickPanelCustomisable));
         }
     }

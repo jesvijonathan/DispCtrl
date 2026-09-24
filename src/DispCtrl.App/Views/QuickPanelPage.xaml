@@ -122,7 +122,7 @@
       </tk:SettingsCard>
 
       <tk:SettingsCard Header="Lock its position"
-                       Description="Keeps the panel where it opens, so its title no longer drags it. The lock in the panel's title changes this too.">
+                       Description="Keeps the panel where it opens, so its title no longer drags it. Off by default: drag the panel by its title.">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE72E;"/>
         </tk:SettingsCard.HeaderIcon>

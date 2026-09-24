@@ -6,5 +6,5 @@ blank_issues_enabled: true
 
 contact_links:
   - name: Contribute a monitor
-    url: https://github.com/jesvijonathan/Display-Control/blob/master/devices/README.md
+    url: https://github.com/jesvijonathan/DispCtrl/blob/master/devices/README.md
     about: Run `dispctrl devices share --monitor 2 --open`, or use the app's Devices page, and DispCtrl fills this in for you.

@@ -88,7 +88,7 @@ Six workflows, each with a summary page (links, files, sizes, status) and a
 | **Release** (`release.yml`) | a `v*` tag, or by hand | everything below; options: version, channel, publish now or draft, create the tag, packages, signing, extra notes |
 | **Distribute** (`distribute.yml`) | publishing a stable release, or by hand | winget and the Microsoft Store; options: tag, which targets, dry run |
 | **Device library** (`devices.yml`) | changes under `devices/`, and issues carrying a device share | validate, regenerate the index after a merge, and turn a share into a pull request; by hand: validate, reindex, intake one issue, self-test |
-| **Website** (`pages.yml`) | changes under `site/` or `docs/assets/` | publishes GitHub Pages |
+| **Website** (`pages.yml`) | changes under `site/` | publishes GitHub Pages |
 | **Housekeeping** (`housekeeping.yml`) | Sundays, or by hand | deletes old artifacts, run records, unused caches and stale release drafts, and reports the space freed; a manual run is a dry run unless you untick it |
 
 ### Who can change them

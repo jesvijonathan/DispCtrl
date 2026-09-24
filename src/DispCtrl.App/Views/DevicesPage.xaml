@@ -36,7 +36,7 @@
           </StackPanel>
         </Button>
         <HyperlinkButton Content="How mapping works" VerticalAlignment="Center"
-                         NavigateUri="https://github.com/jesvijonathan/Display-Control/blob/master/docs/DEVICE-LIBRARY.md"/>
+                         NavigateUri="https://github.com/jesvijonathan/DispCtrl/blob/master/docs/DEVICE-LIBRARY.md"/>
       </StackPanel>
 
       <InfoBar x:Name="Result" IsOpen="False" IsClosable="True" Margin="0,0,0,8"/>

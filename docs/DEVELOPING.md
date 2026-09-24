@@ -12,8 +12,8 @@ One script does the work on each system:
 ## Windows: from nothing to running
 
 ```powershell
-git clone https://github.com/jesvijonathan/Display-Control.git
-cd Display-Control
+git clone https://github.com/jesvijonathan/DispCtrl.git
+cd DispCtrl
 .\build.cmd setup -Install     # asks winget for .NET 10 and MinGW-w64 if missing
 .\build.cmd build
 .\build.cmd run engine         # tray icon, hotkeys, taskbar

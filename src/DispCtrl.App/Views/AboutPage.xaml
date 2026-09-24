@@ -22,20 +22,63 @@
       <tk:SettingsCard Header="Open source" Description="Inspect the source, follow development or contribute on GitHub.">
         <Button Content="View project" Click="OnRepository"/>
       </tk:SettingsCard>
-      <tk:SettingsCard Header="Support development"
-                       Description="Help fund continued development and new display features.">
-        <tk:SettingsCard.HeaderIcon>
-          <FontIcon Glyph="&#xEB51;"/>
-        </tk:SettingsCard.HeaderIcon>
-        <Button Click="OnSponsor"
+      <!-- Items are SettingsCards only: anything else inside a SettingsExpander
+           takes the process down when it is realised. -->
+      <tk:SettingsExpander Header="Support development"
+                           Description="DispCtrl is free and open source. Donations pay for development time and test monitors."
+                           IsExpanded="True">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xEB52;" Foreground="#DB61A2"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <Button Click="OnSupportPage"
                 Style="{StaticResource AccentButtonStyle}"
-                AutomationProperties.Name="Donate through GitHub Sponsors">
+                ToolTipService.ToolTip="Every way to support DispCtrl, on its website"
+                AutomationProperties.Name="Donate: open the support page">
           <StackPanel Orientation="Horizontal" Spacing="7">
-            <TextBlock Text="♥"/>
+            <TextBlock Text="&#x2665;"/>
             <TextBlock Text="Donate" FontWeight="SemiBold"/>
           </StackPanel>
         </Button>
-      </tk:SettingsCard>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="GitHub Sponsors" Description="One-time or monthly, through your GitHub account.">
+            <tk:SettingsCard.HeaderIcon>
+              <PathIcon Data="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z">
+                <PathIcon.RenderTransform><ScaleTransform ScaleX="1.2" ScaleY="1.2"/></PathIcon.RenderTransform>
+              </PathIcon>
+            </tk:SettingsCard.HeaderIcon>
+            <Button Content="Sponsor" Click="OnSponsor" AutomationProperties.Name="Sponsor on GitHub"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="PayPal" Description="A one-time gift in any currency.">
+            <tk:SettingsCard.HeaderIcon>
+              <PathIcon Data="M7.1 21.5H3.6L6.5 3h7.1c3.4 0 5.6 1.8 5 5.1-.6 3.9-3.3 5.6-6.9 5.6H9.4l-1 6.2zm2.7-9.9h1.9c2 0 3.2-.9 3.5-2.8.3-1.7-.7-2.5-2.4-2.5h-2z">
+                <PathIcon.RenderTransform><ScaleTransform ScaleX="0.8" ScaleY="0.8"/></PathIcon.RenderTransform>
+              </PathIcon>
+            </tk:SettingsCard.HeaderIcon>
+            <Button Content="Donate with PayPal" Click="OnPayPal" AutomationProperties.Name="Donate with PayPal"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="UPI" Description="From any UPI app in India: GPay, PhonePe, Paytm or BHIM.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#x20B9;" FontFamily="Segoe UI" FontWeight="SemiBold"/>
+            </tk:SettingsCard.HeaderIcon>
+            <Button Content="Show QR code" AutomationProperties.Name="Show the UPI QR code">
+              <Button.Flyout>
+                <Flyout Placement="Left">
+                  <StackPanel Spacing="10" HorizontalAlignment="Center">
+                    <Border Background="White" CornerRadius="8" Padding="8" HorizontalAlignment="Center">
+                      <Image x:Name="UpiQr" Width="200" Height="200" AutomationProperties.Name="UPI QR code for Jesvi Jonathan"/>
+                    </Border>
+                    <TextBlock Text="Scan with your UPI app" HorizontalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                      <TextBlock Text="jesvi22j-2@okaxis" VerticalAlignment="Center" IsTextSelectionEnabled="True" FontFamily="Cascadia Mono, Consolas"/>
+                      <Button Content="Copy" Click="OnCopyUpi" AutomationProperties.Name="Copy the UPI ID"/>
+                    </StackPanel>
+                  </StackPanel>
+                </Flyout>
+              </Button.Flyout>
+            </Button>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
 
       <TextBlock Text="Build" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,28,0,8"/>
       <tk:SettingsCard Header="Version" Description="{x:Bind Version}"/>

@@ -590,10 +590,13 @@ Every one of these was a real bug. Do not reintroduce them.
 - `FrameworkElement.Parent` is null until the element reaches the live tree.
   Find a child through its container's `Content` or `Children` instead.
 
-- **The title bar has four buttons, each with its own job**: density, lock,
-  stay open, customise. A "more" menu there only repeated the Quick panel page
-  and the icon's right-click menu. Locking sets the title bar to an empty
-  element, so the title stops being a drag handle.
+- **The title bar has four buttons, each with its own job**: simple mode (a
+  dot, accent when on and grey when off), density, stay open, customise. A "more" menu there only repeated the
+  Quick panel page and the icon's right-click menu. Only the "DispCtrl" title is
+  the drag handle (`TitleRow`, with a transparent background so the whole word
+  is hit-testable); a row-wide handle swallowed presses meant for the controls.
+  Locking, now only on the Quick panel page and off by default, sets the title
+  bar to an empty element, so the title stops dragging.
 - **Detail sections start folded** (`QuickPanelSettings.FoldedByDefault`: OLED,
   focus, display mode, taskbar, night light). A separate `Expanded` list records
   the ones opened, so a section added later still starts folded. Section bodies

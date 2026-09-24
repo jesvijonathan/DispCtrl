@@ -93,8 +93,8 @@ try {
         $modified = [bool](& git status --porcelain 2>$null)
     }
     foreach ($folder in @($cli,$desktop)) {
-        # The Markdown and the examples; not docs/assets, which holds the
-        # README's screenshots and would only add megabytes to every download.
+        # The Markdown and the examples; not docs/design (internal notes), and
+        # not the images, which live with the website in site/assets.
         New-Item -ItemType Directory -Path (Join-Path $folder 'docs') -Force | Out-Null
         Copy-Item -Path (Join-Path $repo 'docs/*.md') -Destination (Join-Path $folder 'docs')
         Copy-Item -LiteralPath (Join-Path $repo 'docs/examples') -Destination (Join-Path $folder 'examples') -Recurse

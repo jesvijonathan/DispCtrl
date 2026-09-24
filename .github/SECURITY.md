@@ -2,14 +2,14 @@
 
 ## Supported versions
 
-Only the latest release receives fixes. DispCtrl is in beta, so upgrade first and
-check whether the issue remains.
+Only the latest release receives fixes, so upgrade first and check whether the
+issue remains.
 
 ## Reporting a vulnerability
 
 Please **do not open a public issue.** Use GitHub's private reporting instead:
 **Security > Report a vulnerability** on
-[the repository](https://github.com/jesvijonathan/Display-Control/security/advisories/new).
+[the repository](https://github.com/jesvijonathan/DispCtrl/security/advisories/new).
 
 If you cannot use that, email jesvi22j@gmail.com with "DispCtrl security" in the subject.
 

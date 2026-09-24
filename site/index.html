@@ -12,12 +12,15 @@
 <meta property="og:image" content="assets/hero.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="stylesheet" href="assets/tooltips.css">
+<script src="assets/tooltips.js" defer></script>
 <script>
-// Theme before first paint: the saved choice, else light.
-(function(){try{var t=localStorage.getItem('theme')||'light';document.documentElement.dataset.theme=t;}catch(e){}})();
+// Theme before first paint: the saved choice, else dark.
+(function(){try{var t=localStorage.getItem('theme')||'dark';document.documentElement.dataset.theme=t;}catch(e){}})();
 </script>
 <style>
 :root{
+  color-scheme:dark;
   --bg:#0d0a14;--bg2:#141020;--card:#1a1426;--card-hi:#211a31;--line:#2c2340;--line2:#3a2f55;
   --text:#f4f1fa;--muted:#b2a8c6;--dim:#7f7596;
   --a1:#c4a6ff;--a2:#8b5cf6;--a3:#f0a6d8;--on-accent:#120d1c;
@@ -28,6 +31,7 @@
   --mono:"Cascadia Code","Cascadia Mono",Consolas,ui-monospace,monospace;
 }
 [data-theme=light]{
+  color-scheme:light;
   --bg:#f6f3fb;--bg2:#ffffff;--card:#ffffff;--card-hi:#faf7ff;--line:#e5ddf2;--line2:#d6cae9;
   --text:#1b1428;--muted:#574c6c;--dim:#8a7f9e;
   --a1:#7c4ddb;--a2:#8b5cf6;--a3:#d0589f;--on-accent:#ffffff;
@@ -35,6 +39,12 @@
   --h1a:#1b1428;--ok:#1f9d5a;--no:#d6335a;
 }
 *{box-sizing:border-box}
+/* Scrollbars: the page's and every scrolling panel's, in the current theme. */
+*{scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line2);border:3px solid transparent;background-clip:content-box;border-radius:999px}
+::-webkit-scrollbar-thumb:hover{background:var(--a2);border:3px solid transparent;background-clip:content-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden;transition:background .3s,color .3s}
 a{color:var(--a1);text-decoration:none}
@@ -210,7 +220,13 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 .lstats div{padding:16px 20px;border-left:1px solid var(--line)}.lstats div:first-child{border-left:0}
 .lstats b{display:block;font-size:26px;letter-spacing:-.02em;line-height:1.2}
 .lstats span{color:var(--dim);font-size:12.5px}
+.lsearch{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line)}
+.lsearch svg{width:16px;height:16px;flex:none;fill:none;stroke:var(--dim);stroke-width:2;stroke-linecap:round}
+.lsearch input{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--text);font:14px var(--font)}
+.lsearch input::placeholder{color:var(--dim)}
+.lsearch b{flex:none;font:12px var(--mono);font-weight:400;color:var(--dim)}
 .lrows{max-height:230px;overflow:auto}
+.lnote{padding:14px 20px;color:var(--dim);font-size:13.5px}
 .lrow{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);font-size:14px}
 .lrow code{font:12.5px var(--mono);color:var(--a1);background:var(--soft);padding:2px 7px;border-radius:6px}
 .lrow span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -246,17 +262,19 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 
 /* support */
 .donate{position:relative;overflow:hidden;border-radius:28px;border:1px solid var(--line);padding:52px;background:var(--bg2);
-  display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+  display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:start}
 .donate::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(55% 100% at 100% 0%,var(--glow),transparent 62%);opacity:.55}
 .donate>*{position:relative}
 .donate h2{margin:14px 0 16px}
-.who{display:inline-flex;align-items:center;gap:12px;margin-top:28px;padding:7px 16px 7px 7px;border-radius:999px;
+.who{display:inline-flex;align-items:center;gap:12px;padding:7px 16px 7px 7px;border-radius:999px;
   border:1px solid var(--line);background:var(--soft);color:var(--text);transition:border-color .2s,background .2s}
 .who:hover{border-color:var(--line2);background:var(--card-hi);text-decoration:none}
 .who img{width:36px;height:36px;border-radius:50%}
 .who b{display:block;font-size:14.5px;font-weight:600;line-height:1.3}
 .who small{color:var(--dim);font-size:12.5px}
-.ways{display:flex;flex-direction:column;gap:10px}
+/* Sits level with the heading, and drops to meet the QR when the card swaps. */
+.ways{display:flex;flex-direction:column;gap:10px;margin-top:34px;transition:margin-top .45s ease}
+.donate.qr .ways{margin-top:94px}
 .way{display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;border-radius:16px;border:1px solid var(--line);
   background:var(--card);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:border-color .2s,background .2s,transform .2s}
 .way:hover{border-color:var(--c);background:var(--card-hi);transform:translateX(4px);text-decoration:none}
@@ -266,13 +284,35 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 .way .go{margin-left:auto;color:var(--dim);font-size:17px;transition:transform .2s,color .2s}
 .way:hover .go{transform:translateX(3px);color:var(--c)}
 .help{margin:18px 0 0;color:var(--dim);font-size:13.5px;line-height:1.75}
+.swap{position:relative}
+/* Two cards in one cell: the author and the pitch give way to the ask. */
+.swap.two{display:grid}
+.swap.two>*{grid-area:1/1;align-self:start;margin-top:0;transition:opacity .45s ease,transform .45s ease,visibility .45s}
+.swap.two>.then{opacity:0;visibility:hidden;transform:translateY(12px)}
+.swap.two.qr>.first{opacity:0;visibility:hidden;transform:translateY(-12px)}
+.swap.two.qr>.then{opacity:1;visibility:visible;transform:none}
+#whoSwap{margin-top:28px}
+.upinow{display:flex;gap:18px;align-items:center;margin-top:26px;padding:16px;border-radius:20px;border:1px solid var(--line2);background:var(--soft);cursor:pointer;transition:border-color .2s,background .2s}
+.upinow:hover{border-color:var(--a2);background:var(--card)}
+.upinow>img{width:112px;height:112px;flex:none;border-radius:14px;background:#fff;padding:8px}
+.upitext{flex:1;min-width:0}
+.upitext b{display:block;font-size:15.5px;line-height:1.3}
+.upitext small{display:block;color:var(--dim);font-size:12.5px;margin-top:2px}
+.uid{display:flex;align-items:center;gap:8px;width:100%;margin-top:11px;padding:8px 11px;border-radius:10px;
+  border:1px solid var(--line);background:var(--card);font:12.5px var(--mono);color:var(--a1);text-align:left;cursor:pointer;transition:border-color .2s,background .2s}
+.uid:hover{border-color:var(--a2);background:var(--card-hi)}
+.uid span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.uid svg{width:14px;height:14px;flex:none;margin-left:auto;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.upiopen{display:block;margin-top:10px;text-align:right;font-size:13px;color:var(--a1)}
+.upiopen i{font-style:normal;display:inline-block;transition:transform .2s}
+.upiopen:hover{text-decoration:none}.upiopen:hover i{transform:translateX(3px)}
 @media (prefers-reduced-motion:reduce){.way:hover{transform:none}}
 [hidden]{display:none!important}
 /* UPI dialog */
 .modal{position:fixed;inset:0;background:rgba(8,6,12,.7);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:70;padding:20px}
 .modal.open{display:flex}
 .sheet{width:min(380px,100%);background:var(--card);border:1px solid var(--line2);border-radius:22px;padding:28px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5)}
-.sheet canvas{width:220px;height:220px;margin:18px auto;border-radius:16px;background:#fff;padding:10px;image-rendering:pixelated}
+.sheet img#qr{width:220px;height:220px;margin:18px auto;border-radius:16px;background:#fff;padding:10px;image-rendering:pixelated}
 .sheet .id{font:14px var(--mono);padding:8px 12px;border-radius:10px;background:var(--soft);border:1px solid var(--line)}
 .sheet .row{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
 .sheet .btn{padding:10px 16px;font-size:14px}
@@ -292,7 +332,8 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 .fcols h5{margin:0 0 14px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .fcols a{display:block;color:var(--muted);font-size:14.5px;margin:9px 0}
 .fcols a:hover{color:var(--text);text-decoration:none}
-.fbrand p{color:var(--muted);font-size:14.5px;max-width:300px}
+.fbrand{display:flex;flex-direction:column;justify-content:space-between;gap:18px;padding-top:12px}
+.fbrand p{color:var(--muted);font-size:14.5px;max-width:300px;margin:0}
 .fbrand p a{display:inline;margin:0;color:var(--a1);font-size:inherit}
 .fbrand .motto{font-size:26px;line-height:1.15;font-weight:700;letter-spacing:-.02em;margin:0 0 14px;
   background:linear-gradient(110deg,var(--h1a),var(--a1) 70%,var(--a3));-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -301,8 +342,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 .fbot{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;padding:22px 0 40px;border-top:1px solid var(--line);color:var(--dim);font-size:13.5px}
 .fbot a{color:var(--muted)}
 .fbot a:hover{color:var(--text)}
-.wordmark{display:flex;align-items:center;justify-content:center;gap:.14em;font-size:clamp(64px,14vw,190px);font-weight:800;letter-spacing:-.05em;line-height:1;margin:6px 0 10px;user-select:none}
-.wordmark img{height:.78em;width:auto;opacity:.22;filter:saturate(.6)}
+.wordmark{display:flex;align-items:center;justify-content:center;font-size:clamp(64px,14vw,190px);font-weight:800;letter-spacing:-.05em;line-height:1;margin:6px 0 10px;user-select:none}
 .wordmark span{background:linear-gradient(180deg,rgba(139,92,246,.26),transparent 88%);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.06em}
 
 /* lightbox, reveal, toast */
@@ -345,7 +385,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <a href="#download">Download</a>
       <a href="#support">Support</a>
     </div>
-    <a class="navbtn navstar" href="https://github.com/jesvijonathan/Display-Control" aria-label="DispCtrl on GitHub">
+    <a class="navbtn navstar" href="https://github.com/jesvijonathan/DispCtrl" aria-label="DispCtrl on GitHub">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       <span>Star</span><span id="stars" hidden></span>
     </a>
@@ -377,7 +417,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
     <span class="art blob" data-depth="6"></span>
     <span class="art ring" data-depth="14"></span>
     <span class="art pane" data-depth="22"></span>
-    <img class="layer l-back" data-depth="10" src="assets/screenshots/taskbar.png" alt="" width="1226" height="893">
+    <img class="layer l-back" data-depth="10" src="assets/screenshots/taskbar.png" alt="Taskbar appearance and reveal settings" width="1226" height="893">
     <img class="layer l-main" data-depth="22" src="assets/screenshots/displays.png" alt="The DispCtrl window" width="1226" height="893">
     <img class="layer l-panel" data-depth="40" src="assets/screenshots/quick-panel.png" alt="The quick panel" width="720" height="945">
     <div class="float f1" data-depth="55"><span class="d"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/></svg></span><span>Unison 62%<small>Every display, in step</small></span></div>
@@ -557,13 +597,18 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <div><b id="libBrands">2</b><span>makers</span></div>
         <div><b id="libCodes">1</b><span>mapped codes</span></div>
       </div>
+      <div class="lsearch" id="libSearch" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        <input id="libFind" type="search" autocomplete="off" placeholder="Search a model, maker or token" aria-label="Search the device library">
+        <b id="libCount"></b>
+      </div>
       <div class="lrows" id="libRows">
         <div class="lrow"><code>DEL-A234</code><span>Dell U2424H</span><em>LCD</em></div>
         <div class="lrow"><code>SDC-4154</code><span>Samsung Display 14.0 inch panel</span><em>OLED</em></div>
       </div>
       <div class="lfoot">
-        <a class="btn ghost" href="https://github.com/jesvijonathan/Display-Control/blob/master/devices/CATALOG.md">Browse the library</a>
-        <a class="btn primary" href="https://github.com/jesvijonathan/Display-Control/tree/master/devices#contributing-one">Add your monitor</a>
+        <a class="btn ghost" href="https://github.com/jesvijonathan/DispCtrl/blob/master/devices/CATALOG.md">Browse the library</a>
+        <a class="btn primary" href="https://github.com/jesvijonathan/DispCtrl/tree/master/devices#contributing-one">Add your monitor</a>
       </div>
     </div>
   </div>
@@ -590,13 +635,13 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <div class="lg"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
         <h3>Direct download</h3>
         <p>The setup program: a desktop shortcut, <code class="i">dispctrl</code> on your PATH, and repair options.</p>
-        <a class="btn ghost" id="dlSetup" href="https://github.com/jesvijonathan/Display-Control/releases/latest">Download installer</a>
+        <a class="btn ghost" id="dlSetup" href="https://github.com/jesvijonathan/DispCtrl/releases/latest">Download installer</a>
       </div>
       <div class="card reveal">
         <div class="lg"><svg viewBox="0 0 16 16" fill="#fff"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></div>
         <h3>Portable zip</h3>
         <p>Unzip and run, for the app or just the command line. Nothing installed.</p>
-        <a class="btn ghost" id="dlZip" href="https://github.com/jesvijonathan/Display-Control/releases/latest">Download zip</a>
+        <a class="btn ghost" id="dlZip" href="https://github.com/jesvijonathan/DispCtrl/releases/latest">Download zip</a>
       </div>
       <div class="card reveal">
         <span class="badge soon">Soon</span>
@@ -606,7 +651,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <button class="cmd" id="wingetCmd" type="button" aria-label="Copy: winget install DispCtrl">winget install DispCtrl<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button>
       </div>
     </div>
-    <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/Display-Control#build-from-source">Build from source</a> with a single <code class="i">build.cmd</code>. Every release lists <a href="https://github.com/jesvijonathan/Display-Control/releases">SHA-256 checksums</a>.</p>
+    <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/DispCtrl#build-from-source">Build from source</a> with a single <code class="i">build.cmd</code>. Every release lists <a href="https://github.com/jesvijonathan/DispCtrl/releases">SHA-256 checksums</a>.</p>
   </div>
 </section>
 
@@ -616,11 +661,25 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <div>
         <span class="eyebrow">Support the project</span>
         <h2>Keep it free,<br>keep it independent</h2>
-        <p class="sub">DispCtrl is built on evenings and weekends because my own desk needed it. No ads, no paid tier, no tracking — and there never will be. A donation buys time to build, and the odd monitor to test on.</p>
-        <a class="who" href="https://www.jesvi.net" target="_blank" rel="noopener">
-          <img src="https://github.com/jesvijonathan.png?size=96" alt="" width="36" height="36" loading="lazy">
-          <span><b>Jesvi Jonathan</b><small>Author and maintainer</small></span>
-        </a>
+        <div class="swap" id="pitchSwap">
+          <p class="sub first">DispCtrl is built on evenings and weekends, because my own desk needed it. There are no ads, no paid tier and no tracking, and there never will be.</p>
+          <p class="sub then" hidden>A donation buys time to build, and the odd monitor to test on. Any amount, once, is plenty.</p>
+        </div>
+        <div class="swap" id="whoSwap">
+          <a class="who first" href="https://www.jesvi.net" target="_blank" rel="noopener">
+            <img src="https://github.com/jesvijonathan.png?size=96" alt="" width="36" height="36" loading="lazy">
+            <span><b>Jesvi Jonathan</b><small>Author and maintainer</small></span>
+          </a>
+          <div class="upinow then" id="upiInline" hidden>
+            <img src="assets/donations/upi-qr.png" alt="UPI QR code" width="112" height="112" loading="lazy">
+            <div class="upitext">
+              <b>Pay with UPI</b>
+              <small>Scan with GPay, PhonePe, Paytm or BHIM.</small>
+              <button class="uid" id="upiInlineCopy" type="button" aria-label="Copy the UPI ID"><span id="upiInlineId"></span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button>
+              <a class="upiopen" id="upiInlineOpen">Open in a UPI app <i>&rarr;</i></a>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="ways">
         <a class="way" style="--c:#e0609f" href="https://github.com/sponsors/jesvijonathan" target="_blank" rel="noopener">
@@ -636,7 +695,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <button class="way" style="--c:#1ca868" id="payUpiBtn">
           <svg viewBox="0 0 24 24"><path opacity=".4" d="M6.6 3H10L5.3 21H1.9z"/><path opacity=".68" d="M12.1 3h3.4l-4.7 18H7.4z"/><path d="M17.6 3H21l-4.7 18h-3.4z"/></svg>
           <span><b>UPI</b><small>Scan the code, in India</small></span><span class="go">&rarr;</span></button>
-        <p class="help">Not today? <a href="https://github.com/jesvijonathan/Display-Control">Star the repository</a>, <a href="https://github.com/jesvijonathan/Display-Control/issues">report a bug</a> or <a href="https://github.com/jesvijonathan/Display-Control/tree/master/devices">add your monitor</a> — that helps just as much.</p>
+        <p class="help">Not today? <a href="https://github.com/jesvijonathan/DispCtrl">Star the repository</a>, <a href="https://github.com/jesvijonathan/DispCtrl/issues">report a bug</a> or <a href="https://github.com/jesvijonathan/DispCtrl/tree/master/devices">add your monitor</a> — that helps just as much.</p>
       </div>
     </div>
   </div>
@@ -669,15 +728,17 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
     <div class="fcols">
       <div class="fbrand">
         <p class="motto">Every display,<br>on its own terms.</p>
-        <p>Per-monitor display control for Windows 11. Free and open source.</p>
-        <p class="by">Made by <a href="https://www.jesvi.net">Jesvi Jonathan</a> · <a href="https://github.com/jesvijonathan">GitHub</a> · <a href="mailto:jesvi22j@gmail.com">Email</a></p>
+        <div>
+          <p>Free and open source, for Windows 11.</p>
+          <p class="by">Made by <a href="https://www.jesvi.net">Jesvi Jonathan</a> · <a href="https://github.com/jesvijonathan">GitHub</a> · <a href="mailto:jesvi22j@gmail.com">Email</a></p>
+        </div>
       </div>
       <div><h5>Product</h5><a href="#features">Features</a><a href="#panel">Quick panel</a><a href="#tour">Tour</a><a href="#cli">Command line</a></div>
-      <div><h5>Download</h5><a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">Microsoft Store</a><a href="https://github.com/jesvijonathan/Display-Control/releases/latest">Installer</a><a href="https://github.com/jesvijonathan/Display-Control/releases">All releases</a><a href="https://github.com/jesvijonathan/Display-Control/blob/master/docs/CHANGELOG.md">Changelog</a></div>
-      <div><h5>Project</h5><a href="https://github.com/jesvijonathan/Display-Control">Source code</a><a href="https://github.com/jesvijonathan/Display-Control/issues">Report an issue</a><a href="https://github.com/jesvijonathan/Display-Control/tree/master/devices">Device library</a><a href="https://github.com/jesvijonathan/Display-Control/blob/master/.github/CONTRIBUTING.md">Contributing</a></div>
+      <div><h5>Download</h5><a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">Microsoft Store</a><a href="https://github.com/jesvijonathan/DispCtrl/releases/latest">Installer</a><a href="https://github.com/jesvijonathan/DispCtrl/releases">All releases</a><a href="https://github.com/jesvijonathan/DispCtrl/blob/master/docs/CHANGELOG.md">Changelog</a></div>
+      <div><h5>Project</h5><a href="https://github.com/jesvijonathan/DispCtrl">Source code</a><a href="https://github.com/jesvijonathan/DispCtrl/issues">Report an issue</a><a href="https://github.com/jesvijonathan/DispCtrl/tree/master/devices">Device library</a><a href="https://github.com/jesvijonathan/DispCtrl/blob/master/.github/CONTRIBUTING.md">Contributing</a></div>
       <div><h5>More</h5><a href="#support">Donate</a><a href="privacy.html" target="_blank" rel="noopener">Privacy</a><a href="terms.html" target="_blank" rel="noopener">Terms</a><a href="mailto:jesvi22j@gmail.com">Contact</a></div>
     </div>
-    <div class="wordmark" aria-hidden="true"><img src="assets/logo.png" alt=""><span>DispCtrl</span></div>
+    <div class="wordmark" aria-hidden="true"><span>DispCtrl</span></div>
     <div class="fbot"><span>&copy; 2026 <a href="https://www.jesvi.net">Jesvi Jonathan</a> · MIT licence</span><span>Not affiliated with Microsoft.</span></div>
   </div>
 </footer>
@@ -686,7 +747,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   <div class="sheet">
     <h3 style="margin:0">Pay with UPI</h3>
     <p style="margin:6px 0 0;color:var(--muted);font-size:14px">Scan with GPay, PhonePe, Paytm or BHIM.</p>
-    <canvas id="qr" width="220" height="220"></canvas>
+    <img id="qr" src="assets/donations/upi-qr.png" alt="UPI QR code for Jesvi Jonathan" width="220" height="220">
     <div class="id" id="upiId"></div>
     <div class="row">
       <a class="btn primary" id="upiOpen">Open UPI app</a>
@@ -695,17 +756,20 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
     </div>
   </div>
 </div>
-<div class="lb" id="lb"><img alt=""></div>
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Enlarged image" tabindex="-1">
+  <button class="preview-close" id="previewClose" type="button">Close preview</button>
+  <img alt="" data-tooltip="">
+</div>
 <div class="toast" id="toast">Copied</div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
 <script>
 /* =========================== DONATION SETTINGS ===========================
-   Fill these in. Until then the buttons say "coming soon" when clicked.  */
+   Change these and regenerate assets/donations/upi-qr.png to match.        */
 const DONATE = {
-  paypal:  '',                // e.g. 'https://paypal.me/yourname'
-  upiId:   '',                // e.g. 'yourname@okaxis'
-  upiName: 'Jesvi Jonathan'
+  paypal:  'https://paypal.me/jesvijon',
+  upiId:   'jesvi22j-2@okaxis',
+  upiName: 'Jesvi Jonathan',
+  upiNote: 'DispCtrl donation'   // must match the note in assets/donations/upi-qr.png
 };
 /* ======================================================================= */
 
@@ -756,7 +820,7 @@ const glist = $('glist'), gimg = $('gimg');
 function pick(i) {
   [...glist.children].forEach((b, j) => b.setAttribute('aria-selected', i === j));
   gimg.style.opacity = .2; const src = 'assets/screenshots/' + shots[i][2];
-  const pre = new Image(); pre.onload = () => { gimg.src = src; gimg.alt = shots[i][0]; gimg.style.opacity = 1; }; pre.src = src;
+  const pre = new Image(); pre.onload = () => { gimg.src = src; gimg.alt = shots[i][0]; gimg.setAttribute('aria-label', 'Enlarge ' + shots[i][0]); gimg.style.opacity = 1; }; pre.src = src;
 }
 shots.forEach((s, i) => { const b = document.createElement('button'); b.className = 'gbtn'; b.setAttribute('role', 'tab');
   b.innerHTML = s[0] + '<small>' + s[1] + '</small>'; b.onclick = () => pick(i); glist.appendChild(b); });
@@ -790,14 +854,39 @@ document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
 // Lightbox
 const lb = $('lb');
-document.querySelectorAll('.gview img, .panelshot img, .spot img, .stack .layer').forEach(el => el.addEventListener('click', () => { lb.querySelector('img').src = el.src; lb.classList.add('open'); }));
-lb.onclick = () => lb.classList.remove('open');
+let previewSource = null;
+function openPreview(el) {
+  previewSource = el;
+  lb.querySelector('img').src = el.src;
+  lb.querySelector('img').alt = el.alt;
+  lb.classList.add('open');
+  $('previewClose').focus({ preventScroll: true });
+}
+function closePreview() {
+  if (!lb.classList.contains('open')) return;
+  lb.classList.remove('open');
+  previewSource?.focus({ preventScroll: true });
+}
+document.querySelectorAll('.gview img, .panelshot img, .spot img, .stack .layer').forEach(el => {
+  el.dataset.preview = '';
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  el.setAttribute('aria-label', 'Enlarge ' + (el.alt || 'screenshot'));
+  el.addEventListener('click', () => openPreview(el));
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+  });
+});
+lb.onclick = closePreview;
+lb.addEventListener('keydown', e => {
+  if (e.key === 'Tab') { e.preventDefault(); $('previewClose').focus(); }
+});
 
 // Old links to the in-page sections go to the pages that replaced them
 if (location.hash === '#privacy' || location.hash === '#terms') location.replace(location.hash.slice(1) + '.html');
 
 // GitHub: star count and the latest release's files (public API, no cookies)
-const repo = 'https://api.github.com/repos/jesvijonathan/Display-Control';
+const repo = 'https://api.github.com/repos/jesvijonathan/DispCtrl';
 fetch(repo).then(r => r.ok ? r.json() : null).then(d => { if (d && d.stargazers_count >= 0) { $('stars').textContent = '· ' + d.stargazers_count; $('stars').hidden = false; } }).catch(() => {});
 fetch(repo + '/releases?per_page=5').then(r => r.ok ? r.json() : null).then(list => {
   const rel = (list || []).find(x => !x.draft); if (!rel) return;
@@ -808,38 +897,110 @@ fetch(repo + '/releases?per_page=5').then(r => r.ok ? r.json() : null).then(list
   if (zip) $('dlZip').href = zip.browser_download_url;
 }).catch(() => {});
 
-// Device library, read live from the repository's generated index
-fetch('https://raw.githubusercontent.com/jesvijonathan/Display-Control/master/devices/index.json').then(r => r.ok ? r.json() : null).then(d => {
+// Device library, read live from the repository's generated index. It is built
+// for thousands of models, so filter in memory and never draw more than a screenful.
+const libRows = $('libRows'), libFind = $('libFind'), libCount = $('libCount');
+const LIB_DRAWN = 40;
+let libModels = [];
+function drawLib() {
+  const q = libFind.value.trim().toLowerCase();
+  const hits = q ? libModels.filter(m => (m.key + ' ' + m.name + ' ' + m.panel).toLowerCase().includes(q)) : libModels;
+  libCount.textContent = q ? hits.length + ' / ' + libModels.length : '';
+  if (!hits.length) {
+    libRows.innerHTML = '<div class="lnote">No model matches that yet. <a href="https://github.com/jesvijonathan/DispCtrl/tree/master/devices#contributing-one">Add yours</a>.</div>';
+    return;
+  }
+  libRows.innerHTML = hits.slice(0, LIB_DRAWN).map(m =>
+    '<div class="lrow"><code>' + esc(m.key) + '</code><span>' + esc(m.name) + '</span><em>' + esc(m.panel) + '</em></div>').join('') +
+    (hits.length > LIB_DRAWN ? '<div class="lnote">' + (hits.length - LIB_DRAWN) + ' more. Keep typing, or browse the catalogue.</div>' : '');
+  libRows.scrollTop = 0;
+}
+libFind.oninput = drawLib;
+fetch('https://raw.githubusercontent.com/jesvijonathan/DispCtrl/master/devices/index.json').then(r => r.ok ? r.json() : null).then(d => {
   if (!d || !d.models) return;
-  const models = Object.entries(d.models);
-  $('libModels').textContent = d.counts?.models ?? models.length;
+  const entries = Object.entries(d.models);
+  libModels = entries.map(([key, m]) => ({ key, name: m.name || 'Unnamed model', panel: m.panel || 'DDC/CI' }));
+  $('libModels').textContent = d.counts?.models ?? libModels.length;
   $('libBrands').textContent = d.counts?.brands ?? Object.keys(d.brands || {}).length;
-  $('libCodes').textContent = models.reduce((n, [, m]) => n + (m.codes || 0), 0);
-  $('libRows').innerHTML = models.map(([key, m]) =>
-    '<div class="lrow"><code>' + esc(key) + '</code><span>' + esc(m.name || 'Unnamed model') + '</span>' + (m.panel ? '<em>' + esc(m.panel) + '</em>' : '<em>DDC/CI</em>') + '</div>').join('');
+  $('libCodes').textContent = entries.reduce((n, [, m]) => n + (m.codes || 0), 0);
+  // A search box over a handful of rows is furniture; it earns its place later.
+  $('libSearch').hidden = libModels.length < 9;
+  drawLib();
 }).catch(() => {});
 
 $('wingetCmd').onclick = () => navigator.clipboard.writeText('winget install DispCtrl').then(() => toast('Command copied'));
 
-// Donations. PayPal and UPI always show; until they are configured they say so.
-const later = what => toast(what + ' is coming soon. GitHub Sponsors works today \u2665');
+// Donations.
+// UPI works only with Indian bank accounts, so its button shows only to a
+// browser set up for India: the time zone or the language says so. Nothing is
+// looked up and nothing is sent anywhere to decide it.
+const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
+const inIndia = /^Asia\/(Kolkata|Calcutta)$/.test(tz) || (navigator.languages || [navigator.language]).some(l => /-IN$/i.test(l || ''));
+const phone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const upiUri = 'upi://pay?pa=' + encodeURIComponent(DONATE.upiId) + '&pn=' + encodeURIComponent(DONATE.upiName)
+  + '&cu=INR&tn=' + encodeURIComponent(DONATE.upiNote);
 if (DONATE.paypal) $('payPalLink').href = DONATE.paypal;
-else $('payPalLink').onclick = e => { e.preventDefault(); later('PayPal'); };
-if (DONATE.upiId) {
-  const uri = 'upi://pay?pa=' + encodeURIComponent(DONATE.upiId) + '&pn=' + encodeURIComponent(DONATE.upiName) + '&cu=INR&tn=' + encodeURIComponent('DispCtrl donation');
-  $('upiId').textContent = DONATE.upiId; $('upiOpen').href = uri;
-  let drawn = false;
-  const draw = () => { if (drawn || !window.qrcode) return; drawn = true;
-    const q = qrcode(0, 'M'); q.addData(uri); q.make();
-    const c = $('qr'), x = c.getContext('2d'), n = q.getModuleCount(), s = c.width / n;
-    x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.fillStyle = '#120d1c';
-    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) x.fillRect(Math.floor(k * s), Math.floor(r * s), Math.ceil(s), Math.ceil(s)); };
-  $('payUpiBtn').onclick = () => { draw(); $('upiModal').classList.add('open'); };
-  $('upiCopy').onclick = () => navigator.clipboard.writeText(DONATE.upiId).then(() => toast('UPI ID copied'));
-} else $('payUpiBtn').onclick = () => later('UPI');
+const upiHere = inIndia && !!DONATE.upiId;
+$('payUpiBtn').hidden = !upiHere;
+$('upiId').textContent = $('upiInlineId').textContent = DONATE.upiId;
+$('upiOpen').href = $('upiInlineOpen').href = upiUri;
+const openSheet = () => $('upiModal').classList.add('open');
+// Opening the sheet tries the deep link first: a desk with a UPI app registered
+// gets it straight away, and the code is there for every desk that has not.
+const showQr = () => { location.href = upiUri; openSheet(); };
+// A phone cannot scan its own screen, so it gets the deep link instead.
+if (upiHere && !phone) {
+  const swaps = [$('pitchSwap'), $('whoSwap')];
+  swaps.forEach(s => { s.querySelector('.then').hidden = false; s.classList.add('two'); });
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Let the card be read first; the swap is the point at which it asks. It
+  // resets on the way out, so scrolling back plays it again.
+  let timer = 0;
+  // Held in a variable: an observer with no reference to it can be collected.
+  const flip = new IntersectionObserver(es => es.forEach(e => {
+    clearTimeout(timer);
+    const set = on => { swaps.forEach(s => s.classList.toggle('qr', on)); document.querySelector('.donate').classList.toggle('qr', on); };
+    if (e.isIntersecting) timer = setTimeout(() => set(true), still ? 0 : 900);
+    else set(false);
+  }), { threshold: .45 });
+  flip.observe(document.querySelector('.donate'));
+  // Anywhere on the card pays, except the controls and the code, which opens the sheet.
+  $('upiInline').onclick = e => { if (!e.target.closest('a,button,img')) showQr(); };
+  const inlineQr = $('upiInline').querySelector('img');
+  inlineQr.onclick = showQr;
+  inlineQr.tabIndex = 0;
+  inlineQr.setAttribute('role', 'button');
+  inlineQr.setAttribute('aria-label', 'Open UPI donation details');
+  inlineQr.dataset.tooltip = 'Pay with UPI';
+  inlineQr.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inlineQr.click(); }
+  });
+}
+$('upiInlineCopy').onclick = () => navigator.clipboard.writeText(DONATE.upiId).then(() => toast('UPI ID copied'));
+$('payUpiBtn').onclick = () => {
+  if (!phone) { showQr(); return; }
+  // On a phone the link opens GPay, PhonePe, Paytm or BHIM. If nothing takes
+  // it - the page is still in front a moment later - the QR is the fallback.
+  let left = false;
+  const away = () => { left = true; };
+  addEventListener('blur', away, { once: true });
+  document.addEventListener('visibilitychange', away, { once: true });
+  location.href = upiUri;
+  setTimeout(() => { if (!left && !document.hidden) openSheet(); }, 1500);
+};
+$('upiCopy').onclick = () => navigator.clipboard.writeText(DONATE.upiId).then(() => toast('UPI ID copied'));
 $('upiClose').onclick = () => $('upiModal').classList.remove('open');
+// A shared #upi link lands on the support card with the code already open. It
+// does not fire the deep link: that needs a click, not an address bar.
+const upiFromHash = () => {
+  if (location.hash !== '#upi' || !DONATE.upiId) return;
+  $('support').scrollIntoView({ block: 'center' });
+  openSheet();
+};
+addEventListener('hashchange', upiFromHash);
+upiFromHash();
 $('upiModal').onclick = e => { if (e.target.id === 'upiModal') $('upiModal').classList.remove('open'); };
-addEventListener('keydown', e => { if (e.key === 'Escape') { lb.classList.remove('open'); $('upiModal').classList.remove('open'); } });
+addEventListener('keydown', e => { if (e.key === 'Escape') { closePreview(); $('upiModal').classList.remove('open'); } });
 </script>
 </body>
 </html>

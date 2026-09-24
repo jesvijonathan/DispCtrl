@@ -59,5 +59,5 @@ if ($ArtifactsDirectory -and (Test-Path -LiteralPath $ArtifactsDirectory)) {
     }
 }
 $notes.Add('')
-$notes.Add('DispCtrl is free and built in spare time. If it earns a place on your desk, [sponsoring](https://github.com/sponsors/jesvijonathan) pays for development and test hardware, and [sending your monitor](https://github.com/jesvijonathan/Display-Control/blob/master/devices/README.md) helps just as much.')
+$notes.Add('DispCtrl is free and built in spare time. If it earns a place on your desk, [sponsoring](https://github.com/sponsors/jesvijonathan) pays for development and test hardware, and [sending your monitor](https://github.com/jesvijonathan/DispCtrl/blob/master/devices/README.md) helps just as much.')
 $notes -join "`n"

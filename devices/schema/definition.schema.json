@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/jesvijonathan/Display-Control/master/devices/schema/definition.schema.json",
+  "$id": "https://raw.githubusercontent.com/jesvijonathan/DispCtrl/master/devices/schema/definition.schema.json",
   "title": "DispCtrl device definition",
   "description": "What a monitor model's, a manufacturer's or every monitor's VCP codes mean, and for a model what its panel is. Validated by tools/devicecheck with the same rules DispCtrl loads it with; see docs/DEVICE-LIBRARY.md.",
   "type": "object",

@@ -74,13 +74,14 @@
       </muxc:NavigationView.MenuItems>
 
       <muxc:NavigationView.FooterMenuItems>
-        <!-- Opens the sponsor page in the browser; not a page of its own, so it
+        <!-- Opens the website's support section (GitHub Sponsors, PayPal, UPI) in
+             the browser; not a page of its own, so it
              never takes the selection away from the page being read. -->
         <muxc:NavigationViewItem Content="Sponsor DispCtrl" Tag="sponsor" SelectsOnInvoked="False"
-                                 ToolTipService.ToolTip="DispCtrl is free and open source. Sponsoring on GitHub pays for development and test hardware."
+                                 ToolTipService.ToolTip="DispCtrl is free and open source. GitHub Sponsors, PayPal or UPI: donations pay for development and test hardware."
                                  AutomationProperties.Name="Sponsor DispCtrl">
           <muxc:NavigationViewItem.Icon>
-            <FontIcon Glyph="&#xEB51;" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+            <FontIcon Glyph="&#xEB52;" Foreground="#DB61A2"/>
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
 

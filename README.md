@@ -1,20 +1,21 @@
 <div align="center">
 
-<img src="docs/assets/logo.png" alt="DispCtrl" width="104" height="104">
+<img src="site/assets/logo.png" alt="DispCtrl" width="104" height="104">
 
 # DispCtrl
 
 **Every monitor on your desk, controlled as one.**
 
-Brightness in step across every screen, night light and dimming per display, a taskbar that hides where you want it, OLED care, and a command line for all of it. For Windows 11.
+One place for brightness, night light, taskbars and OLED care across your desk.<br>
+A native Windows 11 app, a quick panel in your tray, and a scriptable command line.
 
-[![Build](https://img.shields.io/github/actions/workflow/status/jesvijonathan/Display-Control/build.yml?branch=master&label=build&logo=github)](https://github.com/jesvijonathan/Display-Control/actions/workflows/build.yml) [![Release](https://img.shields.io/github/v/release/jesvijonathan/Display-Control?include_prereleases&label=release&color=8b5cf6)](https://github.com/jesvijonathan/Display-Control/releases) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/Display-Control/total?color=8b5cf6)](https://github.com/jesvijonathan/Display-Control/releases) [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
+[![Build](https://img.shields.io/github/actions/workflow/status/jesvijonathan/DispCtrl/build.yml?branch=master&label=build&logo=github)](https://github.com/jesvijonathan/DispCtrl/actions/workflows/build.yml) [![GitHub stars](https://img.shields.io/github/stars/jesvijonathan/DispCtrl?label=stars&color=8b5cf6&logo=github)](https://github.com/jesvijonathan/DispCtrl/stargazers) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/DispCtrl/total?color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases) [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
 
-[**Download**](https://github.com/jesvijonathan/Display-Control/releases) · [Features](#features) · [Install](#install) · [Command line](#command-line) · [Build from source](#build-from-source) · [Contribute](#contributing) · [Sponsor](#support-the-project)
+[**Download**](https://github.com/jesvijonathan/DispCtrl/releases) · [Getting started](#getting-started) · [Documentation](#documentation) · [Website](https://jesvijonathan.github.io/DispCtrl/)
 
 <br>
 
-<img src="docs/assets/hero.png" alt="The DispCtrl window with the quick panel open in front of it" width="100%">
+<img src="site/assets/hero.png" alt="The DispCtrl window with the quick panel open in front of it" width="100%">
 
 </div>
 
@@ -25,33 +26,55 @@ Brightness in step across every screen, night light and dimming per display, a t
 <td width="50%" valign="top">
 
 ### Brightness
+
 - **Unison**: one slider for every display, each within its own calibrated range
-- **Replaces Windows brightness**: the brightness keys and Quick Settings move every display
+- **Replace Windows brightness**: let the laptop's brightness keys and Quick Settings move every display
 - Hardware brightness over DDC/CI and WMI, software dimming below it
-
-### Taskbar and desktop
-- Hide the taskbar per monitor, keep it on the others
-- A wallpaper per display; arrangement drawn at true physical size
-- Extend, duplicate and single-screen modes; identify and detect
-
-### Your monitor's own controls
-- Contrast, input, picture mode, volume and more, over DDC/CI
-- Only the values the monitor accepts; nothing written blind
-- A device library that learns unnamed codes, and shares them, laptop panels included
 
 </td>
 <td width="50%" valign="top">
 
 ### Colour and comfort
+
 - Night light per display or in unison, scheduled or following Windows
-- Warmer and dimmer than Windows allows, down to 1900K
-- Focus mode, keep-awake and dark mode
+- Warmth down to 1900K with the optional expanded gamma range
+- Focus mode, keep-awake, Stay active and dark mode
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Taskbar and desktop
+
+- Hide taskbars independently on secondary monitors
+- A wallpaper per display; arrangement drawn at true physical size
+- Extend, duplicate and single-screen modes; identify and detect
+
+</td>
+<td width="50%" valign="top">
 
 ### OLED care
+
 - Two-stage idle dimming, paused for full-screen video and games
 - Knows OLED panels from the monitor or the device library; pairs with taskbar hiding
 
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Your monitor's own controls
+
+- Contrast, input, picture mode, volume and more, over DDC/CI
+- Controls offered according to the monitor's capabilities
+- A shared device library for named controls and panel information
+
+</td>
+<td width="50%" valign="top">
+
 ### Automation
+
 - A quick panel on the tray icon: tiles, sliders, a row per display
 - Global hotkeys that work with the window closed
 - `dispctrl.exe`: every option, with JSON output
@@ -60,47 +83,17 @@ Brightness in step across every screen, night light and dimming per display, a t
 </tr>
 </table>
 
-## A quick tour
-
-<div align="center">
-<img src="docs/assets/demo.gif" alt="A tour of the DispCtrl window" width="880">
-</div>
-
-<table>
-<tr>
-<td width="40%" valign="top" align="center">
-<img src="docs/assets/screenshots/quick-panel.png" alt="The quick panel" width="320">
-</td>
-<td valign="top">
-
-### The quick panel
-
-Click the tray icon and it rises from the taskbar: one slider for every display, a switch that hands Windows' brightness keys to it, and toggles for night light, dark mode, focus, keep-awake, the taskbar and OLED care. Each toggle's arrow opens its options.
-
-Below them, a row per display with its brightness, switches and modes. Sections fold, reorder and hide, and your own tiles can run any `dispctrl` command or open a program. Simple mode keeps it to brightness alone.
-
-### Brightness that agrees with itself
-
-Capture the dimmest and brightest you want on each display once, and the unison slider runs every screen between its own limits.
-
-<img src="docs/assets/screenshots/unison.png" alt="Unison brightness settings" width="100%">
-
-</td>
-</tr>
-</table>
-
 ## Install
 
-Download from [**Releases**](https://github.com/jesvijonathan/Display-Control/releases). Windows 11, x64; nothing else to install.
+Browse the [download options on our website](https://jesvijonathan.github.io/DispCtrl/#download), or download directly from [**Releases**](https://github.com/jesvijonathan/DispCtrl/releases). **Windows 11 · x64 · self-contained downloads** — no separate .NET installation needed.
 
 | Package | What you get |
 |---|---|
 | **`...-setup.exe`** (recommended) | Per-user install, no administrator rights. Starts at sign-in, adds a desktop shortcut and `dispctrl` to your `PATH`. Updates in place and keeps your settings; can reset or repair on the way. |
 | `...-desktop.zip` | Portable: unzip anywhere and run `DispCtrl.App.exe` |
 | `...-cli.zip` | `dispctrl.exe` and the engine, without the window |
-| winget, Microsoft Store | With the first stable release: `winget install JesviJonathan.DispCtrl` |
 
-Settings live in `%LOCALAPPDATA%\DispCtrl`. Uninstalling stops the engine cleanly, puts back any taskbar it hid, and asks whether to keep your settings. Releases are not code-signed yet, so SmartScreen may ask once; each release lists SHA-256 checksums to verify against.
+Settings live in `%LOCALAPPDATA%\DispCtrl`. Uninstalling stops the engine cleanly, puts back any taskbar it hid, and asks whether to keep your settings. Unsigned builds may trigger SmartScreen; release downloads include SHA-256 checksums.
 
 ## Getting started
 
@@ -116,6 +109,54 @@ Default shortcuts (change them on the Hotkeys page, where more are set up and sw
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>PgUp</kbd> / <kbd>PgDn</kbd> | Every display brighter / dimmer |
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>D</kbd> | Quick panel |
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>N</kbd> | Night light |
+
+### Compatibility and feature status
+
+| Feature | What to know |
+|---|---|
+| External monitor controls | Require DDC/CI support. Enable it in the monitor's own menu if needed; available controls depend on the monitor and connection. |
+| Laptop brightness keys | **Replace Windows brightness** follows a supported built-in panel's brightness changes and applies them across your displays. |
+| Primary taskbar | Uses Windows' global auto-hide. Independent hiding applies to secondary taskbars. |
+| Extended warmth and dimming | The expanded gamma range needs a one-time administrator-approved change. |
+| Presets | Saving, importing, applying and app-triggered presets are disabled in default builds. The Presets page can export the current configuration as JSON. |
+
+## A quick tour
+
+<div align="center">
+<img src="site/assets/demo.gif" alt="An animated tour of DispCtrl's display controls and settings" width="880">
+</div>
+
+<table>
+<tr>
+<td width="40%" align="center" valign="middle">
+
+<img src="site/assets/screenshots/quick-panel.png" alt="The quick panel with brightness sliders and feature toggles" width="320">
+
+</td>
+<td width="60%" valign="middle">
+
+### The quick panel
+
+Click the tray icon to bring your display controls within reach.
+
+**Brightness and quick toggles**<br>
+Adjust brightness, night light, dark mode, focus, keep-awake, taskbar hiding and OLED care. Each toggle's arrow opens its options.
+
+**Control each display**<br>
+Rows below the toggles give you individual monitor controls. Simple mode keeps the panel to brightness alone.
+
+**Make it yours**<br>
+Fold, reorder or hide sections. Add custom tiles to run a `dispctrl` command or open a program.
+
+</td>
+</tr>
+</table>
+
+### Brightness that agrees with itself
+
+Capture the dimmest and brightest you want on each display once, and the unison slider runs every screen between its own limits.
+
+<img src="site/assets/screenshots/unison.png" alt="Unison settings for calibrating each display's brightness range" width="880">
 
 ## Command line
 
@@ -133,59 +174,105 @@ dispctrl maintenance repair                                   # fix the sign-in 
 `--json` prints one line of machine-readable output; exit codes are `0` done, `1` refused, `2` malformed, `4` timed out. `dispctrl help` lists everything, [docs/CLI.md](docs/CLI.md) is the reference, and [docs/examples](docs/examples) has scripts to start from.
 
 <div align="center">
-<img src="docs/assets/cli.png" alt="dispctrl output in PowerShell" width="820">
+<img src="site/assets/cli.png" alt="dispctrl output in PowerShell" width="820">
 </div>
 
 ## Privacy
 
-DispCtrl makes **no network calls**: no telemetry, no update check, no account. The only things that can leave your machine are a monitor record or a problem report, and only when you send one: DispCtrl removes serial numbers, device paths and your account name, shows you the exact text, and opens a prefilled GitHub issue in your own browser for you to submit.
+DispCtrl's display controls run locally: **no telemetry, no automatic update checks, no account required**. Sharing a monitor record or problem report removes serial numbers, device paths and your account name, then opens a prefilled GitHub issue in your browser for you to review and submit.
+
+Configuration exports and raw logs can contain identifying details; review them before sharing. See the [contribution guide](.github/CONTRIBUTING.md#reporting-a-bug) for report and log guidance.
 
 ## Screenshots
+
+[Explore the screenshot gallery on our website](https://jesvijonathan.github.io/DispCtrl/#tour).
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
 **Displays**
-<img src="docs/assets/screenshots/displays.png" alt="Displays page">
 
-**Hotkeys**
-<img src="docs/assets/screenshots/hotkeys.png" alt="Hotkeys page">
-
-**Quick panel settings**
-<img src="docs/assets/screenshots/quick-panel-settings.png" alt="Quick panel page">
-
-**Settings**
-<img src="docs/assets/screenshots/settings.png" alt="Settings page">
+<img src="site/assets/screenshots/displays.png" alt="Displays page with the monitor arrangement and shared controls" width="100%">
 
 </td>
 <td width="50%" valign="top">
 
 **Each display**
-<img src="docs/assets/screenshots/display-settings.png" alt="A display's settings">
 
-**Devices**
-<img src="docs/assets/screenshots/devices.png" alt="Devices page">
+<img src="site/assets/screenshots/display-settings.png" alt="Individual display settings for brightness, colour and monitor controls" width="100%">
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Quick panel settings**
+
+<img src="site/assets/screenshots/quick-panel-settings.png" alt="Quick panel settings for customising sections and tiles" width="100%">
+
+</td>
+<td width="50%" valign="top">
 
 **Taskbar**
-<img src="docs/assets/screenshots/taskbar.png" alt="Taskbar page">
+
+<img src="site/assets/screenshots/taskbar.png" alt="Taskbar appearance and reveal settings" width="100%">
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Hotkeys**
+
+<img src="site/assets/screenshots/hotkeys.png" alt="Global shortcuts with key combinations and registration status" width="100%">
+
+</td>
+<td width="50%" valign="top">
+
+**Devices**
+
+<img src="site/assets/screenshots/devices.png" alt="The device library with known monitors and sharing actions" width="100%">
 
 </td>
 </tr>
 </table>
 
+<details>
+<summary><strong>View app settings</strong></summary>
+
+<img src="site/assets/screenshots/settings.png" alt="App settings for startup, diagnostics and maintenance" width="880">
+
+</details>
+
+## Documentation
+
+| Guide | Contents |
+|---|---|
+| [Project website](https://jesvijonathan.github.io/DispCtrl/) | Features, screenshots, downloads and ways to support DispCtrl |
+| [Command line](docs/CLI.md) | Commands, options, JSON output and exit codes |
+| [Example scripts](docs/examples) | Display events, layouts and configuration files |
+| [Quick panel](docs/QUICK-PANEL.md) | Sections, tiles and customisation |
+| [Device library](docs/DEVICE-LIBRARY.md) | Monitor definitions, control mappings and contributions |
+| [Development](docs/DEVELOPING.md) | Setup, builds, checks and platform requirements |
+| [Releasing](docs/RELEASING.md) | Packaging and the release process |
+| [Changelog](docs/CHANGELOG.md) | Changes and release history |
+
 ## Build from source
 
 ```powershell
-git clone https://github.com/jesvijonathan/Display-Control.git
-cd Display-Control
+git clone https://github.com/jesvijonathan/DispCtrl.git
+cd DispCtrl
 .\build.cmd setup -Install   # checks the machine; offers .NET 10 and MinGW through winget
 .\build.cmd build            # builds; stops and restarts the engine for you
 .\build.cmd test             # the hardware-free checks
 .\build.cmd run app          # or: engine, panel, cli <arguments>
 ```
 
-Double-click `build.cmd` for a menu, or use `./build.sh` on Linux, macOS or WSL for everything except the window. [docs/DEVELOPING.md](docs/DEVELOPING.md) covers every option, [docs/RELEASING.md](docs/RELEASING.md) the release process.
+Double-click `build.cmd` for a menu. On Linux, macOS or WSL, `./build.sh` builds the non-UI projects and runs the checks that do not need Windows APIs; the application itself runs on Windows. [Development](docs/DEVELOPING.md) covers the options and prerequisites.
+
+<details>
+<summary><strong>Repository layout</strong></summary>
 
 ```
 src/
@@ -200,7 +287,10 @@ devices/               the shared monitor library, a folder per model
 tools/                 checks: controlcheck, presetcheck, devicecheck, ...
 build/                 build, publish, installer and MSIX scripts
 docs/                  CLI, developing, releasing, device library, changelog
+site/                  the website (GitHub Pages) and every image the README uses
 ```
+
+</details>
 
 ## Contributing
 
@@ -212,7 +302,34 @@ Security issues go through [SECURITY](.github/SECURITY.md), not public issues.
 
 ## Support the project
 
-DispCtrl is free and built in spare time. [**Sponsoring on GitHub**](https://github.com/sponsors/jesvijonathan) pays for development and for test hardware, and every monitor record you send helps as much.
+<div align="center">
+
+### Help build a better desk for everyone
+
+DispCtrl is free and open source, built in spare time.<br>
+Your support funds development and more monitors to test on.
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on_GitHub-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
+[![Donate with PayPal](https://img.shields.io/badge/Donate_with_PayPal-0070ba?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/jesvijon)
+[![Donate with UPI](https://img.shields.io/badge/Donate_with_UPI-168a5b?style=for-the-badge)](#pay-with-upi)
+
+<a id="pay-with-upi"></a>
+
+#### Scan to donate with UPI
+
+<a href="site/assets/donations/upi-qr.png">
+  <img src="site/assets/donations/upi-qr.png" alt="UPI donation QR code for Jesvi Jonathan, with the payment note DispCtrl donation" width="256" height="256">
+</a>
+
+Scan with your UPI app, or use **`jesvi22j-2@okaxis`**.<br>
+Recipient: **Jesvi Jonathan** · Payment note: **DispCtrl donation**
+
+[Visit the support page](https://jesvijonathan.github.io/DispCtrl/#support)
+
+**Every contribution helps.**<br>
+[Star the repository](https://github.com/jesvijonathan/DispCtrl) · [Share your monitor](#contributing) · [Report a bug](https://github.com/jesvijonathan/DispCtrl/issues)
+
+</div>
 
 ## Licence
 
