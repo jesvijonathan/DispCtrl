@@ -9,6 +9,7 @@ using DispCtrl.Core.Devices;
 //   devicecheck validate [devices]        every file is where its key says, and passes the rules
 //   devicecheck index    [devices]        rewrite index.json and CATALOG.md (--check: fail if stale)
 //   devicecheck intake   BODY [devices]   turn a shared issue body into files
+//   devicecheck guard    BEFORE AFTER     list every change AFTER makes to what BEFORE had reviewed
 //   devicecheck migrate  [devices]        move a flat library (definitions/*.json, *.md) into folders
 //
 // The layout is DeviceLayout's: devices/DEL/A234/{definition.json,record.md},
@@ -23,6 +24,7 @@ return command switch
     "validate" => Validate(Root(1)),
     "index" => Index(Root(1), args.Contains("--check")),
     "intake" => Intake(args.ElementAtOrDefault(1) ?? throw new ArgumentException("intake BODY-FILE [devices] [--issue N]"), Root(2), IssueArgument(args)),
+    "guard" => Guard(args.ElementAtOrDefault(1) ?? throw new ArgumentException("guard BEFORE AFTER"), args.ElementAtOrDefault(2) ?? "devices"),
     "migrate" => Migrate(Root(1)),
     "selftest" => SelfTest(),
     _ => Usage(),
@@ -30,7 +32,7 @@ return command switch
 
 static int Usage()
 {
-    Console.Error.WriteLine("devicecheck validate|index [--check]|intake BODY [devices] [--issue N]|migrate [devices]|selftest");
+    Console.Error.WriteLine("devicecheck validate|index [--check]|intake BODY [devices] [--issue N]|guard BEFORE AFTER|migrate [devices]|selftest");
     return 2;
 }
 
@@ -97,6 +99,28 @@ static int SelfTest()
         File.WriteAllText(input, Share("TST-0101", "0xE3"));
         Check(Intake(input, output) == 0 && JsonNode.Parse(File.ReadAllText(DeviceLayout.DefinitionPath(output, "TST-0101")))!["controls"]!.AsArray().Count == 2,
             "single-model shares still merge without removing existing codes");
+        File.WriteAllText(input, Share("TST-0101", "0xE3").Replace("Test mode", "Something else").Replace("\"information\"", "\"range\",\"writable\":true"));
+        Check(Intake(input, output) is 0 or 4 && JsonNode.Parse(File.ReadAllText(DeviceLayout.DefinitionPath(output, "TST-0101")))!["controls"]!.AsArray()
+            .Single(c => c!["code"]!.GetValue<string>() == "0xE3")!["name"]!.GetValue<string>() == "Test mode",
+            "a share never renames or re-kinds a code the library already has");
+        File.WriteAllText(input, Share("TST-0808").Replace("\"information\"", "\"range\",\"writable\":true"));
+        Check(Intake(input, output) == 0 && JsonNode.Parse(File.ReadAllText(DeviceLayout.DefinitionPath(output, "TST-0808")))!["controls"]![0]!["writable"]?.GetValue<bool>() != true,
+            "a new code from a share arrives read-only, whatever the share asked");
+        File.WriteAllText(input, Share("TST-0909").Replace("\"target\":\"TST-0909\"", "\"target\":\"TST\""));
+        Check(Intake(input, output) is 0 or 4 && !File.Exists(DeviceLayout.DefinitionPath(output, "TST")),
+            "a share cannot write a maker-wide definition");
+        string sealedCopy = Path.Combine(temp, "sealed");
+        foreach (string f in Directory.EnumerateFiles(output, "*", SearchOption.AllDirectories))
+        {
+            string to = Path.Combine(sealedCopy, Path.GetRelativePath(output, f));
+            Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+            File.Copy(f, to);
+        }
+        Check(Guard(output, sealedCopy) == 0, "an unchanged library passes the guard");
+        File.WriteAllText(DeviceLayout.DefinitionPath(sealedCopy, "TST-0101"),
+            new Regex("Test mode").Replace(File.ReadAllText(DeviceLayout.DefinitionPath(sealedCopy, "TST-0101")), "Factory reset", 1));
+        File.Delete(DeviceLayout.RecordPath(sealedCopy, "TST-0202"));
+        Check(Guard(output, sealedCopy) == 2, "renaming a reviewed code and deleting a record are both caught");
         File.WriteAllText(input, "Paste the complete device share here.");
         Check(Intake(input, refused) == 3 && !Directory.Exists(refused), "a link placeholder is never ingested as a record");
         Check(DeviceDefinitions.Validate(new DeviceDefinition { Target = "TST-0303", Panel = new() { Technology = "OLED" } }).Count == 0,
@@ -120,7 +144,7 @@ static int SelfTest()
         finally { DeviceLibrary.FoldersOverride = saved; }
         string reported = Path.Combine(temp, "reported");
         File.WriteAllText(input, Share("TST-0707"));
-        Check(Intake(input, reported, 4) == 0 && Intake(input, reported, 5) == 0 && Intake(input, reported, 5) == 0
+        Check(Intake(input, reported, 4) == 0 && Intake(input, reported, 5) == 0 && Intake(input, reported, 5) == 4
             && ReadReports(DeviceLayout.ReportsPath(reported, "TST-0707")) is [4, 5],
             "each issue is counted once per model, by number, and a repeat of the same issue changes nothing");
         Check(!File.ReadAllText(DeviceLayout.ReportsPath(reported, "TST-0707")).Contains('@')
@@ -368,27 +392,52 @@ static int IntakeModel(string body, JsonNode payload, string root, Dictionary<st
             ?? throw new JsonException("empty definition");
         var problems = DeviceDefinitions.Validate(incoming);
         if (problems.Count > 0) { Console.Error.WriteLine($"{incoming.Target}: {string.Join("; ", problems)}"); return 1; }
+        // Only the model's own definition. One for a maker or for every monitor
+        // changes what DispCtrl does to monitors the sharer never had.
+        if (!string.Equals(incoming.Target, model, StringComparison.Ordinal))
+        {
+            Console.WriteLine($"review: left out the definition for {incoming.Target}; a share only adds to {model}'s own");
+            continue;
+        }
 
-        // Merged into what the repository has, code by code: a share replaces
-        // the codes it defines and leaves the rest, and sources accumulate.
+        // Added to what the repository has, never over it: what is there was
+        // reviewed, and a share that disagrees is noted for the pull request,
+        // not applied. Only a person edits a reviewed mapping.
         string path = DeviceLayout.DefinitionPath(root, incoming.Target);
-        DeviceDefinition current = pending.TryGetValue(path, out string? staged) || File.Exists(path)
+        bool known = pending.TryGetValue(path, out string? staged) || File.Exists(path);
+        DeviceDefinition current = known
             ? JsonSerializer.Deserialize(staged ?? File.ReadAllText(path), DeviceJsonContext.Default.DeviceDefinition)!
-            : new DeviceDefinition { Target = incoming.Target };
-        current.Name ??= incoming.Name;
-        foreach (string link in incoming.Extends) if (!current.Extends.Contains(link)) current.Extends.Add(link);
-        // A share that says what the panel is replaces what was said before.
-        if (incoming.Panel is not null) current.Panel = incoming.Panel;
+            : new DeviceDefinition { Target = incoming.Target, Name = incoming.Name, Extends = incoming.Extends };
+        if (known && !incoming.Extends.All(current.Extends.Contains))
+            Console.WriteLine($"review: {model} kept its links; this share would link it to {string.Join(", ", incoming.Extends)}");
+        if (incoming.Panel is { } said)
+        {
+            if (current.Panel is null) current.Panel = said;
+            else if (!string.Equals(current.Panel.Technology, said.Technology, StringComparison.OrdinalIgnoreCase))
+                Console.WriteLine($"review: {model} kept panel {current.Panel.Technology}; this share says {said.Technology}");
+        }
+        int added = 0;
         foreach (DefinedControl c in incoming.Controls)
         {
             DefinedControl? before = current.Controls.FirstOrDefault(x => x.CodeValue == c.CodeValue);
             if (before is not null)
             {
-                foreach (string s in before.Sources) if (!c.Sources.Contains(s)) c.Sources.Add(s);
-                current.Controls.Remove(before);
+                if (Essence(before) == Essence(c))
+                    foreach (string s in c.Sources) { if (!before.Sources.Contains(s)) before.Sources.Add(s); }
+                else Console.WriteLine($"review: {model} {before.Code} kept as \"{before.Name}\" ({before.Kind}{(before.Writable ? ", writable" : "")}); this share says \"{c.Name}\" ({c.Kind}{(c.Writable ? ", writable" : "")})");
+                continue;
+            }
+            // Writing a manufacturer's code is the one risk in the library, so a
+            // stranger's word is not enough: the reviewer switches it on.
+            if (c.Writable)
+            {
+                c.Writable = false;
+                Console.WriteLine($"review: {model} {c.Code} \"{c.Name}\" was shared as writable and arrives read-only; set \"writable\": true in the pull request to accept that");
             }
             current.Controls.Add(c);
+            added++;
         }
+        if (known && added == 0 && incoming.Panel is null) continue;
         current.Controls.Sort((a, b) => (a.CodeValue ?? 0).CompareTo(b.CodeValue ?? 0));
         var merged = DeviceDefinitions.Validate(current);
         if (merged.Count > 0) { Console.Error.WriteLine($"{current.Target} after merge: {string.Join("; ", merged)}"); return 1; }
@@ -418,6 +467,61 @@ static int IntakeModel(string body, JsonNode payload, string root, Dictionary<st
 
     Console.WriteLine(written == 0 ? "nothing to add" : $"{written} file(s) written");
     return 0;
+}
+
+// A mapping as the app acts on it: what sources and notes say does not change it.
+static string Essence(DefinedControl c) => JsonSerializer.Serialize(new DefinedControl
+{
+    Code = c.CodeValue?.ToString("X2", System.Globalization.CultureInfo.InvariantCulture) ?? c.Code,
+    Key = c.Key, Name = c.Name, Kind = c.Kind, Writable = c.Writable, Maximum = c.Maximum, Values = c.Values,
+}, DeviceJsonContext.Default.DefinedControl);
+
+// What a change does to reviewed data: a record, a report, or any mapping the
+// library already had. Adding is never listed. Run from the base branch's copy
+// of this tool, so a pull request cannot change the rules it is judged by.
+static int Guard(string before, string after)
+{
+    var found = new List<string>();
+    if (Directory.Exists(before))
+    {
+        foreach (string model in DeviceLayout.Models(before))
+        {
+            string a = DeviceLayout.RecordPath(before, model), b = DeviceLayout.RecordPath(after, model);
+            if (File.Exists(a) && (!File.Exists(b) || Norm(a) != Norm(b))) found.Add($"{model}: its record was changed or removed");
+            var lost = (ReadReports(DeviceLayout.ReportsPath(before, model)) ?? []).Except(ReadReports(DeviceLayout.ReportsPath(after, model)) ?? []).ToList();
+            if (lost.Count > 0) found.Add($"{model}: report(s) removed: {string.Join(", ", lost.Select(i => "#" + i))}");
+        }
+        var was = DeviceLibrary.LoadLibrary(before);
+        var now = Directory.Exists(after) ? DeviceLibrary.LoadLibrary(after) : new Dictionary<string, DeviceDefinition>();
+        foreach (var (target, old) in was)
+        {
+            string label = target == "*" ? "every monitor (common.json)" : target;
+            if (!now.TryGetValue(target, out DeviceDefinition? d)) { found.Add($"{label}: definition removed"); continue; }
+            if (old.Name != d.Name) found.Add($"{label}: renamed from \"{old.Name}\" to \"{d.Name}\"");
+            if (!old.Extends.SequenceEqual(d.Extends)) found.Add($"{label}: links changed");
+            if (old.Panel is not null && !string.Equals(old.Panel.Technology, d.Panel?.Technology, StringComparison.OrdinalIgnoreCase))
+                found.Add($"{label}: panel changed from {old.Panel.Technology} to {d.Panel?.Technology ?? "nothing"}");
+            foreach (DefinedControl c in old.Controls)
+            {
+                DefinedControl? n = d.Controls.FirstOrDefault(x => x.CodeValue == c.CodeValue);
+                if (n is null) found.Add($"{label} {c.Code}: removed");
+                else if (Essence(c) != Essence(n)) found.Add($"{label} {c.Code}: changed (\"{c.Name}\"{(c.Writable ? ", writable" : "")} -> \"{n.Name}\"{(n.Writable ? ", writable" : "")})");
+            }
+            // A maker's or every monitor's definition reaches monitors nobody tested.
+            if (target.Length <= 3 && d.Controls.Count > old.Controls.Count) found.Add($"{label}: code(s) added to a definition every such monitor loads");
+        }
+        foreach (string target in now.Keys.Where(t => t.Length <= 3 && !was.ContainsKey(t)))
+            found.Add($"{(target == "*" ? "every monitor (common.json)" : target)}: new definition every such monitor loads");
+        foreach (var (target, d) in now)
+            foreach (DefinedControl c in d.Controls.Where(c => c.Writable))
+                if (!was.TryGetValue(target, out DeviceDefinition? o) || o.Controls.FirstOrDefault(x => x.CodeValue == c.CodeValue) is not { Writable: true })
+                    found.Add($"{target} {c.Code}: newly writable - DispCtrl will write \"{c.Name}\" to every such monitor");
+    }
+    foreach (string f in found) Console.WriteLine("sealed: " + f);
+    Console.WriteLine(found.Count == 0 ? "only additions" : $"{found.Count} change(s) to reviewed data");
+    return found.Count;
+
+    static string Norm(string path) => File.ReadAllText(path).Replace("\r\n", "\n").TrimEnd();
 }
 
 // From the first, flat layout: definitions/DEL-A234.json, definitions/DEL.json,

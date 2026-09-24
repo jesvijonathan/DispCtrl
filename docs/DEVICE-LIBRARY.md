@@ -183,17 +183,35 @@ The repository is the backend; there is no server.
 - **`.github/workflows/devices.yml`**, the **intake** job, runs on every
   opened or edited issue whose body carries the share's `dispctrl-device-mapping` marker - a
   label cannot be relied on, since GitHub drops the labels a link asks for
-  when the author cannot triage. It runs `tools/devicecheck intake`, which
-  validates every definition, merges it into the model's folder code by code
-  (sources accumulate), adds the record for a model the repository has never
-  seen after checking it for paths and instance ids, and opens a pull request
-  for a maintainer. It does not touch the index, so shares never conflict. A share it cannot read gets a comment saying why. The issue body
-  is passed through the environment, never into a script.
+  when the author cannot triage. A weekly run (Mondays) and a manual "intake
+  every open share" take in any the event missed. It runs
+  `tools/devicecheck intake`, which validates every definition and **only
+  adds**: new models, new codes, the record for a model the repository has
+  never seen (after checking it for paths and instance ids) and the issue
+  number. A code the library already has is never changed, a share's
+  definitions for a maker or for every monitor are left out, and a new code
+  arrives read-only even when shared as writable. Where the share disagrees
+  with the library, the pull request says so under "Needs a look". It does
+  not touch the index, so shares never conflict. A share it cannot read gets
+  a comment saying why. The issue body is passed through the environment,
+  never into a script.
+- Automatic intake passes over bots, accounts under two weeks old and
+  authors with more than three shares open; the run summary says which and
+  why, and the issue is told a maintainer will take it in. "Intake an issue"
+  by hand takes any issue.
 - The same workflow's **check** job runs `devicecheck validate` and the intake
   self-test on every pull request touching `devices/`: the rules DispCtrl loads a definition
   with, the layout (a file in the wrong place is one the app would never
-  read), and the records' privacy. After a merge it regenerates the index and
-  commits it.
+  read), and the records' privacy. Its **guard** step runs `devicecheck guard`
+  from the base branch's copy of the tool, so a pull request cannot change the
+  rules it is judged by, and lists every change to reviewed data: a record
+  edited or removed, a report number dropped, a code renamed, re-kinded,
+  removed or made writable, a panel or link changed, anything in a maker's or
+  every monitor's definition. From anyone outside the repository that fails
+  the check; from the owner or a collaborator it is a warning. After a merge
+  the index is regenerated and committed. A pull request the intake opened
+  runs no workflow (GitHub's rule for workflow-made pull requests), so the
+  intake validates before it pushes; closing and reopening one runs the checks.
 - **`devices/index.json` and `devices/CATALOG.md`** list every model: one line
   per model in the JSON for tools, and a table per manufacturer for people.
   Both are generated; nobody edits them.

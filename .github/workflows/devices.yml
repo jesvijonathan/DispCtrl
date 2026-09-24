@@ -5,7 +5,10 @@ name: Device library
 #  - index    after a merge, CATALOG.md and index.json are regenerated (never in
 #             the pull request: every share would then conflict with the last);
 #  - intake   a share made with `dispctrl devices share` or the app's Devices
-#             page arrives as an issue, and becomes a pull request for review.
+#             page arrives as an issue, and becomes a pull request for review;
+#             a weekly sweep takes in any the issue event missed.
+#  - guard    a pull request may add to the library; changing what was already
+#             reviewed fails unless the repository's own people made it.
 # Linux runners: the checks need no Windows API, and they start faster.
 on:
   pull_request:
@@ -15,6 +18,8 @@ on:
     paths: ['devices/**', 'src/DispCtrl.Core/Devices/**', 'tools/devicecheck/**']
   issues:
     types: [opened, edited]
+  schedule:
+    - cron: '23 4 * * 1'   # Mondays, 04:23 UTC: every open share not yet taken in
   workflow_dispatch:
     inputs:
       action:
@@ -51,6 +56,38 @@ jobs:
         run: $DEVICECHECK validate devices | tee validate.log
       - name: Self-test the intake
         run: $DEVICECHECK selftest
+      - name: Guard what was already reviewed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          # The repository's own people may correct reviewed data; nobody else.
+          TRUSTED: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) }}
+        run: |
+          git fetch --no-tags --depth 1 origin "$BASE_REF"
+          git worktree add --detach "$RUNNER_TEMP/base" FETCH_HEAD
+          # The base branch's copy of the tool: a pull request cannot loosen
+          # the rules it is judged by.
+          set +e
+          dotnet run --project "$RUNNER_TEMP/base/tools/devicecheck" -c Release --property:EnableWindowsTargeting=true -- \
+            guard "$RUNNER_TEMP/base/devices" devices > guard.log 2>&1
+          found=$?
+          set -e
+          cat guard.log
+          {
+            echo "### Changes to reviewed data"
+            echo
+            echo '```'
+            cat guard.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$found" -ne 0 ]; then
+            if [ "$TRUSTED" = "true" ]; then
+              echo "::warning::This pull request changes data that was already reviewed ($found change(s)); see the summary."
+            else
+              echo "::error::A pull request from outside the repository may add to the library, not change what was reviewed ($found change(s))."
+              exit 1
+            fi
+          fi
       - name: Summary
         if: always()
         run: |
@@ -94,33 +131,60 @@ jobs:
     # prefilled link asks for when the author cannot triage. "Every open share"
     # is each open issue carrying one, less those with a pull request open
     # already; an issue closed after its merge is not taken in twice.
-    if: (github.event_name == 'issues' && contains(github.event.issue.body, 'dispctrl-device-mapping')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'intake an issue' || inputs.action == 'intake every open share'))
+    # Automatic runs skip bots, accounts under two weeks old and anyone with
+    # more than three shares open; naming an issue by hand takes it regardless.
+    if: (github.event_name == 'issues' && contains(github.event.issue.body, 'dispctrl-device-mapping')) || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'intake an issue' || inputs.action == 'intake every open share'))
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
-      issues: read
+      issues: write
       pull-requests: read
     outputs:
       issues: ${{ steps.find.outputs.issues }}
     env:
       GH_TOKEN: ${{ github.token }}
       EVENT_ISSUE: ${{ github.event.issue.number }}
+      EVENT_AUTHOR: ${{ github.event.issue.user.login }}
       INPUT_ISSUE: ${{ inputs.issue }}
       ACTION: ${{ inputs.action }}
     steps:
       - name: Find the shares
         id: find
         run: |
-          if [ -n "$EVENT_ISSUE" ]; then
-            list="[$EVENT_ISSUE]"
-          elif [ "$ACTION" = "intake an issue" ]; then
+          # Why an issue was passed over goes to the summary; the event's own
+          # issue is also told, once, so a real owner knows it is not lost.
+          eligible() {
+            read -r type created < <(gh api "users/$1" --jq '"\(.type) \(.created_at)"') || return 1
+            age=$(( ( $(date +%s) - $(date -d "$created" +%s) ) / 86400 ))
+            shares=$(gh issue list --repo "$GITHUB_REPOSITORY" --author "$1" --state open --limit 100 --json body \
+              --jq '[.[] | select((.body // "") | contains("dispctrl-device-mapping"))] | length')
+            why=""
+            if [ "$type" != "User" ]; then why="the author is not a person"
+            elif [ "$age" -lt 14 ]; then why="the account is $age day(s) old"
+            elif [ "$shares" -gt 3 ]; then why="the author has $shares shares open"
+            fi
+            if [ -z "$why" ]; then return 0; fi
+            echo "- #$2 passed over: $why" >> "$GITHUB_STEP_SUMMARY"
+            return 1
+          }
+          if [ "$ACTION" = "intake an issue" ]; then
             case "$INPUT_ISSUE" in ''|*[!0-9]*) echo "An issue number is needed." >&2; exit 1 ;; esac
             list="[$INPUT_ISSUE]"
+          elif [ -n "$EVENT_ISSUE" ]; then
+            if eligible "$EVENT_AUTHOR" "$EVENT_ISSUE"; then list="[$EVENT_ISSUE]"; else
+              list="[]"
+              gh issue comment "$EVENT_ISSUE" --repo "$GITHUB_REPOSITORY" \
+                --body "Thanks for sharing. This one is waiting for a maintainer to take it in by hand, which happens for new accounts; nothing more is needed from you."
+            fi
           else
             pending=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json headRefName \
               --jq '[.[].headRefName | select(test("^device-share/[0-9]+$")) | ltrimstr("device-share/") | tonumber]')
-            list=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json number,body \
-              --jq "[.[] | select((.body // \"\") | contains(\"dispctrl-device-mapping\")) | .number] - $pending | sort")
+            list="["
+            while read -r number login; do
+              if [ -n "$number" ] && eligible "$login" "$number"; then list="$list$number,"; fi
+            done < <(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json number,body,author \
+              --jq ".[] | select((.body // \"\") | contains(\"dispctrl-device-mapping\")) | select(([.number] - $pending) | length > 0) | \"\\(.number) \\(.author.login)\"")
+            list="${list%,}]"
           fi
           echo "issues=$list" >> "$GITHUB_OUTPUT"
           echo "Shares to take in: $list" >> "$GITHUB_STEP_SUMMARY"
@@ -171,13 +235,26 @@ jobs:
           branch="device-share/$ISSUE"
           git config user.name 'dispctrl-intake'
           git config user.email 'dispctrl-intake@users.noreply.github.com'
+          # A pull request opened by a workflow starts no workflow of its own,
+          # so the library is validated here, before anything is pushed.
+          $DEVICECHECK validate devices > /dev/null
           git checkout -B "$branch"
           git add devices
           git commit -m "Device share from #$ISSUE"
           git push --force origin "$branch"
           url=$(gh pr list --head "$branch" --json url --jq '.[0].url')
-          if [ -z "$url" ] && ! url=$(gh pr create --head "$branch" --base "$BASE" --title "Device share from #$ISSUE" \
-              --body "Generated from #$ISSUE by the Device library workflow. Review the names, the writable flags and the record before merging."); then
+          {
+            echo "Generated from #$ISSUE by the Device library workflow. It only adds: new models, new codes and the report number; nothing already in the library is changed, and every code arrives read-only."
+            echo
+            if grep -q '^review: ' intake.log; then
+              echo "Needs a look:"
+              echo
+              sed -n 's/^review: /- /p' intake.log
+            else
+              echo "Nothing in this share disagrees with the library."
+            fi
+          } > pr-body.md
+          if [ -z "$url" ] && ! url=$(gh pr create --head "$branch" --base "$BASE" --title "Device share from #$ISSUE" --body-file pr-body.md); then
             # Refused while the repository does not let Actions open pull
             # requests. The branch is pushed, so opening it is one click.
             url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE...$branch?expand=1"

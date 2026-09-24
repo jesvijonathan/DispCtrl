@@ -369,6 +369,15 @@ the pull request body names only the issue. A repeat report of a known model
 now makes a small pull request, which is the point - it is a confirmation.
 Not shipped, like records.
 
+**A share only adds.** The intake never changes a code, panel or link the
+library already has, leaves out a share's maker-wide and every-monitor
+definitions, and lands new codes read-only; disagreements go into the pull
+request as review notes. `devicecheck guard BEFORE AFTER` lists every change
+to reviewed data, and the check job runs it from the base branch's copy of
+the tool: fatal for outside pull requests, a warning for the owner's.
+Automatic intake (issue events, the Monday sweep) skips bots, accounts under
+14 days and authors with more than three shares open.
+
 Stay active's nudge (`PowerService.LastNudgeTick`) is input, so "any input
 wakes the turned-off displays" ignores input within half a second of it.
 
