@@ -191,8 +191,19 @@ The repository is the backend; there is no server.
   number. A code the library already has is never changed, a share's
   definitions for a maker or for every monitor are left out, and a new code
   arrives read-only even when shared as writable. Where the share disagrees
-  with the library, the pull request says so under "Needs a look". It does
-  not touch the index, so shares never conflict. A share it cannot read gets
+  with the library, the share waits for a person.
+- **A clean share goes straight in.** After the intake the job checks that
+  every changed path is a model's `record.md`, `definition.json` or
+  `reports.json`, added or extended and nothing deleted; runs `validate` and
+  `guard` against the library as it was; and, when the intake raised nothing
+  for review, commits to the default branch, regenerates the index as a second
+  commit, deletes any branch an earlier run left, and closes the issue with a
+  link. Records must look like DispCtrl wrote them: no links, no HTML beyond
+  `<details>` and `<summary>`, no email address or control character, under
+  32 KB, ending with DispCtrl's footer. Anything the intake flagged (a
+  disagreement, a code shared as writable, a definition for another target)
+  becomes a pull request instead, saying why. Shares run one at a time; a
+  push that meets a conflicting change gives up and the weekly run retries. A share it cannot read gets
   a comment saying why. The issue body is passed through the environment,
   never into a script.
 - Automatic intake passes over bots, accounts under two weeks old and
@@ -209,9 +220,11 @@ The repository is the backend; there is no server.
   removed or made writable, a panel or link changed, anything in a maker's or
   every monitor's definition. From anyone outside the repository that fails
   the check; from the owner or a collaborator it is a warning. After a merge
-  the index is regenerated and committed. A pull request the intake opened
-  runs no workflow (GitHub's rule for workflow-made pull requests), so the
-  intake validates before it pushes; closing and reopening one runs the checks.
+  the index is regenerated and committed. From outside the repository, a pull
+  request that touches the library may hold model data files and nothing
+  else. A pull request the intake opened runs no workflow (GitHub's rule for
+  workflow-made pull requests); the intake has already validated and guarded
+  it, and closing and reopening one runs the checks.
 - **`devices/index.json` and `devices/CATALOG.md`** list every model: one line
   per model in the JSON for tools, and a table per manufacturer for people.
   Both are generated; nobody edits them.

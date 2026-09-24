@@ -371,8 +371,11 @@ Not shipped, like records.
 
 **A share only adds.** The intake never changes a code, panel or link the
 library already has, leaves out a share's maker-wide and every-monitor
-definitions, and lands new codes read-only; disagreements go into the pull
-request as review notes. `devicecheck guard BEFORE AFTER` lists every change
+definitions, and lands new codes read-only. A share with nothing to review
+is committed straight to the default branch, after a gate: only model data
+paths, no deletions, `validate` and `guard` clean, records shaped as DispCtrl
+writes them (no links, no HTML beyond details/summary, a size cap, the
+footer). Anything flagged becomes a pull request instead. `devicecheck guard BEFORE AFTER` lists every change
 to reviewed data, and the check job runs it from the base branch's copy of
 the tool: fatal for outside pull requests, a warning for the owner's.
 Automatic intake (issue events, the Monday sweep) skips bots, accounts under

@@ -49,6 +49,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A pull request is checked out as a merge commit; its first parent
+          # is the base the guard compares against.
+          fetch-depth: 2
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -59,12 +63,21 @@ jobs:
       - name: Guard what was already reviewed
         if: github.event_name == 'pull_request'
         env:
-          BASE_REF: ${{ github.base_ref }}
           # The repository's own people may correct reviewed data; nobody else.
           TRUSTED: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) }}
         run: |
-          git fetch --no-tags --depth 1 origin "$BASE_REF"
-          git worktree add --detach "$RUNNER_TEMP/base" FETCH_HEAD
+          git worktree add --detach "$RUNNER_TEMP/base" HEAD^1
+          # From outside, a pull request that reaches the library may hold
+          # model data and nothing else: no tool, no workflow, no deletion.
+          if [ "$TRUSTED" != "true" ]; then
+            outside=$(git diff --name-status HEAD^1 HEAD \
+              | grep -vE '^[AM]\s+devices/[A-Z]{3}/[0-9A-F]{4}/(record\.md|definition\.json|reports\.json)$' || true)
+            if [ -n "$outside" ]; then
+              echo "::error::A pull request from outside the repository that touches the device library may only add or extend model data files:"
+              echo "$outside"
+              exit 1
+            fi
+          fi
           # The base branch's copy of the tool: a pull request cannot loosen
           # the rules it is judged by.
           set +e
@@ -195,12 +208,11 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      max-parallel: 4
+      # One at a time: each share is committed to the default branch, and the
+      # next one starts from that commit rather than racing it.
+      max-parallel: 1
       matrix:
         issue: ${{ fromJSON(needs.shares.outputs.issues) }}
-    concurrency:
-      group: device-share-${{ matrix.issue }}
-      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
@@ -211,6 +223,10 @@ jobs:
       BASE: ${{ github.event.repository.default_branch }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The branch as it is now, not as it was when the run started: the
+          # share before this one may have just been committed to it.
+          ref: ${{ github.event.repository.default_branch }}
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -218,26 +234,79 @@ jobs:
         id: intake
         run: |
           if [ -z "$ISSUE" ]; then echo "No issue number." >&2; exit 1; fi
+          # What the library held before this share, for the guard below.
+          cp -r devices "$RUNNER_TEMP/before"
           # Untrusted text: fetched to a file, never interpolated into a script.
           gh issue view "$ISSUE" --json body --jq .body > "$RUNNER_TEMP/issue.md"
           set +e
           # The issue number is recorded against the model; the author is not.
           # Commits and pull requests carry the number too, never a name.
-          $DEVICECHECK intake "$RUNNER_TEMP/issue.md" devices --issue "$ISSUE" > intake.log 2>&1
+          $DEVICECHECK intake "$RUNNER_TEMP/issue.md" devices --issue "$ISSUE" > "$RUNNER_TEMP/intake.log" 2>&1
           code=$?
           set -e
-          cat intake.log
+          cat "$RUNNER_TEMP/intake.log"
           echo "code=$code" >> "$GITHUB_OUTPUT"
-      - name: Open the pull request
-        id: pr
+      - name: Check the result is only data, and only additions
+        id: gate
         if: steps.intake.outputs.code == '0'
+        run: |
+          # Every path the intake touched must be one model's data file, added
+          # or extended. Anything else - a deletion, a file outside a model
+          # folder, a name the layout does not have - stops the run here.
+          outside=$(git status --porcelain --untracked-files=all \
+            | grep -vE '^( M|\?\?) devices/[A-Z]{3}/[0-9A-F]{4}/(record\.md|definition\.json|reports\.json)$' || true)
+          if [ -n "$outside" ]; then
+            echo "::error::The intake touched something other than a model's data files:"
+            echo "$outside"
+            exit 1
+          fi
+          $DEVICECHECK validate devices > "$RUNNER_TEMP/validate.log" || { cat "$RUNNER_TEMP/validate.log"; exit 1; }
+          $DEVICECHECK guard "$RUNNER_TEMP/before" devices > "$RUNNER_TEMP/guard.log" || { cat "$RUNNER_TEMP/guard.log"; echo "::error::The intake changed reviewed data."; exit 1; }
+          # A share that disagrees with the library, or asks for a code to be
+          # written, waits for a person; everything else goes straight in.
+          if grep -q '^review: ' "$RUNNER_TEMP/intake.log"; then echo "merge=review" >> "$GITHUB_OUTPUT"; else echo "merge=auto" >> "$GITHUB_OUTPUT"; fi
+      - name: Commit it to the library
+        id: commit
+        if: steps.gate.outputs.merge == 'auto'
+        run: |
+          git config user.name 'dispctrl-intake'
+          git config user.email 'dispctrl-intake@users.noreply.github.com'
+          git add devices
+          git commit -q -m "Device share from #$ISSUE"
+          # Something else may have landed meanwhile. A clean rebase only
+          # replays these additions; a conflict (two shares of one model at
+          # once) gives up rather than choose, and the weekly run retries.
+          for attempt in 1 2 3; do
+            git push -q origin "HEAD:$BASE" && break
+            if [ "$attempt" = 3 ]; then echo "::error::Could not push after three attempts; the weekly run will try again."; exit 1; fi
+            git fetch -q origin "$BASE"
+            git rebase -q "origin/$BASE" || { git rebase --abort; echo "::error::The share conflicts with a change made meanwhile; the weekly run will try again."; exit 1; }
+          done
+          sha=$(git rev-parse HEAD)
+          # A push made with this token starts no workflow, so the index job
+          # never sees it: the index is regenerated here, from the branch as
+          # it now stands.
+          for attempt in 1 2 3; do
+            git fetch -q origin "$BASE" && git reset -q --hard "origin/$BASE"
+            $DEVICECHECK index devices > /dev/null
+            git add devices/index.json devices/CATALOG.md
+            git diff --cached --quiet && break
+            git commit -q -m "Regenerate the device index"
+            git push -q origin "HEAD:$BASE" && break
+          done
+          # An earlier run may have left a branch and a pull request for this
+          # share; deleting the branch closes the pull request.
+          git push -q origin --delete "device-share/$ISSUE" 2>/dev/null || true
+          gh issue comment "$ISSUE" --body "Thanks - this share is now in the device library: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$sha"
+          gh issue close "$ISSUE" --reason completed
+          echo "url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$sha" >> "$GITHUB_OUTPUT"
+      - name: Open a pull request for review
+        id: pr
+        if: steps.gate.outputs.merge == 'review'
         run: |
           branch="device-share/$ISSUE"
           git config user.name 'dispctrl-intake'
           git config user.email 'dispctrl-intake@users.noreply.github.com'
-          # A pull request opened by a workflow starts no workflow of its own,
-          # so the library is validated here, before anything is pushed.
-          $DEVICECHECK validate devices > /dev/null
           git checkout -B "$branch"
           git add devices
           git commit -m "Device share from #$ISSUE"
@@ -246,15 +315,13 @@ jobs:
           {
             echo "Generated from #$ISSUE by the Device library workflow. It only adds: new models, new codes and the report number; nothing already in the library is changed, and every code arrives read-only."
             echo
-            if grep -q '^review: ' intake.log; then
-              echo "Needs a look:"
-              echo
-              sed -n 's/^review: /- /p' intake.log
-            else
-              echo "Nothing in this share disagrees with the library."
-            fi
-          } > pr-body.md
-          if [ -z "$url" ] && ! url=$(gh pr create --head "$branch" --base "$BASE" --title "Device share from #$ISSUE" --body-file pr-body.md); then
+            echo "It was not merged automatically because:"
+            echo
+            sed -n 's/^review: /- /p' "$RUNNER_TEMP/intake.log"
+            echo
+            echo "Merge it as it is, or edit it first (for example to set \"writable\": true). The branch is deleted when it is merged or closed."
+          } > "$RUNNER_TEMP/pr-body.md"
+          if [ -z "$url" ] && ! url=$(gh pr create --head "$branch" --base "$BASE" --title "Device share from #$ISSUE" --body-file "$RUNNER_TEMP/pr-body.md"); then
             # Refused while the repository does not let Actions open pull
             # requests. The branch is pushed, so opening it is one click.
             url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE...$branch?expand=1"
@@ -262,8 +329,14 @@ jobs:
             echo "url=$url" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          gh issue comment "$ISSUE" --body "Thanks - this share is now a pull request for review: $url"
+          gh issue comment "$ISSUE" --body "Thanks - this share needs a maintainer's look before it goes in: $url"
           echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Close a share already taken in
+        if: steps.intake.outputs.code == '4'
+        run: |
+          # Exit 4: every model in it already carries this issue's number.
+          gh issue comment "$ISSUE" --body "Everything in this share is already in the device library. Thanks!"
+          gh issue close "$ISSUE" --reason completed
       - name: Explain a share that could not be read
         if: steps.intake.outputs.code != '0' && steps.intake.outputs.code != '3' && steps.intake.outputs.code != '4'
         run: |
@@ -271,19 +344,21 @@ jobs:
             echo "The intake could not read this share:"
             echo
             echo '```'
-            sed 's/```/'"'''"'/g' intake.log
+            sed 's/```/'"'''"'/g' "$RUNNER_TEMP/intake.log"
             echo '```'
             echo
             echo "Edit the JSON block and the intake runs again."
-          } > comment.md
-          gh issue comment "$ISSUE" --body-file comment.md
+          } > "$RUNNER_TEMP/comment.md"
+          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/comment.md"
       - name: Summary
         if: always()
         run: |
-          case "${{ steps.intake.outputs.code }}" in
-            0) result="pull request: ${{ steps.pr.outputs.url }}" ;;
-            3) result="not a device share; nothing to do" ;;
-            4) result="the share changed nothing" ;;
+          case "${{ steps.intake.outputs.code }}/${{ steps.gate.outputs.merge }}" in
+            0/auto) result="committed to the library: ${{ steps.commit.outputs.url }}" ;;
+            0/review) result="pull request for review: ${{ steps.pr.outputs.url }}" ;;
+            0/*) result="stopped by the gate; see the log" ;;
+            3/*) result="not a device share; nothing to do" ;;
+            4/*) result="already in the library; issue closed" ;;
             *) result="could not be read; the issue has a comment explaining why" ;;
           esac
           echo "## Device share intake: issue #$ISSUE - $result" >> "$GITHUB_STEP_SUMMARY"

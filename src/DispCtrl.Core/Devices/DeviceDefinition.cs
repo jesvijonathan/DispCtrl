@@ -255,6 +255,9 @@ public static partial class DeviceDefinitions
         if (text.Length > limit) problems.Add($"{field} is longer than {limit} characters");
         if (text.Contains('\\') || text.Contains(":/") || PathPattern().IsMatch(text)) problems.Add($"{field} looks like a path");
         if (SerialPattern().IsMatch(text)) problems.Add($"{field} contains something shaped like a serial number");
+        // Shared definitions are shown on GitHub and in the app: plain words only.
+        if (text.IndexOfAny(['<', '>', '`']) >= 0 || text.Contains("www.", StringComparison.OrdinalIgnoreCase)) problems.Add($"{field} carries markup or a link");
+        if (text.Any(char.IsControl)) problems.Add($"{field} carries control characters");
     }
 
     [GeneratedRegex("^[A-Z]{3}(-[0-9A-F]{4})?$")]

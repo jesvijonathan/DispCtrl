@@ -74,7 +74,7 @@ static int SelfTest()
         Console.WriteLine("PASS " + description);
         checks++;
     }
-    string Share(string model, string code = "0xE2") => $"### {model}\n\nDevice key: `{model}`\n\n### Mappings\n\n```json\n"
+    string Share(string model, string code = "0xE2") => $"### {model}\n\nDevice key: `{model}`\n\n---\n\nSubmitted from DispCtrl. Model capabilities are included; brightness, wallpaper and app settings are not.\n\n### Mappings\n\n```json\n"
         + new JsonObject
         {
             ["schema"] = 1, ["kind"] = "dispctrl-device-mapping", ["model"] = model,
@@ -121,6 +121,9 @@ static int SelfTest()
             new Regex("Test mode").Replace(File.ReadAllText(DeviceLayout.DefinitionPath(sealedCopy, "TST-0101")), "Factory reset", 1));
         File.Delete(DeviceLayout.RecordPath(sealedCopy, "TST-0202"));
         Check(Guard(output, sealedCopy) == 2, "renaming a reviewed code and deleting a record are both caught");
+        File.WriteAllText(input, Share("TST-0A0A").Replace("Device key: `TST-0A0A`", "Device key: `TST-0A0A`\n\n<img src=x onerror=alert(1)> see https://spam.example"));
+        Check(Intake(input, Path.Combine(temp, "spam")) == 1 && !Directory.Exists(Path.Combine(temp, "spam")),
+            "a record with a link or HTML in it is refused outright");
         File.WriteAllText(input, "Paste the complete device share here.");
         Check(Intake(input, refused) == 3 && !Directory.Exists(refused), "a link placeholder is never ingested as a record");
         Check(DeviceDefinitions.Validate(new DeviceDefinition { Target = "TST-0303", Panel = new() { Technology = "OLED" } }).Count == 0,
@@ -208,6 +211,14 @@ static IEnumerable<string> RecordProblems(string text, string key)
     if (text.Contains("DISPLAY#", StringComparison.OrdinalIgnoreCase)) yield return "carries a device path";
     if (Regex.IsMatch(text, @"[A-Za-z]:\\Users\\", RegexOptions.IgnoreCase)) yield return "carries a path under a user folder";
     if (Regex.IsMatch(text, @"\b\d&[0-9a-f]{6,8}&\d&UID\d+", RegexOptions.IgnoreCase)) yield return "carries a device instance id";
+    // What DispCtrl writes, and nothing else: a record is merged without a
+    // person reading it, so anything a generated one never holds is refused.
+    if (text.Length > 32 * 1024) yield return "is longer than 32 KB";
+    if (text.Contains("://", StringComparison.Ordinal) || text.Contains("www.", StringComparison.OrdinalIgnoreCase)) yield return "carries a link";
+    if (Regex.IsMatch(text, @"<(?!/?(details|summary)>)", RegexOptions.IgnoreCase)) yield return "carries HTML other than <details> and <summary>";
+    if (text.Contains('@') && Regex.IsMatch(text, @"[\w.+-]+@[\w-]+\.[\w.]+")) yield return "carries an email address";
+    if (text.Any(ch => char.IsControl(ch) && ch is not '\n' and not '\r' and not '\t')) yield return "carries control characters";
+    if (!text.TrimEnd().EndsWith("brightness, wallpaper and app settings are not.", StringComparison.Ordinal)) yield return "does not end with DispCtrl's own footer";
 }
 
 // A row of a record's table, or null.
