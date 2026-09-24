@@ -122,25 +122,33 @@ internal static class Program
     {
         Directory.CreateDirectory(SettingsStore.Directory);
 
+        // A reload can outlast the debounce, and a timer callback does not wait
+        // for the previous one: two overlapping reloads could finish out of
+        // order and leave every service on the older save. One at a time, and
+        // the one that waited reads the file afresh.
+        var reloading = new Lock();
         var debounce = new Timer(_ =>
         {
-            try
+            lock (reloading)
             {
-                // Loaded once and handed to both, so the two cannot end up
-                // acting on different versions of the same save.
-                DispCtrlSettings reloaded = SettingsStore.Load();
-                manager.ApplySettings(reloaded);
-                nightLight.Update(reloaded);
-                appRules?.Update(reloaded);
-                hotkeys.Update(reloaded);
-                focus.Update(reloaded);
-                power.Update(reloaded);
-                tray.Update(reloaded);
-                brightnessBridge.Update(reloaded);
-            }
-            catch (Exception ex)
-            {
-                Log.Write($"settings reload failed: {ex.Message}");
+                try
+                {
+                    // Loaded once and handed to both, so the two cannot end up
+                    // acting on different versions of the same save.
+                    DispCtrlSettings reloaded = SettingsStore.Load();
+                    manager.ApplySettings(reloaded);
+                    nightLight.Update(reloaded);
+                    appRules?.Update(reloaded);
+                    hotkeys.Update(reloaded);
+                    focus.Update(reloaded);
+                    power.Update(reloaded);
+                    tray.Update(reloaded);
+                    brightnessBridge.Update(reloaded);
+                }
+                catch (Exception ex)
+                {
+                    Log.Write($"settings reload failed: {ex.Message}");
+                }
             }
         });
 
@@ -158,6 +166,13 @@ internal static class Program
         watcher.Changed += Bump;
         watcher.Created += Bump;
         watcher.Renamed += (s, e) => Bump(s, e);
+        // An overflowed buffer drops events rather than raising them; reloading
+        // is the only way not to miss a save that arrived meanwhile.
+        watcher.Error += (_, e) =>
+        {
+            Log.Write($"settings watcher: {e.GetException().Message}");
+            debounce.Change(120, Timeout.Infinite);
+        };
         watcher.EnableRaisingEvents = true;
 
         return watcher;

@@ -169,8 +169,12 @@ public static class SettingsStore
             JsonNode output = local;
             if (Snapshots.TryGetValue(settings, out Snapshot? baseline) && File.Exists(Path_))
             {
-                JsonNode latest = JsonNode.Parse(ReadShared())!;
-                output = MergeEdits(baseline.Json, local, latest)!;
+                // A file that no longer parses has nothing worth merging, and
+                // throwing here would make the corrupt file impossible to replace.
+                JsonNode? latest = null;
+                try { latest = JsonNode.Parse(ReadShared()); }
+                catch (JsonException) { }
+                if (latest is not null) output = MergeEdits(baseline.Json, local, latest)!;
             }
             string tmp = Path_ + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try

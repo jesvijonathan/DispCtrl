@@ -10,8 +10,17 @@ namespace DispCtrl.Control;
 /// <summary>Length-prefixed UTF-8 JSON, bounded to 1 MiB per request or response.</summary>
 public static class ControlTransport
 {
-    public static string PipeName => "DispCtrl.Control.v1." + Process.GetCurrentProcess().SessionId + "."
+    // Computed once: the listeners recreate the pipe for every connection, and
+    // neither the session nor the data folder changes for the life of a process.
+    public static string PipeName { get; } = "DispCtrl.Control.v1." + CurrentSessionId() + "."
         + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(SettingsStore.Directory)))[..16];
+
+    private static int CurrentSessionId()
+    {
+        using var process = Process.GetCurrentProcess();
+        return process.SessionId;
+    }
+
     public const int MaxBytes = 1024 * 1024;
 
     public static async Task WriteAsync(Stream stream, JsonObject message, CancellationToken cancellation)

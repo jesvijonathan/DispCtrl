@@ -213,7 +213,8 @@ public static class StartupIntegration
             using var process = System.Diagnostics.Process.Start(info)!;
             Task<string> output = process.StandardOutput.ReadToEndAsync();
             _ = process.StandardError.ReadToEndAsync();
-            if (!process.WaitForExit(10000) || process.ExitCode != 0) return null;
+            if (!process.WaitForExit(10000)) { try { process.Kill(); } catch (InvalidOperationException) { } return null; }
+            if (process.ExitCode != 0) return null;
             var match = System.Text.RegularExpressions.Regex.Match(output.Result, "<Command>(?<c>[^<]+)</Command>");
             return match.Success ? System.Net.WebUtility.HtmlDecode(match.Groups["c"].Value).Trim().Trim('"') : null;
         }
