@@ -169,31 +169,6 @@ Capture the dimmest and brightest you want on each display once, and the unison 
 
 <img src="site/assets/screenshots/unison.png" alt="Unison settings for calibrating each display's brightness range" width="880">
 
-## Command line
-
-Everything the app does, `dispctrl` does, from a script, a scheduled task or a macro key.
-
-```powershell
-dispctrl displays list                                        # what is attached
-dispctrl unison set --level 40                                # every display, in step
-dispctrl nightlight set --enabled on --from 20:00 --to 07:00
-dispctrl display control --monitor 2 --name input-source --value hdmi-1
-dispctrl hotkeys add --keys "Ctrl+Alt+Home" --action unison-up --step 10
-dispctrl maintenance repair                                   # fix the sign-in task and shortcuts
-```
-
-`--json` prints one line of machine-readable output; exit codes are `0` done, `1` refused, `2` malformed, `4` timed out. `dispctrl help` lists everything, [docs/CLI.md](docs/CLI.md) is the reference, and [docs/examples](docs/examples) has scripts to start from.
-
-<div align="center">
-<img src="site/assets/cli.png" alt="dispctrl output in PowerShell" width="820">
-</div>
-
-## Privacy
-
-DispCtrl's display controls run locally: **no telemetry, no automatic update checks, no account required**. Sharing a monitor record or problem report removes serial numbers, device paths and your account name, then opens a prefilled GitHub issue in your browser for you to review and submit.
-
-Configuration exports and raw logs can contain identifying details; review them before sharing. See the [contribution guide](.github/CONTRIBUTING.md#reporting-a-bug) for report and log guidance.
-
 ## Screenshots
 
 [Explore the screenshot gallery on our website](https://jesvijonathan.github.io/DispCtrl/#tour).
@@ -255,6 +230,31 @@ Configuration exports and raw logs can contain identifying details; review them 
 <img src="site/assets/screenshots/settings.png" alt="App settings for startup, diagnostics and maintenance" width="880">
 
 </details>
+
+## Command line
+
+Everything the app does, `dispctrl` does, from a script, a scheduled task or a macro key.
+
+```powershell
+dispctrl displays list                                        # what is attached
+dispctrl unison set --level 40                                # every display, in step
+dispctrl nightlight set --enabled on --from 20:00 --to 07:00
+dispctrl display control --monitor 2 --name input-source --value hdmi-1
+dispctrl hotkeys add --keys "Ctrl+Alt+Home" --action unison-up --step 10
+dispctrl maintenance repair                                   # fix the sign-in task and shortcuts
+```
+
+`--json` prints one line of machine-readable output; exit codes are `0` done, `1` refused, `2` malformed, `4` timed out. `dispctrl help` lists everything, [docs/CLI.md](docs/CLI.md) is the reference, and [docs/examples](docs/examples) has scripts to start from.
+
+<div align="center">
+<img src="site/assets/cli.png" alt="dispctrl output in PowerShell" width="820">
+</div>
+
+## Privacy
+
+DispCtrl's display controls run locally: **no telemetry, no automatic update checks, no account required**. Sharing a monitor record or problem report removes serial numbers, device paths and your account name, then opens a prefilled GitHub issue in your browser for you to review and submit.
+
+Configuration exports and raw logs can contain identifying details; review them before sharing. See the [contribution guide](.github/CONTRIBUTING.md#reporting-a-bug) for report and log guidance.
 
 ## Documentation
 
