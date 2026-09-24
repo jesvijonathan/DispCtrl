@@ -24,6 +24,7 @@ using DispCtrl, not for people reading the diff.
 - The quick panel opens in simple mode on a new install; the dot in its title bar switches to the full panel.
 
 ### Fixed
+- A hidden taskbar on a monitor with another stacked against its edge appeared and disappeared instantly; it slides again, clipped to its own screen.
 - A resting or turned-off display no longer keeps the engine checking for you ten times a second: it waits for the keyboard or mouse instead.
 - With Stay active on, turned-off displays came back on by themselves after a minute: its pointer nudge counted as someone returning.
 - Shared monitor records were never turned into pull requests: the intake on GitHub tried to run a Windows program on Linux.

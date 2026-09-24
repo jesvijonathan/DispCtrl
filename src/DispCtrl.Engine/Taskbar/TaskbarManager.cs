@@ -95,6 +95,9 @@ internal sealed class TaskbarManager
         /// </summary>
         public bool Blocked { get; set; }
 
+        /// <summary>A window region is clipping a blocked bar's slide to its own monitor.</summary>
+        public bool Clipped { get; set; }
+
         /// <summary>The far side of the whole desktop along the hiding axis, used when <see cref="Blocked"/>.</summary>
         public int Beyond { get; set; }
 
@@ -361,6 +364,9 @@ internal sealed class TaskbarManager
 
         int shownPos = ShownPosition(b);
         int hiddenPos = HiddenPosition(b);
+        // Just past the bar's own edge. A blocked bar slides to here, clipped to
+        // its monitor so the neighbour never shows it, and only then parks.
+        int edgePos = EdgePosition(b);
 
         bool onAxis = OnMonitorCrossAxis(b, cur);
         int distance = onAxis ? EdgeDistance(b, cur) : int.MaxValue;
@@ -409,8 +415,10 @@ internal sealed class TaskbarManager
             b.AnimFrom = currentPos;
             b.TargetPos = want;
             b.AnimStart = now;
-            // A blocked bar snaps: its slide would cross the neighbouring monitor.
-            b.Animating = _settings.Global.AnimMs > 0 && !b.Blocked;
+            b.Animating = _settings.Global.AnimMs > 0;
+            // A blocked bar comes back from beyond the desktop by way of its own
+            // edge: the jump from the parking place is hidden by the clip.
+            if (b.Blocked && b.Shown && currentPos == hiddenPos) b.AnimFrom = edgePos;
             raise = b.Shown;       // coming into view: lift above maximized windows
         }
 
@@ -424,7 +432,10 @@ internal sealed class TaskbarManager
             // Ease-out cubic: quick off the mark, settles gently — what the
             // native show/hide slide looks like.
             double eased = 1.0 - Math.Pow(1.0 - t, 3.0);
-            newPos = (int)Math.Round(b.AnimFrom + (b.TargetPos - b.AnimFrom) * eased);
+            // A blocked bar hiding slides only as far as its own edge; the last
+            // frame then parks it beyond the desktop.
+            int slideTo = b.Blocked && b.TargetPos == hiddenPos ? edgePos : b.TargetPos;
+            newPos = b.Animating ? (int)Math.Round(b.AnimFrom + (slideTo - b.AnimFrom) * eased) : b.TargetPos;
             anyAnimating = true;
         }
         else
@@ -435,7 +446,11 @@ internal sealed class TaskbarManager
 
         // The first animation frame can still have the hidden position. Raise
         // immediately even when that frame does not move by a pixel yet.
+        // Clipped before it moves: set after, the first frame out of the
+        // parking place showed the whole bar on the neighbouring monitor.
+        if (b.Blocked && b.Animating) Clip(b, r, newPos);
         if (newPos != currentPos || raise || reassertZOrder) Move(b, r, newPos, raise || reassertZOrder);
+        if (b.Clipped && !b.Animating) Unclip(b);
 
         // Once, when a reveal comes to rest. Explorer draws the bar's content
         // through a composition bridge child that does not always repaint after
@@ -519,6 +534,45 @@ internal sealed class TaskbarManager
         _ = PInvoke.SetWindowPos(b.Hwnd, after, x, y, 0, 0, flags);
     }
 
+    /// <summary>
+    /// Limits a blocked bar mid-slide to the part inside its own monitor.
+    /// </summary>
+    /// <remarks>
+    /// A monitor stacked against the edge the bar hides past would otherwise
+    /// show the slide, which is why a blocked bar used to snap: on the laptop
+    /// under the Dell, the reveal was instant and the hide abrupt. Per frame
+    /// only while the slide runs; the system owns a region once it is set.
+    /// </remarks>
+    private static unsafe void Clip(Bar b, RECT r, int pos)
+    {
+        int width = r.right - r.left, height = r.bottom - r.top;
+        int x0 = 0, y0 = 0, x1 = width, y1 = height;
+        if (b.Horizontal)
+        {
+            y0 = Math.Clamp(b.Monitor.Top - pos, 0, height);
+            y1 = Math.Clamp(b.Monitor.Bottom - pos, y0, height);
+        }
+        else
+        {
+            x0 = Math.Clamp(b.Monitor.Left - pos, 0, width);
+            x1 = Math.Clamp(b.Monitor.Right - pos, x0, width);
+        }
+        nint region = Protection.OverlayNative.CreateRectRgn(x0, y0, x1, y1);
+        if (region == 0) return;
+        if (Protection.OverlayNative.SetWindowRgn((nint)b.Hwnd.Value, region, 1) == 0)
+        {
+            _ = Protection.OverlayNative.DeleteObject(region);
+            return;
+        }
+        b.Clipped = true;
+    }
+
+    private static unsafe void Unclip(Bar b)
+    {
+        _ = Protection.OverlayNative.SetWindowRgn((nint)b.Hwnd.Value, 0, 1);
+        b.Clipped = false;
+    }
+
     private static int ShownPosition(Bar b) => b.Edge switch
     {
         Edge.Bottom => b.Monitor.Bottom - b.Thickness,
@@ -539,7 +593,10 @@ internal sealed class TaskbarManager
     {
         Edge.Top or Edge.Left => b.Beyond - b.Thickness,
         _ => b.Beyond,
-    } : b.Edge switch
+    } : EdgePosition(b);
+
+    /// <summary>Just past the bar's own monitor edge.</summary>
+    private static int EdgePosition(Bar b) => b.Edge switch
     {
         Edge.Bottom => b.Monitor.Bottom,
         Edge.Top => b.Monitor.Top - b.Thickness,
@@ -644,7 +701,9 @@ internal sealed class TaskbarManager
         {
             if (b.Unmanageable) continue;
             EnsureWorkArea(b);
-            HealRegion(b);
+            // Mid-slide, a short region is the clip, not Explorer's mistake;
+            // one left behind by a rediscovered bar is healed here afterwards.
+            if (!b.Clipped) HealRegion(b);
         }
     }
 
@@ -770,7 +829,7 @@ internal sealed class TaskbarManager
         };
         (b.Blocked, b.Beyond) = TaskbarParking.Plan(b.Monitor, side, b.Thickness, displays.Select(d => d.Bounds));
         if (b.Blocked)
-            Log.Write($"taskbar on {b.MonitorLabel}: another monitor is past its {side.ToString().ToLowerInvariant()} edge; it hides beyond the desktop and snaps");
+            Log.Write($"taskbar on {b.MonitorLabel}: another monitor is past its {side.ToString().ToLowerInvariant()} edge; it slides clipped to its own screen and parks beyond the desktop");
     }
 
     private static Edge DetectEdge(RECT r, DisplayRect mon, bool horizontal)

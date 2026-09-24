@@ -597,9 +597,12 @@ Every one of these was a real bug. Do not reintroduce them.
   the bar of a monitor stacked above the laptop sat along the top of the
   laptop's screen, and the next rescan's tie-break then gave it to the laptop,
   stranding it there. `TaskbarParking.Plan` sends a bar whose strip is on
-  another monitor past the far side of the whole desktop, and it snaps rather
-  than slides; `ResolveMonitor` keeps a known bar with the monitor it was
-  managed on. Checked in `presetverify`, since stacking needs the desk moved.
+  another monitor past the far side of the whole desktop; `ResolveMonitor`
+  keeps a known bar with the monitor it was managed on. It first snapped
+  there, which read as no animation at all; now it slides between its shown
+  position and its own edge under a window region clipped to its monitor
+  (`Clip`, set before each move so no frame shows on the neighbour), and parks
+  only on the last frame. The rescan's `HealRegion` skips a bar mid-clip. Checked in `presetverify`, since stacking needs the desk moved.
 - **A monitor keeps its own brightness while unplugged**, so one reconnected
   after unison moved came back out of step. `UnisonHotplug` writes arrivals
   only, after 1.5 s, because the DDC/CI channel is not up when the monitor
