@@ -228,6 +228,8 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 .lrows{max-height:230px;overflow:auto}
 .lnote{padding:14px 20px;color:var(--dim);font-size:13.5px}
 .lrow{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);font-size:14px}
+.lrow{color:inherit;text-decoration:none;transition:background .15s}
+a.lrow:hover,a.lrow:focus-visible{background:var(--soft);outline:none}
 .lrow code{font:12.5px var(--mono);color:var(--a1);background:var(--soft);padding:2px 7px;border-radius:6px}
 .lrow span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lrow em{font-style:normal;font-size:11.5px;color:var(--muted);border:1px solid var(--line2);border-radius:999px;padding:1px 8px}
@@ -603,8 +605,8 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <b id="libCount"></b>
       </div>
       <div class="lrows" id="libRows">
-        <div class="lrow"><code>DEL-A234</code><span>Dell U2424H</span><em>LCD</em></div>
-        <div class="lrow"><code>SDC-4154</code><span>Samsung Display 14.0 inch panel</span><em>OLED</em></div>
+        <a class="lrow" href="https://github.com/jesvijonathan/DispCtrl/blob/master/devices/DEL/A234/record.md" target="_blank" rel="noopener"><code>DEL-A234</code><span>Dell U2424H</span><em>LCD</em></a>
+        <a class="lrow" href="https://github.com/jesvijonathan/DispCtrl/blob/master/devices/SDC/4154/record.md" target="_blank" rel="noopener"><code>SDC-4154</code><span>Samsung Display 14.0 inch panel</span><em>OLED</em></a>
       </div>
       <div class="lfoot">
         <a class="btn ghost" href="https://github.com/jesvijonathan/DispCtrl/blob/master/devices/CATALOG.md">Browse the library</a>
@@ -901,7 +903,14 @@ fetch(repo + '/releases?per_page=5').then(r => r.ok ? r.json() : null).then(list
 // for thousands of models, so filter in memory and never draw more than a screenful.
 const libRows = $('libRows'), libFind = $('libFind'), libCount = $('libCount');
 const LIB_DRAWN = 40;
+const LIB_TREE = 'https://github.com/jesvijonathan/DispCtrl/';
 let libModels = [];
+// A model opens its record, which GitHub renders; one without a record opens
+// its folder. The key is checked against the layout before it becomes a path.
+const libHref = m => /^[A-Z]{3}-[0-9A-F]{4}$/.test(m.key)
+  ? LIB_TREE + (m.record ? 'blob/master/devices/' + m.key.slice(0, 3) + '/' + m.key.slice(4) + '/record.md'
+                         : 'tree/master/devices/' + m.key.slice(0, 3) + '/' + m.key.slice(4))
+  : LIB_TREE + 'blob/master/devices/CATALOG.md';
 function drawLib() {
   const q = libFind.value.trim().toLowerCase();
   const hits = q ? libModels.filter(m => (m.key + ' ' + m.name + ' ' + m.panel).toLowerCase().includes(q)) : libModels;
@@ -911,7 +920,7 @@ function drawLib() {
     return;
   }
   libRows.innerHTML = hits.slice(0, LIB_DRAWN).map(m =>
-    '<div class="lrow"><code>' + esc(m.key) + '</code><span>' + esc(m.name) + '</span><em>' + esc(m.panel) + '</em></div>').join('') +
+    '<a class="lrow" href="' + libHref(m) + '" target="_blank" rel="noopener" title="See everything ' + esc(m.name) + ' reports"><code>' + esc(m.key) + '</code><span>' + esc(m.name) + '</span><em>' + esc(m.panel) + '</em></a>').join('') +
     (hits.length > LIB_DRAWN ? '<div class="lnote">' + (hits.length - LIB_DRAWN) + ' more. Keep typing, or browse the catalogue.</div>' : '');
   libRows.scrollTop = 0;
 }
@@ -919,7 +928,7 @@ libFind.oninput = drawLib;
 fetch('https://raw.githubusercontent.com/jesvijonathan/DispCtrl/master/devices/index.json').then(r => r.ok ? r.json() : null).then(d => {
   if (!d || !d.models) return;
   const entries = Object.entries(d.models);
-  libModels = entries.map(([key, m]) => ({ key, name: m.name || 'Unnamed model', panel: m.panel || 'DDC/CI' }));
+  libModels = entries.map(([key, m]) => ({ key, name: m.name || 'Unnamed model', panel: m.panel || 'DDC/CI', record: !!m.record }));
   $('libModels').textContent = d.counts?.models ?? libModels.length;
   $('libBrands').textContent = d.counts?.brands ?? Object.keys(d.brands || {}).length;
   $('libCodes').textContent = entries.reduce((n, [, m]) => n + (m.codes || 0), 0);

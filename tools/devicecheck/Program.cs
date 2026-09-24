@@ -319,7 +319,7 @@ static int Index(string root, bool check)
             // A definition that only says what the panel is still gets its link.
             string codes = d is null ? "" : $"[{(d.Controls.Count > 0 ? d.Controls.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) : "definition")}]({folder}/{DeviceLayout.DefinitionFile})";
             int reports = ReadReports(DeviceLayout.ReportsPath(root, m))?.Count ?? 0;
-            md.Append($"| `{m}` | {(NameOf(root, m, d) ?? "").Replace("|", "\\|")} | {PanelOf(root, m, d) ?? ""} | {record} | {codes} | {(reports > 0 ? reports.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")} |\n");
+            md.Append($"| [`{m}`]({folder}/) | {(NameOf(root, m, d) ?? "").Replace("|", "\\|")} | {PanelOf(root, m, d) ?? ""} | {record} | {codes} | {(reports > 0 ? reports.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")} |\n");
         }
     }
 
