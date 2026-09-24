@@ -1,9 +1,37 @@
 name: Build and verify
+# Every push and pull request that touches the product: build, test, and walk
+# the shipping path (zips, installer, MSIX) so a break is found by the commit
+# that caused it. The website, the device library and the docs have workflows
+# of their own and do not start this one.
 on:
   push:
     branches: [main, master]
+    paths-ignore: ['site/**', 'devices/**', 'docs/**', '**/*.md', '.github/ISSUE_TEMPLATE/**']
   pull_request:
+    paths-ignore: ['site/**', 'devices/**', 'docs/**', '**/*.md', '.github/ISSUE_TEMPLATE/**']
   workflow_dispatch:
+    inputs:
+      packages:
+        description: What to produce after the tests
+        type: choice
+        options: [everything, zips only, zips and installer, zips and MSIX, nothing (tests only)]
+        default: everything
+      channel:
+        description: Channel the packages are labelled with
+        type: choice
+        options: [beta, stable]
+        default: beta
+      version:
+        description: Package version (blank = 0.1.<run number>)
+        required: false
+      native_helper:
+        description: Build the taskbar-glass helper (needs MinGW; off builds without glass)
+        type: boolean
+        default: true
+      keep_days:
+        description: Days to keep the downloadable artifact (1-90)
+        type: number
+        default: 7
 permissions:
   contents: read
 concurrency:
@@ -13,6 +41,11 @@ jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      PACKAGES: ${{ inputs.packages || 'everything' }}
+      CHANNEL: ${{ inputs.channel || 'beta' }}
+      VERSION: ${{ inputs.version || format('0.1.{0}', github.run_number) }}
+      NATIVE: ${{ inputs.native_helper == false && 'false' || 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -21,44 +54,81 @@ jobs:
           cache: true
           cache-dependency-path: src/**/*.csproj
       - uses: msys2/setup-msys2@v2
+        if: env.NATIVE == 'true'
         with:
           msystem: UCRT64
           install: mingw-w64-ucrt-x86_64-gcc
       - name: Locate the native compiler
+        if: env.NATIVE == 'true'
         shell: pwsh
         run: |
           $gpp = (Get-ChildItem $env:RUNNER_TEMP -Filter g++.exe -Recurse | Where-Object FullName -match 'ucrt64' | Select-Object -First 1).FullName
           if (-not $gpp) { throw 'Native compiler not found.' }
           "DISPCTRL_CXX=$gpp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Build and test without display hardware
+      - name: Skip the native helper
+        if: env.NATIVE != 'true'
+        shell: pwsh
+        run: '"SkipTaskbarGlass=true" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8'
+
+      - name: Build and test
         shell: pwsh
         run: ./build/Build.ps1 -Test
-      # The shipping path on every push, not only on release day: a publish or
-      # MSIX break is found by the commit that caused it.
+
       - name: Publish portable bundles
+        if: env.PACKAGES != 'nothing (tests only)'
         shell: pwsh
-        run: ./build/Publish.ps1 -Version "0.1.${{ github.run_number }}" -Channel beta -SkipTests
+        run: ./build/Publish.ps1 -Version $env:VERSION -Channel $env:CHANNEL -SkipTests
       - name: Pack and validate the MSIX
+        if: env.PACKAGES == 'everything' || env.PACKAGES == 'zips and MSIX'
         shell: pwsh
         run: |
-          $bundle = Get-Item "artifacts/beta-0.1.${{ github.run_number }}"
-          ./build/Package.ps1 -DesktopDirectory (Join-Path $bundle.FullName 'desktop') `
-            -IdentityName 'DispCtrl.Development' -Publisher 'CN=DispCtrl Development' -Version "0.1.${{ github.run_number }}.0"
+          # The development identity: this package proves the manifest and the
+          # layout, and must never be mistaken for a Store upload.
+          ./build/Package.ps1 -DesktopDirectory "artifacts/$env:CHANNEL-$env:VERSION/desktop" `
+            -IdentityName 'DispCtrl.Development' -Publisher 'CN=DispCtrl Development' -Version "$env:VERSION.0"
       - name: Build the installer
+        if: env.PACKAGES == 'everything' || env.PACKAGES == 'zips and installer'
         shell: pwsh
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe")) {
             choco install innosetup --no-progress -y
             if ($LASTEXITCODE -ne 0) { throw 'Inno Setup install failed.' }
           }
-          $bundle = Get-Item "artifacts/beta-0.1.${{ github.run_number }}"
-          ./build/Installer.ps1 -DesktopDirectory (Join-Path $bundle.FullName 'desktop') -Version "0.1.${{ github.run_number }}" -Channel beta
+          ./build/Installer.ps1 -DesktopDirectory "artifacts/$env:CHANNEL-$env:VERSION/desktop" -Version $env:VERSION -Channel $env:CHANNEL
+
       - uses: actions/upload-artifact@v4
+        id: upload
+        if: env.PACKAGES != 'nothing (tests only)'
         with:
-          name: DispCtrl-ci-${{ github.run_number }}
-          retention-days: 14
+          name: DispCtrl-${{ env.CHANNEL }}-${{ env.VERSION }}
+          retention-days: ${{ inputs.keep_days || 7 }}
+          if-no-files-found: error
+          compression-level: 0
           path: |
             artifacts/**/*.zip
             artifacts/**/*.msix
             artifacts/**/*-setup.exe
             artifacts/**/*SHA256SUMS.txt
+
+      - name: Summary
+        if: always()
+        shell: pwsh
+        env:
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+          STATUS: ${{ job.status }}
+        run: |
+          $files = Get-ChildItem artifacts -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -in '.zip', '.msix' -or $_.Name -like '*-setup.exe' }
+          $lines = @(
+            "## Build and verify: $env:STATUS",
+            '',
+            "| | |", "|---|---|",
+            "| Version | ``$env:VERSION`` ($env:CHANNEL) |",
+            "| Packages | $env:PACKAGES |",
+            "| Taskbar glass helper | $env:NATIVE |",
+            "| Commit | ``$($env:GITHUB_SHA.Substring(0,7))`` |"
+          )
+          if ($env:ARTIFACT_URL) { $lines += "| Download | [$($files.Count) file(s)]($env:ARTIFACT_URL) |" }
+          if ($files) { $lines += '', '| File | Size |', '|---|---|'; $files | ForEach-Object { $lines += "| $($_.Name) | $([math]::Round($_.Length / 1MB, 1)) MB |" } }
+          $lines += '', '_The MSIX here carries the development identity and cannot be sent to the Store; use **Release** for that._'
+          $lines -join "`n" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

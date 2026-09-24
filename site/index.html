@@ -177,11 +177,13 @@ h2{font-size:clamp(32px,4.2vw,50px);line-height:1.08;margin:12px 0 16px;letter-s
 .gview img{border-radius:16px;border:1px solid var(--line2);box-shadow:0 30px 70px rgba(0,0,0,.35);cursor:zoom-in;transition:opacity .25s}
 
 /* terminal */
+#cli .split{grid-template-columns:.88fr 1.12fr;gap:48px}
 .term{background:#0a0810;border:1px solid var(--line2);border-radius:16px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.4)}
 .term .tb{display:flex;align-items:center;gap:7px;padding:12px 16px;border-bottom:1px solid #2c2340;background:#120e1b;color:#7f7596;font-size:12.5px}
 .term .tb i{width:11px;height:11px;border-radius:50%;background:#3a3150}
 .term .tb span{margin-left:10px}
-.term pre{margin:0;padding:22px 24px;overflow:auto;font:14px/1.8 var(--mono);color:#ddd5ee;min-height:300px}
+/* Soft-wrapped, as a real terminal is: the column is too narrow for the longest command. */
+.term pre{margin:0;padding:20px 22px;overflow:hidden;white-space:pre-wrap;overflow-wrap:break-word;font:13px/1.7 var(--mono);color:#ddd5ee;min-height:330px}
 .term .c{color:#766c8c}.term .p{color:#c4a6ff}.term .o{color:#9be0b5}
 .cursor{display:inline-block;width:8px;height:16px;background:#c4a6ff;vertical-align:-3px;animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
@@ -218,7 +220,12 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 
 /* download */
 .dlhead{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:48px}
-.dlhead img{width:92px;height:92px;margin-bottom:10px;filter:drop-shadow(0 16px 30px var(--glow));animation:bob 6s ease-in-out infinite}
+.dlhead h2{display:flex;align-items:center;gap:20px}
+.dlglyph{flex:none;width:clamp(54px,6.2vw,76px);height:clamp(54px,6.2vw,76px);color:var(--a1);
+  fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+  filter:drop-shadow(0 12px 26px var(--glow))}
+.dlglyph .arrow{animation:nudge 2.6s ease-in-out infinite}
+@keyframes nudge{50%{transform:translateY(1.8px)}}
 .ver{display:inline-flex;gap:8px;align-items:center;margin-top:14px;font-size:13px;color:var(--muted);padding:5px 12px;border-radius:999px;border:1px solid var(--line2);background:var(--soft)}
 .ver b{color:var(--text)}
 .dl{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
@@ -231,7 +238,10 @@ code.i{font:13.5px var(--mono);background:var(--soft);border:1px solid var(--lin
 .dl .rec{border-color:rgba(139,92,246,.55);background:linear-gradient(180deg,rgba(139,92,246,.14),var(--card))}
 .badge{position:absolute;top:16px;right:16px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#120d1c;background:#c4a6ff;padding:3px 8px;border-radius:999px}
 .badge.soon{background:var(--soft);color:var(--dim);border:1px solid var(--line2)}
-.cmd{display:flex;align-items:center;gap:8px;margin-top:18px;padding:9px 12px;border-radius:11px;background:#0a0810;border:1px solid var(--line2);font:12.5px var(--mono);color:#ddd5ee;opacity:.6}
+.cmd{display:flex;align-items:center;gap:8px;width:100%;margin-top:18px;padding:9px 12px;border-radius:11px;background:#0a0810;border:1px solid var(--line2);
+  font:12.5px var(--mono);color:#ddd5ee;text-align:left;cursor:pointer;opacity:.6;transition:opacity .2s,border-color .2s}
+.cmd:hover{opacity:1;border-color:var(--a2)}
+.cmd svg{width:15px;height:15px;flex:none;margin-left:auto;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .alt{text-align:center;margin-top:26px;color:var(--dim);font-size:14px}
 
 /* support */
@@ -289,6 +299,8 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 .fbrand .by{margin-top:14px;color:var(--dim);font-size:13.5px}
 .fbrand .brand{display:inline-flex}
 .fbot{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;padding:22px 0 40px;border-top:1px solid var(--line);color:var(--dim);font-size:13.5px}
+.fbot a{color:var(--muted)}
+.fbot a:hover{color:var(--text)}
 .wordmark{display:flex;align-items:center;justify-content:center;gap:.14em;font-size:clamp(64px,14vw,190px);font-weight:800;letter-spacing:-.05em;line-height:1;margin:6px 0 10px;user-select:none}
 .wordmark img{height:.78em;width:auto;opacity:.22;filter:saturate(.6)}
 .wordmark span{background:linear-gradient(180deg,rgba(139,92,246,.26),transparent 88%);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.06em}
@@ -303,7 +315,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important}.reveal{opacity:1;transform:none;transition:none}.layer,.float{transition:none;translate:none;opacity:1}.stack .l-back{opacity:.5}}
 @media (max-width:1040px){
-  .split,.priv,.spot,.donate{grid-template-columns:1fr}
+  .split,.priv,.spot,.donate,#cli .split{grid-template-columns:1fr}
   .donate{gap:34px;padding:40px}
   .fgrid4,.dl{grid-template-columns:1fr 1fr}
   .gallery{grid-template-columns:1fr}.glist{position:static;flex-direction:row;overflow:auto}.gbtn small{display:none}
@@ -315,6 +327,8 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   .fgrid4,.dl,.legal{grid-template-columns:1fr}
   section{padding:76px 0}.donate{padding:44px 22px}.spot{padding:24px}
   .fcols{grid-template-columns:1fr 1fr}.navstar{display:none}
+  /* The last footer column leaves a wide gutter on the right; match it a little on the left. */
+  footer .wrap{padding-left:40px}
 }
 </style>
 </head>
@@ -558,9 +572,9 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
 <section id="download" style="padding-top:40px">
   <div class="wrap">
     <div class="dlhead reveal">
-      <img src="assets/logo.png" alt="DispCtrl logo">
       <span class="eyebrow">Download</span>
-      <h2>Get DispCtrl</h2>
+      <!-- The product mark redrawn as one glyph: the monitor, downloading. -->
+      <h2><svg class="dlglyph" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="4" width="28" height="19.5" rx="3.2" fill="currentColor" opacity=".09" stroke="none"/><rect x="2" y="4" width="28" height="19.5" rx="3.2"/><path d="M16 23.5v3.3M10.2 26.8h11.6"/><path class="arrow" d="M16 9.2v7.6m0 0-3.3-3.3M16 16.8l3.3-3.3"/></svg>Get DispCtrl</h2>
       <p class="sub">Windows 11 on x64. Installs per user; nothing needs administrator rights.</p>
       <span class="ver" id="ver" hidden>Latest <b id="vername"></b> · <span id="verdate"></span></span>
     </div>
@@ -589,7 +603,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <div class="lg"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-5-6-5M12 19h8"/></svg></div>
         <h3>winget</h3>
         <p>Install and update from the Windows Package Manager. Coming after the first stable release.</p>
-        <div class="cmd">winget install DispCtrl</div>
+        <button class="cmd" id="wingetCmd" type="button" aria-label="Copy: winget install DispCtrl">winget install DispCtrl<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button>
       </div>
     </div>
     <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/Display-Control#build-from-source">Build from source</a> with a single <code class="i">build.cmd</code>. Every release lists <a href="https://github.com/jesvijonathan/Display-Control/releases">SHA-256 checksums</a>.</p>
@@ -603,7 +617,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <span class="eyebrow">Support the project</span>
         <h2>Keep it free,<br>keep it independent</h2>
         <p class="sub">DispCtrl is built on evenings and weekends because my own desk needed it. No ads, no paid tier, no tracking — and there never will be. A donation buys time to build, and the odd monitor to test on.</p>
-        <a class="who" href="https://github.com/jesvijonathan" target="_blank" rel="noopener">
+        <a class="who" href="https://www.jesvi.net" target="_blank" rel="noopener">
           <img src="https://github.com/jesvijonathan.png?size=96" alt="" width="36" height="36" loading="lazy">
           <span><b>Jesvi Jonathan</b><small>Author and maintainer</small></span>
         </a>
@@ -664,7 +678,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <div><h5>More</h5><a href="#support">Donate</a><a href="privacy.html" target="_blank" rel="noopener">Privacy</a><a href="terms.html" target="_blank" rel="noopener">Terms</a><a href="mailto:jesvi22j@gmail.com">Contact</a></div>
     </div>
     <div class="wordmark" aria-hidden="true"><img src="assets/logo.png" alt=""><span>DispCtrl</span></div>
-    <div class="fbot"><span>© 2026 Jesvi Jonathan · MIT licence</span><span>Not affiliated with Microsoft.</span></div>
+    <div class="fbot"><span>&copy; 2026 <a href="https://www.jesvi.net">Jesvi Jonathan</a> · MIT licence</span><span>Not affiliated with Microsoft.</span></div>
   </div>
 </footer>
 
@@ -752,7 +766,7 @@ pick(0);
 const lines = [
   ['c', '# every connected monitor'], ['p', 'dispctrl displays list'], ['o', '1  Internal 2880x1800   2  DELL U2424H (primary)'], ['', ''],
   ['c', '# every display to 60%, in step'], ['p', 'dispctrl unison set --level 60'], ['', ''],
-  ['c', '# switch the Dell to HDMI 1'], ['p', 'dispctrl display control --monitor 2 --name input-source --value hdmi-1'], ['', ''],
+  ['c', '# switch the Dell to HDMI 1'], ['p', 'dispctrl display set --monitor 2 --controls input-source=hdmi-1'], ['', ''],
   ['c', '# keep the screen on and stay Available'], ['p', 'dispctrl awake set --stay-active on']
 ];
 const term = $('term'); let typed = false;
@@ -804,6 +818,8 @@ fetch('https://raw.githubusercontent.com/jesvijonathan/Display-Control/master/de
   $('libRows').innerHTML = models.map(([key, m]) =>
     '<div class="lrow"><code>' + esc(key) + '</code><span>' + esc(m.name || 'Unnamed model') + '</span>' + (m.panel ? '<em>' + esc(m.panel) + '</em>' : '<em>DDC/CI</em>') + '</div>').join('');
 }).catch(() => {});
+
+$('wingetCmd').onclick = () => navigator.clipboard.writeText('winget install DispCtrl').then(() => toast('Command copied'));
 
 // Donations. PayPal and UPI always show; until they are configured they say so.
 const later = what => toast(what + ' is coming soon. GitHub Sponsors works today \u2665');

@@ -1,0 +1,129 @@
+name: Housekeeping
+# Keeps the repository's Actions storage small. Every build uploads a few
+# hundred MB of packages; retention limits expire them eventually, but
+# expired-but-counted artifacts, old run records, stale caches and abandoned
+# release drafts still add up. Weekly, or from Actions > Housekeeping > Run
+# workflow with a dry run first.
+on:
+  schedule:
+    - cron: '17 3 * * 0'   # Sundays, 03:17 UTC
+  workflow_dispatch:
+    inputs:
+      artifact_days:
+        description: Delete workflow artifacts older than this many days
+        type: number
+        default: 7
+      run_days:
+        description: Delete workflow run records older than this many days (0 keeps them)
+        type: number
+        default: 90
+      caches:
+        description: Delete build caches not used for a week
+        type: boolean
+        default: true
+      drafts:
+        description: Delete release drafts older than 30 days
+        type: boolean
+        default: true
+      dry_run:
+        description: Only report what would be deleted
+        type: boolean
+        default: true
+permissions:
+  actions: write
+  contents: write   # release drafts
+concurrency:
+  group: housekeeping
+  cancel-in-progress: false
+jobs:
+  tidy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      # A schedule has no inputs: it uses these defaults, and really deletes.
+      ARTIFACT_DAYS: ${{ inputs.artifact_days || 7 }}
+      RUN_DAYS: ${{ inputs.run_days || 90 }}
+      CACHES: ${{ github.event_name == 'schedule' || inputs.caches }}
+      DRAFTS: ${{ github.event_name == 'schedule' || inputs.drafts }}
+      DRY_RUN: ${{ github.event_name != 'schedule' && inputs.dry_run }}
+    steps:
+      - name: Tidy
+        shell: bash
+        run: |
+          set -euo pipefail
+          now=$(date -u +%s)
+          older() { [ $(( (now - $(date -u -d "$1" +%s)) / 86400 )) -ge "$2" ]; }
+          act() { if [ "$DRY_RUN" = "true" ]; then echo "would $*"; else "$@" > /dev/null; fi; }
+          freed=0; artifacts=0; runs=0; caches=0; drafts=0
+
+          # Artifacts
+          gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | [.id, .name, .size_in_bytes, .created_at, .expired] | @tsv' |
+          while IFS=$'\t' read -r id name size created expired; do
+            if [ "$expired" = "true" ] || older "$created" "$ARTIFACT_DAYS"; then
+              echo "artifact $name ($((size / 1048576)) MB, $created)"
+              act gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
+              echo "$size" >> sizes.txt
+            fi
+          done
+          [ -f sizes.txt ] && { freed=$(paste -sd+ sizes.txt | bc); artifacts=$(wc -l < sizes.txt); }
+
+          # Run records, never the one running now
+          if [ "$RUN_DAYS" -gt 0 ]; then
+            gh api --paginate "repos/$REPO/actions/runs?per_page=100&status=completed" \
+              --jq '.workflow_runs[] | [.id, .name, .created_at] | @tsv' |
+            while IFS=$'\t' read -r id name created; do
+              if older "$created" "$RUN_DAYS" && [ "$id" != "$GITHUB_RUN_ID" ]; then
+                act gh api -X DELETE "repos/$REPO/actions/runs/$id"
+                echo x >> runs.txt
+              fi
+            done
+            [ -f runs.txt ] && runs=$(wc -l < runs.txt)
+          fi
+
+          # Caches not used for a week
+          if [ "$CACHES" = "true" ]; then
+            gh api --paginate "repos/$REPO/actions/caches?per_page=100" \
+              --jq '.actions_caches[] | [.id, .key, .size_in_bytes, .last_accessed_at] | @tsv' |
+            while IFS=$'\t' read -r id key size used; do
+              if older "$used" 7; then
+                echo "cache $key ($((size / 1048576)) MB)"
+                act gh api -X DELETE "repos/$REPO/actions/caches/$id"
+                echo "$size" >> csizes.txt
+              fi
+            done
+            [ -f csizes.txt ] && { caches=$(wc -l < csizes.txt); freed=$(( freed + $(paste -sd+ csizes.txt | bc) )); }
+          fi
+
+          # Release drafts nobody published
+          if [ "$DRAFTS" = "true" ]; then
+            gh api --paginate "repos/$REPO/releases?per_page=100" \
+              --jq '.[] | select(.draft) | [.id, .name, .created_at] | @tsv' |
+            while IFS=$'\t' read -r id name created; do
+              if older "$created" 30; then
+                echo "draft $name ($created)"
+                act gh api -X DELETE "repos/$REPO/releases/$id"
+                echo x >> drafts.txt
+              fi
+            done
+            [ -f drafts.txt ] && drafts=$(wc -l < drafts.txt)
+          fi
+
+          usage=$(gh api "repos/$REPO/actions/cache/usage" --jq '.active_caches_size_in_bytes' 2>/dev/null || echo 0)
+          mode=$([ "$DRY_RUN" = "true" ] && echo "dry run: nothing deleted" || echo "done")
+          {
+            echo "## Housekeeping ($mode)"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Artifacts older than $ARTIFACT_DAYS days | $artifacts |"
+            echo "| Run records older than $RUN_DAYS days | $runs |"
+            echo "| Caches unused for 7 days | $caches |"
+            echo "| Release drafts older than 30 days | $drafts |"
+            echo "| Space $([ "$DRY_RUN" = "true" ] && echo 'that would be freed' || echo 'freed') | $((freed / 1048576)) MB |"
+            echo "| Cache storage now in use | $((usage / 1048576)) MB |"
+            echo
+            echo "Storage and billing: https://github.com/settings/billing"
+          } >> "$GITHUB_STEP_SUMMARY"

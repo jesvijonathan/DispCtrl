@@ -36,3 +36,13 @@ jobs:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Website: ${{ job.status }}"
+            echo
+            echo "Live at ${{ steps.deployment.outputs.page_url }}"
+            echo
+            echo "Privacy policy: ${{ steps.deployment.outputs.page_url }}privacy.html"
+          } >> "$GITHUB_STEP_SUMMARY"

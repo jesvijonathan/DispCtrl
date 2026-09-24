@@ -77,16 +77,42 @@ nothing else needs administrator rights.
 - **Never change `AppId`** in `packaging/installer/DispCtrl.iss`: it is how an
   upgrade finds the installed copy.
 
-## Continuous integration
+## Workflows
 
-`build.yml` runs on every push and pull request:
-1. Build, and run the hardware-free checks.
-2. A ReadyToRun publish of both bundles.
-3. The installer.
-4. An MSIX with the development identity.
+Six workflows, each with a summary page (links, files, sizes, status) and a
+**Run workflow** button with options:
 
-Everything is uploaded as a 14-day artifact, so a publish or packaging break is
-caught by the commit that causes it. `devices.yml` validates the device library.
+| Workflow | Runs on | Does |
+|---|---|---|
+| **Build and verify** (`build.yml`) | pushes and pull requests to the product | build, the hardware-free checks, then zips, installer and a development-identity MSIX; kept 7 days. Options: what to package, channel, version, native helper, days to keep. Website, device-library and docs changes do not start it. |
+| **Release** (`release.yml`) | a `v*` tag, or by hand | everything below; options: version, channel, publish now or draft, create the tag, packages, signing, extra notes |
+| **Distribute** (`distribute.yml`) | publishing a stable release, or by hand | winget and the Microsoft Store; options: tag, which targets, dry run |
+| **Device library** (`devices.yml`) | changes under `devices/`, and issues carrying a device share | validate, regenerate the index after a merge, and turn a share into a pull request; by hand: validate, reindex, intake one issue, self-test |
+| **Website** (`pages.yml`) | changes under `site/` or `docs/assets/` | publishes GitHub Pages |
+| **Housekeeping** (`housekeeping.yml`) | Sundays, or by hand | deletes old artifacts, run records, unused caches and stale release drafts, and reports the space freed; a manual run is a dry run unless you untick it |
+
+### Who can change them
+
+Only accounts with write access can edit a workflow, and `.github/CODEOWNERS`
+names the owner for everything, workflows included. Three settings finish the
+job and are set once, by hand:
+
+1. **Settings > Actions > General > Fork pull request workflows from outside
+   collaborators: "Require approval for all outside collaborators".** A
+   stranger's pull request then runs nothing until you approve it.
+2. **Settings > Actions > General > Workflow permissions: "Read repository
+   contents"**, with "Allow GitHub Actions to create and approve pull
+   requests" ticked (the device intake opens pull requests). Each workflow
+   asks for exactly what it needs on top.
+3. **Settings > Rules > Rulesets > New branch ruleset** for `master`: block
+   force pushes and deletion, and require a pull request with code-owner review
+   for everyone except you (add yourself as a bypass actor). The index commit
+   the Device library workflow pushes needs "GitHub Actions" in the bypass
+   list too, or turn that step into a pull request.
+
+A pull request from a fork always runs its workflows with a read-only token and
+no secrets, and the Device library workflow's token cannot change files under
+`.github/workflows/` at all, so an issue cannot rewrite the pipeline.
 
 ## Cutting a release
 
@@ -96,8 +122,9 @@ caught by the commit that causes it. `devices.yml` validates the device library.
    that disagrees with it fails the release; a beta only warns.
 3. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`. A
    hyphen makes it a beta and a GitHub prerelease: `v0.2.0-beta.1`.
-4. `release.yml` builds, tests, signs (if configured) and packages everything,
-   then opens a **draft** release. Its notes are the CHANGELOG section for the
+4. **Release** builds, tests, signs (if configured) and packages everything,
+   then opens a **draft** release. Started from Actions instead, it can create
+   the tag itself and publish at once. Its notes are the CHANGELOG section for the
    tag (the exact version, then its numeric part, then Unreleased), followed by
    install instructions and every checksum. Re-running the same tag replaces
    the draft's assets.
@@ -108,8 +135,9 @@ caught by the commit that causes it. `devices.yml` validates the device library.
    - uninstall;
    - the CLI: stdout and exit codes;
    - mixed-DPI displays, and an Explorer restart.
-6. **Publish** the draft. For a stable release that starts `distribute.yml`.
-   Prereleases stay on GitHub.
+6. **Publish** the draft. For a stable release that starts **Distribute**
+   (a release the workflow publishes itself starts it explicitly). Prereleases
+   stay on GitHub.
 
 `distribute.yml` has two jobs, each inert until its variable is set:
 

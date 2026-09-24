@@ -34,6 +34,9 @@ try {
     # until that adapter has a verified NativeAOT replacement. ReadyToRun instead:
     # precompiled code, so the engine at sign-in, the CLI in a script and the
     # panel's first opening skip most of their JIT time.
+    # The compiler server outlives the test build and can still hold an obj
+    # file when the first publish starts: CS2012, 'being used by another process'.
+    & dotnet build-server shutdown *> $null
     foreach ($project in @('DispCtrl.Cli','DispCtrl.Engine')) {
         & dotnet publish "src/$project/$project.csproj" -c Release -r win-x64 --self-contained true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -o $cli
         if ($LASTEXITCODE -ne 0) { throw "Publish failed: $project" }
@@ -50,6 +53,13 @@ try {
     # the published folder. Deleting obj is the only thing that clears it;
     # dotnet clean leaves the PRI behind.
     Remove-Item -Recurse -Force 'src/DispCtrl.App/obj' -ErrorAction SilentlyContinue
+    # An engine elsewhere on this PC - an installed copy - can start the quick
+    # panel from the path this repository's app last recorded, which is its
+    # bin folder. That locks DispCtrl.App.exe and the publish fails (MSB3027).
+    # The app may be closed outright; only the engine must be stopped gently.
+    Get-Process DispCtrl.App -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) } |
+        Stop-Process -Force -ErrorAction SilentlyContinue
     & dotnet publish src/DispCtrl.App/DispCtrl.App.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -o $desktop
     if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed.' }
     Get-ChildItem -LiteralPath $cli -Recurse -File | ForEach-Object {

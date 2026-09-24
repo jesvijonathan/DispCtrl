@@ -218,9 +218,10 @@ standard does not name while the owner uses the monitor's menu; `devices map`
 names one in a **definition** - per model (`DEL-A234`), brand (`DEL`) or every
 monitor (`*`), layered in that order with `extends` links - and `devices share`
 opens one prefilled issue with the record and the mappings. The repository is
-the backend: `.github/workflows/device-intake.yml` turns such an issue into a
-pull request through `tools/devicecheck intake`; `devices.yml` validates every
-change to `devices/`. Reviewed definitions live in `devices/BRAND/PRODUCT/`
+the backend: `.github/workflows/devices.yml` turns such an issue into a
+pull request through `tools/devicecheck intake` (its `intake` job), validates
+every change to `devices/` (`check`) and regenerates the index after a merge
+(`index`). It runs on Linux. Reviewed definitions live in `devices/BRAND/PRODUCT/`
 (`DeviceLayout`; built for thousands of models, one folder each) and ship
 beside every executable in that layout; records and the generated index do not
 ship. The app's **Devices** page sends the same
@@ -847,6 +848,20 @@ unrecallable.
 - **Repository layout**: `.claude/` this file, `.github/` community files,
   `build/packaging/` MSIX and installer, `src/native/` the glass helper,
   `docs/design/` internal notes. Session exports stay in `.notes/`, ignored.
+- **Workflows** (`docs/RELEASING.md` has the table): Build and verify, Release,
+  Distribute, Device library, Website, Housekeeping. Each writes a summary with
+  links and sizes, and each has `workflow_dispatch` options. A release that the
+  workflow publishes itself does not raise `released`, so Release starts
+  Distribute with `gh workflow run`. Housekeeping deletes old artifacts, runs,
+  caches and drafts weekly; a manual run defaults to a dry run.
+- **One local build at a time.** `dev.ps1` holds `Local\DispCtrl.Build` for
+  build, test, clean and release: two runs share every `obj` folder, and a
+  release started while another ran failed with a missing R2R file. Publish also
+  shuts the compiler server down first (CS2012 on a still-open obj file), closes
+  any repository copy of the app (an installed engine can start the panel from
+  `bin`), publishes the app before adding the CLI files (publish keeps a newer
+  destination, which left the app with the CLI's copies and a startup crash),
+  and launches the result before packaging it.
 - `DispCtrlVersion` in `Directory.Build.props` is the default `Version`; a
   stable tag that disagrees with it fails `release.yml`. Bump it in the
   release commit. See `docs/RELEASING.md` for the whole procedure and the

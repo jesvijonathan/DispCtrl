@@ -214,7 +214,9 @@ function Invoke-Setup {
 # ---------------------------------------------------------------- processes
 
 function Get-RepoProcess([string]$name) {
-    $root = (Join-Path $repo 'src') + '\'
+    # The whole repository: a copy left running from artifacts\ blocks a clean
+    # as surely as one from a bin folder.
+    $root = $repo.TrimEnd('\') + '\'
     @(Get-Process $name -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) })
 }
 
@@ -410,36 +412,106 @@ function Invoke-Options {
     Write-Host ("Saved: configuration {0}, channel {1}, version {2}, native helper {3}." -f $options.configuration, $options.channel, $options.version, $(if ($options.skipNative) { 'off' } else { 'on' }))
 }
 
+# One build at a time on this machine. Two runs share every obj folder: one
+# cleans or rewrites what the other is compiling, and both fail with errors
+# that point anywhere but here (a missing R2R file, a locked obj).
+function Use-BuildLock([scriptblock]$work) {
+    $lock = [Threading.Mutex]::new($false, 'Local\DispCtrl.Build')
+    $held = $false
+    try { $held = $lock.WaitOne(0) } catch [Threading.AbandonedMutexException] { $held = $true }
+    if (-not $held) { $lock.Dispose(); throw 'Another DispCtrl build is running on this PC. Wait for it to finish, then try again.' }
+    try { & $work } finally { $lock.ReleaseMutex(); $lock.Dispose() }
+}
+
 function Invoke-Menu {
+    # Grouped by what a person is trying to do, not by build stage. Shipping is
+    # one choice: it asks the channel and version, starts from clean, and ends
+    # by naming the files to upload.
     $items = [ordered]@{
-        '1' = @('Check this machine', { $null = Invoke-Doctor })
-        '2' = @('Set up (fetch tools; asks before installing)', { $script:Install = (Read-Host 'Let winget install the .NET SDK and MinGW if missing? [y/N]') -match '^(y|yes)$'; Invoke-Setup })
-        '3' = @('Build', { Invoke-Build })
-        '3r' = @('Build from clean (removes every bin and obj first)', { $script:Rebuild = $true; Invoke-Build; $script:Rebuild = $false })
-        '4' = @('Test', { Invoke-Test })
-        '5' = @('Build, then test', { Invoke-Build; Invoke-Test })
-        '6' = @('Start the engine', { $script:Target = 'engine'; Invoke-Run })
-        '7' = @('Open the app', { $script:Target = 'app'; Invoke-Run })
-        '8' = @('Open the quick panel', { $script:Target = 'panel'; Invoke-Run })
-        '9' = @('Publish zips', { $null = Invoke-Publish })
-        '10' = @('Build the installer', { Invoke-Installer $null })
-        '11' = @('Pack the MSIX', { Invoke-Package $null })
-        '12' = @('Everything for a local release', { Invoke-Release })
-        '13' = @('Switch Debug / Release', { $options.configuration = if ($options.configuration -eq 'Release') { 'Debug' } else { 'Release' }; Invoke-Options })
-        '14' = @('Switch beta / stable', { $options.channel = if ($options.channel -eq 'beta') { 'stable' } else { 'beta' }; Invoke-Options })
-        '15' = @('Native helper on / off', { $options.skipNative = -not $options.skipNative; Invoke-Options })
-        '16' = @('Clean', { Invoke-Clean })
+        '1' = @('Build', 'compile the CLI, engine and app', { Invoke-Build })
+        '2' = @('Test', 'run every check', { Invoke-Test })
+        '3' = @('Open the app', '', { $script:Target = 'app'; Invoke-Run })
+        '4' = @('Release', 'clean build, tests, installer, zips and MSIX, ready to upload', { Invoke-MenuRelease })
+        '5' = @('Start the engine', '', { $script:Target = 'engine'; Invoke-Run })
+        '6' = @('Open the quick panel', '', { $script:Target = 'panel'; Invoke-Run })
+        '7' = @('Clean', 'remove every bin, obj and artifacts folder', { Invoke-Clean })
+        '8' = @('Check this machine', 'and set up missing tools', { if (-not (Invoke-Doctor)) { $script:Install = (Read-Host 'Fetch the missing tools now? [y/N]') -match '^(y|yes)$'; Invoke-Setup } })
+        '9' = @('Settings', 'Debug or Release, beta or stable, native helper', { Invoke-MenuSettings })
     }
+    $groups = [ordered]@{ 'Everyday' = '1','2','3'; 'Ship' = ,'4'; 'More' = '5','6','7','8','9' }
     while ($true) {
-        Write-Host ("`nDispCtrl  -  {0}, {1} {2}, native helper {3}" -f $options.configuration, $options.channel, $options.version, $(if ($options.skipNative) { 'off' } else { 'on' })) -ForegroundColor Cyan
-        foreach ($key in $items.Keys) { Write-Host ('  {0,2}  {1}' -f $key, $items[$key][0]) }
-        Write-Host '   q  Quit'
+        Write-Host ("`nDispCtrl  ·  {0}  ·  {1} {2}" -f $options.configuration, $options.channel, $options.version) -ForegroundColor Cyan
+        foreach ($group in $groups.Keys) {
+            Write-Host "  $group" -ForegroundColor DarkGray
+            foreach ($key in $groups[$group]) {
+                $item = $items[$key]
+                Write-Host ('    {0}  {1,-22}{2}' -f $key, $item[0], $item[1])
+            }
+        }
+        Write-Host '    q  Quit'
         $choice = Read-Host 'Choose'
         if ($choice -match '^(q|quit|exit|)$') { return }
         if (-not $items.Contains($choice)) { Write-Host 'Not an option.'; continue }
-        try { & $items[$choice][1] }
+        try { if ($choice -in '3', '5', '6', '9') { & $items[$choice][2] } else { Use-BuildLock $items[$choice][2] } }
         catch { Write-Host "`n$($_.Exception.Message)" -ForegroundColor Red }
     }
+}
+
+function Invoke-MenuRelease {
+    $channel = Read-Host "Channel: stable or beta? [stable]"
+    $options.channel = if ($channel -match '^b') { 'beta' } else { 'stable' }
+    $version = Read-Host "Version? [$($options.version)]"
+    if ($version) {
+        if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'A version is three numbers: 0.1.0.' }
+        $options.version = $version
+    }
+    $options.configuration = 'Release'
+    Write-Host ("`nReleasing {0} {1} from clean. This takes a few minutes." -f $options.channel, $options.version) -ForegroundColor Cyan
+    $engine = @(Get-RepoProcess 'DispCtrl.Engine').Count -gt 0
+    $script:Yes = $true
+    Invoke-Clean
+    Invoke-Release
+    if ($engine -and -not @(Get-RepoProcess 'DispCtrl.Engine').Count) { Start-Engine (Output-Of 'DispCtrl.Engine' 'DispCtrl.Engine.exe') }
+    $bundle = Bundle-Path
+    Write-Host "`nReady to upload:" -ForegroundColor Green
+    foreach ($pattern in '*.msix', '*-setup.exe', '*.zip') {
+        Get-ChildItem -LiteralPath $bundle -Filter $pattern -File | ForEach-Object {
+            $what = switch -Wildcard ($_.Name) { '*.msix' { 'Microsoft Store (Partner Center > Packages)' } '*setup.exe' { 'GitHub release: installer' } default { 'GitHub release: portable' } }
+            Write-Host ('  {0,-46} {1}' -f $_.Name, $what)
+        }
+    }
+    Write-Host "  in $bundle"
+}
+
+function Invoke-MenuSettings {
+    while ($true) {
+        Write-Host ''
+        Write-Host ("  1  Configuration   {0}" -f $options.configuration)
+        Write-Host ("  2  Channel         {0}" -f $options.channel)
+        Write-Host ("  3  Native helper   {0}" -f $(if ($options.skipNative) { 'off' } else { 'on' }))
+        Write-Host '  b  Back'
+        switch (Read-Host 'Change') {
+            '1' { $options.configuration = if ($options.configuration -eq 'Release') { 'Debug' } else { 'Release' }; Invoke-Options }
+            '2' { $options.channel = if ($options.channel -eq 'beta') { 'stable' } else { 'beta' }; Invoke-Options }
+            '3' { $options.skipNative = -not $options.skipNative; Invoke-Options }
+            default { return }
+        }
+    }
+}
+
+if ($Command -in 'build', 'test', 'publish', 'installer', 'package', 'release', 'clean') {
+    Use-BuildLock {
+        switch ($Command) {
+            'build'     { Invoke-Build }
+            'test'      { Invoke-Test }
+            'publish'   { Invoke-Publish }
+            'installer' { Invoke-Installer $null }
+            'package'   { Invoke-Package $null }
+            'release'   { Invoke-Release }
+            'clean'     { Invoke-Clean }
+        }
+    }
+    return
 }
 
 switch ($Command) {

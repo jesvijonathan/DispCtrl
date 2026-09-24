@@ -180,8 +180,8 @@ on the clipboard.
 
 The repository is the backend; there is no server.
 
-- **`.github/workflows/device-intake.yml`** runs on every opened or edited
-  issue whose body carries the share's `dispctrl-device-mapping` marker - a
+- **`.github/workflows/devices.yml`**, the **intake** job, runs on every
+  opened or edited issue whose body carries the share's `dispctrl-device-mapping` marker - a
   label cannot be relied on, since GitHub drops the labels a link asks for
   when the author cannot triage. It runs `tools/devicecheck intake`, which
   validates every definition, merges it into the model's folder code by code
@@ -189,8 +189,8 @@ The repository is the backend; there is no server.
   seen after checking it for paths and instance ids, and opens a pull request
   for a maintainer. It does not touch the index, so shares never conflict. A share it cannot read gets a comment saying why. The issue body
   is passed through the environment, never into a script.
-- **`.github/workflows/devices.yml`** runs `devicecheck validate` on every
-  pull request touching `devices/`: the rules DispCtrl loads a definition
+- The same workflow's **check** job runs `devicecheck validate` and the intake
+  self-test on every pull request touching `devices/`: the rules DispCtrl loads a definition
   with, the layout (a file in the wrong place is one the app would never
   read), and the records' privacy. After a merge it regenerates the index and
   commits it.
