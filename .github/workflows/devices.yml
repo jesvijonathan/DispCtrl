@@ -20,7 +20,7 @@ on:
       action:
         description: What to run
         type: choice
-        options: [validate, rebuild the index, intake an issue, self-test]
+        options: [validate, rebuild the index, intake an issue, intake every open share, self-test]
         default: validate
       issue:
         description: Issue number, for "intake an issue"
@@ -89,19 +89,62 @@ jobs:
           git push
           echo "Index regenerated and pushed: $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
 
-  intake:
+  shares:
     # Recognised by the payload, not a label: GitHub drops the labels a
-    # prefilled link asks for when the author cannot triage.
-    if: (github.event_name == 'issues' && contains(github.event.issue.body, 'dispctrl-device-mapping')) || (github.event_name == 'workflow_dispatch' && inputs.action == 'intake an issue')
+    # prefilled link asks for when the author cannot triage. "Every open share"
+    # is each open issue carrying one, less those with a pull request open
+    # already; an issue closed after its merge is not taken in twice.
+    if: (github.event_name == 'issues' && contains(github.event.issue.body, 'dispctrl-device-mapping')) || (github.event_name == 'workflow_dispatch' && (inputs.action == 'intake an issue' || inputs.action == 'intake every open share'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: read
+      pull-requests: read
+    outputs:
+      issues: ${{ steps.find.outputs.issues }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EVENT_ISSUE: ${{ github.event.issue.number }}
+      INPUT_ISSUE: ${{ inputs.issue }}
+      ACTION: ${{ inputs.action }}
+    steps:
+      - name: Find the shares
+        id: find
+        run: |
+          if [ -n "$EVENT_ISSUE" ]; then
+            list="[$EVENT_ISSUE]"
+          elif [ "$ACTION" = "intake an issue" ]; then
+            case "$INPUT_ISSUE" in ''|*[!0-9]*) echo "An issue number is needed." >&2; exit 1 ;; esac
+            list="[$INPUT_ISSUE]"
+          else
+            pending=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json headRefName \
+              --jq '[.[].headRefName | select(test("^device-share/[0-9]+$")) | ltrimstr("device-share/") | tonumber]')
+            list=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json number,body \
+              --jq "[.[] | select((.body // \"\") | contains(\"dispctrl-device-mapping\")) | .number] - $pending | sort")
+          fi
+          echo "issues=$list" >> "$GITHUB_OUTPUT"
+          echo "Shares to take in: $list" >> "$GITHUB_STEP_SUMMARY"
+  intake:
+    needs: shares
+    if: needs.shares.outputs.issues != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        issue: ${{ fromJSON(needs.shares.outputs.issues) }}
+    concurrency:
+      group: device-share-${{ matrix.issue }}
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
       issues: write
     env:
       GH_TOKEN: ${{ github.token }}
-      ISSUE: ${{ github.event.issue.number || inputs.issue }}
+      ISSUE: ${{ matrix.issue }}
+      BASE: ${{ github.event.repository.default_branch }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -133,9 +176,14 @@ jobs:
           git commit -m "Device share from #$ISSUE"
           git push --force origin "$branch"
           url=$(gh pr list --head "$branch" --json url --jq '.[0].url')
-          if [ -z "$url" ]; then
-            url=$(gh pr create --head "$branch" --title "Device share from #$ISSUE" \
-              --body "Generated from #$ISSUE by the Device library workflow. Review the names, the writable flags and the record before merging.")
+          if [ -z "$url" ] && ! url=$(gh pr create --head "$branch" --base "$BASE" --title "Device share from #$ISSUE" \
+              --body "Generated from #$ISSUE by the Device library workflow. Review the names, the writable flags and the record before merging."); then
+            # Refused while the repository does not let Actions open pull
+            # requests. The branch is pushed, so opening it is one click.
+            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE...$branch?expand=1"
+            echo "::warning::Actions may not open pull requests in this repository (Settings > Actions > General > Workflow permissions). Open it from $url"
+            echo "url=$url" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           gh issue comment "$ISSUE" --body "Thanks - this share is now a pull request for review: $url"
           echo "url=$url" >> "$GITHUB_OUTPUT"

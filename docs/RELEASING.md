@@ -87,7 +87,7 @@ Six workflows, each with a summary page (links, files, sizes, status) and a
 | **Build and verify** (`build.yml`) | pushes and pull requests to the product | build, the hardware-free checks, then zips, installer and a development-identity MSIX; kept 7 days. Options: what to package, channel, version, native helper, days to keep. Website, device-library and docs changes do not start it. |
 | **Release** (`release.yml`) | a `v*` tag, or by hand | everything below; options: version, channel, publish now or draft, create the tag, packages, signing, extra notes |
 | **Distribute** (`distribute.yml`) | publishing a stable release, or by hand | winget and the Microsoft Store; options: tag, which targets, dry run |
-| **Device library** (`devices.yml`) | changes under `devices/`, and issues carrying a device share | validate, regenerate the index after a merge, and turn a share into a pull request; by hand: validate, reindex, intake one issue, self-test |
+| **Device library** (`devices.yml`) | changes under `devices/`, and issues carrying a device share | validate, regenerate the index after a merge, and turn a share into a pull request; by hand: validate, reindex, intake one issue or every open share without a pull request, self-test. A share whose pull request Actions may not open (setting 2 below) leaves its branch pushed and a link to open it in the run summary |
 | **Website** (`pages.yml`) | changes under `site/` | publishes GitHub Pages |
 | **Housekeeping** (`housekeeping.yml`) | Sundays, or by hand | deletes old artifacts, run records, unused caches and stale release drafts, and reports the space freed; a manual run is a dry run unless you untick it |
 
