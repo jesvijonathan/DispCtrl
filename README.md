@@ -7,9 +7,9 @@
 **Every monitor on your desk, controlled as one.**
 
 One place for brightness, night light, taskbars and OLED care across your desk.<br>
-A native Windows 11 app, a quick panel in your tray, and a scriptable command line.
+A native Windows app, a quick panel in your tray, and a scriptable command line.
 
-[![Build](https://img.shields.io/github/actions/workflow/status/jesvijonathan/DispCtrl/build.yml?branch=master&label=build&logo=github)](https://github.com/jesvijonathan/DispCtrl/actions/workflows/build.yml) [![GitHub stars](https://img.shields.io/github/stars/jesvijonathan/DispCtrl?label=stars&color=8b5cf6&logo=github)](https://github.com/jesvijonathan/DispCtrl/stargazers) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/DispCtrl/total?color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases) [![Windows 11](https://img.shields.io/badge/Windows-11-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
+[![Build](https://img.shields.io/github/actions/workflow/status/jesvijonathan/DispCtrl/build.yml?branch=master&label=build&logo=github)](https://github.com/jesvijonathan/DispCtrl/actions/workflows/build.yml) [![GitHub stars](https://img.shields.io/github/stars/jesvijonathan/DispCtrl?label=stars&color=8b5cf6&logo=github)](https://github.com/jesvijonathan/DispCtrl/stargazers) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/DispCtrl/total?color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases) [![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
 
 [**Download**](https://github.com/jesvijonathan/DispCtrl/releases) · [Getting started](#getting-started) · [Documentation](#documentation) · [Website](https://jesvijonathan.github.io/DispCtrl/)
 
@@ -85,7 +85,7 @@ A native Windows 11 app, a quick panel in your tray, and a scriptable command li
 
 ## Install
 
-Browse the [download options on our website](https://jesvijonathan.github.io/DispCtrl/#download), or download directly from [**Releases**](https://github.com/jesvijonathan/DispCtrl/releases). **Windows 11 · x64 · self-contained downloads** — no separate .NET installation needed.
+Browse the [download options on our website](https://jesvijonathan.github.io/DispCtrl/#download), or download directly from [**Releases**](https://github.com/jesvijonathan/DispCtrl/releases). **Windows · x64 · self-contained downloads** — no separate .NET installation needed.
 
 | Package | What you get |
 |---|---|
