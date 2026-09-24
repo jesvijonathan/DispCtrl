@@ -8,6 +8,8 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-24
+
 ### Added
 - **Follow the room's light**: unison brightness can follow an ambient light sensor, from a level for a dark room to one for bright light, smoothed so passing shadows do not move it. Under Unison brightness, with the sensor to follow.
 
@@ -76,5 +78,6 @@ The first public release.
 - A per-user installer, portable and CLI zips, and an MSIX for the Microsoft
   Store.
 
-[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jesvijonathan/DispCtrl/releases/tag/v0.1.0
