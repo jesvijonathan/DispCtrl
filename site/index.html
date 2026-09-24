@@ -3,14 +3,56 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DispCtrl — one app, full control of every display</title>
-<meta name="description" content="Free, open-source display control for Windows 11: brightness in step across every monitor, night light, keep awake, per-monitor taskbar hiding, OLED care, monitor settings over DDC/CI, hotkeys and a command line.">
+<title>DispCtrl: multi-monitor brightness control for Windows 11</title>
+<meta name="description" content="Free, open-source display control for Windows 11: one brightness slider for every monitor, night light, taskbar hiding, OLED care, hotkeys and a CLI.">
+<meta name="keywords" content="multi-monitor brightness, monitor brightness control, DDC/CI, Windows 11 brightness, night light, OLED burn-in protection, hide taskbar second monitor, keep awake, Twinkle Tray alternative, Monitorian alternative">
+<meta name="author" content="Jesvi Jonathan">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://jesvijonathan.github.io/DispCtrl/">
 <meta name="theme-color" content="#0d0a14">
 <meta property="og:type" content="website">
-<meta property="og:title" content="DispCtrl — one app, full control of every display">
+<meta property="og:site_name" content="DispCtrl">
+<meta property="og:url" content="https://jesvijonathan.github.io/DispCtrl/">
+<meta property="og:title" content="DispCtrl: every monitor on your desk, controlled as one">
 <meta property="og:description" content="Brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own controls. Free and open source for Windows 11.">
-<meta property="og:image" content="assets/hero.png">
+<meta property="og:image" content="https://jesvijonathan.github.io/DispCtrl/assets/hero.png">
+<meta property="og:image:width" content="1600">
+<meta property="og:image:height" content="1010">
+<meta property="og:image:alt" content="The DispCtrl window with its quick panel open">
+<meta property="og:locale" content="en_GB">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DispCtrl: every monitor on your desk, controlled as one">
+<meta name="twitter:description" content="Free, open-source display control for Windows 11: brightness across every monitor, night light, taskbar hiding, OLED care, hotkeys and a CLI.">
+<meta name="twitter:image" content="https://jesvijonathan.github.io/DispCtrl/assets/hero.png">
+<meta name="twitter:image:alt" content="The DispCtrl window with its quick panel open">
+<link rel="apple-touch-icon" href="assets/logo.png">
+<link rel="sitemap" type="application/xml" href="sitemap.xml">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "DispCtrl",
+  "alternateName": "DispCtrl display control",
+  "description": "Free, open-source display control for Windows 11: one brightness slider for every monitor over DDC/CI, night light, focus mode, keep awake, per-monitor taskbar hiding, OLED care, hotkeys and a command line.",
+  "applicationCategory": "UtilitiesApplication",
+  "applicationSubCategory": "Display and monitor control",
+  "operatingSystem": "Windows 11",
+  "processorRequirements": "x64",
+  "softwareVersion": "0.1.2",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "url": "https://jesvijonathan.github.io/DispCtrl/",
+  "downloadUrl": "https://github.com/jesvijonathan/DispCtrl/releases/latest",
+  "installUrl": "https://apps.microsoft.com/detail/9PNQWKNRGVR0",
+  "screenshot": "https://jesvijonathan.github.io/DispCtrl/assets/hero.png",
+  "image": "https://jesvijonathan.github.io/DispCtrl/assets/logo.png",
+  "codeRepository": "https://github.com/jesvijonathan/DispCtrl",
+  "author": { "@type": "Person", "name": "Jesvi Jonathan", "url": "https://www.jesvi.net/" },
+  "sameAs": ["https://github.com/jesvijonathan/DispCtrl", "https://apps.microsoft.com/detail/9PNQWKNRGVR0"],
+  "featureList": ["One brightness slider for every monitor (DDC/CI and laptop panels)", "Replaces Windows' brightness slider and keys", "Night light per display or in unison, down to 1900 K", "Focus mode", "Keep awake and Stay active", "Turn off displays while the PC keeps running", "Per-monitor taskbar hiding and taskbar glass", "OLED burn-in care", "Monitor settings over DDC/CI", "Global hotkeys", "Quick panel in the tray", "Scriptable command line"]
+}
+</script>
 <link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="stylesheet" href="assets/tooltips.css">
 <script src="assets/tooltips.js" defer></script>
@@ -90,6 +132,7 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .ghost:hover{border-color:var(--a1)}
 
 /* hero */
+.vh{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .hero{padding-top:84px;padding-bottom:20px;text-align:center;position:relative;isolation:isolate}
 .herover{display:inline-flex;gap:8px;align-items:center;margin-top:16px;font-size:13px;color:var(--muted)}
 .herover b{color:var(--text);font-weight:650}
@@ -107,6 +150,12 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .herowm::before,.herowm::after{content:attr(data-text);position:absolute;inset:0;color:transparent;background:none;clip-path:inset(0 0 100% 0)}
 .herowm::before{-webkit-text-stroke:1px color-mix(in srgb,var(--a3) 55%,transparent);transform:translateX(-4px);animation:slice 7s steps(1) infinite}
 .herowm::after{-webkit-text-stroke:1px color-mix(in srgb,var(--a2) 60%,transparent);transform:translateX(4px);animation:slice 7s steps(1) infinite .12s}
+@media (max-width:640px){
+  .hero{padding-top:28px}
+  .wordwrap{position:relative;left:auto;width:auto;margin:0 -24px;top:auto;height:auto;padding:26px 0 22px;z-index:0;
+    -webkit-mask-image:none;mask-image:none}
+  .herowm{opacity:1;-webkit-text-stroke-width:1.2px}
+}
 @keyframes sheen{0%,55%{background-position:200% 0,0 0}90%,100%{background-position:-100% 0,0 0}}
 @keyframes slice{0%,90%,100%{clip-path:inset(0 0 100% 0)}91%{clip-path:inset(20% 0 62% 0)}93%{clip-path:inset(58% 0 24% 0)}95%{clip-path:inset(38% 0 44% 0)}}
 .pill{display:inline-flex;gap:10px;align-items:center;padding:6px 14px 6px 6px;border:1px solid var(--line2);border-radius:999px;color:var(--muted);font-size:13px;background:var(--soft)}
@@ -498,7 +547,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   <div class="wordwrap" aria-hidden="true"><p class="herowm" data-text="DispCtrl">DispCtrl</p></div>
   <div class="reveal">
     <span class="pill"><b>Open source</b> <span class="long">Free for Windows 11, under the MIT licence</span><span class="short">Free for Windows 11 · MIT</span></span>
-    <h1><span class="grad">One App.<br>Full Ctrl.</span></h1>
+    <h1><span class="vh">DispCtrl, multi-monitor display control for Windows: </span><span class="grad">One App.<br>Full Ctrl.</span></h1>
     <p class="lead">Windows treats every monitor the same. DispCtrl treats each one on its own terms: brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own settings.</p>
     <div class="cta">
       <a class="btn primary" href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">
@@ -918,7 +967,9 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
 const heroName = document.querySelector('.herowm');
 if (heroName && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   let pending = 0;
-  const drift = () => { pending = 0; heroName.style.transform = `translate3d(0, ${(Math.min(scrollY, 1400) * .35).toFixed(1)}px, 0)`; };
+  // On a phone the name is the hero's first line, in the flow, and stays put.
+  const narrow = matchMedia('(max-width: 640px)');
+  const drift = () => { pending = 0; heroName.style.transform = narrow.matches ? '' : `translate3d(0, ${(Math.min(scrollY, 1400) * .35).toFixed(1)}px, 0)`; };
   addEventListener('scroll', () => { if (!pending) pending = requestAnimationFrame(drift); }, { passive: true });
 }
 

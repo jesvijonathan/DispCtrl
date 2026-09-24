@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jesvijonathan.github.io/DispCtrl/sitemap.xml
