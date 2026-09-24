@@ -87,7 +87,7 @@ public partial class App : Application
         // process started for it would build a second copy of every display
         // just to show a flyout.
         _listening = QuickPanelHost.Listen(DispatcherQueue.GetForCurrentThread(), () => SummonPanel(toggle: true),
-            () => ViewModel.Identify(), () => ShowMainWindow());
+            () => ViewModel.Identify(), () => ShowMainWindow(), Quit);
 
         if (panelOnly)
         {
@@ -120,6 +120,22 @@ public partial class App : Application
 
         ShowMainWindow();
         _ = ViewModel.StartEngineByDefaultAsync();
+    }
+
+    /// <summary>
+    /// Closes the window and the quick panel and ends the process: the tray
+    /// icon's "Exit DispCtrl".
+    /// </summary>
+    /// <remarks>
+    /// A slider's pending save goes first; nothing else here needs unwinding.
+    /// The engine owns the gamma ramps and the taskbars, so an app that simply
+    /// leaves strands neither.
+    /// </remarks>
+    private void Quit()
+    {
+        try { ViewModel.FlushPendingSave(); }
+        catch (Exception) { }
+        Exit();
     }
 
     /// <summary>Brings up the full window, creating it if this process has none.</summary>

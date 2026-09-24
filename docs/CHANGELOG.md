@@ -10,6 +10,7 @@ using DispCtrl, not for people reading the diff.
 
 ### Added
 - `dispctrl ambient get|set|reset|capture|forget`: every setting for following the room's light, what the sensor reads now, and calibration - cover the sensor and `capture --as dark`, light it and `capture --as bright`.
+- The tray icon's right-click menu can switch the quick panel between simple and full view, put every display back (as Ctrl+Alt+Backspace does), stop the engine, or exit DispCtrl altogether - the app, the quick panel and the engine.
 - Following the room's light learns: a unison level set by hand while it follows - the slider, a hotkey, the brightness keys - is remembered for that light. `dispctrl ambient forget` starts again.
 
 ### Changed

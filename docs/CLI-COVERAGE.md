@@ -59,6 +59,7 @@ calls it. The Devices page already works that way - it sends the same
 | --- | --- |
 | Show the icon | `tray set --enabled on` |
 | Keep it on the taskbar | Windows' own setting, from the icon's right-click menu; not a DispCtrl setting |
+| Tray menu: simple view, put every display back, stop the engine, exit | `tray set --simple on`, `restore now`, `engine stop`; exit is the app's own (close its window, then `engine stop`) |
 | Simple mode, lock, stay open, animation, footer | `tray set --simple on --locked on --stay-open off --animate on --show-footer on` |
 | Density, width, toggles per row, height | `tray set --density comfortable --width 360 --tile-columns 4 --fixed-height off` |
 | Sections, toggles, rows, switches, and their order | `tray set --sections '["unison","tiles","displays"]'` (and `--tiles`, `--display-rows`, `--display-tiles`) |
