@@ -60,6 +60,31 @@ public sealed class DispCtrlSettings
         Global.HotkeyDefaultsVersion = Hotkey.DefaultsVersion;
     }
 
+    /// <summary>
+    /// Undoes everything DispCtrl does that can darken, tint or hide a screen.
+    /// </summary>
+    /// <remarks>
+    /// The emergency way back, behind Ctrl+Alt+Backspace, for a screen left
+    /// black or unreadable by a setting, a crash mid-fade or a misunderstanding.
+    /// Deliberately narrower than <see cref="ResetAll"/>: hotkeys, presets,
+    /// calibration and names stay, so the only thing lost is what was in the
+    /// way of seeing. Everything it turns off can be turned on again.
+    /// </remarks>
+    public void RestoreVisibility()
+    {
+        Global.Awake.DisplaysOffUtc = null;
+        Global.Focus.Enabled = false;
+        Global.OledCare.Enabled = false;
+        Global.NightLight.Enabled = false;
+        Global.TaskbarOpacity = 100;
+        foreach (MonitorSettings monitor in Monitors.Values)
+        {
+            monitor.OledRestUntilUtc = null;
+            monitor.SoftwareBrightness = 100;
+            monitor.HideTaskbar = false;
+        }
+    }
+
     /// <summary>Settings for a monitor, creating defaults on first sight.</summary>
     public MonitorSettings For(string token)
     {
@@ -239,6 +264,26 @@ public sealed class GlobalSettings
     /// <summary>Engine locations whose tray icon was put on the taskbar once, by default.</summary>
     /// <remarks>Bookkeeping, like the hotkey offers: Reset all leaves it, so a reset never re-promotes an icon the person moved.</remarks>
     public List<string> TrayPromotedFor { get; set; } = [];
+
+    /// <summary>Whether the Store package's sign-in task has been switched on once, by default.</summary>
+    /// <remarks>
+    /// Once only, like the tray promotion: after that, starting at sign-in is
+    /// the person's choice, and switching it off must stay off. Reset all leaves it.
+    /// </remarks>
+    public bool EngineStartupOffered { get; set; }
+
+    /// <summary>Draw the arrangement by pixel count, as Windows does, rather than by real size.</summary>
+    /// <remarks>A view of the same arrangement: the positions applied are identical either way.</remarks>
+    public bool ArrangeByResolution { get; set; }
+
+    /// <summary>Whether the first launch has asked, once, to lift Windows' gamma limit.</summary>
+    /// <remarks>
+    /// The one change DispCtrl can make with administrator rights that every
+    /// desk benefits from, so it is asked for up front, when someone is there to
+    /// answer. Declined, or on a machine without the rights, everything else
+    /// still works inside Windows' limit, and it is never asked again unprompted.
+    /// </remarks>
+    public bool GammaRangeOffered { get; set; }
 
     /// <summary>Warmth applied to every display together.</summary>
     public NightLightSettings NightLight { get; set; } = new();

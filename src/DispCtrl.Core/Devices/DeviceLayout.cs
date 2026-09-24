@@ -28,6 +28,20 @@ public static class DeviceLayout
     public const string BrandFile = "brand.json";
     public const string DefinitionFile = "definition.json";
     public const string RecordFile = "record.md";
+
+    /// <summary>
+    /// The issues a model was shared in: numbers only, so how many owners have
+    /// reported it can be counted without a name ever entering the repository.
+    /// </summary>
+    /// <remarks>Not shipped with the app, like records and the index.</remarks>
+    public const string ReportsFile = "reports.json";
+
+    /// <summary>The report list for a model.</summary>
+    public static string ReportsPath(string root, string model)
+    {
+        if (!DeviceDefinitions.IsModel(model)) throw new ArgumentException($"'{model}' is not a model key such as DEL-A234.");
+        return Path.Combine(root, model[..3], model[4..], ReportsFile);
+    }
     public const string IndexFile = "index.json";
 
     /// <summary>The definition file for a target: <c>*</c>, a brand (<c>DEL</c>) or a model (<c>DEL-A234</c>).</summary>

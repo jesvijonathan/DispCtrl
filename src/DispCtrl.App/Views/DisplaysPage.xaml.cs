@@ -120,6 +120,8 @@ public sealed partial class DisplaysPage : Page
     private void OnResetFocus(object sender, RoutedEventArgs e) => ViewModel.ResetFocusSettings();
 
     private void OnResetOled(object sender, RoutedEventArgs e) => ViewModel.ResetOledSettings();
+    private void OnTurnOffDisplays(object sender, RoutedEventArgs e) => ViewModel.DisplaysOff = true;
+
     private void OnResetAwake(object sender, RoutedEventArgs e) => ViewModel.ResetAwakeSettings();
 
     /// <remarks>

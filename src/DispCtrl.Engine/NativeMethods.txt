@@ -145,3 +145,4 @@ SetWindowRgn
 REDRAW_WINDOW_FLAGS
 SetTimer
 WM_TIMER
+CreateRectRgn

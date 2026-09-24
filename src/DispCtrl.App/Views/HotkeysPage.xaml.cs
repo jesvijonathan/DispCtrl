@@ -39,6 +39,8 @@ public sealed partial class HotkeysPage : Page
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        HotkeyViewModel.SafetyNetOffRequested -= OnSafetyNetOff;
+        HotkeyViewModel.SafetyNetOffRequested += OnSafetyNetOff;
         ViewModel.Reload();
         ViewModel.SetEngineRunning(App.ViewModel.EngineRunning);
 
@@ -60,6 +62,7 @@ public sealed partial class HotkeysPage : Page
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        HotkeyViewModel.SafetyNetOffRequested -= OnSafetyNetOff;
         _status?.Dispose();
         _status = null;
         StopCapture();
@@ -76,7 +79,7 @@ public sealed partial class HotkeysPage : Page
         var confirm = new ContentDialog
         {
             Title = "Restore the default shortcuts?",
-            Content = "Every shortcut here is replaced with DispCtrl's own set: Ctrl+Alt+Page Up and Page Down for brightness, D for the quick panel and N for night light, switched on, and nine more set up but switched off.",
+            Content = "Every shortcut here is replaced with DispCtrl's own set: Ctrl+Alt+Page Up and Page Down for brightness, D for the quick panel, N for night light, L to turn the displays off and Backspace to put every display back, switched on, and nine more set up but switched off.",
             PrimaryButtonText = "Restore",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
@@ -88,11 +91,36 @@ public sealed partial class HotkeysPage : Page
         Say("Restored DispCtrl's shortcuts. The engine registers them straight away.");
     }
 
-    private void OnRemove(object sender, RoutedEventArgs e)
+    private async void OnRemove(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not HotkeyViewModel item) return;
+        if (item.IsSafetyNet && !await ConfirmLosingSafetyNet("Remove")) return;
         if (_capturing == item) StopCapture();
         ViewModel.Remove(item);
+    }
+
+    private async void OnSafetyNetOff(HotkeyViewModel item)
+    {
+        if (await ConfirmLosingSafetyNet("Switch off")) item.TurnOff();
+        // Read back after the binding has finished writing: raised from inside
+        // its own write, the switch kept showing off while the shortcut stayed on.
+        else item.RaiseEnabled();
+    }
+
+    /// <summary>Asks before the shortcut that puts every display back stops working.</summary>
+    private async Task<bool> ConfirmLosingSafetyNet(string verb)
+    {
+        var confirm = new ContentDialog
+        {
+            Title = "Turn off the way back?",
+            Content = "This shortcut puts every display back when something DispCtrl does leaves a screen black, dim, tinted or without its taskbar - "
+                + "including when you cannot see enough to find this page. Without it, the only way back from a black screen is signing out or restarting.",
+            PrimaryButtonText = verb,
+            CloseButtonText = "Keep it",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+        };
+        return await confirm.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private void OnCapture(object sender, RoutedEventArgs e)

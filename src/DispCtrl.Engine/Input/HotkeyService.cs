@@ -236,6 +236,17 @@ internal sealed class HotkeyService : IDisposable
                 _persist(settings);
                 break;
 
+            case HotkeyAction.RestoreDisplays:
+                settings.RestoreVisibility();
+                _persist(settings);
+                Log.Write("hotkey: every display put back (dimming, night light, hiding, displays off)");
+                break;
+
+            case HotkeyAction.DisplaysOffToggle:
+                settings.Global.Awake.DisplaysOffUtc = settings.Global.Awake.DisplaysOffUtc is null ? DateTimeOffset.UtcNow : null;
+                _persist(settings);
+                break;
+
             case HotkeyAction.StayActiveToggle:
                 settings.Global.Awake.StayActive = !settings.Global.Awake.StayActive;
                 _persist(settings);

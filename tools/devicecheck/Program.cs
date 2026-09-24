@@ -22,7 +22,7 @@ return command switch
 {
     "validate" => Validate(Root(1)),
     "index" => Index(Root(1), args.Contains("--check")),
-    "intake" => Intake(args.ElementAtOrDefault(1) ?? throw new ArgumentException("intake BODY-FILE [devices]"), Root(2)),
+    "intake" => Intake(args.ElementAtOrDefault(1) ?? throw new ArgumentException("intake BODY-FILE [devices] [--issue N]"), Root(2), IssueArgument(args)),
     "migrate" => Migrate(Root(1)),
     "selftest" => SelfTest(),
     _ => Usage(),
@@ -30,9 +30,34 @@ return command switch
 
 static int Usage()
 {
-    Console.Error.WriteLine("devicecheck validate|index [--check]|intake BODY|migrate [devices]|selftest");
+    Console.Error.WriteLine("devicecheck validate|index [--check]|intake BODY [devices] [--issue N]|migrate [devices]|selftest");
     return 2;
 }
+
+static int? IssueArgument(string[] args)
+{
+    int at = Array.IndexOf(args, "--issue");
+    if (at < 0) return null;
+    return int.TryParse(args.ElementAtOrDefault(at + 1), System.Globalization.NumberStyles.None,
+        System.Globalization.CultureInfo.InvariantCulture, out int issue) && issue > 0
+        ? issue : throw new ArgumentException("--issue takes an issue number.");
+}
+
+// reports.json: { "issues": [4, 5] } - ascending, no repeats, numbers only.
+static List<int>? ReadReports(string path)
+{
+    if (!File.Exists(path)) return [];
+    try
+    {
+        var issues = JsonNode.Parse(File.ReadAllText(path))?["issues"]?.AsArray().Select(n => n!.GetValue<int>()).ToList();
+        return issues is not null && issues.All(i => i > 0) && issues.SequenceEqual(issues.Distinct().Order()) ? issues : null;
+    }
+    catch (Exception) { return null; }
+}
+
+static string ReportsText(IEnumerable<int> issues) =>
+    new JsonObject { ["issues"] = new JsonArray(issues.Distinct().Order().Select(i => (JsonNode?)JsonValue.Create(i)).ToArray()) }
+        .ToJsonString() + "\n";
 
 static string Rel(string root, string path) => Path.GetRelativePath(root, path).Replace('\\', '/');
 
@@ -93,6 +118,13 @@ static int SelfTest()
                 && DeviceLibrary.Panel("TST-0606") is null, "the panel resolves from the model, then what it extends, and is absent otherwise");
         }
         finally { DeviceLibrary.FoldersOverride = saved; }
+        string reported = Path.Combine(temp, "reported");
+        File.WriteAllText(input, Share("TST-0707"));
+        Check(Intake(input, reported, 4) == 0 && Intake(input, reported, 5) == 0 && Intake(input, reported, 5) == 0
+            && ReadReports(DeviceLayout.ReportsPath(reported, "TST-0707")) is [4, 5],
+            "each issue is counted once per model, by number, and a repeat of the same issue changes nothing");
+        Check(!File.ReadAllText(DeviceLayout.ReportsPath(reported, "TST-0707")).Contains('@')
+            && Validate(reported) == 0, "a report list holds numbers only and passes validation");
         Console.WriteLine($"{checks} intake checks passed.");
         return 0;
     }
@@ -126,7 +158,10 @@ static int Validate(string root)
             if (!DeviceDefinitions.IsModel(key)) { problems.Add($"{Rel(root, product)}/: not a product code such as A234 (four hex digits, upper case)"); continue; }
             var files = Directory.EnumerateFiles(product).Select(Path.GetFileName).ToList();
             foreach (string? f in files)
-                if (f is not DeviceLayout.RecordFile and not DeviceLayout.DefinitionFile) problems.Add($"{Rel(root, product)}/{f}: a model folder holds only {DeviceLayout.RecordFile} and {DeviceLayout.DefinitionFile}");
+                if (f is not DeviceLayout.RecordFile and not DeviceLayout.DefinitionFile and not DeviceLayout.ReportsFile)
+                    problems.Add($"{Rel(root, product)}/{f}: a model folder holds only {DeviceLayout.RecordFile}, {DeviceLayout.DefinitionFile} and {DeviceLayout.ReportsFile}");
+            if (ReadReports(DeviceLayout.ReportsPath(root, key)) is null)
+                problems.Add($"{Rel(root, product)}/{DeviceLayout.ReportsFile}: must be {{\"issues\": [ ... ]}}, issue numbers only, ascending and without repeats");
             if (files.Count == 0) problems.Add($"{Rel(root, product)}/: empty");
             if (Directory.EnumerateDirectories(product).Any()) problems.Add($"{Rel(root, product)}/: a model folder has no subfolders");
             string record = Path.Combine(product, DeviceLayout.RecordFile);
@@ -218,6 +253,9 @@ static int Index(string root, bool check)
             ["codes"] = d?.Controls.Count ?? 0,
             ["panel"] = PanelOf(root, m, d),
             ["writable"] = d?.Controls.Count(c => c.Writable) ?? 0,
+            // How many shares it arrived in: a count to judge a mapping by,
+            // with no name attached to any of them.
+            ["reports"] = ReadReports(DeviceLayout.ReportsPath(root, m))?.Count ?? 0,
             ["extends"] = new JsonArray((d?.Extends ?? []).Select(e => (JsonNode?)JsonValue.Create(e)).ToArray()),
         };
         return $"    \"{m}\": {entry.ToJsonString(opts)}";
@@ -237,7 +275,7 @@ static int Index(string root, bool check)
         md.Append(maker.Length > 0 ? $"\n## {maker} ({b})\n\n" : $"\n## {b}\n\n");
         if (definitions.TryGetValue(b, out DeviceDefinition? bd)) md.Append($"Every {b} model: {bd.Controls.Count} mapped code(s), [brand.json]({b}/{DeviceLayout.BrandFile}).\n\n");
         if (inBrand.Count == 0) continue;
-        md.Append("| Model | Name | Panel | Record | Mapped codes |\n|---|---|---|---|---|\n");
+        md.Append("| Model | Name | Panel | Record | Mapped codes | Reports |\n|---|---|---|---|---|---|\n");
         foreach (string m in inBrand)
         {
             definitions.TryGetValue(m, out DeviceDefinition? d);
@@ -245,7 +283,8 @@ static int Index(string root, bool check)
             string record = File.Exists(DeviceLayout.RecordPath(root, m)) ? $"[record]({folder}/{DeviceLayout.RecordFile})" : "";
             // A definition that only says what the panel is still gets its link.
             string codes = d is null ? "" : $"[{(d.Controls.Count > 0 ? d.Controls.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) : "definition")}]({folder}/{DeviceLayout.DefinitionFile})";
-            md.Append($"| `{m}` | {(NameOf(root, m, d) ?? "").Replace("|", "\\|")} | {PanelOf(root, m, d) ?? ""} | {record} | {codes} |\n");
+            int reports = ReadReports(DeviceLayout.ReportsPath(root, m))?.Count ?? 0;
+            md.Append($"| `{m}` | {(NameOf(root, m, d) ?? "").Replace("|", "\\|")} | {PanelOf(root, m, d) ?? ""} | {record} | {codes} | {(reports > 0 ? reports.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")} |\n");
         }
     }
 
@@ -270,7 +309,7 @@ static int Index(string root, bool check)
 // for a well-formed model key are written, and a person reviews the pull request.
 // The index is not touched: it is regenerated after the merge, so two shares
 // never conflict over it.
-static int Intake(string bodyFile, string root)
+static int Intake(string bodyFile, string root, int? issue = null)
 {
     string body = File.ReadAllText(bodyFile).Replace("\r\n", "\n");
     MatchCollection blocks = Regex.Matches(body, "```json\\s*\\n(?<json>\\{.*?\\})\\s*\\n```", RegexOptions.Singleline);
@@ -291,6 +330,21 @@ static int Intake(string bodyFile, string root)
         recognised++;
         int code = IntakeModel(section, payload, root, pending);
         if (code != 0) return code;
+
+        // The issue it came in, by number: a second owner confirming a model
+        // is worth a pull request even when it adds no new code.
+        if (issue is { } number && payload["model"]?.GetValue<string>() is { } model && DeviceDefinitions.IsModel(model))
+        {
+            string reportsPath = DeviceLayout.ReportsPath(root, model);
+            List<int> known = (pending.TryGetValue(reportsPath, out string? staged)
+                ? JsonNode.Parse(staged)?["issues"]?.AsArray().Select(n => n!.GetValue<int>()).ToList()
+                : ReadReports(reportsPath)) ?? [];
+            if (!known.Contains(number))
+            {
+                pending[reportsPath] = ReportsText(known.Append(number));
+                Console.WriteLine($"report #{number} -> {Rel(root, reportsPath)} ({known.Count + 1} in all)");
+            }
+        }
     }
     if (recognised == 0) return 3;
     foreach (var (path, text) in pending)

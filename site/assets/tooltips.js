@@ -103,8 +103,13 @@
   });
   // A scroll cancels the label; the pointer resting where it landed has had no
   // new pointerover, so the next small movement brings it back.
+  // Armed by a scroll only, and spent on the first move after it: otherwise
+  // every mouse move over the page looked for a label.
+  let rearm = false;
   document.addEventListener('pointermove', e => {
-    if (!current && !pending && e.pointerType === 'mouse' && !e.buttons) schedule(trigger(e.target), 500);
+    if (!rearm || e.pointerType !== 'mouse' || e.buttons) return;
+    rearm = false;
+    if (!current && !pending) schedule(trigger(e.target), 500);
   }, { passive: true });
   document.addEventListener('pointerout', e => {
     if (e.pointerType !== 'mouse') return;
@@ -129,7 +134,7 @@
   // Tabbing scrolls the focused control into view; keep its label with it.
   document.addEventListener('scroll', () => {
     if (current && current === document.activeElement && keyboard) place(current);
-    else hide();
+    else { hide(); rearm = true; }
   }, { capture: true, passive: true });
   addEventListener('resize', hide);
   addEventListener('blur', hide);

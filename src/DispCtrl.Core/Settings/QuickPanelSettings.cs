@@ -170,6 +170,7 @@ public static class QuickPanelCatalog
         new("oledIdle", "OLED care", "\uE7EF", "Dim OLED displays after a spell of inactivity.", false),
         new("awake", "Keep awake", "\uE916", "Stop the computer from sleeping. Click to switch; the arrow, or a right-click, chooses for how long.", true),
         new("stayActive", "Stay active", "\uE962", "Keep the screen on and never show as Away: a tiny pointer nudge after a minute idle. On until you switch it off.", true),
+        new("displaysOff", "Displays off", "\uE7E8", "Black the displays out, as if switched off, while the computer keeps running. A touch brings them back; the arrow chooses how dark, which displays and what wakes them.", true),
         new("taskbar", "Taskbar", "\uE75A", "Taskbar glass on and off. The arrow opens transparency, glass, opacity and auto-hide together.", true),
         new("identify", "Identify", "\uE7C4", "Show each display's number on it for three seconds. The arrow picks one display, or looks for displays again.", true),
         new("detect", "Detect", "\uE72C", "Look for displays again, including one that is connected but switched off.", false),
@@ -359,8 +360,10 @@ public sealed class QuickPanelSettings
     /// <remarks>
     /// A mode, not a preset of the lists: the sections, tiles and rows are left
     /// as they were, so switching it off brings the full panel back unchanged.
+    /// On by default: a first opening shows what the panel is for, and the dot
+    /// in its title bar opens up the rest.
     /// </remarks>
-    public bool Simple { get; set; }
+    public bool Simple { get; set; } = true;
 
     /// <summary>Keep the panel where it opens: its title is not a drag handle.</summary>
     public bool Locked { get; set; }

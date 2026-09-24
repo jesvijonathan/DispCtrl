@@ -89,6 +89,7 @@ public sealed class FocusSettings
 /// <summary>Black or dimmed screen rest for monitors identified as OLED.</summary>
 public sealed class OledCareSettings
 {
+    /// <summary>Dim automatically after <see cref="IdleMinutes"/> without input.</summary>
     public bool Enabled { get; set; }
     public int IdleMinutes { get; set; } = 5;
     public int DimPercent { get; set; } = 100;

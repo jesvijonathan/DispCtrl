@@ -55,6 +55,47 @@ public static class TrayIconPromotion
         }
     }
 
+    // Explorer records a path under a known folder by the folder's id rather
+    // than its location: the Store engine is "{6D809377-...}\WindowsApps\...",
+    // never "C:\Program Files\WindowsApps\...". Compared as written, the
+    // Store engine's record was never found, so its icon was never kept on
+    // the taskbar and the switch that keeps it there stayed greyed out.
+    private static readonly (string Id, Environment.SpecialFolder Folder)[] KnownFolders =
+    [
+        ("{6D809377-6AF0-444B-8957-A3773F02200E}", Environment.SpecialFolder.ProgramFiles),
+        ("{905E63B6-C1BF-494E-B29C-65B732D3D21A}", Environment.SpecialFolder.ProgramFiles),
+        ("{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}", Environment.SpecialFolder.ProgramFilesX86),
+        ("{F38BF404-1D43-42F2-9305-67DE0B28FC23}", Environment.SpecialFolder.Windows),
+        ("{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}", Environment.SpecialFolder.System),
+        ("{F1B32785-6FBA-4FCF-9D55-7B8E7F157091}", Environment.SpecialFolder.LocalApplicationData),
+        ("{3EB685DB-65F9-4CF6-A03A-E3EF65729F3D}", Environment.SpecialFolder.ApplicationData),
+        ("{5E6C858F-0E22-4760-9AFE-EA3317B67173}", Environment.SpecialFolder.UserProfile),
+    ];
+
+    /// <summary>A path as Explorer recorded it, as a real path.</summary>
+    public static string Expand(string path)
+    {
+        try
+        {
+            if (path.StartsWith('{'))
+            {
+                foreach ((string id, Environment.SpecialFolder folder) in KnownFolders)
+                    if (path.StartsWith(id, StringComparison.OrdinalIgnoreCase))
+                        return Path.GetFullPath(Environment.GetFolderPath(folder) + path[id.Length..]);
+                // Programs installed per user: %LOCALAPPDATA%\Programs.
+                const string userPrograms = "{5CD7AEE2-2219-4A67-B85D-6C9CE15660CB}";
+                if (path.StartsWith(userPrograms, StringComparison.OrdinalIgnoreCase))
+                    return Path.GetFullPath(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs")
+                        + path[userPrograms.Length..]);
+            }
+            return Path.GetFullPath(path);
+        }
+        catch (Exception)
+        {
+            return path;
+        }
+    }
+
     private static RegistryKey? Find(string? enginePath, bool writable)
     {
         if (string.IsNullOrEmpty(enginePath)) return null;
@@ -68,7 +109,7 @@ public static class TrayIconPromotion
             {
                 RegistryKey? entry = root.OpenSubKey(name, writable);
                 if (entry?.GetValue("ExecutablePath") is string path
-                    && string.Equals(Path.GetFullPath(path), Path.GetFullPath(enginePath), StringComparison.OrdinalIgnoreCase))
+                    && string.Equals(Expand(path), Path.GetFullPath(enginePath), StringComparison.OrdinalIgnoreCase))
                 {
                     return entry;
                 }

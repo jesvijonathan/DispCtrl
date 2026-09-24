@@ -41,6 +41,14 @@ internal sealed partial class PowerService : IDisposable
     /// <summary>How long nothing must have been touched before Stay active nudges the pointer.</summary>
     private const int NudgeAfterIdleMs = 55_000;
 
+    /// <summary>When Stay active last nudged the pointer, so input it made itself is not taken for a person.</summary>
+    /// <remarks>
+    /// Turned-off displays wake on any input, and the nudge is input: with Stay
+    /// active on they came back on by themselves after a minute.
+    /// </remarks>
+    public static long LastNudgeTick => Volatile.Read(ref _lastNudgeTick);
+    private static long _lastNudgeTick;
+
     private readonly Thread _thread;
     private readonly AutoResetEvent _wake = new(false);
     private readonly HashSet<string> _sleeping = new(StringComparer.OrdinalIgnoreCase);
@@ -127,7 +135,8 @@ internal sealed partial class PowerService : IDisposable
         };
         if (ends is { } end && end > now) wait = Math.Min(wait, (long)(end - now).TotalMilliseconds + 50);
 
-        if (awake.StayActive) wait = Math.Min(wait, NudgeAfterIdleMs - (long)Math.Min(idleMs, NudgeAfterIdleMs));
+        if (awake.StayActive)
+            wait = Math.Min(wait, NudgeAfterIdleMs - (long)Math.Min(idleMs, NudgeAfterIdleMs));
 
         if (sleepWanted)
         {
@@ -188,7 +197,8 @@ internal sealed partial class PowerService : IDisposable
     /// </remarks>
     private unsafe void StayActive(uint idleMs)
     {
-        bool wanted = _settings.Global.Awake.StayActive;
+        AwakeSettings awake = _settings.Global.Awake;
+        bool wanted = awake.StayActive;
         if (wanted != _stayActive)
         {
             _stayActive = wanted;
@@ -201,7 +211,8 @@ internal sealed partial class PowerService : IDisposable
         Input* moves = stackalloc Input[2];
         moves[0] = new Input { Type = InputMouse, Mouse = new MouseInput { Dx = 1, Flags = MouseMove } };
         moves[1] = new Input { Type = InputMouse, Mouse = new MouseInput { Dx = -1, Flags = MouseMove } };
-        if (SendInput(2, moves, sizeof(Input)) != 2)
+        if (SendInput(2, moves, sizeof(Input)) == 2) Volatile.Write(ref _lastNudgeTick, Environment.TickCount64);
+        else
             Log.Write($"stay active: the nudge was refused ({Marshal.GetLastPInvokeError()}); a secure desktop or an elevated window may have the input");
     }
 

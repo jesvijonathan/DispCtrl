@@ -28,7 +28,7 @@
                            Description="DispCtrl is free and open source. Donations pay for development time and test monitors."
                            IsExpanded="True">
         <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xEB52;" Foreground="#DB61A2"/>
+          <FontIcon Glyph="&#xEB51;" Foreground="#DB61A2"/>
         </tk:SettingsExpander.HeaderIcon>
         <Button Click="OnSupportPage"
                 Style="{StaticResource AccentButtonStyle}"

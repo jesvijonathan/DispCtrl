@@ -27,6 +27,23 @@ public static class QuickPanelSignal
     private const string ShowName = @"Local\DispCtrl.QuickPanel.Show";
     private const string AliveName = @"Local\DispCtrl.QuickPanel.Alive";
     private const string IdentifyName = @"Local\DispCtrl.Identify";
+    private const string WindowName = @"Local\DispCtrl.App.ShowWindow";
+
+    /// <summary>Opens, or creates, the event that asks the running app to bring up its window.</summary>
+    public static EventWaitHandle OpenWindowEvent() =>
+        new EventWaitHandle(false, EventResetMode.AutoReset, WindowName);
+
+    /// <summary>Asks the DispCtrl already running to show its window; false when none is listening.</summary>
+    public static bool ShowRunningWindow()
+    {
+        if (!PanelIsListening()) return false;
+        try
+        {
+            using EventWaitHandle window = OpenWindowEvent();
+            return window.Set();
+        }
+        catch (Exception) { return false; }
+    }
 
     /// <summary>Opens, or creates, the event that asks the app to number the displays.</summary>
     public static EventWaitHandle OpenIdentify() =>
@@ -67,9 +84,9 @@ public static class QuickPanelSignal
     /// Held for as long as a panel process is running.
     /// </summary>
     /// <remarks>
-    /// Named mutexes, not a process lookup: several DispCtrl.App processes can
-    /// legitimately exist — the full window is one — and only the one holding
-    /// this is listening for a summons.
+    /// Named mutexes, not a process lookup. Whoever holds it is the one
+    /// DispCtrl.App: it listens for the panel, Identify and the window, and a
+    /// second launch hands its request over and exits.
     /// </remarks>
     public static Mutex OpenAlive(out bool held)
     {

@@ -79,7 +79,7 @@ public sealed partial class MainViewModel
     public double OledIdleFade { get => Care.FadeMs; set { int v = Number(value, 0, 2000); if (Care.FadeMs == v) return; Care.FadeMs = v; SaveProtection(); } }
     public bool OledPauseFullscreen { get => Care.PauseFullscreen; set { if (Care.PauseFullscreen == value) return; Care.PauseFullscreen = value; SaveProtection(); } }
     public double TaskbarOpacity { get => _settings.Global.TaskbarOpacity; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarOpacity == v) return; _settings.Global.TaskbarOpacity = v; SaveProtectionSlider(); } }
-    public bool TaskbarGlassEnabled { get => _settings.Global.TaskbarGlassEnabled; set { if (_settings.Global.TaskbarGlassEnabled == value) return; _settings.Global.TaskbarGlassEnabled = value; SaveProtection(); Raise(nameof(TaskbarGlassStatus)); } }
+    public bool TaskbarGlassEnabled { get => _settings.Global.TaskbarGlassEnabled; set { if (_settings.Global.TaskbarGlassEnabled == value) return; _settings.Global.TaskbarGlassEnabled = value; SaveProtection(); Raise(nameof(TaskbarGlassStatus)); Raise(nameof(TaskbarGlassRestartVisibility)); } }
     public double TaskbarGlassRadius { get => _settings.Global.TaskbarGlassRadius; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarGlassRadius == v) return; _settings.Global.TaskbarGlassRadius = v; SaveProtectionSlider(); } }
     public double TaskbarGlassTint { get => _settings.Global.TaskbarGlassTint; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarGlassTint == v) return; _settings.Global.TaskbarGlassTint = v; SaveProtectionSlider(); } }
     public string TaskbarGlassStatus
@@ -100,6 +100,42 @@ public sealed partial class MainViewModel
             catch (UnauthorizedAccessException) { }
             return "Explorer compositor blur is enabled; waiting for the engine.";
         }
+    }
+
+    /// <summary>Explorer still holds another build's glass helper; only restarting Explorer lets this one in.</summary>
+    /// <remarks>
+    /// The case after every update and after switching between the installer,
+    /// the Store and a development build: the engine can only report it, so the
+    /// page offers the restart rather than sending people to Task Manager.
+    /// </remarks>
+    public Visibility TaskbarGlassRestartVisibility =>
+        TaskbarGlassStatus.Contains("Restart Windows Explorer", StringComparison.Ordinal) ? Visibility.Visible : Visibility.Collapsed;
+
+    public async Task RestartExplorerAsync()
+    {
+        ShowFooterStatus("Restarting Windows Explorer; the glass applies once the taskbar is back.", busy: true);
+        foreach (System.Diagnostics.Process explorer in System.Diagnostics.Process.GetProcessesByName("explorer"))
+        {
+            using (explorer)
+            {
+                try { explorer.Kill(); explorer.WaitForExit(5000); }
+                catch (Exception) { }
+            }
+        }
+        // Windows brings the shell back by itself. Started again while it is
+        // already back, explorer.exe opens a folder window instead.
+        for (int i = 0; i < 20; i++)
+        {
+            await Task.Delay(250);
+            if (System.Diagnostics.Process.GetProcessesByName("explorer").Length > 0)
+            {
+                ShowFooterStatus("Windows Explorer restarted.");
+                return;
+            }
+        }
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe") { UseShellExecute = true }); }
+        catch (Exception ex) { ShowFooterStatus("Windows Explorer did not restart: " + ex.Message); return; }
+        ShowFooterStatus("Windows Explorer restarted.");
     }
 
     public void ResetTaskbarSurface()
@@ -283,7 +319,7 @@ public sealed partial class MainViewModel
             nameof(OledPauseFullscreen), nameof(TaskbarOpacity), nameof(WindowsTransparency),
             nameof(SmallTaskbarButtons), nameof(TaskbarAlignment), nameof(TaskbarCombineButtons), nameof(OtherTaskbarCombineButtons),
             nameof(TaskbarShowTaskView), nameof(TaskbarShowWidgets), nameof(TaskbarShowBadges), nameof(TaskbarAllowFlashing),
-            nameof(TaskbarShowDesktopCorner), nameof(TaskbarGlassEnabled), nameof(TaskbarGlassRadius), nameof(TaskbarGlassTint), nameof(TaskbarGlassStatus), nameof(AppearanceStatus), nameof(ProtectionStatus),
+            nameof(TaskbarShowDesktopCorner), nameof(TaskbarGlassEnabled), nameof(TaskbarGlassRadius), nameof(TaskbarGlassTint), nameof(TaskbarGlassStatus), nameof(TaskbarGlassRestartVisibility), nameof(AppearanceStatus), nameof(ProtectionStatus),
             nameof(OledCoverage) }) Raise(name);
     }
 }

@@ -27,6 +27,8 @@ public sealed partial class TaskbarPage : Page
 
     private void OnResetTaskbarSurface(object sender, RoutedEventArgs e) => ViewModel.ResetTaskbarSurface();
 
+    private async void OnRestartExplorer(object sender, RoutedEventArgs e) => await ViewModel.RestartExplorerAsync();
+
     private void OnResetTaskbarFeatures(object sender, RoutedEventArgs e) => ViewModel.ResetTaskbarFeatures();
 
     private void OnResetTaskbarBehaviour(object sender, RoutedEventArgs e) => ViewModel.ResetTaskbarBehaviour();

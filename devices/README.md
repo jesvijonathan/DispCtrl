@@ -24,13 +24,18 @@ devices/
     A234/                  DEL-A234, the U2424H
       record.md            what the model reports about itself
       definition.json      what its codes mean
+      reports.json         the issues it was shared in, by number (added by the intake)
   SDC/                     Samsung Display
     4154/                  a laptop's built-in panel
       record.md
       definition.json      says it is OLED: nothing on the laptop can
 ```
 
-A model folder holds a record, a definition, or both, and nothing else. The key
+A model folder holds a record, a definition, or both, and a list of the issues
+it was shared in, and nothing else. That list is issue numbers only: commits
+and pull requests from the intake carry a number, never the name of whoever
+shared, so the catalogue can say how many times a model has been reported
+without the repository recording who reported it. The key
 (`DEL-A234`) is deliberately not the identifier DispCtrl uses internally, which
 ends in the unit's serial number.
 

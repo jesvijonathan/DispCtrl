@@ -523,6 +523,51 @@
         </tk:SettingsExpander.HeaderIcon>
         <Button Content="Reset" Click="OnResetAwake" AutomationProperties.Name="ResetAwakeSettings"/>
         <tk:SettingsExpander.Items>
+          <!-- Here rather than a section of its own: turning the displays off
+               is how someone walks away, and staying awake is what they want
+               while they are gone. -->
+          <!-- Staying awake or active meanwhile is this section's own Mode and
+               Stay active, not a second copy: one setting wherever it is shown. -->
+          <tk:SettingsCard Header="Turn off displays"
+                           Description="{x:Bind ViewModel.DisplaysOffShortcut, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7E8;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <Button Content="Turn off now" Click="OnTurnOffDisplays" Style="{StaticResource AccentButtonStyle}"
+                    AutomationProperties.Name="TurnOffDisplays"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Darkness" Description="100% is black. The monitors stay on underneath, and so does everything on them.">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.DisplaysOffLevel, Mode=TwoWay}" Minimum="50" Maximum="100" StepFrequency="5"
+                      Width="200" AutomationProperties.Name="DisplaysOffLevel"/>
+              <TextBlock Text="{x:Bind ViewModel.DisplaysOffLevel, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Which displays" Description="Decided when they go off, so the pointer and the active window count where they are then.">
+            <ComboBox ItemsSource="{x:Bind ViewModel.DisplaysOffTargets}" SelectedIndex="{x:Bind ViewModel.DisplaysOffTargetIndex, Mode=TwoWay}"
+                      MinWidth="240" AutomationProperties.Name="DisplaysOffTarget"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Delay" Description="Time to take your hand off the mouse, or to move the pointer to the display you are keeping.">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.DisplaysOffDelay, Mode=TwoWay}" Minimum="0" Maximum="30" StepFrequency="1"
+                      Width="200" AutomationProperties.Name="DisplaysOffDelay"/>
+              <TextBlock Text="{x:Bind ViewModel.DisplaysOffDelay, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+              <TextBlock Text="s" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Wake only by the pointer"
+                           Description="A display comes back when the pointer moves on it; typing leaves it off. Off: any input wakes them all.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.DisplaysOffWakeOnPointer, Mode=TwoWay}" AutomationProperties.Name="DisplaysOffWakeOnPointer"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Hide the pointer"
+                           Description="Parks it in a corner of a display that went off, so no arrow floats on the black. Put back afterwards unless the mouse woke them.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.DisplaysOffHidePointer, Mode=TwoWay}" AutomationProperties.Name="DisplaysOffHidePointer"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Lock when they wake"
+                           Description="Everything keeps running behind the black, and whoever brings the displays back meets the lock screen. Any way of turning them back on locks, the shortcuts included.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.DisplaysOffLockOnWake, Mode=TwoWay}" AutomationProperties.Name="DisplaysOffLockOnWake"/>
+          </tk:SettingsCard>
           <tk:SettingsCard Header="Stay active"
                            Description="Until you switch it off: the screen stays on, and a tiny pointer nudge after a minute idle stops the lock screen and chat apps showing you as Away. OLED idle dimming waits while it is on.">
             <ToggleSwitch IsOn="{x:Bind ViewModel.AwakeStayActive, Mode=TwoWay}"

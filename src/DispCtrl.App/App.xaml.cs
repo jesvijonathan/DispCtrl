@@ -57,6 +57,10 @@ public partial class App : Application
         };
     }
 
+    [System.Runtime.InteropServices.LibraryImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static partial bool AllowSetForegroundWindow(int processId);
+
     public static string CrashLogPath => System.IO.Path.Combine(SettingsStore.Directory, "app-crash.log");
 
     private static void RecordCrash(Exception ex)
@@ -83,7 +87,7 @@ public partial class App : Application
         // process started for it would build a second copy of every display
         // just to show a flyout.
         _listening = QuickPanelHost.Listen(DispatcherQueue.GetForCurrentThread(), () => SummonPanel(toggle: true),
-            () => ViewModel.Identify());
+            () => ViewModel.Identify(), () => ShowMainWindow());
 
         if (panelOnly)
         {
@@ -103,7 +107,19 @@ public partial class App : Application
             return;
         }
 
+        // One DispCtrl at a time. A second copy - a second click on the Start
+        // entry, the tray's "Open", another build - hands the window to the one
+        // already running and leaves, so two windows never write the same
+        // settings over each other. Foreground rights go with it, or Windows
+        // flashes the taskbar button instead of bringing the window up.
+        if (_listening is null)
+        {
+            _ = AllowSetForegroundWindow(-1);
+            if (QuickPanelSignal.ShowRunningWindow()) { Exit(); return; }
+        }
+
         ShowMainWindow();
+        _ = ViewModel.StartEngineByDefaultAsync();
     }
 
     /// <summary>Brings up the full window, creating it if this process has none.</summary>
@@ -124,6 +140,10 @@ public partial class App : Application
         }
 
         if (page is not null) window.ShowPage(page);
+        // Activate alone leaves a minimized window on the taskbar, which reads
+        // as the second launch having done nothing.
+        if (window.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter { State: Microsoft.UI.Windowing.OverlappedPresenterState.Minimized } presenter)
+            presenter.Restore();
         window.Activate();
     }
 

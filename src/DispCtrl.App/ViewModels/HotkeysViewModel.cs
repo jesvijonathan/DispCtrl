@@ -37,6 +37,8 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         (HotkeyAction.OledRestNow, "Rest the OLED displays now"),
         (HotkeyAction.KeepAwakeToggle, "Keep awake on or off"),
         (HotkeyAction.StayActiveToggle, "Stay active on or off"),
+        (HotkeyAction.DisplaysOffToggle, "Turn the displays off, or back on"),
+        (HotkeyAction.RestoreDisplays, "Put every display back (emergency)"),
         (HotkeyAction.DarkModeToggle, "Dark or light mode"),
         (HotkeyAction.TaskbarToggle, "Hide or show the taskbar"),
         (HotkeyAction.TaskbarGlassToggle, "Taskbar glass on or off"),
@@ -150,6 +152,16 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
             // A ToggleSwitch writes its value back as it is realised; only a
             // real change is saved.
             if (Hotkey.Enabled == value) return;
+            // The way back from a black screen is only any use if it is still
+            // there when needed, so switching it off is asked about first. The
+            // switch springs back; the page confirms and calls TurnOff.
+            if (!value && IsSafetyNet && !_offConfirmed)
+            {
+                Raise();
+                SafetyNetOffRequested?.Invoke(this);
+                return;
+            }
+            _offConfirmed = false;
             Hotkey.Enabled = value;
             persist();
             Raise();
@@ -213,6 +225,23 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
 
     /// <summary>Raised when something the page summarises changed.</summary>
     public event Action? Changed;
+
+    /// <summary>This is the shortcut that puts every display back.</summary>
+    public bool IsSafetyNet => Hotkey.Action == HotkeyAction.RestoreDisplays;
+
+    private bool _offConfirmed;
+
+    /// <summary>Raised instead of switching the safety net off; the page asks, then calls <see cref="TurnOff"/>.</summary>
+    public static event Action<HotkeyViewModel>? SafetyNetOffRequested;
+
+    public void RaiseEnabled() => Raise(nameof(Enabled));
+
+    /// <summary>Switches it off once the person has confirmed.</summary>
+    public void TurnOff()
+    {
+        _offConfirmed = true;
+        Enabled = false;
+    }
 
     /// <summary>Records a captured key press.</summary>
     public void Capture(uint key, uint modifiers)

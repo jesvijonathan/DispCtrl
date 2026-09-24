@@ -1814,6 +1814,56 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         return started;
     }
 
+    /// <summary>See <see cref="GlobalSettings.ArrangeByResolution"/>.</summary>
+    public bool ArrangeByResolution
+    {
+        get => _settings.Global.ArrangeByResolution;
+        set { if (_settings.Global.ArrangeByResolution == value) return; _settings.Global.ArrangeByResolution = value; Persist(); Raise(); }
+    }
+
+    /// <summary>
+    /// Starts the engine if it is not running, and switches on starting it at
+    /// sign-in the first time a Store install is opened.
+    /// </summary>
+    /// <remarks>
+    /// The engine is what works with the window shut: the tray icon, hotkeys,
+    /// taskbar hiding and glass, night light. A Store install cannot run
+    /// anything when it is installed, so the first opening is the first chance;
+    /// without this, a fresh install had none of those until the engine was
+    /// found and started by hand. The sign-in task is offered once only, so
+    /// switching it off afterwards stays off.
+    /// </remarks>
+    public async Task StartEngineByDefaultAsync()
+    {
+        RefreshEngineStatus();
+        if (!_status.Running) SetEngineRunning(true);
+
+        if (!_settings.Global.EngineStartupOffered && StartupIntegration.IsPackaged)
+        {
+            try { await StartupIntegration.SetEngineStartupAsync(true, _engine.EnginePath); }
+            catch (Exception ex) { ShowFooterStatus("Start at sign-in: " + ex.Message); }
+            _settings.Global.EngineStartupOffered = true;
+            Persist();
+        }
+
+        // One UAC prompt, the first time, for the only machine-wide change
+        // every desk benefits from. Recorded before asking, so a dismissed or
+        // refused prompt - a managed laptop without the rights - is never
+        // raised again on its own; the Displays page keeps the button.
+        if (!_settings.Global.GammaRangeOffered)
+        {
+            _settings.Global.GammaRangeOffered = true;
+            Persist();
+            if (!NightLight.FullRange)
+            {
+                await ToggleGammaRangeAsync();
+                ShowFooterStatus(NightLight.FullRange
+                    ? "Windows' gamma limit lifted: night light and dimming now use their full range."
+                    : "Windows' gamma limit is unchanged. Everything works within it; lift it later from the Displays page.");
+            }
+        }
+    }
+
     public void SetEngineRunning(bool running)
     {
         if (running == _status.Running) return;

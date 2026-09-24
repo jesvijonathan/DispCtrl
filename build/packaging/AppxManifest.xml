@@ -26,8 +26,12 @@
         <uap5:Extension Category="windows.appExecutionAlias" Executable="dispctrl.exe" EntryPoint="Windows.FullTrustApplication">
           <uap5:AppExecutionAlias desktop4:Subsystem="console"><uap5:ExecutionAlias Alias="dispctrl.exe"/></uap5:AppExecutionAlias>
         </uap5:Extension>
+        <!-- Enabled: the engine is what makes DispCtrl work with the window shut
+             (tray icon, hotkeys, taskbar, night light). Windows only honours it
+             after the app has been opened once; the app also asks once itself,
+             for installs that predate this. -->
         <desktop:Extension Category="windows.startupTask" Executable="DispCtrl.Engine.exe" EntryPoint="Windows.FullTrustApplication">
-          <desktop:StartupTask TaskId="DispCtrlEngine" Enabled="false" DisplayName="DispCtrl engine"/>
+          <desktop:StartupTask TaskId="DispCtrlEngine" Enabled="true" DisplayName="DispCtrl engine"/>
         </desktop:Extension>
       </Extensions>
     </Application>
