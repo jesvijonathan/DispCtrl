@@ -7,6 +7,7 @@
 | `DispCtrl-<v>-<channel>-win-x64-setup.exe` | `build/Installer.ps1` (Inno Setup) | most people; also what winget installs |
 | `DispCtrl-<v>-<channel>-win-x64-desktop.zip` | `build/Publish.ps1` | portable use |
 | `DispCtrl-<v>-<channel>-win-x64-cli.zip` | `build/Publish.ps1` | `dispctrl.exe` and the engine, no window |
+| `DispCtrl-<v>-<channel>-win-arm64-desktop.zip`, `-cli.zip` | `build/Publish.ps1` | Windows on ARM, natively (no taskbar glass: the Explorer helper is x64 only). `-Architectures x64` skips them |
 | `DispCtrl-<v>.0-x64.msix` | `build/Package.ps1` (MakeAppx) | the Microsoft Store |
 | `SHA256SUMS.txt`, `SETUP-SHA256SUMS.txt`, `MSIX-SHA256SUMS.txt` | each script | checking a download; separate names so release assets do not collide |
 

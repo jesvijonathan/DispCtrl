@@ -106,6 +106,14 @@
     <TaskbarGlassShell Condition="'$(TaskbarGlassShell)' == ''">pwsh</TaskbarGlassShell>
   </PropertyGroup>
 
+  <!-- The helper is loaded into Explorer, which is native ARM64 on Windows on
+       ARM and cannot load an x64 DLL; the MinGW toolchain here builds only x64.
+       An ARM engine goes without glass rather than carrying a helper that
+       cannot attach. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-arm64'">
+    <SkipTaskbarGlass>true</SkipTaskbarGlass>
+  </PropertyGroup>
+
   <Target Name="ReportTaskbarGlassSkipped" AfterTargets="Build" Condition="'$(SkipTaskbarGlass)' == 'true'">
     <Message Importance="high" Text="Taskbar glass helper skipped (SkipTaskbarGlass=true); this engine build has no glass." />
   </Target>

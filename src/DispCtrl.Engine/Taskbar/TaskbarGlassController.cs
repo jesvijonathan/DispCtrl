@@ -52,6 +52,17 @@ internal sealed class TaskbarGlassController : IDisposable
             return;
         }
 
+        // Explorer on Windows on ARM is a native ARM64 process and the helper
+        // is x64, so it cannot attach there - not from an ARM engine, which
+        // ships without it, nor from an x64 one running emulated. Said on the
+        // Taskbar page rather than tried and failed every ten seconds.
+        // (OSArchitecture reports the real machine even under emulation.)
+        if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
+        {
+            WriteStatus("Not available on Windows on ARM yet: the Explorer helper is x64 only");
+            return;
+        }
+
         if (!TryLoad()) return;
 
         nint taskbar = Protection.OverlayNative.FindWindowEx(0, 0, "Shell_TrayWnd", null);

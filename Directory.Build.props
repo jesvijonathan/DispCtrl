@@ -16,11 +16,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
 
-    <!-- x64 only for now. The shell interop is not arm64-tested and shipping an
-         untested arm64 slice is worse than shipping none. -->
-    <Platforms>x64</Platforms>
-    <PlatformTarget>x64</PlatformTarget>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- x64 by default; `-r win-arm64` builds for Windows on ARM (Snapdragon
+         laptops, a Raspberry Pi), and Publish.ps1 ships both. Everything goes
+         through the same Windows APIs on either; only the taskbar-glass
+         helper is x64-only, and an ARM build leaves it out (see the engine
+         project). A RuntimeIdentifier given on the command line wins. -->
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <PlatformTarget Condition="'$(RuntimeIdentifier)' == 'win-arm64'">ARM64</PlatformTarget>
+    <PlatformTarget Condition="'$(RuntimeIdentifier)' != 'win-arm64'">x64</PlatformTarget>
 
     <!-- Warnings are the cheapest bug detector available in interop code, where
          a silent marshalling mistake reads as a runtime crash three layers away. -->

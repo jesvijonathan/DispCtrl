@@ -9,6 +9,7 @@ using DispCtrl, not for people reading the diff.
 ## [Unreleased]
 
 ### Added
+- **Windows on ARM**: each release adds native ARM64 zips (`win-arm64-desktop.zip`, `win-arm64-cli.zip`) for Snapdragon laptops and a Raspberry Pi running Windows. Everything but taskbar glass, whose Explorer helper is x64 only; the Taskbar page says so there. Not yet tested on ARM hardware.
 - `dispctrl ambient get|set|reset|capture|forget`: every setting for following the room's light, what the sensor reads now, and calibration - cover the sensor and `capture --as dark`, light it and `capture --as bright`.
 - Following the room's light learns: a unison level set by hand while it follows - the slider, a hotkey, the brightness keys - is remembered for that light. `dispctrl ambient forget` starts again.
 

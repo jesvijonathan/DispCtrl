@@ -85,7 +85,7 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 
 ## Install
 
-Browse the [download options on our website](https://jesvijonathan.github.io/DispCtrl/#download), or download directly from [**Releases**](https://github.com/jesvijonathan/DispCtrl/releases). **Windows · x64 · self-contained downloads** — no separate .NET installation needed.
+Browse the [download options on our website](https://jesvijonathan.github.io/DispCtrl/#download), or download directly from [**Releases**](https://github.com/jesvijonathan/DispCtrl/releases). **Windows · x64 and ARM64 · self-contained downloads** — no separate .NET installation needed.
 
 | Package | What you get |
 |---|---|
