@@ -217,8 +217,9 @@ public sealed class Hotkey
     /// </summary>
     /// <remarks>
     /// Only combinations not already bound. A desk set up before a version gets
-    /// that version's new actions, switched off, and never the older defaults
-    /// again - so a default somebody removed stays removed.
+    /// that version's new actions - switched off, except the displays-off and
+    /// restore shortcuts of versions 3 and 4 - and never the older defaults
+    /// again, so a default somebody removed stays removed.
     /// </remarks>
     /// <returns>True when the settings changed and want saving.</returns>
     public static bool OfferDefaults(DispCtrlSettings settings)

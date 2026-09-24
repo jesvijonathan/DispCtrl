@@ -1063,17 +1063,17 @@ short version, in recommended order:
 4. ~~Hotkeys~~ — **done**, engine-registered, with a Hotkeys page.
 5. **Combined brightness** — one slider spanning hardware above a switching
    point and software dimming below it.
-2. ~~Presets capturing everything~~ - **done**, schema v2, scope removed.
-3. **Persistent known-monitor cache** — survive restarts, keyed on model+serial.
+6. ~~Presets capturing everything~~ - **done**, schema v2, scope removed.
+7. **Persistent known-monitor cache** — survive restarts, keyed on model+serial.
    Copy ddcutil's `<mfg>-<model>-<product>` convention.
-4. **More fields in the display report.**
-5. ~~Opt-in contribution~~ - **done**, `dispctrl contribute` and the panel card.
+8. **More fields in the display report.**
+9. ~~Opt-in contribution~~ - **done**, `dispctrl contribute` and the panel card.
    Records land in `devices/BRAND/PRODUCT/record.md`; `DEL/A234` and
    `SDC/4154` are seeded from this machine.
-6. **OLED burn-in protection** — original scope, still unbuilt. The per-monitor
+10. **OLED burn-in protection** — original scope, still unbuilt. The per-monitor
    `IsOled` flag exists and is what it should key off.
-7. **Remember window positions** across replug.
-8. MSIX packaging; Native AOT (blocked, see above); widgets; taskbar
+11. **Remember window positions** across replug.
+12. MSIX packaging; Native AOT (blocked, see above); widgets; taskbar
    translucency.
 
 ## Reference implementations

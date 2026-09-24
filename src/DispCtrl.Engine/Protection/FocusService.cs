@@ -169,9 +169,25 @@ internal sealed unsafe partial class FocusService : IDisposable
         public int CrossMs;
     }
 
+    /// <summary>How old a "Turn off displays" request can be at engine start and still be honoured.</summary>
+    /// <remarks>
+    /// The request lives in the settings file, so one left behind by a crash, a
+    /// restart or a reboot with the displays off would black every screen out
+    /// again the moment the engine came back - at sign-in, and with lock on wake,
+    /// straight back to the lock screen. Longer than the longest delay (30 s),
+    /// so the app starting the engine to carry out a fresh request still works.
+    /// </remarks>
+    private static readonly TimeSpan StaleDisplaysOff = TimeSpan.FromMinutes(2);
+
     public FocusService(DispCtrlSettings settings)
     {
         _settings = settings;
+        if (settings.Global.Awake.DisplaysOffUtc is { } left && DateTimeOffset.UtcNow - left > StaleDisplaysOff)
+        {
+            _dimDone = left;
+            Log.Write("displays off: a request left from before the engine started was dropped");
+            ClearRequestLater(left);
+        }
         _thread = new Thread(Pump) { IsBackground = true, Name = "Display focus" };
         _thread.Start();
         _ready.Wait();
@@ -1014,6 +1030,13 @@ internal sealed unsafe partial class FocusService : IDisposable
         _dimRequest = null;
         _dimAppliedAt = 0;
         foreach (Mask m in _masks) { m.DimChosen = false; m.DimWoken = false; }
+        ClearRequestLater(request);
+        Log.Write("displays off: every display is back on");
+    }
+
+    /// <summary>Writes a finished request back to null, if it is still the one on disk.</summary>
+    private static void ClearRequestLater(DateTimeOffset request)
+    {
         // Off this thread: it is the one drawing the fade back in, and a read
         // and a rename of the settings file in the middle of it stuttered the
         // first frames.
@@ -1030,7 +1053,6 @@ internal sealed unsafe partial class FocusService : IDisposable
             }
             catch (Exception ex) { Log.Write($"displays off: could not clear the request: {ex.Message}"); }
         });
-        Log.Write("displays off: every display is back on");
     }
 
     /// <summary>Corner radius Windows 11 draws a window with, in DIP.</summary>

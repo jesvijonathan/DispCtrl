@@ -9,10 +9,6 @@ public enum AwakeMode
     Expiration,
 }
 
-/// <summary>
-/// PowerToys Awake-style power requests. These do not rewrite the active
-/// Windows power plan; they only remain in force while the engine is running.
-/// </summary>
 /// <summary>Which displays "Turn off displays" blacks out.</summary>
 /// <remarks>Decided by the engine when they go off, so "the one with the pointer" is where it is then.</remarks>
 public enum DisplaysOffTarget
@@ -24,6 +20,10 @@ public enum DisplaysOffTarget
     OnlyMain,
 }
 
+/// <summary>
+/// PowerToys Awake-style power requests. These do not rewrite the active
+/// Windows power plan; they only remain in force while the engine is running.
+/// </summary>
 public sealed class AwakeSettings
 {
     public AwakeMode Mode { get; set; }
