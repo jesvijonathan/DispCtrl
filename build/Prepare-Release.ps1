@@ -10,7 +10,8 @@ param(
     [string]$Repository = (Split-Path -Parent $PSScriptRoot)
 )
 $ErrorActionPreference = 'Stop'
-$gitExecutable = (Get-Command git -CommandType Application).Source
+# Git for Windows puts git.exe on PATH three times; take the first match only.
+$gitExecutable = @(Get-Command git -CommandType Application)[0].Source
 function Git {
     & $gitExecutable @args
     if ($LASTEXITCODE -ne 0) { throw "git $($args -join ' ') failed (exit $LASTEXITCODE)." }

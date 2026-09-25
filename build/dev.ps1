@@ -118,7 +118,7 @@ function Get-Tools {
         dotnet   = $(if ($dotnet) { $dotnet.Source })
         sdk10    = ($sdks | Where-Object { $_ -match '^10\.' } | Select-Object -Last 1)
         pwsh     = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
-        git      = (Get-Command git -ErrorAction SilentlyContinue).Source
+        git      = @(Get-Command git -ErrorAction SilentlyContinue)[0].Source
         winget   = (Get-Command winget -ErrorAction SilentlyContinue).Source
         cxx      = Find-Cxx
         makeappx = Find-SdkTool 'makeappx.exe'
