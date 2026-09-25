@@ -112,7 +112,10 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         { NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size };
         _settingsWatcher.Changed += (_, _) => _settingsDebounce.Change(150, Timeout.Infinite);
         _settingsWatcher.Created += (_, _) => _settingsDebounce.Change(150, Timeout.Infinite);
-        _settingsWatcher.Renamed += (_, _) => _settingsDebounce.Change(150, Timeout.Infinite);
+        // A DispCtrl save renames a finished file over settings.json: whole, so
+        // shown at once. In-place writes (an editor) wait out the debounce.
+        _settingsWatcher.Renamed += (_, e) => _settingsDebounce.Change(
+            string.Equals(e.Name, "settings.json", StringComparison.OrdinalIgnoreCase) ? 0 : 150, Timeout.Infinite);
         _settingsWatcher.Deleted += (_, _) => _settingsDebounce.Change(150, Timeout.Infinite);
         _settingsWatcher.EnableRaisingEvents = true;
     }

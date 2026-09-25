@@ -39,7 +39,7 @@ try {
     # file when the first publish starts: CS2012, 'being used by another process'.
     & dotnet build-server shutdown *> $null
     foreach ($project in @('DispCtrl.Cli','DispCtrl.Engine')) {
-        & dotnet publish "src/$project/$project.csproj" -c Release -r win-x64 --self-contained true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -o $cli
+        & dotnet publish "src/$project/$project.csproj" -c Release -r win-x64 --self-contained true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -p:DispCtrlChannel=$Channel -o $cli
         if ($LASTEXITCODE -ne 0) { throw "Publish failed: $project" }
     }
     # The app first, into an empty folder, and only then whatever the CLI and
@@ -61,7 +61,7 @@ try {
     Get-Process DispCtrl.App -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) } |
         Stop-Process -Force -ErrorAction SilentlyContinue
-    & dotnet publish src/DispCtrl.App/DispCtrl.App.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -o $desktop
+    & dotnet publish src/DispCtrl.App/DispCtrl.App.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -p:DispCtrlChannel=$Channel -o $desktop
     if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed.' }
     Get-ChildItem -LiteralPath $cli -Recurse -File | ForEach-Object {
         $target = Join-Path $desktop $_.FullName.Substring($cli.Length).TrimStart([char]92, [char]47)

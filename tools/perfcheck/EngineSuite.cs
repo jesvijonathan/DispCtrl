@@ -43,6 +43,40 @@ internal static class EngineSuite
         if (probe["ok"]?.GetValue<bool>() != true) context.Report.Note(S, "broker answered not-ok: " + probe.ToJsonString());
 
         Sync(context, engine);
+        Invocation(context);
+    }
+
+    /// <summary>
+    /// A setting changed the way a person or script changes it, timed to the
+    /// engine having applied it (its "every service reloaded" line). The value
+    /// written is the one already there - focus dimming's level - so the save,
+    /// the watcher and every service's reload run and nothing on screen moves.
+    /// </summary>
+    private static void Invocation(Context context)
+    {
+        string cli = context.Output("DispCtrl.Cli", "dispctrl.exe");
+        int dim = SettingsStore.Load().Global.Focus.DimPercent;
+        var viaCli = new List<double>(); var viaBroker = new List<double>();
+        var client = new ControlClient();
+        for (int i = 0; i < context.Options.N(6); i++)
+        {
+            Thread.Sleep(600);
+            var log = new EngineLog();
+            DateTime wall = DateTime.Now;
+            var start = new ProcessStartInfo(cli) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true };
+            foreach (string a in new[] { "focus", "set", "--dim-percent", dim.ToString(CultureInfo.InvariantCulture), "--json" }) start.ArgumentList.Add(a);
+            using (Process p = Process.Start(start)!) { _ = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+            if (log.WaitFor("hotkeys:", 3000) is DateTime a1) viaCli.Add((a1 - wall).TotalMilliseconds);
+
+            Thread.Sleep(600);
+            log = new EngineLog();
+            wall = DateTime.Now;
+            _ = client.ExecuteAsync(new JsonObject { ["version"] = 1, ["command"] = "focus.set", ["args"] = new JsonObject { ["dimPercent"] = dim } }).GetAwaiter().GetResult();
+            if (log.WaitFor("hotkeys:", 3000) is DateTime a2) viaBroker.Add((a2 - wall).TotalMilliseconds);
+        }
+        if (viaCli.Count > 0) context.Add(Stats.Row(S, "invoke: dispctrl focus set -> engine applied", "ms", viaCli, 300, "process start + command + save + reload"));
+        if (viaBroker.Count > 0) context.Add(Stats.Row(S, "invoke: app/broker focus.set -> engine applied", "ms", viaBroker, 60, "the app's path"));
+        if (viaCli.Count + viaBroker.Count == 0) context.Report.Note(S, "invoke: the engine logged no reload for an unchanged value");
     }
 
     /// <summary>What the process holds right now.</summary>
@@ -97,8 +131,8 @@ internal static class EngineSuite
             Thread.Sleep(300);
             cost.Add(Native.Sample(engine).CpuMsSince(before));
         }
-        context.Add(Stats.Row(S, "sync: save -> engine reload starts", "ms", seen, 250.0, "includes 120 ms debounce"));
-        if (done.Count > 0) context.Add(Stats.Row(S, "sync: save -> every service reloaded", "ms", done, 400.0));
+        context.Add(Stats.Row(S, "sync: save -> engine reload starts", "ms", seen, 60.0, "on the rename; in-place edits wait 120 ms"));
+        if (done.Count > 0) context.Add(Stats.Row(S, "sync: save -> every service reloaded", "ms", done, 80.0));
         context.Add(Stats.Row(S, "sync: engine CPU per settings reload", "ms", cost, 60.0));
     }
 }

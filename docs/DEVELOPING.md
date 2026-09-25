@@ -46,7 +46,7 @@ WinLibs folder.
 ### Commands and options
 
 ```
-.\build.cmd doctor | setup [-Install] | build | test [-Hardware] | run engine|app|panel|cli <args>
+.\build.cmd doctor | setup [-Install] | build | test [-Hardware] | perf [--all|--quick|...] | run engine|app|panel|cli <args>
             publish | installer | package | release | clean [-Yes] | options
 Options:    -Configuration Debug|Release   -Channel beta|stable|test   -Version 0.2.0
             -NoNative / -Native   -NoRestart   -Sign   -Rebuild   -Keep   -Open
@@ -67,6 +67,24 @@ has stopped copying.
 **`test`** runs `controlcheck`, `presetverify` and `devicecheck validate` (the
 device library's layout, rules and privacy). `-Hardware` adds `presetcheck`, which reads the monitors actually
 attached, including the redaction checks against their serials.
+
+**`perf`** runs `tools/perfcheck` against what is already built in `bin`:
+time, CPU (from cycle counts), memory and wake-ups, each against a budget,
+with a report in `artifacts/perf/`. It is never part of `build` or `test`.
+`perf --quick` (about a minute, reads only) after touching a hot path;
+`perf --all` (about five minutes, drives the tray and panel, restarts the
+engine, desk left alone) before a release; `--baseline
+artifacts\perf\latest.json` to see what moved. Everything after `perf` goes
+to perfcheck. [PERFORMANCE.md](PERFORMANCE.md) explains each row.
+
+**Channels are compiled in.** `-Channel` is also passed to every publish as
+`-p:DispCtrlChannel` (`BuildInfo` reads it). A build from source is `dev`.
+Stable compiles out routine diagnostics - a log line per command, per settings
+reload, per brightness key, and the start-up timings - and keeps errors;
+every other channel logs them and shows its version in the window and panel
+titles ("DispCtrl v0.1.3 beta"). perfcheck's sync and restart timings read
+those diagnostic lines, so measure a dev, beta or test build. To check the
+stable path compiles: `dotnet build <project> -c Release -p:DispCtrlChannel=stable`.
 
 **`release`** runs publish, installer, MSIX and release notes into one folder,
 `artifacts\<channel>-<version>` (for example `artifacts\beta-0.1.0`), and ends
@@ -165,6 +183,7 @@ been verified.
 ```powershell
 .\build.cmd build
 .\build.cmd test -Hardware
+.\build.cmd perf --quick     # when the change touches settings, the panel, DDC/CI or an engine loop
 ```
 
 Leave the desk as you found it: any brightness, night light or monitor setting

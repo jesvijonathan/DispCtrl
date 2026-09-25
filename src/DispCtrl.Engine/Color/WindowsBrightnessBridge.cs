@@ -78,7 +78,10 @@ internal sealed class WindowsBrightnessBridge : IDisposable
     {
         _settle = new Timer(_ => Apply());
         _quiet = new Timer(_ => HoldInRange());
-        Update(settings);
+        // Subscribing to the WMI event is ~50 ms of COM, and the engine's
+        // start-up waited for it. Update takes the gate and checks _disposed,
+        // so a stop or a reload meanwhile is ordered with it.
+        _ = Task.Run(() => Update(settings));
     }
 
     private static bool Wanted(DispCtrlSettings settings) =>
@@ -211,7 +214,7 @@ internal sealed class WindowsBrightnessBridge : IDisposable
                 if (MoveTo(display, settings.For(display.Token), settings.Global.UnisonCalibrated, level)) moved++;
             }
 
-            Log.Write($"windows brightness: {value}% -> unison {level}%{(allowed != value ? $" (built-in returns to {allowed}% when the slider stops)" : "")}, {moved} display(s) followed");
+            if (DispCtrl.Core.BuildInfo.Diagnostics) Log.Write($"windows brightness: {value}% -> unison {level}%{(allowed != value ? $" (built-in returns to {allowed}% when the slider stops)" : "")}, {moved} display(s) followed");
         }
         catch (Exception ex)
         {

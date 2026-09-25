@@ -142,7 +142,8 @@ internal sealed class HotkeyService : IDisposable
             }
         }
 
-        if (taken > 0 || refused > 0) Log.Write($"hotkeys: {taken} registered, {refused} refused");
+        // Per reload in beta and test; in stable only when a shortcut was refused.
+        if (refused > 0 || (DispCtrl.Core.BuildInfo.Diagnostics && taken > 0)) Log.Write($"hotkeys: {taken} registered, {refused} refused");
         // For the Hotkeys page and `hotkeys list`: a refused shortcut used to
         // look set and silently do nothing.
         HotkeyStatus.Write(registeredKeys, refusedKeys);

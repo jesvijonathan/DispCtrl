@@ -47,7 +47,9 @@ DispCtrl.Control   shared JSON command API, console frontend and named-pipe brok
 ```
 
 Clients share atomic, merge-aware `settings.json`; the engine watches it with a
-`FileSystemWatcher` (120 ms debounce). The engine also hosts a user/session-scoped
+`FileSystemWatcher`: a DispCtrl save (one rename of a finished file) is reloaded
+at once, an in-place edit after a 120 ms debounce (see "Settings file
+(sharing)"). The engine also hosts a user/session-scoped
 named-pipe command broker. The CLI falls back to local execution when the broker
 is absent. See `docs/CLI.md` and `docs/design/IMPLEMENTATION-CHECKLIST.md` for coverage and
 remaining migration work; older adapter paths still exist in the UI.
@@ -72,7 +74,8 @@ background work, so the engine references it too.
 Run everything from the repo root. `build.cmd` (Windows) and `build.sh`
 (Linux/WSL) wrap it all: `build.cmd build` stops the engine gracefully, builds
 the CLI, engine and app, and restarts the engine through its task; `test`,
-`run engine|app|panel|cli`, `release`, and `doctor`/`setup` for a new machine.
+`perf` (the performance suite, never part of build or test), `run
+engine|app|panel|cli`, `release`, and `doctor`/`setup` for a new machine.
 `docs/DEVELOPING.md` has every option. By hand: there is no solution file; build
 projects individually, in dependency order when several changed.
 
@@ -772,6 +775,11 @@ Every one of these was a real bug. Do not reintroduce them.
   summons, yet `DesktopAcrylicBackdrop` sometimes kept its grey inactive
   fallback until clicked - it was activated while cloaked. Windows' flyouts
   are always acrylic too.
+- **The panel belongs to the notification area, not the pointer.** It opened
+  on the monitor under the pointer at the pointer's x - on the wrong display,
+  mid-screen - because Windows 11 has a notification area on the main taskbar
+  only, and a hotkey summons from anywhere. `QuickPanelHost.TrayAnchor`:
+  `Shell_TrayWnd`'s monitor, the corner nearest `TrayNotifyWnd`.
 - **Never slot the panel after a taskbar that is not topmost.** A bar DispCtrl
   has hidden is off-screen and not topmost; ordering after it dropped the panel
   behind every ordinary window. `TaskbarOf` requires `WS_EX_TOPMOST` and an
@@ -846,6 +854,21 @@ Every one of these was a real bug. Do not reintroduce them.
   time and length are unchanged; anybody else's save changes the creation time
   (rename-over) or the write time (in place). `controlcheck` covers both with a
   same-length file. Load + save went from 8.15 ms to 2.42 ms.
+- **A save is reloaded on its rename, an edit after the debounce.** Every
+  DispCtrl save raises exactly one `Renamed` to settings.json with the file
+  already whole, so the engine and the app act on it at once (save -> engine
+  applied: 127 ms -> 10 ms). An editor writing in place raises several
+  `Changed` mid-write; those still wait 120 ms, because a half-written file
+  read now would be quarantined as corrupt.
+- **Engine start-up waits only for what it must.** The broker starts first
+  (it needs only the folder's name), `FocusService` signals ready once its
+  window exists and configures after, and the brightness bridge's WMI
+  subscription and the device-history reads run on the pool. The engine logs
+  each phase: `started N ms after launch: ...`.
+- **Explorer's `TaskbarCreated` wakes the taskbar manager** (the tray window
+  hears the broadcast, `TaskbarManager.ShellReady`). At sign-in the engine is
+  up before Explorer's bars, and glass, hiding and opacity waited for the next
+  one-second look.
 - **Never `Process.GetCurrentProcess().SessionId`.** .NET snapshots every
   process on the machine to answer it (7.9 ms warm); `Session.Id` asks Windows
   (0.28 ms). Every pipe and mutex name scoped to the session uses it.
@@ -1154,6 +1177,21 @@ unrecallable.
   `bin`), publishes the app before adding the CLI files (publish keeps a newer
   destination, which left the app with the CLI's copies and a startup crash),
   and launches the result before packaging it.
+- **The channel is compiled in** (`DispCtrlChannel`: stable, beta, test; dev
+  from source; `Publish.ps1` passes it). Stable defines `DISPCTRL_STABLE` and
+  `BuildInfo.Diagnostics` is false: no log line per command, reload, brightness
+  key or start-up phase - errors and refusals are still logged. Anything else
+  shows its version in the window and panel titles (`BuildInfo.AppTitle`), and
+  device shares carry `BuildInfo.Label` in their footer. perfcheck's sync and
+  restart timings read those diagnostic lines: measure a non-stable build.
+- **The app excludes the Windows App SDK's AI, ML, Search and Widgets** by
+  `ExcludeAssets="all"` on those component packages - and on
+  `Microsoft.Windows.AI.MachineLearning`, which is where onnxruntime and
+  DirectML really come from. The toolkit depends on the metapackage, so it
+  cannot be dropped for components. Bump those versions with the metapackage.
+  **`Microsoft.Windows.SDK.NET.dll` is not ReadyToRun** (56 MB -> 25 MB; the
+  panel's cold start measured the same, ~540 ms). Together: the desktop folder
+  281 -> 197 MB, its zip 104 -> 74 MB.
 - `DispCtrlVersion` in `Directory.Build.props` is the default `Version`; a
   stable tag that disagrees with it fails `release.yml`. Bump it in the
   release commit. See `docs/RELEASING.md` for the whole procedure and the

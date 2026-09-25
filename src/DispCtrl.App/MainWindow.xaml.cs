@@ -29,7 +29,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
-        Title = "DispCtrl";
+        Title = AppTitle.Text = DispCtrl.Core.BuildInfo.AppTitle;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
 

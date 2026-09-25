@@ -55,12 +55,20 @@ internal static class UiSuite
         context.Add(Stats.Row(S, "close: longest frame gap in slide", "ms", [.. closes.Select(w => w.Stall)], 34));
 
         // ------------------------------------------------ CPU and leaks per cycle
+        // Per cycle, so one cycle still compiling code or caught by a background
+        // refresh is an outlier and not a fifth of a lump.
         ProcessSample before = Native.Sample(app);
         int cycles = o.N(15);
-        for (int i = 0; i < cycles; i++) { summon.Open(panel); Thread.Sleep(300); summon.Close(panel); Thread.Sleep(300); }
+        var perCycle = new List<double>();
+        for (int i = 0; i < cycles; i++)
+        {
+            ProcessSample c0 = Native.Sample(app);
+            summon.Open(panel); Thread.Sleep(300); summon.Close(panel);
+            perCycle.Add(Native.Sample(app).CpuMsSince(c0));
+            Thread.Sleep(300);
+        }
         ProcessSample after = Native.Sample(app);
-        double perCycle = after.CpuMsSince(before) / cycles;
-        context.Add(new Row(S, "CPU per open + close", "ms", perCycle, perCycle, perCycle, cycles, 150, "exact, from cycle counts"));
+        context.Add(Stats.Row(S, "CPU per open + close", "ms", perCycle, 150, "exact, from cycle counts"));
         if (after.SwitchesSince(before) is long switches)
         {
             double each = switches / (double)cycles;
@@ -173,7 +181,7 @@ internal static class UiSuite
         if (log.WaitFor("display.set", 3000) is DateTime applied)
         {
             double ms = (applied - wall).TotalMilliseconds;
-            context.Add(new Row(S, "brightness slider -> engine applied it", "ms", ms, ms, ms, 1, 300, "120 ms debounce by design"));
+            context.Add(new Row(S, "brightness slider -> engine applied it", "ms", ms, ms, ms, 1, 150, "sent at once, newest wins"));
         }
         else context.Report.Note(S, "no display.set logged within 3 s of the slider moving (unison slider?)");
         if (persisted is double p) context.Add(new Row(S, "brightness slider -> settings saved", "ms", p, p, p, 1, 1500, "saves are coalesced on purpose"));

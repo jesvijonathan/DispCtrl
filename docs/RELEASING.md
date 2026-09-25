@@ -15,9 +15,19 @@ beside the `cli` and `desktop` folders they were made from. Publish replaces
 that folder, and removes earlier builds unless given `-KeepOld`. Package stages
 its copy of the desktop folder in temp and deletes it when packed.
 
-Every package is self-contained .NET 10, ReadyToRun (the CLI starts in about
-180 ms instead of 230, and much less cold), x64 only. Managed rather than Native
-AOT: the WMI adapters have not been verified under AOT (see CLAUDE.md, Build).
+Every package is self-contained .NET 10, ReadyToRun, x64 only. Managed rather
+than Native AOT: the WMI adapters have not been verified under AOT (see
+CLAUDE.md, Build). Two things are left out on purpose, and are the reason a
+desktop zip is ~74 MB rather than ~104:
+
+- The Windows App SDK's machine learning (onnxruntime, DirectML), AI, Search
+  and Widgets components, excluded in `DispCtrl.App.csproj`. Their versions
+  there must follow the `Microsoft.WindowsAppSDK` version.
+- ReadyToRun code for `Microsoft.Windows.SDK.NET.dll` (`Directory.Build.props`),
+  which took the projection from 25 to 56 MB for a handful of types.
+
+The panel's cold start measured ~540 ms both ways; `perf --suites ui` is the
+check that a change here costs nothing.
 
 ## Building locally
 
@@ -211,5 +221,8 @@ restarted. Check the glass status rather than assuming an old injected helper
 has been replaced. Shell integration needs a packaged runtime and Store
 certification testing. MakeAppx succeeding is not Store approval.
 
-Beta and stable channels describe how a release is distributed. They do not
-enable unfinished presets: that is `-p:EnableBetaPresets=true`.
+The channel is compiled into the binaries (`-p:DispCtrlChannel`, passed by
+`Publish.ps1`). A stable build logs errors only; beta and test builds log
+routine diagnostics as well and name themselves in their titles, and device
+shares from any build carry its version. The channel does not enable
+unfinished presets: that is `-p:EnableBetaPresets=true`.

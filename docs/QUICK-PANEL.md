@@ -71,10 +71,15 @@ section sits in its header, before the chevron.
 
 ## Opening and closing
 
-The window is cloaked until XAML has drawn two frames and its height is fitted,
+The panel opens on the monitor with Windows' notification area - the main
+taskbar's - in the corner nearest it (`QuickPanelHost.TrayAnchor`), wherever
+the pointer is: Windows 11 has a notification area on the main taskbar only,
+and a hotkey summons from anywhere. The window is cloaked until XAML has drawn two frames and its height is fitted,
 then slides its whole height out from behind the taskbar (260 ms in, 180 ms out,
 Windows' flyout curves), placed just under the taskbar in the topmost band so
-the taskbar clips it. Rows stay built while it is hidden; with "Keep the quick
+the taskbar clips it. A window region cut at the taskbar's edge does the
+clipping for a translucent taskbar, and the acrylic stays live whether or not
+the panel is active (`FlyoutAcrylicBackdrop`). Rows stay built while it is hidden; with "Keep the quick
 panel ready" the engine starts it hidden at sign-in, so even the first click
 shows it in about 40 ms.
 

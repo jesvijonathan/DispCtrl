@@ -32,9 +32,11 @@ internal sealed class UnisonHotplug : IDisposable
 
     public UnisonHotplug(List<DisplayInfo> attached)
     {
-        // The same arrivals feed the local device history; it costs nothing
-        // more than the enumeration already done.
-        Display.Devices.DeviceObserver.Attached(attached);
+        // The same arrivals feed the local device history. Off the start-up
+        // path: each sighting loads and parses history.json, ~50 ms for two
+        // displays that held every service behind it. (The CLI records in its
+        // own thread because it may exit first; the engine does not.)
+        _ = Task.Run(() => Display.Devices.DeviceObserver.Attached(attached));
         // Well after sign-in: nothing about learning a model is urgent, and the
         // first seconds belong to the taskbar and the tray.
         Learn(attached, StartupLearnDelayMs);
@@ -58,10 +60,13 @@ internal sealed class UnisonHotplug : IDisposable
     /// <summary>Reads the codes of any attached model never read here, in the background.</summary>
     private void Learn(IEnumerable<DisplayInfo> displays, int delayMs)
     {
-        List<DisplayInfo> todo = Display.Devices.DeviceDiscovery.Unread(displays);
-        if (todo.Count == 0) return;
+        List<DisplayInfo> given = [.. displays];
         _ = Task.Run(async () =>
         {
+            // In here, not before: deciding what is unread parses history.json,
+            // ~40 ms the engine's start-up used to wait for.
+            List<DisplayInfo> todo = Display.Devices.DeviceDiscovery.Unread(given);
+            if (todo.Count == 0) return;
             await Task.Delay(delayMs).ConfigureAwait(false);
             foreach (DisplayInfo display in todo)
             {

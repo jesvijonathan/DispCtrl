@@ -435,7 +435,9 @@ public sealed record DeviceSubmission
         sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();
-        sb.AppendLine("Submitted from DispCtrl. Serial number, device path, file paths, user name "
+        // The version helps read a record against what that build could see; the
+        // sentence still ends as devicecheck's intake expects.
+        sb.AppendLine($"Submitted from DispCtrl {DispCtrl.Core.BuildInfo.Label}. Serial number, device path, file paths, user name "
             + "are not included. Model capabilities and the observed signal/scaling are included; brightness, wallpaper and app settings are not.");
         return sb.ToString();
     }
@@ -512,7 +514,7 @@ public sealed record DeviceSubmission
 
         sb.AppendLine("---");
         sb.AppendLine();
-        sb.AppendLine("Submitted from DispCtrl. This is everything DispCtrl can read about this "
+        sb.AppendLine($"Submitted from DispCtrl {DispCtrl.Core.BuildInfo.Label}. This is everything DispCtrl can read about this "
             + "display, including its current settings"
             + (DispCtrl.Core.FeatureFlags.Presets ? " and the presets on this machine" : "") + ". Removed before "
             + "sending: monitor serial numbers, Windows device paths, anything under a user profile "

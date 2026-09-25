@@ -95,6 +95,7 @@ public sealed partial class QuickPanelWindow : Window
         _appWindow.IsShownInSwitchers = false;
 
         SystemBackdrop = new FlyoutAcrylicBackdrop();
+        PanelTitle.Text = DispCtrl.Core.BuildInfo.AppTitle;
         RoundCorners();
 
         // The title row is the drag handle, so the panel can be moved off the
@@ -759,10 +760,11 @@ public sealed partial class QuickPanelWindow : Window
     {
         DisplayRect work, bounds;
         uint dpi;
+        int anchorX;
 
         try
         {
-            (bounds, work, dpi) = QuickPanelHost.MonitorUnderCursor();
+            (bounds, work, dpi, anchorX) = QuickPanelHost.TrayAnchor();
         }
         catch (Exception)
         {
@@ -783,7 +785,7 @@ public sealed partial class QuickPanelWindow : Window
         _slideSign = edge == ScreenEdge.Top ? -1 : 1;
         _edgeLine = edge == ScreenEdge.Top ? work.Top : work.Bottom;
         DisplayRect at = QuickPanelPlacement.Place(
-            work, edge, QuickPanelHost.CursorX(), width, height, margin);
+            work, edge, anchorX, width, height, margin);
 
         // Move first, then resize. MoveAndResize double-applies the scale when
         // the move crosses to a monitor at a different DPI: the window is

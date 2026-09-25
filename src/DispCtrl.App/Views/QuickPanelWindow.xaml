@@ -27,7 +27,7 @@
            and the icon's own right-click menu. -->
       <Grid Grid.Row="0" Padding="8,8,8,8" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
         <Border x:Name="TitleRow" Background="Transparent" Padding="8,4" VerticalAlignment="Center">
-          <TextBlock Text="DispCtrl"
+          <TextBlock x:Name="PanelTitle" Text="DispCtrl"
                      Style="{StaticResource BodyStrongTextBlockStyle}"/>
         </Border>
 

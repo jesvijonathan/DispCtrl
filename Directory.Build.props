@@ -7,6 +7,12 @@
     <DispCtrlVersion>0.1.3</DispCtrlVersion>
     <Version Condition="'$(Version)' == ''">$(DispCtrlVersion)</Version>
 
+    <!-- stable, beta or test; a build from source is dev. Publish.ps1 passes
+         the release channel. Stable compiles routine diagnostics out
+         (BuildInfo.Diagnostics); the others show their version in the title. -->
+    <DispCtrlChannel Condition="'$(DispCtrlChannel)' == ''">dev</DispCtrlChannel>
+    <DefineConstants Condition="'$(DispCtrlChannel)' == 'stable'">$(DefineConstants);DISPCTRL_STABLE</DefineConstants>
+
     <!-- Presets are shelved until the beta implementation is ready. -->
     <EnableBetaPresets Condition="'$(EnableBetaPresets)' == ''">false</EnableBetaPresets>
     <DefineConstants Condition="'$(EnableBetaPresets)' == 'true'">$(DefineConstants);BETA_PRESETS</DefineConstants>
@@ -36,5 +42,13 @@
     <RepositoryUrl>https://github.com/jesvijonathan/DispCtrl</RepositoryUrl>
     <PackageProjectUrl>https://github.com/jesvijonathan/DispCtrl</PackageProjectUrl>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="DispCtrlChannel" Value="$(DispCtrlChannel)" />
+    <!-- The projection of the whole Windows API: ~25 MB of IL that ReadyToRun
+         made 56 MB, in every published folder, for the handful of types DispCtrl
+         touches. Those are compiled when first used instead. -->
+    <PublishReadyToRunExclude Include="Microsoft.Windows.SDK.NET.dll" />
+  </ItemGroup>
 
 </Project>

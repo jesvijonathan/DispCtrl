@@ -59,7 +59,25 @@ row (`displays not restored after the slider test`, budget 0).
 | `display.set --brightness` read the range twice: four DDC/CI transactions for one change (Dell, same value). | 250 ms | 216 ms |
 | The quick panel's slide moved the window with a plain `SetWindowPos` each frame. Now a bare move (no redraw, no changing message). | ~129 ms CPU per open + close | ~115 ms |
 | The glass-taskbar clip asked for a repaint with every region change. | +12% per cycle | within noise |
+| The engine waited 120 ms after every settings event. A DispCtrl save is one `Renamed` of a finished file, now reloaded at once; in-place edits (an editor) still wait. | save -> engine applied 127 ms | 9.7 ms |
+| The app's call through the broker to the engine applying a toggle | 135 ms | 11 ms |
+| A brightness slider waited 120 ms after the last change before sending. Now single flight, newest wins. | slider -> engine 178 ms | 80 ms |
+| Engine start-up waited for focus/OLED care to build its overlays, for the WMI brightness subscription, and for two parses of the device history. The broker started last. | ~600 ms to started (JIT build) | ~440 ms; broker 3 ms in |
+
+**Size.** The Windows App SDK metapackage shipped machine learning, AI,
+Search and Widgets DispCtrl never uses (onnxruntime and DirectML alone are
+38 MB), and the Windows API projection was ReadyToRun-compiled to 56 MB for a
+handful of types. Both are out: the desktop folder went from 281 to 197 MB and
+its zip from 104 to 74 MB, with the panel's cold start unchanged (~540 ms).
+
+The engine logs its start-up by phase on every start (`started N ms after
+launch: broker, settings, displays, ...` in `engine.log`), so a slow service
+shows there without running anything.
 
 Known and left: a `dispctrl` command is ~105 ms of CPU even ReadyToRun, about
 half of it the runtime starting; the slide itself is most of a panel cycle's
-CPU because WinUI renders a frame per step.
+CPU because WinUI renders a frame per step; the first settings load in any
+process is ~100 ms of System.Text.Json starting up (67 ms of it the root
+type's metadata, ReadyToRun or not), which is most of the engine's start;
+constructing `AmbientSync` costs ~23 ms with ambient light off, cause not
+found (two guesses measured and reverted).

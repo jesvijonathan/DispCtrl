@@ -160,14 +160,22 @@ internal static class Program
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
         };
 
-        // Short enough that a toggle in the app feels immediate, long enough to
-        // coalesce the several events one logical save produces.
+        // An editor writing in place raises several Changed events mid-write, and
+        // a half-written file read now would be quarantined as corrupt: those wait
+        // out the debounce. Every DispCtrl save is a finished file renamed over
+        // settings.json - one Renamed event, the file already whole - so it is
+        // reloaded at once. That debounce was 120 of the ~135 ms between a toggle
+        // and the engine acting on it (perfcheck engine, "invoke").
         void Bump(object? _, FileSystemEventArgs __) =>
             debounce.Change(120, Timeout.Infinite);
 
         watcher.Changed += Bump;
         watcher.Created += Bump;
-        watcher.Renamed += (s, e) => Bump(s, e);
+        watcher.Renamed += (s, e) =>
+        {
+            if (string.Equals(e.Name, "settings.json", StringComparison.OrdinalIgnoreCase)) debounce.Change(0, Timeout.Infinite);
+            else Bump(s, e);
+        };
         // An overflowed buffer drops events rather than raising them; reloading
         // is the only way not to miss a save that arrived meanwhile.
         watcher.Error += (_, e) =>
@@ -417,8 +425,26 @@ internal static class Program
             return 0;
         }
 
+        var startup = System.Diagnostics.Stopwatch.StartNew();
+        var phases = new System.Text.StringBuilder();
+        void Phase(string name)
+        {
+            if (!DispCtrl.Core.BuildInfo.Diagnostics) return;
+            phases.Append(phases.Length == 0 ? "" : ", ").Append(name).Append(' ').Append(startup.ElapsedMilliseconds).Append(" ms");
+            startup.Restart();
+        }
+        // First, not last: the broker needs none of the services below - it
+        // runs commands against settings and the hardware, exactly as the
+        // CLI's local fallback does - and started after them it kept every
+        // client waiting ~400 ms for an engine that was already running. Before
+        // the settings load too: the first load in a process is ~100 ms of
+        // System.Text.Json starting up (67 ms of it the root type's metadata,
+        // ReadyToRun or not), and the broker only needs the folder's name.
+        using var control = new DispCtrl.Control.ControlServer(Log.Write);
+        Phase("broker");
         DispCtrlSettings settings = SettingsStore.Load();
         Log.Configure(settings.Global.Logging, echo: true);
+        Phase("settings");
 
         // The broker is useful even with every policy off: clients can enable
         // features later without a second launch. No-argument startup also
@@ -507,8 +533,10 @@ internal static class Program
             // First, so every service below can hear a display arriving or
             // leaving from the moment it exists.
             List<DisplayInfo> attached = Color.DisplayChanges.Start();
+            Phase("displays");
 
             using var nightLight = new NightLightService(settings);
+            Phase("night light");
 
             // Persisting from the engine is new with app rules: applying a
             // preset writes into settings as well as to the hardware, so
@@ -518,6 +546,7 @@ internal static class Program
 
             if (Hotkey.OfferDefaults(settings)) SettingsStore.Save(settings);
             using var hotkeys = new HotkeyService(settings, SettingsStore.Save);
+            Phase("hotkeys");
             // Constructed unconditionally, and that is the whole point: this
             // service is what notices the settings file turning these features
             // on, so creating it only when they are already on meant enabling
@@ -526,25 +555,35 @@ internal static class Program
             // Idle it costs one thread and a message-only window: it registers
             // no hooks and creates no overlays until something is switched on.
             using var focus = new Protection.FocusService(settings);
+            Phase("focus");
             using var power = new PowerService(settings);
+            Phase("power");
 
             // The notification area icon, and with it the quick panel. Like the
             // service above it has to exist before the feature is switched on,
             // or turning the icon on in the panel would do nothing until the
             // engine was next restarted.
             using var tray = new Shell.TrayIconService(settings, SettingsStore.Save);
+            tray.TaskbarCreated += manager.ShellReady;
+            Phase("tray");
 
             // Windows' brightness slider and keys driving unison. Constructed
             // whether or not it is wanted, so switching it on in the app takes
             // effect without restarting the engine.
             using var brightnessBridge = new Color.WindowsBrightnessBridge(settings);
+            Phase("brightness bridge");
             using var hotplug = new Color.UnisonHotplug(attached);
+            Phase("hot-plug");
             // Like the bridge: always there, idle until switched on, and then
             // woken by the sensor rather than polling it.
             using var ambient = new Color.AmbientSync(settings);
+            Phase("ambient");
 
             using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys, focus, power, tray, brightnessBridge, ambient);
-            using var control = new DispCtrl.Control.ControlServer(Log.Write);
+            // One line per start (beta and test), so a slow phase shows in the log and not only in perfcheck.
+            if (DispCtrl.Core.BuildInfo.Diagnostics)
+                using (var self = System.Diagnostics.Process.GetCurrentProcess())
+                    Log.Write($"started {(DateTime.Now - self.StartTime).TotalMilliseconds:0} ms after launch: {phases}");
             _ = Task.Run(() => AfterStart(settings, signIn));
 
             manager.Run(cts.Token);

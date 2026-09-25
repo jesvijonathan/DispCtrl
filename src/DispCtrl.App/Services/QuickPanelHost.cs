@@ -57,24 +57,44 @@ public static partial class QuickPanelHost
     [LibraryImport("user32.dll")]
     private static partial uint GetDpiForWindow(nint hwnd);
 
-    /// <summary>Where the pointer is, horizontally, in physical pixels.</summary>
-    public static int CursorX() => GetCursorPos(out POINT point) ? point.X : 0;
-
     /// <summary>
-    /// The monitor the pointer is on: its bounds, its work area, and its DPI.
+    /// Where the panel belongs: the monitor holding Windows' notification area,
+    /// and the x of that area to anchor to.
     /// </summary>
     /// <remarks>
-    /// The pointer rather than the primary display, because the panel is
-    /// summoned by clicking a tray icon and the tray the click landed on is the
-    /// one on that monitor. Opening on the primary instead would send somebody
-    /// who clicked on their second screen looking for the panel on their first.
+    /// Anchored to the notification area, as Windows' own flyouts are - never
+    /// to the pointer. It used to open on the monitor under the pointer, at
+    /// the pointer's x, on the reasoning that the click landed on that
+    /// monitor's tray. Windows 11 shows the notification area on the main
+    /// taskbar only, and a hotkey summons from wherever the pointer is, so the
+    /// panel turned up on another display, or halfway along the screen where
+    /// somebody happened to be working.
     /// </remarks>
-    public static (DisplayRect Bounds, DisplayRect Work, uint Dpi) MonitorUnderCursor()
+    public static (DisplayRect Bounds, DisplayRect Work, uint Dpi, int AnchorX) TrayAnchor()
     {
-        _ = GetCursorPos(out POINT point);
-        nint monitor = MonitorFromPoint(point, MonitorDefaultToNearest);
-        return Describe(monitor);
+        nint bar = FindWindowEx(0, 0, "Shell_TrayWnd", null);
+        if (bar != 0)
+        {
+            (DisplayRect bounds, DisplayRect work, uint dpi) = Describe(MonitorFromWindow(bar, MonitorDefaultToNearest));
+            nint notify = FindWindowEx(bar, 0, "TrayNotifyWnd", null);
+            int anchor = notify != 0 && GetWindowRect(notify, out RECT area) && area.Right > area.Left
+                ? (area.Left + area.Right) / 2
+                : work.Right;
+            return (bounds, work, dpi, anchor);
+        }
+        // No Explorer (it is restarting): the primary monitor, its right corner.
+        (DisplayRect pb, DisplayRect pw, uint pd) = Describe(MonitorFromPoint(default, MonitorDefaultToPrimary));
+        return (pb, pw, pd, pw.Right);
     }
+
+    [LibraryImport("user32.dll", EntryPoint = "FindWindowExW", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial nint FindWindowEx(nint parent, nint after, string? cls, string? title);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetWindowRect(nint hwnd, out RECT rect);
+
+    private const uint MonitorDefaultToPrimary = 1;
 
     /// <summary>The monitor a window is on: its bounds, its work area, and its DPI.</summary>
     public static (DisplayRect Bounds, DisplayRect Work, uint Dpi) MonitorOf(nint hwnd) =>

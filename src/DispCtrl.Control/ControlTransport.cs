@@ -91,7 +91,10 @@ public sealed class ControlServer : IDisposable
                 deadline.CancelAfter(TimeSpan.FromSeconds(60));
                 var request = await ControlTransport.ReadAsync(pipe, deadline.Token);
                 var result = _service.Execute(request);
-                _log($"control {result["id"]}: {result["command"]}, exit {result["exitCode"]}, {result["elapsedMs"]} ms");
+                // Every request in beta and test; in stable only the ones that
+                // failed - a slider drag is a request per step.
+                if (DispCtrl.Core.BuildInfo.Diagnostics || result["exitCode"]?.GetValue<int>() != 0)
+                    _log($"control {result["id"]}: {result["command"]}, exit {result["exitCode"]}, {result["elapsedMs"]} ms");
                 await ControlTransport.WriteAsync(pipe, result, deadline.Token);
             }
             catch (OperationCanceledException) when (_stop.IsCancellationRequested) { break; }

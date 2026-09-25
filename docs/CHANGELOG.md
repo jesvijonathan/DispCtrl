@@ -9,11 +9,18 @@ using DispCtrl, not for people reading the diff.
 ## [Unreleased]
 
 ### Changed
+- A toggle in the app or quick panel now reaches the engine in about 10 ms instead of 135, and a brightness slider reaches the monitor as it moves instead of waiting until you stop.
+- The engine starts and takes effect sooner at sign-in: it answers the app and command line almost at once, no longer waits for OLED care's overlays, the brightness keys' listener or the monitor history before carrying on, and applies taskbar glass and hiding the moment Explorer's taskbar appears.
+- Downloads are about 30% smaller (the desktop zip is ~74 MB, was ~104): parts of the Windows App SDK that DispCtrl never uses are no longer shipped.
+- Beta and test builds show their version in the title, and monitor shares include the version they came from.
+- Stable builds no longer log routine activity, only problems.
 - Releases can update and commit the version automatically before tagging. A test channel creates numbered GitHub prereleases alongside beta and stable releases; packaging scripts use the project version by default.
 - With one display connected, unison steps aside: the quick panel's unison section shows that display's own brightness, simple view drops "All displays", and the Displays page says why its unison slider is idle. Display mode and "Multiple displays" are greyed until a second display is connected. Nothing is switched off, and unison carries on from where it was left when another display arrives.
 - Replace Windows brightness no longer pulls the laptop's screen back inside its calibrated range while it is the only display, so the brightness keys reach the whole range.
 
 ### Fixed
+- The quick panel could open on another display, or halfway along the screen wherever the pointer was. It now always opens beside the notification area, like Windows' own flyouts.
+- The quick panel opened with a grey background until clicked, and could be seen sliding under a translucent taskbar.
 - Unplugging the main monitor left the taskbar in a mess: the laptop's screen became the primary display, and DispCtrl kept trying to hide a taskbar Windows always puts back, and took the whole screen for windows under it. A display set to hide its taskbar now leaves it to Windows while it is the primary display, and hides it again once it is not.
 - A monitor plugged in or reconnected often showed no brightness or controls until Rescan was pressed, because it was read before it could answer. DispCtrl now waits for the displays to settle, reads a new monitor again a few seconds later if it did not answer, and updates the Displays page, its arrangement diagram and an open quick panel by itself.
 - A loose cable that drops a monitor for a moment no longer sets off a round of taskbar and brightness changes: a change counts only once the displays have stayed the same for a second and a half.

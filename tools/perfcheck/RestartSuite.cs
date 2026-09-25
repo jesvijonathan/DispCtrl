@@ -21,7 +21,8 @@ internal static class RestartSuite
         string path = running.MainModule!.FileName;
 
         // Stop: the stop verb signals the running engine and it unwinds.
-        long t0 = Stopwatch.GetTimestamp();
+        long restart = Stopwatch.GetTimestamp();
+        long t0 = restart;
         using (Process stop = Process.Start(new ProcessStartInfo(path, "stop") { UseShellExecute = false, CreateNoWindow = true })!) stop.WaitForExit();
         if (!running.WaitForExit(20000)) throw new InvalidOperationException("the engine did not stop within 20 s");
         double stopped = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
@@ -32,21 +33,31 @@ internal static class RestartSuite
         var log = new EngineLog();
         DateTime started = DateTime.Now;
         t0 = Stopwatch.GetTimestamp();
-        using (Process task = Process.Start(new ProcessStartInfo("schtasks.exe", "/run /tn DispCtrl.Engine") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true })!)
+        // The engine that was running comes back: through its task when the
+        // task starts that same executable, else directly (a development build
+        // measured while the task points at an installed one).
+        if (string.Equals(TaskCommand(), path, StringComparison.OrdinalIgnoreCase))
         {
+            using Process task = Process.Start(new ProcessStartInfo("schtasks.exe", "/run /tn DispCtrl.Engine") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true })!;
+            _ = task.StandardOutput.ReadToEnd();
             task.WaitForExit();
-            if (task.ExitCode != 0)
-            {
-                context.Report.Note(S, "no DispCtrl.Engine task; started directly");
-                using (Process.Start(new ProcessStartInfo(path, "run") { UseShellExecute = false, CreateNoWindow = true })) { }
-            }
+        }
+        else
+        {
+            context.Report.Note(S, "the sign-in task starts another engine; restarted this one directly");
+            using (Process.Start(new ProcessStartInfo(path, "run") { UseShellExecute = false, CreateNoWindow = true })) { }
         }
         Process? engine = null;
         double? process = Bench.Until(() => (engine = EngineSuite.Find()) is not null, 15000, t0);
         if (engine is null || process is not double up) throw new InvalidOperationException("the engine did not start within 15 s");
         context.Add(new Row(S, "start: task -> process exists", "ms", up, up, up, 1, 1500));
         double? broker = Bench.Until(() => BrokerAnswers(), 15000, t0);
-        if (broker is double b) context.Add(new Row(S, "start: task -> command broker answers", "ms", b, b, b, 1, 2500));
+        if (broker is double b)
+        {
+            context.Add(new Row(S, "start: task -> command broker answers", "ms", b, b, b, 1, 2500));
+            double whole = Stopwatch.GetElapsedTime(restart, t0).TotalMilliseconds + b;
+            context.Add(new Row(S, "restart: stop signal -> answering again", "ms", whole, whole, whole, 1, 3000, "stop + task start + ready"));
+        }
 
         // Services start in parallel and log in no fixed order.
         var expected = new List<(string Text, string Name)> { ("taskbar manager started", "taskbar manager running"), ("hotkeys:", "hotkeys registered") };
@@ -73,6 +84,15 @@ internal static class RestartSuite
         EngineSuite.Idle(context, S, engine, context.Options.Seconds(15), "after start, settled", 60, 10);
         EngineSuite.Resident(context, S, engine, "after start: ");
         engine.Dispose();
+    }
+
+    private static string? TaskCommand()
+    {
+        using Process query = Process.Start(new ProcessStartInfo("schtasks.exe", "/query /tn DispCtrl.Engine /xml") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true })!;
+        string xml = query.StandardOutput.ReadToEnd();
+        query.WaitForExit();
+        var match = System.Text.RegularExpressions.Regex.Match(xml, @"<Command>\s*""?([^<""]+)""?\s*</Command>");
+        return query.ExitCode == 0 && match.Success ? Environment.ExpandEnvironmentVariables(match.Groups[1].Value.Trim()) : null;
     }
 
     private static bool BrokerAnswers()

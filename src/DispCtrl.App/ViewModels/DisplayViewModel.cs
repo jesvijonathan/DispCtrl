@@ -61,7 +61,6 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// of requests the monitor answers slowly, and the panel would keep moving
     /// long after the user let go.
     /// </remarks>
-    private CancellationTokenSource? _brightnessWrite;
 
     public DisplayViewModel(DisplayInfo display, MonitorSettings settings, DispCtrlSettings root,
                             int number, Action persist, Action persistSoon, Func<bool> perDisplayWarmth, Action deskChanged)
@@ -543,18 +542,46 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         while (!ReferenceEquals(pending, _brightnessPending));
     }
 
+    private readonly Lock _brightnessGate = new();
+    private int _brightnessNext = -1;
+    private bool _brightnessSending;
+
+    /// <summary>Sends a level to the monitor: at once when idle, else as the newest one waiting.</summary>
+    /// <remarks>
+    /// Single flight, newest wins. This used to wait 120 ms after the last
+    /// change before sending anything - most of the 178 ms between a slider
+    /// and the engine writing the monitor (perfcheck ui), and a drag trailed
+    /// the pointer by it. Now the first change goes straight out and, while a
+    /// write is in flight (a DDC/CI one is ~55 ms a message), only the latest
+    /// level waits behind it. The engine still drops a request a newer one has
+    /// superseded (<c>coalesce</c>).
+    /// </remarks>
     private void QueueBrightnessWrite(int percent)
     {
-        _brightnessWrite?.Cancel();
-        _brightnessWrite?.Dispose();
-        var cts = new CancellationTokenSource();
-        _brightnessWrite = cts;
-
-        _brightnessPending = Task.Run(async () =>
+        lock (_brightnessGate)
         {
+            _brightnessNext = percent;
+            if (_brightnessSending) return;
+            _brightnessSending = true;
+            _brightnessPending = Task.Run(SendBrightnessAsync);
+        }
+    }
+
+    private async Task SendBrightnessAsync()
+    {
+        while (true)
+        {
+            int percent;
+            lock (_brightnessGate)
+            {
+                // Cleared under the same lock a new level is queued under, so a
+                // change arriving as this loop ends is never left unsent.
+                if (_brightnessNext < 0) { _brightnessSending = false; return; }
+                percent = _brightnessNext;
+                _brightnessNext = -1;
+            }
             try
             {
-                await Task.Delay(120, cts.Token).ConfigureAwait(false);
                 var result = await new DispCtrl.Control.ControlClient().ExecuteAsync(new System.Text.Json.Nodes.JsonObject
                 {
                     ["version"] = 1, ["command"] = "display.set",
@@ -563,16 +590,14 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
                 if (result["ok"]?.GetValue<bool>() != true)
                     throw new InvalidOperationException(result["error"]?["message"]?.GetValue<string>() ?? "The monitor did not confirm its brightness.");
             }
-            catch (OperationCanceledException)
-            {
-                // Superseded by a later drag position; nothing to do.
-            }
             catch (Exception ex)
             {
-                if (!cts.IsCancellationRequested)
+                bool superseded;
+                lock (_brightnessGate) superseded = _brightnessNext >= 0;
+                if (!superseded)
                     _ui.TryEnqueue(() => { _modeStatus = "Brightness: " + ex.Message; Raise(nameof(ModeStatus)); Raise(nameof(ModeStatusVisibility)); });
             }
-        });
+        }
     }
 
     // ---------------------------------------------------------------- modes --

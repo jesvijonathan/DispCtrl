@@ -145,6 +145,19 @@ internal sealed class TaskbarManager
         Interlocked.Exchange(ref _layoutChanged, 1);
         _wake.Set();
     }
+
+    /// <summary>Explorer's taskbar exists now: discover at once.</summary>
+    /// <remarks>
+    /// At sign-in the engine is often up before Explorer's bars, and with no bar
+    /// found the loop looked again once a second: hiding, glass and opacity took
+    /// hold up to a second after the taskbar appeared, and again after every
+    /// Explorer restart.
+    /// </remarks>
+    public void ShellReady()
+    {
+        Interlocked.Exchange(ref _layoutChanged, 1);
+        _wake.Set();
+    }
     private int _lastBarCount = -1;
     private bool _highRes;
 
@@ -299,7 +312,7 @@ internal sealed class TaskbarManager
         // switched on gets adopted without waiting for a layout change.
         _lastBarKey = string.Empty;
 
-        Log.Write($"settings reloaded (managing {keep.Count})");
+        if (DispCtrl.Core.BuildInfo.Diagnostics) Log.Write($"settings reloaded (managing {keep.Count})");
     }
 
     // --------------------------------------------------------- adaptive loop --

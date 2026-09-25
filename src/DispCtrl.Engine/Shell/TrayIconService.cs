@@ -42,6 +42,10 @@ internal sealed class TrayIconService : IDisposable
     private HWND _window;
     private HICON _icon;
     private uint _taskbarCreated;
+
+    /// <summary>Explorer has (re)created its taskbar: at sign-in, and after it restarts.</summary>
+    /// <remarks>Raised on the tray's thread. The broadcast only reaches top-level windows, and this is the engine's.</remarks>
+    public event Action? TaskbarCreated;
     private DispCtrlSettings _settings;
     private bool _shown;
     private bool _disposed;
@@ -400,6 +404,7 @@ internal sealed class TrayIconService : IDisposable
             // Explorer restarted and threw away every icon it was holding.
             _shown = false;
             Apply();
+            TaskbarCreated?.Invoke();
             return new LRESULT(0);
         }
 

@@ -1,5 +1,9 @@
 # Display and preset performance
 
+> Measuring now lives in `tools/perfcheck` (`build.cmd perf`); the guide, the
+> budgets and what it has found are in [../PERFORMANCE.md](../PERFORMANCE.md).
+> This page keeps the reasoning behind the display and preset caches.
+
 The expensive work is driver, COM, WMI and DDC/CI I/O. The optimization keeps protocol delays intact and reduces redundant requests.
 
 ## Reading policies

@@ -219,8 +219,12 @@ internal sealed unsafe partial class FocusService : IDisposable
             if (_control == 0) throw new InvalidOperationException("Cannot create protection message window.");
             // Lock and unlock arrive as messages, so a locked session costs no polling.
             _ = WTSRegisterSessionNotification(_control, 0);
-            Configure();
+            // Ready once there is a window to post to: Update and Dispose only
+            // post, and what they post is handled after Configure on this thread.
+            // Configuring before signalling held the engine's whole start-up for
+            // it - ~90 ms with OLED care on, building an overlay pair per display.
             _ready.Set();
+            Configure();
             while (GetMessage(out Message message, 0, 0, 0) > 0) DispatchMessage(ref message);
         }
         catch (Exception ex) { Log.Write($"Display protection stopped: {ex.Message}"); }
