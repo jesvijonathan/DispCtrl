@@ -1015,6 +1015,12 @@ unrecallable.
   copies the helper to the package's real `LocalCacheFolder` (the user's ACL)
   and loads that. Anything else handed to another process by path from a
   Store install needs the same.
+- **Never hand Explorer a file in `bin`.** It keeps the helper mapped until it
+  restarts, so `build clean` failed with access denied on
+  `bin\...\taskbar-glass\DispCtrl.TaskbarGlass.*.dll`. Unpackaged builds now
+  copy the helper to `%LOCALAPPDATA%\DispCtrl\taskbar-glass\` too, and
+  `dev.ps1 clean` (`Remove-Tree`) leaves a held helper behind with a warning,
+  failing only on anything else that is locked.
 - **Explorer records a tray icon's path by known-folder id**:
   `{6D809377-...}\WindowsApps\...` for the Store engine. Compared as a plain
   path it never matched, so the Store icon was never kept on the taskbar.
