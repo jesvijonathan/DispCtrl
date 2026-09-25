@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "generated": "tools/devicecheck index - do not edit; regenerated after every merge",
-  "counts": { "brands": 6, "models": 8, "records": 7, "definitions": 2 },
+  "counts": { "brands": 6, "models": 8, "records": 8, "definitions": 2 },
   "common": 0,
   "brands": {
     "BNQ": {"brandCodes":0,"models":1},
@@ -12,7 +12,7 @@
     "TMX": {"brandCodes":0,"models":1}
   },
   "models": {
-    "BNQ-7FB7": {"name":null,"record":false,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-25T06:13:37Z","extends":[]},
+    "BNQ-7FB7": {"name":"BenQ XL2566K","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-25T06:13:37Z","extends":[]},
     "BOE-0923": {"name":"Built-in panel, 15.5 inch, in Dell Latitude 5540","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-24T17:28:24Z","extends":[]},
     "DEL-A234": {"name":"Dell U2424H","record":true,"codes":1,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T16:10:30Z","extends":[]},
     "DEL-A283": {"name":"Dell AW2725Q","record":true,"codes":0,"panel":"OLED","writable":0,"reports":1,"added":"2026-09-25T06:13:37Z","extends":[]},

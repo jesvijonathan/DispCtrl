@@ -87,11 +87,13 @@ static int SelfTest()
     try
     {
         string input = Path.Combine(temp, "issue.md"), output = Path.Combine(temp, "devices");
-        File.WriteAllText(input, Share("TST-0101") + "\n\n---\n\n" + Share("TST-0202"));
+        // Pasted under the link's "Devices:" summary rather than over it, as #17 was.
+        File.WriteAllText(input, "Devices: TST-0101, TST-0202\r\n\r\n" + Share("TST-0101") + "\n\n---\n\n" + Share("TST-0202"));
         Check(Intake(input, output) == 0 && File.Exists(DeviceLayout.DefinitionPath(output, "TST-0101"))
             && File.Exists(DeviceLayout.DefinitionPath(output, "TST-0202"))
+            && File.ReadAllText(DeviceLayout.RecordPath(output, "TST-0101")).StartsWith("### TST-0101")
             && File.ReadAllText(DeviceLayout.RecordPath(output, "TST-0202")).StartsWith("### TST-0202"),
-            "combined intake keeps both definitions and associates each record with its model");
+            "combined intake keeps both definitions and records, even under the link's summary line");
         string refused = Path.Combine(temp, "refused");
         File.WriteAllText(input, Share("TST-0101") + "\n\n---\n\n" + Share("TST-0202", "bad-code"));
         Check(Intake(input, refused) == 1 && !Directory.Exists(refused),
@@ -365,6 +367,11 @@ static int Intake(string bodyFile, string root, int? issue = null)
         string section = body[start..(block.Index + block.Length)].Trim();
         start = block.Index + block.Length;
         if (section.StartsWith("---\n", StringComparison.Ordinal)) section = section[4..].TrimStart();
+        // A combined share too long for the link is prefilled with a "Devices:"
+        // summary to paste over; pasted under it instead (#17), the first
+        // model's record no longer began with its heading and was dropped.
+        if (Regex.Match(section, "^### ", RegexOptions.Multiline) is { Success: true, Index: > 0 } heading)
+            section = section[heading.Index..];
         if (payload?["kind"]?.GetValue<string>() != "dispctrl-device-mapping") continue;
         recognised++;
         int code = IntakeModel(section, payload, root, pending);
