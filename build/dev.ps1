@@ -485,14 +485,31 @@ function Invoke-Menu {
     }
 }
 
+function Next-Patch([string]$version) {
+    $parts = $version.Split('.')
+    '{0}.{1}.{2}' -f $parts[0], $parts[1], ([int]$parts[2] + 1)
+}
+
 function Invoke-MenuRelease {
     $channel = Read-Host "Channel: stable, beta or test? [stable]"
     if ($channel -and $channel -notin 'stable','beta','test') { throw 'Choose stable, beta or test.' }
     $options.channel = if ($channel) { $channel } else { 'stable' }
-    $version = Read-Host "Version? [$($options.version)]"
-    if ($version) {
-        if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'A version is three numbers: 0.1.0.' }
-        $options.version = $version
+    $next = Next-Patch $options.version
+    $version = Read-Host "Version? [$($options.version)], y for $next, or type one"
+    switch -Regex ($version) {
+        '^$'          { }
+        '^(y|yes)$'   { $options.version = $next }
+        '^\d+\.\d+\.\d+$' { $options.version = $version }
+        default       { throw "Answer nothing to keep $($options.version), y for $next, or a version like 0.1.0." }
+    }
+    $declared = ([xml](Get-Content -LiteralPath (Join-Path $repo 'Directory.Build.props') -Raw)).Project.PropertyGroup.DispCtrlVersion |
+        Where-Object { $_ } | Select-Object -First 1
+    if ($declared -ne $options.version) {
+        # A stable tag whose version the repository does not declare fails release.yml.
+        Write-Host "Directory.Build.props declares $declared." -ForegroundColor Yellow
+        if ((Read-Host "Set it to $($options.version)? [y/N]") -match '^(y|yes)$') {
+            & (Join-Path $PSScriptRoot 'Update-Version.ps1') -Version $options.version -Repository $repo
+        }
     }
     $options.configuration = 'Release'
     Write-Host ("`nReleasing {0} {1} from clean. This takes a few minutes." -f $options.channel, $options.version) -ForegroundColor Cyan
