@@ -4,7 +4,7 @@
     <!-- Shipping version for local builds and packaging defaults. Use
          build/Update-Version.ps1, or Release's automatic version update,
          before tagging. Stable tags must agree with this version. -->
-    <DispCtrlVersion>0.1.4</DispCtrlVersion>
+    <DispCtrlVersion>0.1.5</DispCtrlVersion>
     <Version Condition="'$(Version)' == ''">$(DispCtrlVersion)</Version>
 
     <!-- stable, beta or test; a build from source is dev. Publish.ps1 passes
