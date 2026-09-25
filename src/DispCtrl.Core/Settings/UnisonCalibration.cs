@@ -3,7 +3,7 @@ namespace DispCtrl.Core.Settings;
 /// <summary>Process-lifetime calibration pause; a crashed UI cannot leave following disabled on disk.</summary>
 public static class UnisonCalibration
 {
-    private static readonly string Name = @"Local\DispCtrl.UnisonCalibration." + System.Diagnostics.Process.GetCurrentProcess().SessionId;
+    private static readonly string Name = @"Local\DispCtrl.UnisonCalibration." + Session.Id;
     private static EventWaitHandle? _lease;
 
     public static void SetActive(bool active)

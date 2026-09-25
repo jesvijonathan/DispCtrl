@@ -39,6 +39,21 @@ try
     right.Global.TaskbarOpacity = 37; SettingsStore.Save(right);
     Check(SettingsStore.Load().Global.Focus.DimPercent == 45, "a second save from a stale client cannot revert another client's edit");
     Check(SettingsStore.HasExternalChanges(right), "a merging save tells the UI to refresh external values");
+    // This process reuses the text of its own last save rather than reading it
+    // back; a save from anybody else must still be read. Same length on purpose:
+    // only the file's times can tell the two apart.
+    var mine = SettingsStore.Load(); mine.Global.Focus.DimPercent = 87; SettingsStore.Save(mine);
+    string ours = File.ReadAllText(SettingsStore.Path_);
+    Check(ours.Split("\"dimPercent\": 87").Length == 2, "the own-write test has one value to change");
+    string theirs = SettingsStore.Path_ + ".other.tmp";
+    File.WriteAllText(theirs, ours.Replace("\"dimPercent\": 87", "\"dimPercent\": 88"));
+    File.Move(theirs, SettingsStore.Path_, overwrite: true);
+    Check(SettingsStore.Load().Global.Focus.DimPercent == 88, "another process's same-length save is read, not this process's own last write");
+    SettingsStore.Save(SettingsStore.Load());
+    Thread.Sleep(20);
+    File.WriteAllText(SettingsStore.Path_, File.ReadAllText(SettingsStore.Path_).Replace("\"dimPercent\": 88", "\"dimPercent\": 89"));
+    Check(SettingsStore.Load().Global.Focus.DimPercent == 89, "a same-length edit in place (an editor) is read too");
+    var back = SettingsStore.Load(); back.Global.Focus.DimPercent = 45; SettingsStore.Save(back);
     var reset = service.Execute(Request("taskbar.reset"));
     Check(reset["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.Focus.DimPercent == 45, "taskbar reset preserves unrelated focus settings");
     string revision = SettingsDocument.Revision(SettingsDocument.Read());

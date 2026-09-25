@@ -29,6 +29,10 @@ public static partial class SettingsStore
 {
     private sealed class Snapshot(JsonNode json) { public JsonNode Json = json; public bool ExternalChanges; }
     private static readonly ConditionalWeakTable<DispCtrlSettings, Snapshot> Snapshots = new();
+
+    /// <summary>The text this process last saved, and the identity of the file that save produced.</summary>
+    private sealed record OwnWrite(DateTime Written, DateTime Created, long Length, string Text);
+    private static volatile OwnWrite? _ownWrite;
     public static string Directory { get; } = Resolve();
 
     /// <summary>
@@ -177,8 +181,22 @@ public static partial class SettingsStore
     /// the reader keeps the version it opened. A sharing violation from a writer
     /// that does not share is retried briefly rather than reported.
     /// </remarks>
+    /// <para>
+    /// The file this process saved last is not read back. The first open of a
+    /// freshly renamed settings file costs ~5.6 ms against 0.14 ms for the next
+    /// (the antivirus scans it; measured on the 9 KB file of a four-monitor desk,
+    /// perfcheck core), and the app loads straight after its own saves. Metadata
+    /// does not open the file: unchanged write time, creation time (a rename-over
+    /// brings the temp file's) and length mean nobody else has saved since.
+    /// </para>
     private static string ReadShared()
     {
+        if (_ownWrite is { } own)
+        {
+            var info = new FileInfo(Path_);
+            if (info.Exists && info.Length == own.Length && info.LastWriteTimeUtc == own.Written && info.CreationTimeUtc == own.Created)
+                return own.Text;
+        }
         for (int attempt = 0; ; attempt++)
         {
             try
@@ -219,8 +237,12 @@ public static partial class SettingsStore
             string tmp = Path_ + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
-                File.WriteAllText(tmp, output.ToJsonString(SettingsJsonContext.Default.Options));
+                string text = output.ToJsonString(SettingsJsonContext.Default.Options);
+                File.WriteAllText(tmp, text);
+                _ownWrite = null;
                 ReplaceWithRetry(tmp);
+                var written = new FileInfo(Path_);
+                _ownWrite = new OwnWrite(written.LastWriteTimeUtc, written.CreationTimeUtc, written.Length, text);
             }
             finally { if (File.Exists(tmp)) File.Delete(tmp); }
             Snapshots.Remove(settings);

@@ -489,6 +489,13 @@ It includes the redaction checks: the scrub in isolation, then end to end over
 the monitors actually attached - asserting that the text the app would publish
 carries none of their serials, device paths, or the account name.
 
+**Performance: `build.cmd perf`** (`tools/perfcheck`, guide in
+`docs/PERFORMANCE.md`). Budgets per measurement, reports in `artifacts/perf/`,
+`--baseline` flags regressions. `--all` adds the ui, writes and restart suites,
+which drive the tray and panel and need the desk left alone. Measure CPU from
+cycle counts and measure warm - both have produced wrong conclusions here.
+Run it before and after anything on a hot path.
+
 `presetcheck` needs monitors. The hardware-free suites, which CI and
 `build.sh test` run, are `controlcheck` (the command API against a scratch
 settings folder), `presetverify` (parsing, geometry, the settings merge) and
@@ -832,6 +839,16 @@ Every one of these was a real bug. Do not reintroduce them.
   treated as corruption: the good file was quarantined as `.bad` and every
   client fell back to defaults. `SettingsStore.ReadShared`, `ReplaceWithRetry`,
   and a load that only quarantines on a JSON error.
+- **A process does not read back the file it just saved.** The first open of
+  a freshly renamed `settings.json` is scanned by the antivirus: 5.6 ms against
+  0.14 ms for the next open, and a load follows most saves. `SettingsStore`
+  keeps its own last write and reuses it while the file's write time, creation
+  time and length are unchanged; anybody else's save changes the creation time
+  (rename-over) or the write time (in place). `controlcheck` covers both with a
+  same-length file. Load + save went from 8.15 ms to 2.42 ms.
+- **Never `Process.GetCurrentProcess().SessionId`.** .NET snapshots every
+  process on the machine to answer it (7.9 ms warm); `Session.Id` asks Windows
+  (0.28 ms). Every pipe and mutex name scoped to the session uses it.
 - The gamma clamp state is cached for a minute, not for the process's life:
   `Recheck` only ever ran in the app, and the engine that owns the ramp kept the
   old limit until restarted.

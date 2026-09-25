@@ -156,12 +156,15 @@ public sealed partial class ControlService
             if (args.ContainsKey("brightness"))
             {
                 int level = Integer(args, "brightness", 0, 100);
-                if (!Brightness.Read(initial).Supported) throw new ArgumentException("Brightness is not supported on " + initial.Label);
+                BrightnessRange planned = Brightness.Read(initial);
+                if (!planned.Supported) throw new ArgumentException("Brightness is not supported on " + initial.Label);
                 Add(60, "brightness", () =>
                 {
                     var d = Live();
-                    var range = Brightness.Read(d);
-                    if (!range.Supported || !Brightness.Write(d, range.FromPercent(level))) return false;
+                    // The range read while planning: only its ends are used, and they
+                    // belong to the monitor. Reading it again cost a DDC/CI round trip,
+                    // ~55 ms of the ~250 ms a brightness set took (perfcheck writes).
+                    if (!Brightness.Write(d, planned.FromPercent(level))) return false;
                     var observed = Brightness.Read(d);
                     return observed.Supported && Math.Abs(observed.Percent - level) <= 2;
                 });

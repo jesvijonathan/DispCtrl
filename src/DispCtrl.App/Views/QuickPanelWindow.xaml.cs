@@ -486,8 +486,20 @@ public sealed partial class QuickPanelWindow : Window
     {
         if (_intended.Width <= 0) return;
         _ = SetWindowPos(_hwnd, 0, _intended.Left, _intended.Top + offset, 0, 0,
-            SwpNoSize | SwpNoZOrder | SwpNoActivate);
+            SwpNoSize | SwpNoZOrder | SwpNoActivate | SwpSlideOnly);
     }
+
+    /// <summary>
+    /// A move and nothing else: no repaint, no erase, no position-changing
+    /// message, no owned windows reordered.
+    /// </summary>
+    /// <remarks>
+    /// The window's pixels are its DWM surface; moving it needs none of the
+    /// work a plain move asks for. Each frame of a slide paid for all of it:
+    /// the slides were ~80 ms of the ~125 ms of CPU an open and close cost
+    /// (measured with animation on and off, perfcheck ui).
+    /// </remarks>
+    private const uint SwpSlideOnly = 0x8 /* NOREDRAW */ | 0x200 /* NOOWNERZORDER */ | 0x400 /* NOSENDCHANGING */ | 0x2000 /* DEFERERASE */;
 
     /// <summary>
     /// Cuts the panel off at the edge it slides out of, for one frame of a slide.

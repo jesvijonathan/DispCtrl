@@ -9,6 +9,7 @@
     ./build/dev.ps1 setup -Install      # fetch the missing tools (asks winget for system ones)
     ./build/dev.ps1 build               # stops the engine gracefully, builds, restarts it (-Rebuild: from clean)
     ./build/dev.ps1 test -Hardware      # hardware-free checks, plus the ones that read monitors
+    ./build/dev.ps1 perf                # performance suite; perf --all adds ui, writes, restart (docs/PERFORMANCE.md)
     ./build/dev.ps1 run engine          # or: app, panel, cli <arguments>
     ./build/dev.ps1 release             # zips, installer, MSIX and notes in artifacts/
     ./build/dev.ps1 options -Configuration Debug -Channel stable -NoNative
@@ -16,7 +17,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('menu','doctor','setup','build','test','run','publish','installer','package','release','clean','options')]
+    [ValidateSet('menu','doctor','setup','build','test','perf','run','publish','installer','package','release','clean','options')]
     [string]$Command = 'menu',
     [Parameter(Position = 1)][string]$Target,
     [ValidateSet('Debug','Release')][string]$Configuration,
@@ -324,6 +325,18 @@ function Invoke-Test {
     } finally { Pop-Location }
 }
 
+function Invoke-Perf {
+    # Measures the binaries already built in bin; it does not build the product.
+    # Anything after 'perf' goes to perfcheck: --all, --ui, --quick, --baseline FILE.
+    Assert-Ready (Get-Tools)
+    Push-Location $repo
+    try {
+        $arguments = @($Target) + @($Rest) | Where-Object { $_ }
+        & dotnet run --project tools/perfcheck -c $options.configuration -- @arguments
+        if ($LASTEXITCODE -ne 0) { throw "perfcheck: $LASTEXITCODE measurement(s) over budget, regressed or failed." }
+    } finally { Pop-Location }
+}
+
 function Invoke-Run {
     $what = if ($Target) { $Target } else { 'app' }
     switch ($what) {
@@ -545,11 +558,12 @@ function Invoke-MenuSettings {
     }
 }
 
-if ($Command -in 'build', 'test', 'publish', 'installer', 'package', 'release', 'clean') {
+if ($Command -in 'build', 'test', 'perf', 'publish', 'installer', 'package', 'release', 'clean') {
     Use-BuildLock {
         switch ($Command) {
             'build'     { Invoke-Build }
             'test'      { Invoke-Test }
+            'perf'      { Invoke-Perf }
             'publish'   { Invoke-Publish }
             'installer' { Invoke-Installer $null }
             'package'   { Invoke-Package $null }
@@ -566,6 +580,7 @@ switch ($Command) {
     'setup'     { Invoke-Setup }
     'build'     { Invoke-Build }
     'test'      { Invoke-Test }
+    'perf'      { Invoke-Perf }
     'run'       { Invoke-Run }
     'publish'   { Invoke-Publish }
     'installer' { Invoke-Installer $null }

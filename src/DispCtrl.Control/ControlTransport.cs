@@ -12,14 +12,8 @@ public static class ControlTransport
 {
     // Computed once: the listeners recreate the pipe for every connection, and
     // neither the session nor the data folder changes for the life of a process.
-    public static string PipeName { get; } = "DispCtrl.Control.v1." + CurrentSessionId() + "."
+    public static string PipeName { get; } = "DispCtrl.Control.v1." + Session.Id + "."
         + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(SettingsStore.Directory)))[..16];
-
-    private static int CurrentSessionId()
-    {
-        using var process = Process.GetCurrentProcess();
-        return process.SessionId;
-    }
 
     public const int MaxBytes = 1024 * 1024;
 
