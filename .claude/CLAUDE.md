@@ -251,10 +251,10 @@ ship. The app's **Devices** page sends the same
 ### Hotkeys
 
 Global shortcuts live in `settings.Hotkeys` and are registered by the **engine**,
-which also carries them out: 21 actions, from unison and night light to focus,
-OLED care, keep awake, taskbar, contrast and the quick panel. A new desk is
-offered fourteen defaults (`Hotkey.OfferDefaults`), five enabled: Ctrl+Alt with
-Page Up/Down, N, D and L. Nine more are configured but disabled. The defaults are
+which also carries them out: 27 actions, from unison and night light to focus,
+OLED care, keep awake, taskbar, contrast, pinning, gathering and the quick panel. A new desk is
+offered seventeen defaults (`Hotkey.OfferDefaults`), eight enabled: Ctrl+Alt with
+Page Up/Down, N, D, L, Backspace, P (pin) and G (gather). Nine more are configured but disabled. The defaults are
 versioned: upgrades offer newly added actions disabled once, preserving existing
 bindings and removals. Never use the arrows, which Intel drivers take for screen
 rotation. The page and `dispctrl hotkeys reset` restore
@@ -474,6 +474,177 @@ recorded. Turn off displays also parks the
 pointer in a corner of a display it blacked out and puts it back when they come
 on again, unless the mouse has moved it.
 
+### Windows on top, gathering, putting back
+
+From PowerToys' Always On Top and FancyZones, only the parts where knowing
+about displays helps (`docs/design/FEATURES.md`, "Compared with PowerToys").
+
+- **A pin is the window's own state**: `WS_EX_TOPMOST` plus the window property
+  `DispCtrl.Pinned` (`Display/Placement/WindowPins`). Any process pins - the
+  hotkey, the panel, `dispctrl pin` - and nothing is stored: the pin lives as
+  long as the window. The property is also what stops an unpin taking topmost
+  off a window that was on top by itself. Pinning refuses excluded apps,
+  fullscreen windows (optional) and windows of elevated processes (UIPI; said,
+  not worked around). `Local\DispCtrl.Pins.Changed` tells the engine.
+- **The border is four click-through strips**, not one layered window the size
+  of the pinned one (a 4K window would be a 33 MB surface for 3 px of colour).
+  Regions carry the Windows 11 corner radius; a maximized or work-area-filling
+  window gets its border inside, and strips are clipped to the window's display.
+  `Engine/Placement/PinService` follows each window with WinEvent hooks
+  **scoped to its own thread**, never a global location hook, plus a settle pass
+  150 ms after the last event. Nothing hooked while nothing is pinned.
+- **T2**: `FocusService` cuts pinned windows out of focus dimming
+  (`Pin.ClearInFocus`, on) and, only if asked, out of OLED idle dimming
+  (`ClearInOledCare`, off: a window sitting still for hours is what burns in).
+  Never out of a manual rest or displays off.
+- **Moving a window is move, then size** (`WindowMover.Place`): sized in the
+  same call, a per-monitor-aware app's own DPI resize landed on top. Maximized
+  and minimized windows go through the placement, whose rectangles are
+  **workspace** coordinates - offset by the work area of the display they are
+  on; with a bottom taskbar the two agree, which is how getting it wrong hides.
+  Hung windows are skipped (a synchronous move would wait on them).
+- **Putting back (Z1)** snapshots every window relative to its display after
+  foreground, move/size-end and minimize events and every 30 s, and **only
+  while the display fingerprint is the settled one**, so the moment of change
+  is never recorded as where things were. A departed display's windows are
+  parked with where Windows put them; on return, each still exactly there goes
+  back (`WindowGeometry.Untouched`). **Windows 11's own window memory is
+  left alone and works beside it.** Its switch is
+  `RestorePreviousStateRecalcBehavior` (0 = on), and writing it does not take
+  effect live - an unplug with it at 1 still had Windows put every visible
+  window back within the 1.5 s this waits. So DispCtrl never switches it off
+  (development builds did; since the value is not read live, that only left it
+  set to change later);
+  `Reconcile` only hands it back where `TookOverWindowsMemory` says an earlier
+  build took it. Verified by unplugging the Dell twice: Windows returned the
+  visible windows, DispCtrl saw them already home and left them ("moved since
+  it was parked; already back where it was"), and put back the minimized ones,
+  whose restore positions Windows leaves on the laptop. The per-window lines
+  are diagnostic builds only.
+- **New windows (Z4)** is a window-shown hook held only while the option is on;
+  windows present when it came on are never new, and a window is judged 250 ms
+  after it shows, once the app has placed it itself. Verified here.
+
+### Where the window features meet the others
+
+Every pair was walked through; these are the ones that needed code.
+
+- **A pin's hole includes its border.** Cut to the frame alone, focus dimming
+  drew over the border strips, which sit outside the window.
+- **Pins step aside for fullscreen** (`Pin.StepAsideForFullscreen`, on). A
+  content-fullscreen window in front (`IsContentFullscreen`, not a maximized
+  one) puts the pins on its display `NOTOPMOST`, just below it, borders hidden;
+  they go back on top when it leaves. Watched by one global foreground hook
+  and a location hook on the **front window's thread only**, while anything is
+  pinned. Pins are restored on shutdown, stepped aside or not.
+- **Follow re-asserts topmost before it looks at the border.** With the border
+  off it returned early, and a window an app had knocked off topmost stayed off.
+- **PinService's hooks are five narrow ranges per thread**, not
+  `EVENT_MIN..MAX`: that range delivered every name, value and state change the
+  app raised. `Changed` fires only when a rectangle really moved.
+- **Gathering a maximized window** restores it onto the target through the
+  placement (`SW_SHOWNOACTIVATE`), then maximizes it there; borderless
+  fullscreen is moved, then sized to the target's bounds. Both used to stay
+  put, which read as "gather only moves the active window".
+- **The tray wheel does nothing while unison is being calibrated**: the
+  walkthrough owns the level.
+- **"Fullscreen" is content fullscreen everywhere** (`AppWindows.IsFullscreen`):
+  "Never pin a fullscreen window" used the bare fill test and refused a
+  maximized window on the laptop, whose taskbar DispCtrl hides.
+- **A minimized window keeps `WPF_RESTORETOMAXIMIZED` when it is carried**, or
+  it comes back normal-sized on the new display.
+- **New-window placement ignores `WS_CHILD` at once**: every control a browser
+  shows raised the hook, and the seen set filled with them.
+- **The quick panel re-reads what changes without a save**: the pinned list
+  follows `PinnedWindows` (re-read on every summons), and `Choices` takes a
+  property to watch - built once and kept while hidden, both showed what was
+  true at the first opening.
+- **Per-display rest keeps the ordinary idle state empty** while it runs, or
+  switching it off found a rest dated from before and dimmed at once.
+- **Focus mode's pointer options are one choice** (`FocusSettings.Clear`,
+  `--keep-clear focused|pointer|both`), over the two stored switches.
+  Follow the mouse alone clears the pointer's window *instead of* the focused
+  one; Keep hovered clear clears it *as well*. Both switches on (the shipped
+  default) behaves as Both, so the setter leaves Follow alone for it.
+- **OLED care per display** (`OledCare.PerDisplayActivity`, off): each mask
+  keeps its own clock (`DisplayActivity`). Input counts for the display holding
+  half or more of the front window (or the pointer's, with nothing in front),
+  and a moving pointer counts where it is as well; pointer-only for a display
+  set to wake on the pointer's return. Stay active's nudge counts for none.
+  `ExcludedApps`: a display showing one of them (visible, not minimized, mostly
+  on it, looked up once a second with a PID-cached process name) never rests.
+  The Displays page lists every monitor seen (`MonitorSettings.LastSeenUtc`,
+  stamped by the engine at start and on each settled change, not reset),
+  connected first. Verified live: a minute of use on the Dell only rested the
+  laptop at 58% while the Dell stayed lit, the pointer on the laptop woke it,
+  and `pwsh` on the exception list with a window on the laptop kept it lit
+  (control run without it: rested).
+- **Idle cost, measured in cycles** (scratch desk with OLED care, Stay active
+  and taskbar hiding on): all window features off ~200 Mcycles/min, all on
+  ~250. The exception list was the whole of a +130 first: it described every
+  window once a second; `AppWindows.ShowingFrames` tests visibility and the
+  cached process name before anything else. Placement's 30 s snapshot reuses
+  the display list while the cheap signature holds and re-reads only work
+  areas. Pinning, the tray wheel, per-display rest and the placement hooks
+  measured as nothing at idle. Memory did not move (~77 MB working set).
+- **Nothing about windows shows in a new quick panel**: the Windows section
+  and the pin, gather, put-back and new-window tiles are all hidden by default
+  (the owner's call), and switched on from the Quick panel page.
+
+### The DDC/CI guard and the probe
+
+- **`DdcGuard` marks each capabilities read on disk, flushed**, and each
+  process's first conversation with each monitor (Dxva2's high-level calls read
+  the string themselves). A mark from an earlier boot (boot time from the tick
+  count, two minutes apart) is a read Windows went down during: that monitor is
+  blocked in `Global.DdcGuard.Blocked` and `DdcChannel.With` refuses every
+  conversation with it until `ddc allow` / the Displays page. A mark from this
+  boot whose process is gone was a kill, and is deleted. Verified by planting a
+  mark: the Dell was blocked at start, read as unsupported, and allowed again.
+- **The block list is read at most once a second, and only when settings.json
+  moved.** Its "last checked" started at `long.MinValue`, and `now - MinValue`
+  overflows negative - read as "checked a moment ago" forever, so the list never
+  loaded and nothing was ever blocked. controlcheck now asks on the first call.
+- **The probe reads, never writes**, every named code except MCCS's commands.
+  A continuous answer with maximum 0 or the 0xFFFF filler is dropped: this Dell
+  answers black levels, gamma and colour temperature that way, and on a monitor
+  using probed codes they would have been sliders writing into nothing. Saved,
+  the codes stand in for a missing capabilities string as `type(probed)`, which
+  never reaches the device library.
+
+### The tray wheel and the theme schedule
+
+- **Windows sends a notification icon no wheel**, so `Shell/TrayWheel` installs
+  a low-level mouse hook when the icon reports the pointer (`WM_MOUSEMOVE` via
+  the tray callback) and removes it when the pointer leaves the icon's
+  `Shell_NotifyIconGetRect`. The hook only counts notches (Windows drops a
+  low-level hook that makes it wait ~300 ms); a worker applies them, unison
+  when it covers the target. Verified: one notch 47→52, one back to 47.
+- **Dark mode on the schedule** is edge-triggered (`NightLightSettings.ThemeDue`):
+  once per boundary crossed, remembered in `ThemeAppliedUtc`, so a theme chosen
+  by hand holds until the next boundary and a restart undoes nothing. Changing
+  the hours or switching it on clears the record and applies at the next look.
+
+### Updates
+
+- **Store installs are updated by the Store**; nothing in DispCtrl checks for
+  them (`StartupIntegration.IsPackaged`), and "Check for updates" opens the
+  Store's updates page.
+- **Installer and zip installs: opt-in** (the owner's rule: no network request
+  DispCtrl was not asked to make). `Global.Updates.CheckAutomatically` is off by
+  default and off again after Reset all; the button is an explicit ask. A check
+  (`Control/UpdateCheck`) is one anonymous GET of the latest release - the
+  version in the User-Agent, nothing else sent - and never downloads: a newer
+  release is announced (Settings page notice, one footer line per run) with a
+  link that is always under the project's own releases, whatever the answer
+  says. Prereleases are never GitHub's "latest". "Not now" hides that release,
+  not later ones. The app looks 30 s after start and every 6 h, asking only
+  when a day has passed (`UpdateSettings.Due`). `dispctrl update
+  check|get|set|skip|reset`; the CLI prints the link, never opens a browser.
+- An update installs over the old one: the installer stops the engine
+  gracefully and settings carry forward; a downgrade keeps working too (see
+  "Settings file").
+
 ### Tests
 
 ```bash
@@ -571,6 +742,17 @@ Every one of these was a real bug. Do not reintroduce them.
   (`0xc000027b`, `CoreMessagingXP.dll`) with no managed stack. The app now logs
   unhandled exceptions to `%LOCALAPPDATA%\DispCtrl\app-crash.log`; a stack
   overflow bypasses even that, and needs a `FirstChanceException` hook to see.
+
+### Idle and focus
+
+- **Stay active's nudge is input to Windows, not a person.** OLED idle care
+  read `GetLastInputInfo`, which the nudge resets every 55 s, so with Stay
+  active on neither stage ever came. `PersonIdle` discounts input within 500 ms
+  of a nudge; every idle reader in `FocusService` takes its number from it.
+- **Focus mode's fullscreen pause is content fullscreen** (`IsContentFullscreen`),
+  as OLED care's is: an ordinary maximized window on a display whose taskbar
+  DispCtrl hides covers the whole display, and a bare `Covers` paused focus
+  mode for as long as it was in front - on this desk, VS Code on the laptop.
 
 ### Protection hooks
 
@@ -837,6 +1019,9 @@ Every one of these was a real bug. Do not reintroduce them.
   `ControlTerminal.Parse`, or the parser takes the next word as their value.
 - Every `.reset` command passes the generic reset allow-list first; a reset with
   options of its own (`display.reset`) needs an entry before it.
+- **The terminal turns `on`/`off` into true/false** before a command sees them.
+  An option whose values are words (`--tray-wheel off`) has to map the bool back
+  (`GroupCommand`), or it fails as asked wrongly.
 
 ### Settings file (sharing)
 
@@ -902,6 +1087,20 @@ Every one of these was a real bug. Do not reintroduce them.
 
 ### Settings file
 
+- **A file from a newer DispCtrl loads; nothing is lost** (`SettingsStore.Lenient`).
+  A value this build cannot read - a hotkey action or a choice added since -
+  used to throw, and the whole file went to `.bad`: every setting back to
+  defaults, in the older build and in the newer one once it returned. Now each
+  failing value is removed from the in-memory copy by its JSON path (a list
+  entry whole, so a hotkey never runs with its action defaulted), the rest
+  loads, the file is untouched, and a save merges into it, keeping what was
+  set aside and every property this build never knew. The engine logs what it
+  left out. Only text that is not JSON at all is still quarantined. Checked in
+  controlcheck with a hand-made future file. **This protects builds from 0.1.5
+  on; 0.1.4 and earlier still quarantine** - a desk that runs a newer test
+  build beside the Store's 0.1.4 must not let 0.1.4 start on the same file.
+- New settings need nothing else: a missing property takes its initialiser,
+  and one-off upgrades are versioned where they must be (hotkey defaults).
 - Enums serialise as **names**, via `UseStringEnumConverter`. The file is
   hand-edited routinely; `"brightnessDown"` says what it does and a number
   silently means something else the moment a value is inserted into the enum.
@@ -968,7 +1167,8 @@ unrecallable.
   attached**, not fixtures. That end-to-end check is the one that matters.
 - **No token, no network call from the app.** It opens a prefilled issue in the
   browser the person is already signed into and they press Submit. A token in a
-  Store app is a token given to everyone who installs it.
+  Store app is a token given to everyone who installs it. The one exception is
+  the update check, and only because somebody asked for it (below).
 - **The body is plain ASCII** - the only place in DispCtrl without proper
   typography. It travels percent-encoded, where an em dash costs nine characters
   and `x` costs one. With typography the Dell's record was 6200 characters and
@@ -1012,11 +1212,18 @@ unrecallable.
   SDK patch would then rewrite them, or fail CI in locked mode. Every
   `PackageReference` is an exact version, so restores are already
   deterministic without them.
+- **Judge a build by its exit code, never by grepping for `: error `.** The
+  XAML compiler reports `XamlCompiler error WMC0015 ...` with no colon before
+  "error"; a script that grepped reported the app built when it had not, and
+  the page tested was the previous build's.
 - The engine must carry `<ApplicationIcon>` too: the tray's logo style reads it
   from the running binary, and without it drew an empty slot.
 
 ### Release and installer
 
+- **A Store install has no `DispCtrl.Engine` scheduled task**; the package's
+  startup task starts it. Restart it inside the package:
+  `Invoke-CommandInDesktopPackage -PackageFamilyName JustVStudio.DispCtrl_5fm6x6q82qb7g -AppId App -Command '<WindowsApps path>\DispCtrl.Engine.exe' -Args 'run'`.
 - **Never let an installer kill the engine.** Inno's Restart Manager
   (`CloseApplications`) would, and a killed engine strands a hidden taskbar.
   `DispCtrl.iss` turns it off and runs `DispCtrl.Engine.exe stop` itself,
@@ -1226,6 +1433,30 @@ What does not work, and cost time discovering:
   bottom, expanding at each step, or UIA will not find inner controls.
 - A capabilities sweep takes ~30 s (37 round trips at 40 ms plus reads). Wait for
   it before asserting the controls are missing.
+- `DwmGetWindowAttribute(EXTENDED_FRAME_BOUNDS)` is always physical pixels;
+  `GetWindowRect` is virtualised for a caller that is not per-monitor aware. A
+  probe mixing them "showed" a border left behind that was exactly in place.
+  Call `SetThreadDpiAwarenessContext(-4)` first.
+- `SetCursorPos` does not hover a notification icon; small relative
+  `mouse_event` moves do.
+- PowerShell passes `$null` to a `string` parameter as `""`:
+  `FindWindow($null, title)` finds nothing. Use `[NullString]::Value`.
+- Start test windows under `pwsh`, so "never move these apps" can exclude
+  everything else by process name without excluding the test window.
+- **Test a development build against a copy of the settings**:
+  `DISPCTRL_DATA_DIR` pointing at a scratch folder, `preloadQuickPanel` off
+  there (app.path would start another build's app against it), and the
+  running engine stopped gracefully first and started again after. Two builds
+  of different versions on one file is how a desk ends up with settings only
+  the newer one reads.
+- `Start-Process pwsh -WindowStyle Hidden` hides the form a test script shows
+  as well - the window's first show takes the process's start-up state. Start
+  test windows minimized-console instead (`-WindowStyle Minimized` inside the
+  command) and find them by title.
+- **A screenshot shows whatever is in front, which may be the owner's own
+  screen**: one taken while they were at the desk caught their browser. When
+  somebody is using the machine, read the UI through UI Automation (names,
+  toggle states, text) rather than capturing it.
 
 ---
 
@@ -1278,7 +1509,10 @@ drag/apply, presets with per-app rules (shelved in release builds behind
 monitor capability discovery and control,
 display report, identify overlays, hotplug re-discovery, device contribution
 (anonymised, consent-gated), the quick panel and tray icon, Windows' brightness
-slider and keys driving unison, the control API and `dispctrl` JSON surface.
+slider and keys driving unison, the control API and `dispctrl` JSON surface,
+OLED care per display, windows pinned on top, gathering and putting windows
+back (unplugged live), settings that survive a newer or older build, and the
+opt-in update check.
 `docs/design/IMPLEMENTATION-CHECKLIST.md` records how each recent item was verified and
 what is still unverified. Since then CI runs on GitHub (Build and verify
 passes; the Device library job failed until devicecheck stopped building a
@@ -1288,8 +1522,11 @@ installed (see "Release and installer").
 
 Outstanding, roughly in the order last discussed:
 
-See `docs/design/FEATURES.md` for the full candidate list with effort and risk. The
-short version, in recommended order:
+See `docs/design/FEATURES.md` for the full candidate list with effort and risk,
+including "Compared with PowerToys" (Power Display, FancyZones, Always On Top):
+its first item, guarding the DDC/CI capabilities read against the documented
+Windows kernel crash, comes before anything below. The short version, in
+recommended order:
 
 1. ~~Brightness fallback, high-level to VCP `0x10`~~ — **done**.
 2. ~~Lift the gamma clamp~~ — **done**, `GammaRange`.
@@ -1304,9 +1541,11 @@ short version, in recommended order:
 9. ~~Opt-in contribution~~ - **done**, `dispctrl contribute` and the panel card.
    Records land in `devices/BRAND/PRODUCT/record.md`; `DEL/A234` and
    `SDC/4154` are seeded from this machine.
-10. **OLED burn-in protection** — original scope, still unbuilt. The per-monitor
-   `IsOled` flag exists and is what it should key off.
-11. **Remember window positions** across replug.
+10. ~~OLED burn-in protection~~ - **done**: idle rest in two stages, per
+   display or for the whole desk, with an exception list, manual rest, and
+   focus mode beside it.
+11. ~~Remember window positions across replug~~ - **done**, alongside Windows'
+   own window memory (see "Windows on top, gathering, putting back").
 12. MSIX packaging; Native AOT (blocked, see above); widgets; taskbar
    translucency.
 

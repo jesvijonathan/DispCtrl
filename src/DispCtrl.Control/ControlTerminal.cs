@@ -8,7 +8,7 @@ namespace DispCtrl.Control;
 
 public static class ControlTerminal
 {
-    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient"];
+    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient", "pin", "placement", "ddc", "update"];
     public static bool Handles(string[] args) => args.Length > 0 && (Roots.Contains(args[0])
         || args[0] == "nightlight" && args.Length > 1 && args[1] is "get" or "set" or "reset"
         || args[0] == "topology" && args.Length > 1 && args[1] is "get" or "set");
@@ -49,11 +49,15 @@ public static class ControlTerminal
       settings export [--output FILE]       Complete saved settings (includes identities)
       settings validate|import FILE         Validate or replace saved settings
       focus|oled|awake|nightlight|taskbar|tray get|set|reset
-      windows get|set                       Taskbar preferences, VRR, dark mode, --wallpaper-fit fill
+      focus set --keep-clear focused|pointer|both   Which windows focus mode keeps clear
+      oled set --per-display-activity on --excluded-apps "vlc.exe"   Rest each display when it is unused
+      windows get|set                       Taskbar preferences, VRR, dark mode, --wallpaper-fit fill,
+                                            --remember-window-locations, --minimize-on-disconnect
       windows open --page display|nightlight|colors|taskbar|startup|power|hdr|cast|colormanagement
       hotkeys list|add|set|remove|reset     --keys "Ctrl+Alt+PageUp" --action unison-up --step 5 --display 2
       unison get|set --level 50             Shared brightness and Windows-slider following
       unison set --monitor ID --floor 20 --ceiling 80   A display's calibrated range
+      unison set --monitor ID --include off   Leave a display out of unison (its own brightness)
       ambient get                           Unison following the room's light, and what the sensor reads now
       ambient set --enabled on --dark-level 20 --bright-level 100 --dark-lux 5 --bright-lux 800
       ambient capture --as dark|bright      Calibrate: the sensor's reading now becomes that end
@@ -63,6 +67,19 @@ public static class ControlTerminal
       topology get|set --mode extend|duplicate|internal|external
       oled preview --percent 50             Two-second preview (engine + care enabled)
       oled rest --monitor ID --minutes 5    Manual screen rest policy
+      pin list                              Open windows, with the handle each is pinned by
+      pin on|off|toggle [--window W]        Keep a window on top (W: 0x1A2B, an app's name, or part
+                                            of a title; the window in front without it); off --all
+      pin get|set|reset                     --border on --border-colour "#FF8800" --border-thickness 3
+                                            --clear-in-focus on --clear-in-oled-care off --excluded-apps x.exe
+      placement gather [--to N|active] [--from N]   Bring every window onto one display
+      placement move --window W --to N|active       Move one window onto a display
+      placement get|set|reset               --return-windows on --new-windows-on-active on --active pointer
+      ddc get|set --guard on|off            The guard against a capabilities read crashing Windows
+      ddc allow --monitor ID|--model KEY    Talk to a monitor the guard blocked again
+      ddc probe --monitor ID [--save|--clear]   Read-only: which known codes a monitor answers
+      update check                          Ask GitHub for the newest release (only when asked; never downloads)
+      update get|set --check-automatically on|off   The opt-in daily check; update skip hides the one found
       restore now|undo|get                  Put every display back (as Ctrl+Alt+Backspace), or undo that
       engine start|stop|status              Manage the resident engine
       maintenance repair|clear-cache        Fix the sign-in task and shortcuts; clear logs and cached data
@@ -197,7 +214,7 @@ public static class ControlTerminal
     {
         positional = [];
         var options = new JsonObject();
-        string[] flags = ["json", "text", "local", "dry-run", "hardware", "overwrite", "help", "confirm", "all", "writable", "remove", "open", "factory", "history"];
+        string[] flags = ["json", "text", "local", "dry-run", "hardware", "overwrite", "help", "confirm", "all", "writable", "remove", "open", "factory", "history", "save", "clear"];
         for (int i = 0; i < words.Length; i++)
         {
             string word = words[i];
@@ -212,7 +229,8 @@ public static class ControlTerminal
             else if (++i < words.Length && !words[i].StartsWith("--", StringComparison.Ordinal)) value = words[i];
             else throw new ArgumentException("Missing value for --" + parts[0]);
             // Selectors are strings even when the user chooses display number 2.
-            if (key is "monitor" or "path" or "output" or "resolution" or "wallpaper" or "script" or "events" or "revision" or "what" or "steps") options[key] = value;
+            if (key is "monitor" or "path" or "output" or "resolution" or "wallpaper" or "script" or "events" or "revision" or "what" or "steps"
+                or "window" or "to" or "from" or "token" or "model" or "borderColour" or "excludedApps") options[key] = value;
             else if (value is "on" or "off") options[key] = value == "on";
             else
             {

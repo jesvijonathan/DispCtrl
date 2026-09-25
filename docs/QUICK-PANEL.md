@@ -29,7 +29,7 @@ event and `settings.json`.
 
 | Field | What it is |
 |---|---|
-| `sections` | The blocks, top to bottom: `unison`, `tiles`, `nightLight`, `displays`, `taskbar`, `presets` |
+| `sections` | The blocks, top to bottom: `unison`, `tiles`, `nightLight`, `displays`, `taskbar`, `focus`, `oledCare`, `presets`, `displayMode`, `windows` |
 | `tiles` | The quick toggles, in order |
 | `displayRows` | The rows under each display |
 | `displayTiles` | The small switches in each display's strip |
@@ -37,6 +37,7 @@ event and `settings.json`.
 | `collapsed` | Sections and displays folded away (`taskbar`, `display:<token>`) |
 | `hiddenDisplays` | Identity tokens of displays left out |
 | `density`, `width`, `tileColumns`, `icon`, `stayOpen`, `showFooter`, `enabled` | Look and behaviour |
+| `trayWheel`, `wheelStep`, `wheelOnSliders` | The mouse wheel over the icon (`off`, `main`, `all`), how far a notch goes, and whether it moves the panel's sliders |
 
 Each list holds `{ "id": "...", "visible": true }` entries. The order of the
 list is the order on screen. Unknown ids are dropped when read, and ids added in
@@ -56,9 +57,19 @@ exactly. The customisation page greys only what simple mode ignores.
 
 Focus mode, OLED protection and night light put their switch in the header and
 every option beneath it - the same rows their tiles' flyouts show, built once in
-`QuickPanelContent.Registry.cs`. OLED protection, focus, display mode, taskbar
-and night light start folded until opened; the rows under an open section sit a
+`QuickPanelContent.Registry.cs`. OLED protection, focus, display mode, taskbar,
+night light and Windows start folded until opened; the rows under an open section sit a
 little in from its header. A display's switches span the width in equal columns.
+
+The Windows section (`QuickPanelContent.Windows.cs`) gathers every window onto
+a display, holds the two placement switches, and lists what is pinned. It and
+the pin, gather, put-back and new-window tiles are hidden until switched on
+from the Quick panel page. The pin tile opens the list of open windows to
+choose from: the panel is in front whenever it is clicked, so "the active
+window" means nothing there - Ctrl+Alt+P is how the window in front is pinned.
+A pin is the window's own state, which the hotkey or the command line change
+without the panel hearing, so the flyout's list is read as it opens and the
+section's follows `PinnedWindows`, which every summons re-reads.
 
 ## Rows: words, then the control
 

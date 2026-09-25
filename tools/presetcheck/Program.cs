@@ -999,6 +999,23 @@ static string Shorten(string s) => s.Length <= 24 ? s : s[..24] + "...";
         !Night(false, false, false).PerDisplayApplies && !Night(false, true, true).SharedApplies);
 }
 
+// The wallpaper previews, on the monitors attached. A reported file that is
+// gone (OLED Shifter deletes its moved copies) left a card with no picture;
+// every display with a wallpaper must have some picture of it to show.
+{
+    Console.WriteLine();
+    Console.WriteLine("Wallpaper previews: a picture for every display");
+    foreach (DisplayInfo d in DisplayRegistry.Enumerate())
+    {
+        string? reported = DispCtrl.Display.Wallpaper.Read(d);
+        List<string> sources = DispCtrl.Display.Wallpaper.PreviewSources(d);
+        string first = sources.Count > 0 ? Path.GetFileName(sources[0]) : "none";
+        bool reportedMissing = reported is not null && !File.Exists(reported);
+        Check($"{d.Label}: {sources.Count} source(s), first {first}{(reportedMissing ? " (the reported file is gone)" : "")}",
+            reported is null || sources.Count > 0);
+    }
+}
+
 Console.WriteLine();
 Console.WriteLine(failures == 0 ? "all checks passed" : $"{failures} FAILED");
 return failures;

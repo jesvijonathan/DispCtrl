@@ -47,6 +47,9 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         (HotkeyAction.NextInput, "Next input source"),
         (HotkeyAction.Identify, "Show the display numbers"),
         (HotkeyAction.QuickPanel, "Open or close the quick panel"),
+        (HotkeyAction.PinWindow, "Pin the active window on top, or unpin it"),
+        (HotkeyAction.UnpinAllWindows, "Unpin every pinned window"),
+        (HotkeyAction.GatherWindows, "Gather every window onto one display"),
         (HotkeyAction.ApplyPreset, "Apply a preset (Beta)"),
     }.Where(item => DispCtrl.Core.FeatureFlags.Presets || item.Item1 != HotkeyAction.ApplyPreset).ToArray();
 
@@ -105,8 +108,13 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     /// </remarks>
     public Visibility DisplayVisibility => Hotkey.Action is
         HotkeyAction.BrightnessUp or HotkeyAction.BrightnessDown or HotkeyAction.NextInput
-        or HotkeyAction.ContrastUp or HotkeyAction.ContrastDown
+        or HotkeyAction.ContrastUp or HotkeyAction.ContrastDown or HotkeyAction.GatherWindows
         ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>What 0 means for this action: every display, or for gathering the one in use.</summary>
+    public string DisplayHint => Hotkey.Action == HotkeyAction.GatherWindows
+        ? "The number shown by Identify; 0 for the display in use, as chosen on the Displays page."
+        : "The number shown by Identify; 0 for every display.";
 
     public double DisplayNumber
     {
@@ -262,6 +270,7 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         Raise(nameof(KeysNote));
         Raise(nameof(PresetVisibility));
         Raise(nameof(DisplayVisibility));
+        Raise(nameof(DisplayHint));
         Raise(nameof(StepVisibility));
         Raise(nameof(Presets));
     }

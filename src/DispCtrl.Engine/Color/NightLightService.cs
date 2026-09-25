@@ -221,6 +221,18 @@ internal sealed class NightLightService : IDisposable
 
             bool warmNow = config.ActiveAt(DateTime.Now);
 
+            // Dark mode on the schedule: once per boundary crossed, never in
+            // between, so a theme chosen by hand holds until the next one.
+            if (config.ThemeDue(DateTime.Now) is bool dark)
+            {
+                bool done = WindowsTheme.IsDark == dark || WindowsTheme.SetDark(dark);
+                config.ThemeAppliedUtc = DateTimeOffset.UtcNow;
+                SettingsStore.Save(settings);
+                Log.Write(done
+                    ? $"night light schedule: Windows switched to {(dark ? "dark" : "light")} mode"
+                    : $"night light schedule: Windows would not switch to {(dark ? "dark" : "light")} mode");
+            }
+
             // Warmth and software dimming share one ramp, so the decision to
             // write or clear has to consider both. Clearing on warmth alone
             // wiped a display's dimming every time night light went off.

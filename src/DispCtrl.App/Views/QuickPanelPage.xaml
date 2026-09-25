@@ -80,6 +80,32 @@
         <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelIconShowsActive, Mode=TwoWay}" AutomationProperties.Name="QuickPanelIconShowsActive"/>
       </tk:SettingsCard>
 
+      <!-- Power Display's tray wheel. The engine watches the wheel only while
+           the pointer is on the icon, through a hook it removes as it leaves. -->
+      <tk:SettingsCard Header="Mouse wheel over the icon"
+                       Description="Turn the wheel over the icon to change brightness. With unison on it moves unison; the icon's tooltip shows the level.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE962;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ComboBox ItemsSource="{x:Bind ViewModel.TrayWheelChoices}"
+                  SelectedIndex="{x:Bind ViewModel.TrayWheelIndex, Mode=TwoWay}"
+                  MinWidth="200" AutomationProperties.Name="TrayWheel"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Wheel step" Description="How far one notch moves brightness, over the icon and on the panel's sliders.">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <Slider Value="{x:Bind ViewModel.WheelStep, Mode=TwoWay}" Minimum="1" Maximum="25" StepFrequency="1"
+                  Width="200" AutomationProperties.Name="WheelStep"/>
+          <TextBlock Text="{x:Bind ViewModel.WheelStep, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+          <TextBlock Text="%" VerticalAlignment="Center"/>
+        </StackPanel>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Mouse wheel on the panel's sliders"
+                       Description="Off by default: the panel scrolls, and a wheel meant for scrolling that lands on a slider would change the brightness instead.">
+        <ToggleSwitch IsOn="{x:Bind ViewModel.WheelOnSliders, Mode=TwoWay}" AutomationProperties.Name="WheelOnSliders"/>
+      </tk:SettingsCard>
+
       <tk:SettingsCard Header="Density" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
                        Description="Comfortable, the default, labels each quick toggle underneath as Windows' quick settings do. Compact shows the toggles as symbols alone and packs the rows tight. Spacious makes the toggles larger and names every slider above itself.">
         <tk:SettingsCard.HeaderIcon>

@@ -201,6 +201,18 @@ public sealed class GlobalSettings
     public OledCareSettings OledCare { get; set; } = new();
     public AwakeSettings Awake { get; set; } = new();
 
+    /// <summary>Pinning windows on top, and how a pinned window looks.</summary>
+    public PinSettings Pin { get; set; } = new();
+
+    /// <summary>Moving windows between displays: gathering, putting back, and new windows.</summary>
+    public PlacementSettings Placement { get; set; } = new();
+
+    /// <summary>The guard against a capabilities read crashing Windows.</summary>
+    public DdcGuardSettings DdcGuard { get; set; } = new();
+
+    /// <summary>Finding out about new versions; opt-in, and not for Store installs.</summary>
+    public UpdateSettings Updates { get; set; } = new();
+
     /// <summary>The tray icon and what its panel shows.</summary>
     public QuickPanelSettings QuickPanel { get; set; } = new();
     /// <summary>Whole taskbar opacity, including icons. 100 leaves Explorer untouched.</summary>
@@ -349,6 +361,15 @@ public sealed class GlobalSettings
         Focus = new();
         OledCare = new();
         Awake = new();
+        Pin = new();
+        // Bookkeeping is kept, so the engine can hand Windows its own window
+        // memory back now that returning windows is off again.
+        Placement = new() { TookOverWindowsMemory = Placement.TookOverWindowsMemory };
+        // Which monitors took Windows down is a fact about this desk, like
+        // hidden displays; a reset of preferences does not forget it.
+        DdcGuard = new() { Blocked = DdcGuard.Blocked };
+        // Off again: a reset goes back to no network requests at all.
+        Updates = new();
         TaskbarOpacity = fresh.TaskbarOpacity;
         TaskbarGlassEnabled = fresh.TaskbarGlassEnabled;
         TaskbarGlassRadius = fresh.TaskbarGlassRadius;
@@ -526,6 +547,58 @@ public sealed class NightLightSettings
     /// <summary>End of the warm period, in minutes past local midnight.</summary>
     public int ToMinutes { get; set; } = 7 * 60;
 
+    /// <summary>Switch Windows to dark mode for the scheduled hours, and back to light after.</summary>
+    /// <remarks>
+    /// PowerToys' Light Switch, on the schedule night light already has. Only at
+    /// the two times, never in between: somebody who switches the theme by hand
+    /// at nine keeps it until the next boundary, and a restart does not undo
+    /// their choice (<see cref="ThemeAppliedUtc"/>). Needs <see cref="Scheduled"/>,
+    /// and runs whether or not the warmth itself is on.
+    /// </remarks>
+    public bool DarkModeOnSchedule { get; set; }
+
+    /// <summary>When the schedule last set the theme; null to set it at the next look.</summary>
+    public DateTimeOffset? ThemeAppliedUtc { get; set; }
+
+    /// <summary>Whether <paramref name="now"/> falls in the scheduled hours, whether or not night light is on.</summary>
+    public bool InScheduledHours(DateTime now)
+    {
+        int from = Normalise(FromMinutes), to = Normalise(ToMinutes);
+        if (from == to) return false;
+        int minute = (now.Hour * 60) + now.Minute;
+        return from < to ? minute >= from && minute < to : minute >= from || minute < to;
+    }
+
+    /// <summary>The most recent of the two schedule times at or before <paramref name="now"/>, in local time.</summary>
+    /// <remarks>
+    /// What the theme switch is edge-triggered on: the theme is set once per
+    /// boundary crossed, and a boundary crossed while the computer slept is
+    /// caught at the first look after it wakes.
+    /// </remarks>
+    public DateTime LastBoundary(DateTime now)
+    {
+        DateTime best = DateTime.MinValue;
+        foreach (int minutes in new[] { Normalise(FromMinutes), Normalise(ToMinutes) })
+        {
+            DateTime today = now.Date.AddMinutes(minutes);
+            DateTime at = today <= now ? today : today.AddDays(-1);
+            if (at > best) best = at;
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Whether the scheduled theme is due, and which: null when nothing is to be done.
+    /// </summary>
+    /// <param name="now">Local time.</param>
+    public bool? ThemeDue(DateTime now)
+    {
+        if (!DarkModeOnSchedule || !Scheduled || Normalise(FromMinutes) == Normalise(ToMinutes)) return null;
+        DateTime boundary = LastBoundary(now);
+        if (ThemeAppliedUtc is { } applied && applied.ToLocalTime().DateTime >= boundary) return null;
+        return InScheduledHours(now);
+    }
+
     /// <summary>
     /// True when the warm period is in force at <paramref name="now"/>.
     /// </summary>
@@ -537,17 +610,7 @@ public sealed class NightLightSettings
     public bool ActiveAt(DateTime now)
     {
         if (!Enabled) return false;
-        if (!Scheduled) return true;
-
-        int from = Normalise(FromMinutes);
-        int to = Normalise(ToMinutes);
-        if (from == to) return false;
-
-        int minute = (now.Hour * 60) + now.Minute;
-
-        return from < to
-            ? minute >= from && minute < to
-            : minute >= from || minute < to;
+        return !Scheduled || InScheduledHours(now);
     }
 
     private static int Normalise(int minutes) => ((minutes % 1440) + 1440) % 1440;
@@ -718,6 +781,28 @@ public sealed class MonitorSettings
     public bool MonitorSleepEnabled { get; set; }
     public int MonitorSleepMinutes { get; set; } = 10;
 
+    /// <summary>Whether unison brightness moves this display.</summary>
+    /// <remarks>
+    /// Power Display's "exclude from linked brightness". Left out, a display
+    /// keeps its own brightness while the rest move together: the unison slider,
+    /// its hotkeys, Windows' brightness keys, ambient light and a monitor
+    /// reconnecting all leave it alone. The built-in panel left out means
+    /// Windows' own brightness moves only that panel again.
+    /// </remarks>
+    public bool InUnison { get; set; } = true;
+
+    /// <summary>
+    /// VCP codes, as hex, that a read-only probe found this monitor answering,
+    /// used in place of a capabilities string it cannot give. Null when unused.
+    /// </summary>
+    /// <remarks>
+    /// For monitors whose capabilities string is missing or broken. Only codes
+    /// that answered are listed, and writing still goes through the allow list
+    /// and the rule that a discrete control is offered only when its reading is
+    /// one of its values: the probe widens what is read, never what is written blind.
+    /// </remarks>
+    public List<string>? ProbedCodes { get; set; }
+
     /// <summary>Whether focus dimming touches this display at all.</summary>
     /// <remarks>
     /// Separate from the shared "dim other monitors" switch, which is about
@@ -728,6 +813,10 @@ public sealed class MonitorSettings
     public bool FocusDimming { get; set; } = true;
     /// <summary>Temporary screen-rest request consumed by the engine.</summary>
     public DateTimeOffset? OledRestUntilUtc { get; set; }
+
+    /// <summary>When this monitor was last connected or left, so lists of monitors put recent ones first.</summary>
+    /// <remarks>Bookkeeping: a reset of the display leaves it.</remarks>
+    public DateTimeOffset? LastSeenUtc { get; set; }
     [JsonIgnore]
     public bool TreatAsOled => IsOled ?? OledDetected;
 
@@ -754,6 +843,8 @@ public sealed class MonitorSettings
         MonitorSleepEnabled = fresh.MonitorSleepEnabled;
         MonitorSleepMinutes = fresh.MonitorSleepMinutes;
         FocusDimming = fresh.FocusDimming;
+        InUnison = fresh.InUnison;
+        ProbedCodes = null;
         OledRestUntilUtc = null;
         SoftwareBrightness = fresh.SoftwareBrightness;
         // Label is descriptive, not a setting; keeping it leaves the file readable.

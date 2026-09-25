@@ -259,3 +259,152 @@ pixel density, connector, whether it is the main display, DDC/CI status with the
 control count, native resolution, variable refresh range, DPI with scaling,
 orientation, colour depth, colour profile, position, work area, and the Windows
 device name beside DispCtrl's own token.
+
+## Compared with PowerToys (September 2026)
+
+Three PowerToys utilities sit next to DispCtrl: **Power Display** (per-monitor
+DDC/CI control), **FancyZones** (window layouts) and **Always On Top** (pinning
+windows). Read from Microsoft's documentation, not run on the dev desk; recheck
+before building anything that depends on how they behave.
+
+**Status, 25 September 2026.** Built: P1 (`DdcGuard`), P3 (`MonitorSettings.InUnison`),
+P4 (`Shell/TrayWheel`, and the wheel on the panel's sliders as an option), P7
+(`MonitorCapabilities.Probe`, read-only, with `ProbedCodes` standing in for a
+missing capabilities string), Z1 and Z4 (`Placement/PlacementService`), Z2
+(`WindowMover.Gather`, and `placement move` for one window), T1-T3
+(`WindowPins`, `Placement/PinService`, focus and OLED holes in `FocusService`),
+and Light Switch's scheduled theme on night light's hours
+(`NightLightSettings.DarkModeOnSchedule`). Open: P2, P5, P6, Z3. Z1 was exercised
+by unplugging the Dell twice: it works beside Windows' own window memory,
+which it no longer tries to switch off (see CLAUDE.md).
+Since then: the cross-feature pass (CLAUDE.md, "Where the window features
+meet the others") - pins step aside for fullscreen, gathering maximized and
+borderless windows, focus mode's pointer options as one choice, and OLED care
+per display with an exception list.
+
+Power Display is the direct competitor for plain external-monitor brightness.
+DispCtrl's case is everything around that - the built-in panel as a
+first-class display, colour and software dimming, taskbars, OLED care, the
+physical arrangement. The two window utilities are not display management, so
+the items below take only the parts where knowing about displays makes
+DispCtrl better at them, and recommend against cloning either.
+
+### From Power Display
+
+**P1. Guard the capabilities read against a kernel crash.** Microsoft
+documents that reading the capabilities string of a monitor with a malformed
+one can hit a Windows kernel bug and blue-screen the machine. Power Display
+ships a list of monitors it never probes, notices a crash, turns itself off and
+excludes the monitor next time. DispCtrl reads every external monitor's
+capabilities at engine start (the display report) and when learning a model
+(`UnisonHotplug`), with no protection. Shape: write a "probing <device>" marker
+before each read and clear it after; a marker found at the next start means that
+read took the machine down, so the monitor is excluded and the app says so. A
+model known to do it goes in the device library (a definition flag, reviewed
+like any other), so everybody skips it.
+Effort: moderate. Risk: low. **Do first**: it is the only item here that
+protects the machine rather than adding to it.
+
+**P2. Finish presets.** Power Display ships profiles; DispCtrl's presets are
+built but shelved behind `EnableBetaPresets` in every release. It is the largest
+visible gap, and the work is mostly done.
+Effort: moderate (the beta's open items). Risk: medium.
+
+**P3. Leave a display out of unison.** Power Display links every monitor by
+default and lets each be excluded, keeping its own slider. DispCtrl's unison
+takes every display (calibrated ranges shape each one, but none can opt out). A
+per-monitor `InUnison` flag, honoured by the slider, the hotkeys, the brightness
+bridge and hot-plug.
+Effort: small. Risk: low.
+
+**P4. Brightness from the mouse wheel over the tray icon** (off, the primary
+display, or all - with unison, all). Notification icons are not sent wheel
+messages, so this needs a low-level mouse hook; install it only while the
+pointer is over the icon (the icon's own mouse-move callback starts it, leaving
+the icon's rectangle ends it), or it costs wake-ups all day. Mouse-wheel steps on
+every brightness slider belong with it, using the same step setting.
+Effort: moderate. Risk: low, if the hook is scoped as above.
+
+**P5. Presets that follow the Windows theme** - one for dark mode, one for
+light. The quick panel already switches the theme; a preset per theme needs
+only P2.
+Effort: small after P2. Risk: low.
+
+**P6. Confirm the controls that can strand a monitor**: input source (a black
+screen until someone presses the monitor's buttons), power state (some monitors
+never wake from software) and colour preset (some keep the value after DispCtrl
+closes). Once per monitor per control, remembered. Factory reset already asks.
+Effort: small. Risk: low.
+
+**P7. A read-only compatibility probe** for monitors whose capabilities string is
+missing or broken: read each MCCS code DispCtrl knows, list the ones that answer,
+write nothing. Power Display's compatibility mode probes too, but it can change
+brightness, contrast or the input as it goes; DispCtrl's rule of never writing
+an unlisted code stays. What it finds can be offered to the device library as a
+share. Must come after P1.
+Effort: moderate. Risk: medium (the probe itself is DDC/CI traffic a flaky
+monitor can choke on).
+
+### From FancyZones
+
+DispCtrl should not grow a zone editor: FancyZones does it well, and it is
+window management. Where displays change under windows, though, DispCtrl knows
+first and knows most.
+
+**Z1. Windows back where they were after a display returns.** Already roadmap
+item 11. FancyZones keeps windows in their zones through a resolution change;
+DispCtrl's `DisplayChanges.Settled` knows which display left and which arrived.
+Record each top-level window's display and relative rectangle when a display
+leaves; when it comes back, the windows that were on it (still open, not moved
+since) go back. Per-monitor identity is the token, so the same monitor on a
+different port still counts.
+Effort: moderate. Risk: medium (moving other applications' windows; DPI and
+minimised or maximised state need care).
+
+**Z2. Gather windows** from a display: before turning it off, switching to one
+display, or on demand ("bring everything to this display"), from a tile, a
+hotkey and the command line. FancyZones rotates windows between monitors on a
+shortcut; gathering is the display-shaped version of it.
+Effort: small. Risk: low.
+
+**Z3. Apply a FancyZones layout from a preset**, when PowerToys is installed:
+its command line (`FancyZonesCLI set-layout <uuid> --monitor n`) makes the
+integration a line per display in the preset, with no window management of our
+own. A preset for a desk then sets its windows up as well as its displays.
+Effort: small after P2. Risk: low; skipped quietly when FancyZones is absent.
+
+**Z4. New windows on the active display** (FancyZones' "move newly created
+windows to the current active monitor"). Worth it only as part of Z1's window
+tracking. Effort: small with Z1. Risk: low.
+
+### From Always On Top
+
+**T1. Pin a window on top**: a hotkey (Windows' `Win+Ctrl+T` is PowerToys'; offer
+the action unbound), a quick panel tile and a command, with an optional border
+drawn as a layered window around it. The border follows the one pinned window
+through a location hook scoped to that window's thread, never a global one (the
+global location hook is the ~180 wake-ups a second paid for in focus mode).
+Effort: small. Risk: low.
+
+**T2. Pinned windows are exempt from focus mode and OLED dimming.** This is the
+part PowerToys cannot do: DispCtrl dims everything but the active window, and a
+video or chat pinned beside the work should stay lit. The focus service already
+decides which windows are clear; a pinned window joins that set.
+Effort: small with T1. Risk: low.
+
+**T3. Excluded apps, and nothing pinned in full-screen games** - the focus
+service's `PauseFullscreen` already detects that case.
+Effort: small with T1.
+
+### Recommended order
+
+1. **P1** - protects users' machines; nothing else here does.
+2. **P3**, **P6**, **Z2** - small, and each closes a real gap.
+3. **P2** (then **P5**, **Z3**) - the largest visible gap, and most of it built.
+4. **T1 + T2** - small, and T2 is something only DispCtrl can offer.
+5. **Z1** (with **Z4**) - roadmap item 11, the most useful and the most care.
+6. **P4**, **P7**.
+
+Sources: Microsoft Learn - [Power Display](https://learn.microsoft.com/windows/powertoys/power-display),
+[FancyZones](https://learn.microsoft.com/windows/powertoys/fancyzones),
+[Always On Top](https://learn.microsoft.com/windows/powertoys/always-on-top).

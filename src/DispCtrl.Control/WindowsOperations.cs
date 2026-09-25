@@ -22,6 +22,8 @@ public sealed partial class ControlService
             ["autoRotation"] = AutoRotation.Read().Enabled, ["autoRotationSupported"] = AutoRotation.Read().Supported,
             ["darkMode"] = WindowsTheme.IsDark,
             ["wallpaperFit"] = Wallpaper.ReadFit().ToString().ToLowerInvariant(),
+            ["rememberWindowLocations"] = Display.Placement.WindowsWindowMemory.Remember,
+            ["minimizeOnDisconnect"] = Display.Placement.WindowsWindowMemory.MinimizeOnDisconnect,
         };
         if (action == "open") return OpenWindowsPage(args);
         var steps = new List<Step>();
@@ -57,6 +59,8 @@ public sealed partial class ControlService
                         "adaptiveBrightness" => () => AdaptiveBrightness.Write(enabled),
                         "autoRotation" => () => AutoRotation.Write(enabled),
                         "darkMode" => () => WindowsTheme.SetDark(enabled),
+                        "rememberWindowLocations" => () => { Display.Placement.WindowsWindowMemory.Remember = enabled; return Display.Placement.WindowsWindowMemory.Remember == enabled; },
+                        "minimizeOnDisconnect" => () => { Display.Placement.WindowsWindowMemory.MinimizeOnDisconnect = enabled; return Display.Placement.WindowsWindowMemory.MinimizeOnDisconnect == enabled; },
                         _ => throw new ArgumentException("Unknown Windows option: " + pair.Key),
                     };
                     break;

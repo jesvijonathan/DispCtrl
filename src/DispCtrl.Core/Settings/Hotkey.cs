@@ -32,6 +32,9 @@ public enum HotkeyAction
     StayActiveToggle,
     DisplaysOffToggle,
     RestoreDisplays,
+    PinWindow,
+    UnpinAllWindows,
+    GatherWindows,
 }
 
 /// <summary>One global keyboard shortcut.</summary>
@@ -142,11 +145,13 @@ public sealed class Hotkey
     /// Page Down for unison, because brightness is the thing reached for most;
     /// a letter for each switch, named for what it does.
     /// <para>
-    /// Six are on: brightness both ways, night light, the quick panel,
+    /// Eight are on: brightness both ways, night light, the quick panel,
     /// Ctrl+Alt+L to turn the displays off - L as in Win+L, which locks and
-    /// which Windows keeps for itself - and Ctrl+Alt+Backspace, which puts every
+    /// which Windows keeps for itself - Ctrl+Alt+Backspace, which puts every
     /// display back however DispCtrl left it: the one to give somebody looking
-    /// at a black screen.
+    /// at a black screen - and P and G, to pin the active window on top and to
+    /// gather every window onto the display in use. Not Win+Ctrl+T, which
+    /// PowerToys' Always On Top holds.
     /// The rest are set but off - a shortcut nobody asked for that fires by
     /// accident, or holds a combination another program wanted, is worse than
     /// one that is a switch away. Contrast takes Shift as well, beside
@@ -164,6 +169,8 @@ public sealed class Hotkey
             new() { Modifiers = CtrlAlt, Key = 'N', Action = HotkeyAction.NightLightToggle },
             new() { Modifiers = CtrlAlt, Key = 'L', Action = HotkeyAction.DisplaysOffToggle },
             new() { Modifiers = CtrlAlt, Key = 0x08, Action = HotkeyAction.RestoreDisplays },   // Backspace
+            new() { Modifiers = CtrlAlt, Key = 'P', Action = HotkeyAction.PinWindow },
+            new() { Modifiers = CtrlAlt, Key = 'G', Action = HotkeyAction.GatherWindows },
             new() { Modifiers = CtrlAlt, Key = 'U', Action = HotkeyAction.UnisonToggle, Enabled = false },
             new() { Modifiers = CtrlAlt, Key = 'F', Action = HotkeyAction.FocusToggle, Enabled = false },
             new() { Modifiers = CtrlAlt, Key = 'K', Action = HotkeyAction.KeepAwakeToggle, Enabled = false },
@@ -193,7 +200,7 @@ public sealed class Hotkey
     }
 
     /// <summary>The defaults version this build offers; see <see cref="OfferDefaults"/>.</summary>
-    public const int DefaultsVersion = 4;
+    public const int DefaultsVersion = 5;
 
     /// <summary>Actions a defaults version added, offered to desks set up before it.</summary>
     private static readonly HotkeyAction[] AddedInVersion2 =
@@ -210,6 +217,13 @@ public sealed class Hotkey
 
     /// <summary>Added in version 4, switched on for the same reason: a way back that has to be there already.</summary>
     private static readonly HotkeyAction[] AddedInVersion4 = [HotkeyAction.RestoreDisplays];
+
+    /// <summary>
+    /// Added in version 5, switched on: pinning a window and gathering windows
+    /// are keystrokes by nature (the owner asked for both as shortcuts), and
+    /// Ctrl+Alt+P and G collide with nothing Windows or the drivers hold.
+    /// </summary>
+    private static readonly HotkeyAction[] AddedInVersion5 = [HotkeyAction.PinWindow, HotkeyAction.GatherWindows];
 
     /// <summary>
     /// Adds the defaults once, to a desk that has never been offered them, and
@@ -239,6 +253,7 @@ public sealed class Hotkey
             }
             else if (from < 3 && AddedInVersion3.Contains(d.Action)) settings.Hotkeys.Add(d);
             else if (from < 4 && AddedInVersion4.Contains(d.Action)) settings.Hotkeys.Add(d);
+            else if (from < 5 && AddedInVersion5.Contains(d.Action)) settings.Hotkeys.Add(d);
         }
         g.HotkeyDefaultsOffered = true;
         g.HotkeyDefaultsVersion = DefaultsVersion;
@@ -276,6 +291,11 @@ public sealed class Hotkey
             HotkeyAction.TaskbarGlassToggle => "Turn taskbar glass on or off",
             HotkeyAction.ContrastUp => $"Contrast up {Step}% on {where}",
             HotkeyAction.ContrastDown => $"Contrast down {Step}% on {where}",
+            HotkeyAction.PinWindow => "Pin the active window on top, or unpin it",
+            HotkeyAction.UnpinAllWindows => "Unpin every window DispCtrl pinned",
+            HotkeyAction.GatherWindows => Display == 0
+                ? "Bring every window onto the display in use"
+                : $"Bring every window onto display {Display}",
             _ => Action.ToString(),
         };
     }

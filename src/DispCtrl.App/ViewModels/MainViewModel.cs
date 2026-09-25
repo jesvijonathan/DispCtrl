@@ -22,6 +22,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     public MainViewModel()
     {
         Hotkeys = new HotkeysViewModel(() => _settings, Persist);
+        RefreshBlockedMonitors();
         if (PresetsEnabled)
         {
             DispatcherQueue ui = DispatcherQueue.GetForCurrentThread();
@@ -29,6 +30,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         }
         Refresh();
         StartSettingsSync();
+        StartUpdateChecks();
     }
 
     /// <summary>The live display list, for anything that needs it after a rescan.</summary>
@@ -78,6 +80,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
 
     public void ReloadFromDisk()
     {
+        // A pin is the window's own state, changed by the hotkey or the command
+        // line without the settings file moving; activation is when to look again.
+        RefreshPinnedWindows();
         if (DisplayRegistry.CheapSignature() == _layoutSignature)
         {
             SyncExternalSettings();
@@ -137,6 +142,8 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             _settingsStamp = stamp;
             foreach (var display in Displays) display.NotifySettingsReloaded();
             Raise(string.Empty);
+            RefreshBlockedMonitors();
+            RefreshOledMonitors();
             QuickPanelChanged?.Invoke();
         }
         catch (Exception ex) { ShowFooterStatus("Settings sync: " + ex.Message); }
@@ -224,7 +231,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             // legible even though nothing matches on it.
             ms.Label = d.Label;
 
-            Displays.Add(new DisplayViewModel(d, ms, _settings, i + 1, Persist, PersistSoon, () => PerDisplayWarmth, ScheduleDriftCheck));
+            var display = new DisplayViewModel(d, ms, _settings, i + 1, Persist, PersistSoon, () => PerDisplayWarmth, ScheduleDriftCheck);
+            display.UnisonMembershipChanged += () => Raise(nameof(BrightnessSummary));
+            Displays.Add(display);
         }
 
         ScalePreviews();
@@ -251,6 +260,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Raise(nameof(UnisonDescription));
         Raise(nameof(UnisonSliderEnabled));
         if (PresetsEnabled) Presets.Reload();
+        RefreshOledMonitors();
         DisplaysRebuilt?.Invoke();
     }
 
@@ -660,8 +670,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         foreach (DisplayViewModel d in Displays)
         {
             // A display with captured limits is driven across its own range,
-            // not against a baseline, so it has nothing to remember.
-            if (d.UsesBrightnessRange) continue;
+            // not against a baseline, so it has nothing to remember; one left
+            // out of unison is not driven at all.
+            if (d.UsesBrightnessRange || !d.InUnison) continue;
 
             int? now = await d.ReadBrightnessAsync();
             if (now is null) continue;
@@ -1153,6 +1164,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         Raise(nameof(NightLightVisibility));
         Raise(nameof(NightLightSharedVisibility));
         Raise(nameof(NightLightScheduleVisibility));
+        Raise(nameof(NightLightThemeDescription));
         Raise(nameof(NightLightStrengthText));
         Raise(nameof(NightLightStrengthDetail));
         Raise(nameof(NightLightStatus));
@@ -1495,7 +1507,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             var parts = new List<string>(Displays.Count);
             foreach (DisplayViewModel d in Displays)
                 if (d.SupportsBrightness)
-                    parts.Add($"{d.Number}: {d.BrightnessPercent}%");
+                    parts.Add($"{d.Number}: {d.BrightnessPercent}%{(d.InUnison ? "" : " (its own)")}");
 
             return parts.Count == 0 ? "No display reports brightness control" : string.Join("  |  ", parts);
         }

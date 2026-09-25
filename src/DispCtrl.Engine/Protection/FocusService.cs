@@ -12,6 +12,9 @@ internal sealed unsafe partial class FocusService : IDisposable
 {
     private const uint UpdateMessage = 0x8001;
 
+    /// <summary>A window was pinned or unpinned, or a pinned one moved: its clear area moves too.</summary>
+    private const uint PinsMessage = 0x8002;
+
 
     private const string ClassName = "DispCtrl.ProtectionOverlay";
     private static FocusService? _instance;
@@ -117,6 +120,39 @@ internal sealed unsafe partial class FocusService : IDisposable
     private string _foregroundClass = "";
     private uint _timerMs;
     private long _previewUntil;
+    private readonly PersonIdle _personIdle = new();
+
+    // Per-display activity: the last person input already counted, and where
+    // the pointer was at the last look.
+    private long _activityInput;
+    private Point _activityCursor;
+    private bool _activityCursorKnown;
+
+    // Displays showing an app on OLED care's exception list, looked for at
+    // most once a second and only while the list has something in it.
+    private static readonly HashSet<string> NoneBusy = [];
+    private HashSet<string> _busy = [];
+    private long _busyAt = long.MinValue;
+    private string? _busyApps;
+    private HashSet<string> _busyAppSet = [];
+
+    private HashSet<string> BusyDisplays(long now, OledCareSettings care)
+    {
+        string apps = care.ExcludedApps ?? "";
+        if (apps.Trim().Length == 0) return NoneBusy;
+        if (apps != _busyApps) { _busyApps = apps; _busyAppSet = care.Exclusions(); _busyAt = long.MinValue; }
+        if (_busyAt != long.MinValue && now - _busyAt < 1000) return _busy;
+        _busyAt = now;
+        var bounds = new List<DisplayRect>(_masks.Count);
+        foreach (Mask m in _masks) bounds.Add(m.Display.Bounds);
+        var next = new HashSet<string>(StringComparer.Ordinal);
+        foreach (DisplayRect frame in DispCtrl.Display.Placement.AppWindows.ShowingFrames(_busyAppSet))
+        {
+            int on = WindowGeometry.MostlyOn(frame, bounds);
+            if (on >= 0) next.Add(_masks[on].Display.Token);
+        }
+        return _busy = next;
+    }
     private int _previewPercent;
 
     /// <summary>
@@ -147,6 +183,9 @@ internal sealed unsafe partial class FocusService : IDisposable
         public DisplayRect? LiveHole, GhostHole;
         public DisplayRect? LiveHole2, GhostHole2;
         public DisplayRect? LiveHole3, GhostHole3;
+
+        /// <summary>Windows pinned on top, kept clear on this display; empty when none.</summary>
+        public DisplayRect[] LivePins = [], GhostPins = [];
         public DisplayRect LiveArea, GhostArea;
         public int LiveBleed = -1, GhostBleed = -1;
         public bool LiveVisible, GhostVisible;
@@ -162,6 +201,9 @@ internal sealed unsafe partial class FocusService : IDisposable
         /// <summary>Chosen by "Turn off displays" when they went off, and whether it has since been woken.</summary>
         public bool DimChosen, DimWoken;
         public OledIdleState IdleState { get; } = new();
+
+        /// <summary>How long this display has gone unused, when each rests on its own.</summary>
+        public DisplayActivity Activity { get; } = new();
         public double Alpha, From, Target;
         public long Started;
         public int Duration;
@@ -191,6 +233,16 @@ internal sealed unsafe partial class FocusService : IDisposable
         _thread = new Thread(Pump) { IsBackground = true, Name = "Display focus" };
         _thread.Start();
         _ready.Wait();
+        Placement.PinService.Changed += PinsChanged;
+    }
+
+    /// <summary>
+    /// Raised on the pin thread, for every step of a pinned window's drag: only
+    /// posted, and only while there is a dim for it to cut through.
+    /// </summary>
+    private void PinsChanged()
+    {
+        if (_control != 0 && _masks.Count > 0) PostMessage(_control, PinsMessage, 0, 0);
     }
 
     public void Update(DispCtrlSettings settings)
@@ -387,6 +439,7 @@ internal sealed unsafe partial class FocusService : IDisposable
                     }
                     return 0;
                 }
+                if (message == PinsMessage) { self.Schedule(16); return 0; }
                 if (message == DispCtrl.Display.OledPreview.MessageId)
                 {
                     self._previewPercent = (int)Math.Min(wparam, 100);
@@ -628,14 +681,21 @@ internal sealed unsafe partial class FocusService : IDisposable
         // follow-mouse, glancing at another window stopped a playing film counting
         // as fullscreen - and the idle rest was then free to black it out.
         DisplayRect frontRect = focusedUsable ? focusedRect : active;
+        nint front = focusedUsable ? _foreground : subject;
+        bool frontMaximized = front != 0 && IsZoomed(front) != 0;
+        bool frontHasCaption = front != 0 && (GetWindowLongPtr(front, -16) & 0x00C00000) == 0x00C00000;
         bool fullscreen = false;
         if (focusedUsable || valid)
         {
             // A foreach rather than Any(): the lambda captured the rect, so this
             // allocated a closure and a delegate every tick, for a list of two.
+            // Content fullscreen, as OLED care judges it: an ordinary maximized
+            // window on a display whose taskbar DispCtrl hides covers the whole
+            // display too, and counting that paused focus mode for as long as
+            // it was in front.
             foreach (Mask m in _masks)
             {
-                if (!FocusGeometry.Covers(frontRect, m.Display.Bounds)) continue;
+                if (!FocusGeometry.IsContentFullscreen(frontRect, m.Display.Bounds, frontMaximized, frontHasCaption)) continue;
                 fullscreen = true;
                 break;
             }
@@ -677,11 +737,10 @@ internal sealed unsafe partial class FocusService : IDisposable
         {
             var input = new LastInput { Size = (uint)sizeof(LastInput) };
             inputKnown = GetLastInputInfo(ref input) != 0;
-            idleMs = unchecked((uint)Environment.TickCount - input.Tick);
+            idleMs = _personIdle.Update(now, unchecked((uint)Environment.TickCount - input.Tick),
+                Power.PowerService.LastNudgeTick);
         }
         bool preview = care.Enabled && now < _previewUntil && !_suspended;
-        bool frontMaximized = focusedUsable && IsZoomed(_foreground) != 0;
-        bool frontHasCaption = focusedUsable && (GetWindowLongPtr(_foreground, -16) & 0x00C00000) == 0x00C00000;
         bool animating = false, anyRest = false, anyRestPending = false;
 
         // "Turn off displays". Which screens it covers is decided once, when
@@ -774,6 +833,45 @@ internal sealed unsafe partial class FocusService : IDisposable
                 && !FocusGeometry.RestingByHand(true, now - _dimAppliedAt, idleMs, inputKnown);
         }
 
+        // Windows pinned on top, measured once for every display. Nothing at all
+        // while nothing is pinned, which is nearly always.
+        PinSettings pin = _settings.Global.Pin;
+        bool pinsInFocus = pin.ClearInFocus && focus.Enabled;
+        bool pinsInCare = pin.ClearInOledCare && care.Enabled;
+        List<DisplayRect>? pinRects = null;
+        if ((pinsInFocus || pinsInCare) && Placement.PinService.Pinned is { Count: > 0 } pinned)
+        {
+            pinRects = new List<DisplayRect>(pinned.Count);
+            foreach (nint window in pinned)
+            {
+                if (IsWindow(window) == 0 || IsIconic(window) != 0 || IsWindowVisible(window) == 0) continue;
+                if (DwmGetWindowAttributeInt(window, 14, out int cloaked, sizeof(int)) == 0 && cloaked != 0) continue;
+                pinRects.Add(FrameOf(window));
+            }
+        }
+
+        // What happened since the last look, for OLED care that rests each
+        // display on its own: input by a person (the idle clock already leaves
+        // Stay active's nudge out), and whether the pointer moved.
+        bool inputSince = false, pointerMovedTick = false;
+        if (care.Enabled && inputKnown)
+        {
+            long lastPersonInput = now - idleMs;
+            // A few milliseconds of slack: the two tick counts are read a moment apart.
+            inputSince = lastPersonInput > _activityInput + 50;
+            if (inputSince) _activityInput = lastPersonInput;
+        }
+        if (care.Enabled && pointerKnown)
+        {
+            // Stay active's nudge moves the pointer, and is nobody using the display under it.
+            pointerMovedTick = _activityCursorKnown && (cursor.X != _activityCursor.X || cursor.Y != _activityCursor.Y)
+                && now - Power.PowerService.LastNudgeTick > 500;
+            _activityCursor = cursor;
+            _activityCursorKnown = true;
+        }
+        DisplayRect? typedInto = focusedUsable ? focusedRect : null;
+        HashSet<string> busy = care.Enabled ? BusyDisplays(now, care) : NoneBusy;
+
         foreach (Mask mask in _masks)
         {
             _settings.Monitors.TryGetValue(mask.Display.Token, out MonitorSettings? monitor);
@@ -790,10 +888,29 @@ internal sealed unsafe partial class FocusService : IDisposable
             // fullscreen, even when taskbar hiding reclaims the entire work area.
             bool panelFullscreen = focusedUsable && FocusGeometry.IsContentFullscreen(
                 focusedRect, mask.Display.Bounds, frontMaximized, frontHasCaption);
-            uint panelIdle = mask.IdleState.Update(care.Enabled && oled && monitor?.OledProtection == true
-                && !_suspended && !(care.PauseFullscreen && panelFullscreen),
-                monitor?.OledWakeOnPointerReturn == true, now, inputKnown, idleMs, care.IdleMinutes,
-                pointerKnown, cursor.X, cursor.Y, mask.Display.Bounds);
+            bool careHere = care.Enabled && oled && monitor?.OledProtection == true
+                && !_suspended && !(care.PauseFullscreen && panelFullscreen);
+            // An app on the exception list showing here keeps this display awake,
+            // whichever window has focus: a film on one screen, work on the other.
+            bool busyHere = busy.Contains(mask.Display.Token);
+            uint panelIdle;
+            if (care.PerDisplayActivity)
+            {
+                bool used = !careHere || busyHere || DisplayActivity.Used(mask.Display.Bounds, pointerMovedTick,
+                    cursor.X, cursor.Y, inputSince, typedInto, pointerOnly: monitor?.OledWakeOnPointerReturn == true);
+                panelIdle = inputKnown ? mask.Activity.Update(now, used) : 0;
+                // Kept empty meanwhile: a rest it began before this mode came on
+                // would otherwise date from then, and switching back rest at once.
+                mask.IdleState.Update(false, false, now, inputKnown, idleMs, care.IdleMinutes,
+                    pointerKnown, cursor.X, cursor.Y, mask.Display.Bounds);
+            }
+            else
+            {
+                mask.Activity.Reset(now);
+                panelIdle = mask.IdleState.Update(careHere && !busyHere,
+                    monitor?.OledWakeOnPointerReturn == true, now, inputKnown, idleMs, care.IdleMinutes,
+                    pointerKnown, cursor.X, cursor.Y, mask.Display.Bounds);
+            }
             bool resting = FocusGeometry.RestingWhenIdle(care.Enabled, inputKnown, panelIdle,
                 care.IdleMinutes, _suspended, care.PauseFullscreen && panelFullscreen);
 
@@ -914,6 +1031,7 @@ internal sealed unsafe partial class FocusService : IDisposable
                 (mask.LiveHole, mask.GhostHole) = (mask.GhostHole, mask.LiveHole);
                 (mask.LiveHole2, mask.GhostHole2) = (mask.GhostHole2, mask.LiveHole2);
                 (mask.LiveHole3, mask.GhostHole3) = (mask.GhostHole3, mask.LiveHole3);
+                (mask.LivePins, mask.GhostPins) = (mask.GhostPins, mask.LivePins);
                 (mask.LiveArea, mask.GhostArea) = (mask.GhostArea, mask.LiveArea);
                 (mask.LiveBleed, mask.GhostBleed) = (mask.GhostBleed, mask.LiveBleed);
                 (mask.LiveVisible, mask.GhostVisible) = (mask.GhostVisible, mask.LiveVisible);
@@ -922,15 +1040,28 @@ internal sealed unsafe partial class FocusService : IDisposable
                 mask.CrossMs = crossMs;
             }
 
+            // Pinned windows are clear too: in focus mode always (they are pinned
+            // to be seen), in an idle rest only when asked, and never in a rest
+            // somebody asked for or in displays off, which mean everything.
+            // Grown by the border, which sits just outside the window: cut to the
+            // frame alone, the dim went over the border meant to mark the pin.
+            int grow = pin.Border ? (int)Math.Round(Math.Clamp(pin.BorderThickness, 1, 16) * mask.Display.Scale) : 0;
+            DisplayRect[] pinHoles = rest
+                ? (pinsInCare && resting && !manualRest && !preview && !dimNow ? PinsOn(pinRects, mask.Display.Bounds, grow) : [])
+                : dim ? (pinsInFocus ? PinsOn(pinRects, mask.Display.Bounds, grow) : [])
+                : mask.Alpha >= 0.5 ? mask.LivePins
+                : [];
+
             if (mask.LiveArea != area || mask.LiveHole != hole || mask.LiveHole2 != hole2
-                || mask.LiveHole3 != hole3 || mask.LiveBleed != bleedDip)
+                || mask.LiveHole3 != hole3 || mask.LiveBleed != bleedDip || !mask.LivePins.AsSpan().SequenceEqual(pinHoles))
             {
-                SetRegion(mask.Live, mask.Display, area, hole, hole2, hole3, bleedDip);
+                SetRegion(mask.Live, mask.Display, area, hole, hole2, hole3, bleedDip, pinHoles);
                 mask.LiveArea = area;
                 mask.LiveHole = hole;
                 mask.LiveHole2 = hole2;
                 mask.LiveHole3 = hole3;
                 mask.LiveBleed = bleedDip;
+                mask.LivePins = pinHoles;
             }
 
             if (Math.Abs(target - mask.Target) > 0.1)
@@ -1184,7 +1315,7 @@ internal sealed unsafe partial class FocusService : IDisposable
     private int PanelLevel(MonitorSettings? monitor)
     {
         GlobalSettings global = _settings.Global;
-        if (!global.UnisonBrightness) return 100;
+        if (!global.UnisonBrightness || monitor is { InUnison: false }) return 100;
 
         int level = Math.Clamp(global.UnisonLevel, 0, 100);
         if (global.UnisonCalibrated && monitor is { HasBrightnessRange: true })
@@ -1229,8 +1360,20 @@ internal sealed unsafe partial class FocusService : IDisposable
         return new DisplayRect(frame.Left, frame.Top, frame.Right, frame.Bottom);
     }
 
+    /// <summary>The pinned windows that show on one display.</summary>
+    private static DisplayRect[] PinsOn(List<DisplayRect>? pins, DisplayRect bounds, int grow)
+    {
+        if (pins is null || pins.Count == 0) return [];
+        var on = new List<DisplayRect>(pins.Count);
+        foreach (DisplayRect p in pins)
+            if (FocusGeometry.Intersect(p, bounds) is { Width: > 0, Height: > 0 })
+                on.Add(new DisplayRect(p.Left - grow, p.Top - grow, p.Right + grow, p.Bottom + grow));
+        return on.Count == 0 ? [] : [.. on];
+    }
+
     private static void SetRegion(nint window, DisplayInfo display, DisplayRect area,
-                                  DisplayRect? hole, DisplayRect? second, DisplayRect? third, int bleedDip)
+                                  DisplayRect? hole, DisplayRect? second, DisplayRect? third, int bleedDip,
+                                  DisplayRect[] pinned)
     {
         DisplayRect bounds = display.Bounds;
         nint region = CreateRectRgn(area.Left - bounds.Left, area.Top - bounds.Top, area.Right - bounds.Left, area.Bottom - bounds.Top);
@@ -1257,6 +1400,8 @@ internal sealed unsafe partial class FocusService : IDisposable
         if (hole is { } first) Cut(first);
         if (second is { } other && other != hole) Cut(other);
         if (third is { } bar && bar != hole && bar != second) Cut(bar);
+        foreach (DisplayRect p in pinned)
+            if (p != hole && p != second && p != third) Cut(p);
         // Windows owns the region only after a successful SetWindowRgn.
         if (SetWindowRgn(window, region, 1) == 0) { DeleteObject(region); throw new InvalidOperationException("Cannot update focus region."); }
     }
@@ -1280,6 +1425,7 @@ internal sealed unsafe partial class FocusService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        Placement.PinService.Changed -= PinsChanged;
         if (_control != 0) PostMessage(_control, 0x10, 0, 0);
         _thread.Join();
         Power.DisplaysOffBacklight.Restore(wait: true);

@@ -18,6 +18,8 @@ internal static class UnisonWriter
         bool changed = false;
         foreach (DisplayInfo d in displays)
         {
+            // Left out of unison: its brightness is its own.
+            if (!settings.For(d.Token).InUnison) continue;
             BrightnessRange range = Brightness.Read(d);
             if (!range.Supported) continue;
             MonitorSettings m = settings.For(d.Token);

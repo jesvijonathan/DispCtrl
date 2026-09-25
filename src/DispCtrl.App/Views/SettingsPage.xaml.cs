@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json.Nodes;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -15,11 +14,49 @@ public sealed partial class SettingsPage : Page
     public SettingsPage()
     {
         InitializeComponent();
-        string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
-        UpdateCard.Header = $"Updates (this is {version})";
     }
 
-    private void OnCheckUpdates(object sender, RoutedEventArgs e) => ProjectLinks.Open(ProjectLinks.Releases);
+    /// <summary>A click is somebody asking, so this one check reaches GitHub whether or not the daily one is on.</summary>
+    /// <remarks>
+    /// A Store install opens the Store's updates page instead; a check that gets
+    /// no answer falls back to the releases page, as the button always did.
+    /// </remarks>
+    private async void OnCheckUpdates(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (ViewModel.UpdatesFromStore) { ProjectLinks.Open("ms-windows-store://downloadsandupdates"); return; }
+            if (!await ViewModel.CheckForUpdatesAsync(automatic: false)) ProjectLinks.Open(ProjectLinks.Releases);
+        }
+        catch (Exception) { ProjectLinks.Open(ProjectLinks.Releases); }
+    }
+
+    private void OnDownloadUpdate(object sender, RoutedEventArgs e) => ProjectLinks.Open(ViewModel.UpdateUrl);
+
+    private void OnSkipUpdate(object sender, RoutedEventArgs e) => ViewModel.SkipUpdate();
+
+    private async void OnAllowDdc(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not BlockedMonitor monitor) return;
+        try
+        {
+            var confirm = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = $"Talk to {monitor.Name} over DDC/CI again?",
+                Content = new TextBlock
+                {
+                    TextWrapping = TextWrapping.Wrap,
+                    Text = "If this monitor caused the crash, the next capabilities read may crash Windows again. Allow it only if the crash had another explanation.",
+                },
+                PrimaryButtonText = "Allow again",
+                CloseButtonText = "Keep it blocked",
+                DefaultButton = ContentDialogButton.Close,
+            };
+            if (await confirm.ShowAsync() == ContentDialogResult.Primary) await ViewModel.AllowDdcAsync(monitor);
+        }
+        catch (Exception ex) { Say("Could not allow it: " + ex.Message, InfoBarSeverity.Error); }
+    }
 
     /// <summary>The same steps as <c>dispctrl maintenance repair</c>, then an engine restart.</summary>
     private async void OnRepair(object sender, RoutedEventArgs e)

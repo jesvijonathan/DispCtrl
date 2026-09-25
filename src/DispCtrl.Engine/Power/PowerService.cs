@@ -207,8 +207,8 @@ internal sealed partial class PowerService : IDisposable
     /// Only when idle: a person using the mouse needs no help, and a nudge under
     /// their hand would be felt. There and back in one call, so the pointer ends
     /// where it was and no program sees it move. The nudge is real input, so
-    /// everything that waits for inactivity - OLED idle dimming, monitor sleep -
-    /// waits while this is on; that is what staying active means.
+    /// Windows' own idle timers and monitor sleep wait while this is on. OLED
+    /// idle care does not (<c>PersonIdle</c>): it once did, and never came at all.
     /// </remarks>
     private unsafe void StayActive(uint idleMs)
     {

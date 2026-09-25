@@ -179,6 +179,9 @@ internal sealed class WindowsBrightnessBridge : IDisposable
 
             var displays = DisplayRegistry.Enumerate();
             DisplayInfo? panel = displays.FirstOrDefault(d => d.IsInternal);
+            // The built-in panel left out of unison: Windows' slider is its own
+            // again, and moves nothing else.
+            if (panel is not null && !settings.For(panel.Token).InUnison) return;
             bool calibrated = settings.Global.UnisonCalibrated;
             MonitorSettings reference = Reference(panel is null ? null : settings.For(panel.Token));
 
@@ -210,7 +213,7 @@ internal sealed class WindowsBrightnessBridge : IDisposable
             foreach (DisplayInfo display in displays)
             {
                 if (_disposed || UnisonCalibration.IsActive || Volatile.Read(ref _pending) >= 0) break;
-                if (display.IsInternal) continue;
+                if (display.IsInternal || !settings.For(display.Token).InUnison) continue;
                 if (MoveTo(display, settings.For(display.Token), settings.Global.UnisonCalibrated, level)) moved++;
             }
 
@@ -256,7 +259,7 @@ internal sealed class WindowsBrightnessBridge : IDisposable
             if (!Wanted(settings)) return;
             List<DisplayInfo> displays = DisplayRegistry.Enumerate();
             DisplayInfo? panel = displays.FirstOrDefault(d => d.IsInternal);
-            if (panel is null) return;
+            if (panel is null || !settings.For(panel.Token).InUnison) return;
             // Alone, the range only fought the keys: the calibrated limits
             // exist to match the panel to the others, and there are none. The
             // level is still followed above, so a monitor plugged in later

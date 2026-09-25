@@ -21,6 +21,8 @@ dispctrl taskbar set --opacity 0 --dry-run
 dispctrl taskbar set --monitor office --hide on --reclaim-space on --dry-run
 dispctrl unison set --enabled on --level 50 --follow-windows on --dry-run
 dispctrl oled set --monitor 1 --wake pointer-return
+dispctrl oled set --per-display-activity on --excluded-apps "vlc.exe, mpv.exe"
+dispctrl focus set --keep-clear both
 dispctrl tray set --animate off
 dispctrl tray show
 dispctrl startup get
@@ -55,10 +57,13 @@ Open GitHub issue; submission always happens in the browser.
 | Discovery | `status`, `diagnostics`, `commands`, `displays list`, `display get`, `display modes`, `display capabilities` |
 | Windows displays | `topology get/set`; `display set` resolution, refresh, orientation, primary, x/y, scale, HDR, wallpaper |
 | Monitor hardware | brightness, contrast, volume, sharpness, red/green/blue gain, colour preset, input, power, explicit `--vcp-code`/`--vcp-value`; capabilities gate writes |
-| Shared policies | `focus`, `oled`, `awake`, `nightlight`, `taskbar`, `tray` each support `get/set/reset` |
-| Unison | `unison get/set`: enabled, level, calibrated, follow-windows |
+| Shared policies | `focus`, `oled`, `awake`, `nightlight`, `taskbar`, `tray`, `pin`, `placement` each support `get/set/reset` |
+| Unison | `unison get/set`: enabled, level, calibrated, follow-windows; per display `--include on\|off`, `--floor`, `--ceiling` |
+| Windows on top | `pin list`, `pin on\|off\|toggle --window W` (a handle from `pin list`, an app's name or part of a title; the window in front without it), `pin off --all`; border and dimming options through `pin set` |
+| Moving windows | `placement gather --to N\|active [--from N]`, `placement move --window W --to N\|active`; putting windows back and new-window placement through `placement set` |
+| DDC/CI crash guard and probe | `ddc get`, `ddc set --guard on\|off`, `ddc allow --monitor ID\|--model KEY`, `ddc probe --monitor ID [--save\|--clear]` |
 | Ambient light | `ambient get/set/reset`, `ambient capture --as dark\|bright`, `ambient forget` |
-| Windows preferences | auto-hide, transparency, small buttons, alignment, combining, task view, widgets, badges, flashing, desktop corner, VRR, adaptive brightness, auto-rotation, dark mode |
+| Windows preferences | auto-hide, transparency, small buttons, alignment, combining, task view, widgets, badges, flashing, desktop corner, VRR, adaptive brightness, auto-rotation, dark mode, remember window locations, minimize on disconnect |
 | Startup | `startup get/set`: engine, start-menu, desktop; packaged startup uses the Windows startup task |
 | Toolkit | `tray show`; all composition, density, animation and custom-tile settings via `tray`/`settings` |
 | Complete saved state | `settings get/set/reset/schema/validate/import/export`, including hotkeys, monitor sleep, per-monitor OLED stage behaviour and custom scripts |
@@ -90,7 +95,28 @@ dispctrl devices probe --monitor 2
 dispctrl devices map --monitor 2 --code 0xE2 --name "Preset mode" --values "0x00=Standard,0x0B=ComfortView"
 dispctrl windows set --wallpaper-fit fill
 dispctrl unison set --monitor 2 --floor 20 --ceiling 80
+dispctrl unison set --monitor 2 --include off
+dispctrl pin on --window notepad
+dispctrl pin set --border-colour "#FF8C00" --border-thickness 4 --clear-in-oled-care on
+dispctrl pin set --step-aside-for-fullscreen off
+dispctrl placement gather --to 1
+dispctrl placement set --return-windows on --new-windows-on-active on --active pointer
+dispctrl nightlight set --scheduled on --from 20:00 --to 07:00 --dark-mode-on-schedule on
+dispctrl tray set --tray-wheel all --wheel-step 5
+dispctrl ddc probe --monitor 2
+dispctrl update check
+dispctrl update set --check-automatically on
 ```
+
+Pinning and moving act on other programs' windows directly, so they work with
+the engine stopped; the engine adds the border around a pinned window and finds
+pins made anywhere by their window property. A window running as administrator
+cannot be pinned or moved by DispCtrl, which never runs elevated, and says so.
+`placement set --return-windows on` switches Windows' own "remember window
+locations" off, because the two would move the same windows, and switching it
+off hands Windows' back. `ddc probe` reads only; `--save` makes the codes that
+answered stand in for a missing capabilities string, still behind the allow
+list, and `--clear` forgets them.
 
 ## Monitor controls
 

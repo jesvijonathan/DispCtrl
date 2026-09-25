@@ -2,6 +2,7 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:views="using:DispCtrl.App.Views"
+      xmlns:vm="using:DispCtrl.App.ViewModels"
       xmlns:tk="using:CommunityToolkit.WinUI.Controls">
 
   <ScrollViewer Padding="0,0,0,32">
@@ -24,6 +25,52 @@
 
       <views:StartupSettings/>
 
+      <TextBlock Text="Monitors"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,8"/>
+
+      <!-- Power Display's crash guard. Here rather than on each display: the
+           guard is DispCtrl's, and a blocked monitor may not even be attached. -->
+      <tk:SettingsExpander Header="Guard against the DDC/CI crash"
+                           Description="{x:Bind ViewModel.DdcGuardSummary, Mode=OneWay}">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE83D;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.DdcGuardEnabled, Mode=TwoWay}" AutomationProperties.Name="DdcGuardEnabled"/>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="What it does"
+                           Description="A monitor with a malformed capabilities string can trigger a Windows bug that crashes the computer when it is read. If Windows goes down during a read, DispCtrl stops talking to that monitor over DDC/CI until you allow it again, and its brightness falls back to software dimming."/>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch"
+                           Header="Blocked monitors"
+                           Visibility="{x:Bind ViewModel.BlockedMonitorsVisibility, Mode=OneWay}">
+            <ItemsControl ItemsSource="{x:Bind ViewModel.BlockedMonitors}" Margin="0,4,0,8">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="8"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:BlockedMonitor">
+                  <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Text="{x:Bind Name}"/>
+                      <TextBlock Text="{x:Bind Reason}" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Allow again" Click="OnAllowDdc" Tag="{x:Bind}" VerticalAlignment="Center"
+                            AutomationProperties.Name="{x:Bind AutomationName}"/>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
       <TextBlock Text="Diagnostics"
                  Style="{StaticResource BodyStrongTextBlockStyle}"
                  Margin="0,28,0,8"/>
@@ -42,12 +89,33 @@
 
       <InfoBar x:Name="MaintenanceResult" IsOpen="False" IsClosable="True" Margin="0,0,0,8"/>
 
+      <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Margin="0,0,0,8"
+               Visibility="{x:Bind ViewModel.UpdateAvailableVisibility, Mode=OneWay}"
+               Title="A new version is available"
+               Message="{x:Bind ViewModel.UpdateAvailableText, Mode=OneWay}">
+        <!-- ActionButton takes a single button; two go in the content. -->
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
+          <Button Content="Download" Click="OnDownloadUpdate" Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="DownloadUpdate"/>
+          <Button Content="Not now" Click="OnSkipUpdate" AutomationProperties.Name="SkipUpdate"/>
+        </StackPanel>
+      </InfoBar>
+
       <tk:SettingsCard x:Name="UpdateCard" Header="Updates"
-                       Description="DispCtrl never checks by itself. Download the latest release and run it: it updates in place and keeps your settings.">
+                       Description="{x:Bind ViewModel.UpdateDescription, Mode=OneWay}">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE895;"/>
         </tk:SettingsCard.HeaderIcon>
-        <Button Content="Check for updates" Click="OnCheckUpdates" AutomationProperties.Name="CheckForUpdates"/>
+        <Button Content="Check for updates" Click="OnCheckUpdates" IsEnabled="{x:Bind ViewModel.UpdateCheckReady, Mode=OneWay}"
+                AutomationProperties.Name="CheckForUpdates"/>
+      </tk:SettingsCard>
+
+      <tk:SettingsCard Header="Check for updates automatically"
+                       Visibility="{x:Bind ViewModel.UpdateSwitchVisibility}"
+                       Description="Once a day, DispCtrl asks GitHub for the newest release's version number and tells you when there is one. Nothing about you or your desk is sent, and nothing downloads or installs by itself. Off until you switch it on.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE895;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.CheckUpdatesAutomatically, Mode=TwoWay}" AutomationProperties.Name="CheckUpdatesAutomatically"/>
       </tk:SettingsCard>
 
       <tk:SettingsCard Header="Repair"

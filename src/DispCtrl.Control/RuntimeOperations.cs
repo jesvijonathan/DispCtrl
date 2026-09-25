@@ -52,9 +52,16 @@ public sealed partial class ControlService
     {
         var settings = SettingsStore.Load();
         var global = settings.Global;
-        if (action == "get") return new JsonObject { ["enabled"] = global.UnisonBrightness,
-            ["level"] = global.UnisonLevel, ["calibrated"] = global.UnisonCalibrated, ["followWindows"] = global.UnisonFollowsWindows,
-            ["calibrating"] = UnisonCalibration.IsActive };
+        if (action == "get")
+        {
+            var displays = new JsonArray();
+            int number = 0;
+            foreach (var d in Resolve(null))
+                displays.Add((JsonNode)new JsonObject { ["number"] = ++number, ["name"] = d.Label, ["inUnison"] = settings.For(d.Token).InUnison });
+            return new JsonObject { ["enabled"] = global.UnisonBrightness,
+                ["level"] = global.UnisonLevel, ["calibrated"] = global.UnisonCalibrated, ["followWindows"] = global.UnisonFollowsWindows,
+                ["calibrating"] = UnisonCalibration.IsActive, ["displays"] = displays };
+        }
         if (UnisonCalibration.IsActive) throw new InvalidOperationException("Finish or cancel brightness calibration before applying Unison.");
         foreach (var pair in args)
         {
@@ -64,7 +71,7 @@ public sealed partial class ControlService
                 case "level": global.UnisonLevel = Integer(args, pair.Key, 0, 100); break;
                 case "calibrated": global.UnisonCalibrated = Flag(args, pair.Key); break;
                 case "followWindows": global.UnisonFollowsWindows = Flag(args, pair.Key); break;
-                case "monitor" or "floor" or "ceiling": break;
+                case "monitor" or "floor" or "ceiling" or "include": break;
                 case "dryRun": break;
                 default: throw new ArgumentException("Unknown Unison option: " + pair.Key);
             }
@@ -72,20 +79,25 @@ public sealed partial class ControlService
         if (!args.Any(p => p.Key != "dryRun")) throw new ArgumentException("Provide a Unison setting to change.");
 
         // A display's calibrated limits: what the walkthrough captures, set outright.
-        if (args.ContainsKey("floor") || args.ContainsKey("ceiling"))
+        bool perDisplay = args.ContainsKey("floor") || args.ContainsKey("ceiling") || args.ContainsKey("include");
+        if (perDisplay)
         {
-            var target = Resolve(Text(args, "monitor") ?? throw new ArgumentException("--floor and --ceiling are per display: add --monitor."), false).Single();
+            var target = Resolve(Text(args, "monitor") ?? throw new ArgumentException("--floor, --ceiling and --include are per display: add --monitor."), false).Single();
             MonitorSettings limits = settings.For(target.Token);
             if (args.ContainsKey("floor")) limits.BrightnessFloor = Integer(args, "floor", 0, 99);
             if (args.ContainsKey("ceiling")) limits.BrightnessCeiling = Integer(args, "ceiling", 1, 100);
-            if (!limits.HasBrightnessRange) throw new ArgumentException("The ceiling must be above the floor.");
+            if ((args.ContainsKey("floor") || args.ContainsKey("ceiling")) && !limits.HasBrightnessRange) throw new ArgumentException("The ceiling must be above the floor.");
+            // Left out, a display keeps whatever brightness it has; back in, it
+            // goes to where unison puts it, below.
+            if (args.ContainsKey("include")) limits.InUnison = Flag(args, "include");
         }
-        else if (args.ContainsKey("monitor")) throw new ArgumentException("--monitor goes with --floor and --ceiling.");
+        else if (args.ContainsKey("monitor")) throw new ArgumentException("--monitor goes with --floor, --ceiling and --include.");
         var steps = new List<Step>();
         if (global.UnisonBrightness)
         {
             foreach (var d in Resolve(null))
             {
+                if (!settings.For(d.Token).InUnison) continue;
                 var read = Brightness.Read(d);
                 if (!read.Supported) continue;
                 var monitor = settings.For(d.Token);

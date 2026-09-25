@@ -35,6 +35,16 @@ internal sealed class TrayIconService : IDisposable
 
     private const nuint ActiveCheckTimer = 1;
 
+    /// <summary>Posted by the wheel, from its worker, to show a new level in the icon's tooltip.</summary>
+    private const uint TipMessage = PInvoke.WM_APP + 1;
+
+    /// <summary>Brightness from the mouse wheel over the icon, when switched on.</summary>
+    private TrayWheel? _wheel;
+
+    /// <summary>What the tooltip says; empty for the usual line.</summary>
+    private volatile string _tipText = "";
+    private const string DefaultTip = "DispCtrl - brightness and displays";
+
     private readonly Lock _gate = new();
     private readonly Action<DispCtrlSettings> _persist;
 
@@ -136,6 +146,13 @@ internal sealed class TrayIconService : IDisposable
                 return;
             }
 
+            nint self = (nint)_window.Value;
+            _wheel = new TrayWheel(self, () => { lock (_gate) return _settings; }, _persist, text =>
+            {
+                _tipText = text;
+                _ = PInvoke.PostMessage(_window, TipMessage, default, default);
+            });
+
             Redraw();
             Apply();
 
@@ -156,6 +173,8 @@ internal sealed class TrayIconService : IDisposable
         }
         finally
         {
+            _wheel?.Dispose();
+            _wheel = null;
             Remove();
             if (!_icon.IsNull) { PInvoke.DestroyIcon(_icon); _icon = default; }
             if (!_window.IsNull) { PInvoke.DestroyWindow(_window); _window = default; }
@@ -313,8 +332,10 @@ internal sealed class TrayIconService : IDisposable
         data.uCallbackMessage = TrayCallback;
 
         // What the icon is for, not what it is called: the name alone would
-        // tell somebody hovering nothing they did not already know.
-        data.szTip = "DispCtrl - brightness and displays";
+        // tell somebody hovering nothing they did not already know. While the
+        // wheel is moving brightness, the level it has reached.
+        string tip = _tipText;
+        data.szTip = tip.Length > 0 ? tip : DefaultTip;
 
         return data;
     }
@@ -420,8 +441,18 @@ internal sealed class TrayIconService : IDisposable
             // change. Neither is filtered by its details: Redraw compares what
             // the icon depends on and does nothing when none of it moved.
             case PInvoke.WM_TIMER:
+                if (_wheel?.Timer((nuint)wParam.Value) == true)
+                {
+                    // Off the icon: the tooltip says what the icon is again.
+                    if (_tipText.Length > 0 && !_wheel.Watching) { _tipText = ""; if (_shown) _ = PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_MODIFY, Data()); }
+                    return new LRESULT(0);
+                }
                 Redraw();
                 break;
+
+            case TipMessage:
+                if (_shown) _ = PInvoke.Shell_NotifyIcon(NOTIFY_ICON_MESSAGE.NIM_MODIFY, Data());
+                return new LRESULT(0);
 
             case PInvoke.WM_SETTINGCHANGE:
             case PInvoke.WM_DISPLAYCHANGE:
@@ -456,6 +487,10 @@ internal sealed class TrayIconService : IDisposable
             case PInvoke.WM_RBUTTONUP:
             case PInvoke.WM_CONTEXTMENU:
                 ShowMenu();
+                break;
+
+            case 0x0200: // WM_MOUSEMOVE: the pointer is over the icon
+                _wheel?.PointerOver();
                 break;
         }
     }

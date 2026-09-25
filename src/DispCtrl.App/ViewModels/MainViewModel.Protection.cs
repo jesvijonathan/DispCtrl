@@ -13,7 +13,6 @@ public sealed partial class MainViewModel
     public double FocusFade { get => Focus.FadeMs; set { int v = Number(value, 0, 2000); if (Focus.FadeMs == v) return; Focus.FadeMs = v; SaveProtection(); } }
     public bool FocusOledOnly { get => Focus.OledOnly; set { if (Focus.OledOnly == value) return; Focus.OledOnly = value; SaveProtection(); } }
     public bool FocusPerMonitor { get => Focus.PerMonitorFocus; set { if (Focus.PerMonitorFocus == value) return; Focus.PerMonitorFocus = value; SaveProtection(); } }
-    public bool FocusKeepHoveredClear { get => Focus.KeepHoveredClear; set { if (Focus.KeepHoveredClear == value) return; Focus.KeepHoveredClear = value; SaveProtection(); } }
 
     public string[] WindowTransitions { get; } = ["None", "Fade the brightness", "Slide the shape"];
 
@@ -42,7 +41,6 @@ public sealed partial class MainViewModel
         }
     }
     public bool FocusScaleWithBrightness { get => Focus.ScaleWithBrightness; set { if (Focus.ScaleWithBrightness == value) return; Focus.ScaleWithBrightness = value; SaveProtection(); } }
-    public bool FocusFollowMouse { get => Focus.FollowMouse; set { if (Focus.FollowMouse == value) return; Focus.FollowMouse = value; SaveProtection(); } }
     public bool FocusPrioritizeNewWindows { get => Focus.PrioritizeNewWindows; set { if (Focus.PrioritizeNewWindows == value) return; Focus.PrioritizeNewWindows = value; SaveProtection(); } }
     public bool FocusOtherMonitors { get => Focus.DimOtherMonitors; set { if (Focus.DimOtherMonitors == value) return; Focus.DimOtherMonitors = value; SaveProtection(); } }
     public bool FocusPauseFullscreen { get => Focus.PauseFullscreen; set { if (Focus.PauseFullscreen == value) return; Focus.PauseFullscreen = value; SaveProtection(); } }
@@ -313,13 +311,13 @@ public sealed partial class MainViewModel
     private void RaiseProtectionSettings()
     {
         foreach (string name in new[] { nameof(FocusEnabled), nameof(FocusDim), nameof(FocusDelay), nameof(FocusFade),
-            nameof(FocusOledOnly), nameof(WindowTransition), nameof(FocusPerMonitor), nameof(FocusKeepHoveredClear), nameof(FocusScaleWithBrightness), nameof(FocusFollowMouse), nameof(FocusPrioritizeNewWindows), nameof(FocusOtherMonitors), nameof(FocusPauseFullscreen), nameof(FocusKeepTaskbar),
+            nameof(FocusOledOnly), nameof(WindowTransition), nameof(FocusPerMonitor), nameof(FocusScaleWithBrightness), nameof(FocusPrioritizeNewWindows), nameof(FocusOtherMonitors), nameof(FocusPauseFullscreen), nameof(FocusKeepTaskbar),
             nameof(FocusExcludedApps), nameof(OledIdleEnabled), nameof(OledIdleMinutes), nameof(OledIdleDim), nameof(OledSecondStageVisibility),
             nameof(OledSecondStageEnabled), nameof(OledSecondStageMinutes), nameof(OledSecondStageDim), nameof(OledIdleFade),
             nameof(OledPauseFullscreen), nameof(TaskbarOpacity), nameof(WindowsTransparency),
             nameof(SmallTaskbarButtons), nameof(TaskbarAlignment), nameof(TaskbarCombineButtons), nameof(OtherTaskbarCombineButtons),
             nameof(TaskbarShowTaskView), nameof(TaskbarShowWidgets), nameof(TaskbarShowBadges), nameof(TaskbarAllowFlashing),
             nameof(TaskbarShowDesktopCorner), nameof(TaskbarGlassEnabled), nameof(TaskbarGlassRadius), nameof(TaskbarGlassTint), nameof(TaskbarGlassStatus), nameof(TaskbarGlassRestartVisibility), nameof(AppearanceStatus), nameof(ProtectionStatus),
-            nameof(OledCoverage) }) Raise(name);
+            nameof(OledCoverage), nameof(FocusClearIndex), nameof(OledPerDisplayActivity), nameof(OledExcludedApps) }) Raise(name);
     }
 }

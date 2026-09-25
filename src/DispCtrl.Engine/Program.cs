@@ -119,7 +119,9 @@ internal static class Program
                                                    Protection.FocusService focus, PowerService power,
                                                    Shell.TrayIconService tray,
                                                    Color.WindowsBrightnessBridge brightnessBridge,
-                                                   Color.AmbientSync ambient)
+                                                   Color.AmbientSync ambient,
+                                                   Placement.PinService pins,
+                                                   Placement.PlacementService placement)
     {
         Directory.CreateDirectory(SettingsStore.Directory);
 
@@ -146,6 +148,8 @@ internal static class Program
                     tray.Update(reloaded);
                     brightnessBridge.Update(reloaded);
                     ambient.Update(reloaded);
+                    pins.Update(reloaded);
+                    placement.Update(reloaded);
                 }
                 catch (Exception ex)
                 {
@@ -410,6 +414,38 @@ internal static class Program
             Log.Write("startup: window opened at sign-in");
     }
 
+    /// <summary>
+    /// Stamps monitors as seen now: arriving, leaving, or attached at start.
+    /// </summary>
+    /// <remarks>
+    /// So a list of every monitor can put the ones used lately first. Off the
+    /// caller's thread, and only a stamp more than a minute old is rewritten,
+    /// so a cable wobbling in and out writes the file once.
+    /// </remarks>
+    private static void RecordSeen(IEnumerable<string> tokens)
+    {
+        string[] seen = tokens.Distinct(StringComparer.Ordinal).ToArray();
+        if (seen.Length == 0) return;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                DispCtrlSettings settings = SettingsStore.Load();
+                DateTimeOffset now = DateTimeOffset.UtcNow;
+                bool changed = false;
+                foreach (string token in seen)
+                {
+                    MonitorSettings monitor = settings.For(token);
+                    if (monitor.LastSeenUtc is { } last && now - last < TimeSpan.FromMinutes(1)) continue;
+                    monitor.LastSeenUtc = now;
+                    changed = true;
+                }
+                if (changed) SettingsStore.Save(settings);
+            }
+            catch (Exception ex) { Log.Write($"displays: could not record when monitors were seen: {ex.Message}"); }
+        });
+    }
+
     private static int Run(TimeSpan? duration, bool trace, bool signIn = false)
     {
         // One engine at a time. A second launch exits quietly rather than
@@ -444,7 +480,18 @@ internal static class Program
         Phase("broker");
         DispCtrlSettings settings = SettingsStore.Load();
         Log.Configure(settings.Global.Logging, echo: true);
+        // A newer DispCtrl's settings: what this build could not read is left
+        // out here and kept in the file. Logged even in stable builds, since a
+        // shortcut that seems to have vanished is explained by this line alone.
+        if (SettingsStore.SetAside.Count > 0)
+            Log.Write($"settings: {SettingsStore.SetAside.Count} value(s) from a newer DispCtrl left out, kept in the file: {string.Join(", ", SettingsStore.SetAside)}");
         Phase("settings");
+
+        // Before anything reads a monitor: a capabilities read that never came
+        // back last boot blocks that monitor now, not after the display report
+        // has read it again. Nearly always an empty folder.
+        foreach (DdcBlock blocked in DdcGuard.Recover())
+            Log.Write($"ddc guard: Windows went down while {blocked.Label} ({blocked.Model}) was being read; DDC/CI to it is off until allowed again");
 
         // The broker is useful even with every policy off: clients can enable
         // features later without a second launch. No-argument startup also
@@ -533,6 +580,8 @@ internal static class Program
             // First, so every service below can hear a display arriving or
             // leaving from the moment it exists.
             List<DisplayInfo> attached = Color.DisplayChanges.Start();
+            RecordSeen(attached.Select(d => d.Token));
+            Color.DisplayChanges.Settled += change => RecordSeen(change.Arrived.Select(d => d.Token).Concat(change.Departed));
             Phase("displays");
 
             using var nightLight = new NightLightService(settings);
@@ -558,6 +607,11 @@ internal static class Program
             Phase("focus");
             using var power = new PowerService(settings);
             Phase("power");
+            // Like focus: always there, asleep until something is pinned or a
+            // placement option is on, so switching either on needs no restart.
+            using var pins = new Placement.PinService(settings);
+            using var placement = new Placement.PlacementService(settings);
+            Phase("windows");
 
             // The notification area icon, and with it the quick panel. Like the
             // service above it has to exist before the feature is switched on,
@@ -579,7 +633,7 @@ internal static class Program
             using var ambient = new Color.AmbientSync(settings);
             Phase("ambient");
 
-            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys, focus, power, tray, brightnessBridge, ambient);
+            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys, focus, power, tray, brightnessBridge, ambient, pins, placement);
             // One line per start (beta and test), so a slow phase shows in the log and not only in perfcheck.
             if (DispCtrl.Core.BuildInfo.Diagnostics)
                 using (var self = System.Diagnostics.Process.GetCurrentProcess())

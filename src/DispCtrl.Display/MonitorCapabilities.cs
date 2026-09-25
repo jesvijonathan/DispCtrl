@@ -2,6 +2,7 @@ using System.Text;
 using System.Diagnostics;
 using DispCtrl.Core.Caching;
 using DispCtrl.Core.Displays;
+using DispCtrl.Core.Settings;
 using Windows.Win32;
 using Windows.Win32.Devices.Display;
 using Windows.Win32.Foundation;
@@ -395,7 +396,7 @@ public static class MonitorCapabilities
             (VcpControl.IsAllowed(control.Code) && control.Code != 0x10)
             || control.Code is 0xB6 or 0xC9 or 0xC0 or 0xC8).ToList();
         ReadCurrentValues(display, visible, useCache: true);
-        Devices.DeviceObserver.Listed(display, raw, visible);
+        if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, visible);
         return result;
     }
 
@@ -417,7 +418,7 @@ public static class MonitorCapabilities
         if (!readValues || parsed.Controls.Count == 0) return parsed;
 
         ReadCurrentValues(display, parsed.Controls);
-        Devices.DeviceObserver.Listed(display, raw, parsed.Controls);
+        if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, parsed.Controls);
         return parsed;
     }
 
@@ -458,7 +459,7 @@ public static class MonitorCapabilities
             if (c.Code != 0x10 && c.Kind != VcpKind.Information && VcpControl.Settables.Contains(c.Code)) wanted.Add(c);
 
         if (wanted.Count > 0) ReadCurrentValues(display, wanted, useCache);
-        Devices.DeviceObserver.Listed(display, raw, wanted);
+        if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, wanted);
 
         return parsed;
     }
@@ -509,7 +510,94 @@ public static class MonitorCapabilities
             if (attempt < Attempts) Thread.Sleep(RetryMs);
         }
 
+        // No string at all, but a probe found what the monitor answers: stand
+        // one in, built from those codes alone. Cached like a real one; Rescan
+        // forgets it and asks the monitor properly again.
+        if (ProbedString(display) is { } probed)
+        {
+            Strings[display.Key.DevicePath] = probed;
+            return probed;
+        }
+
         return null;
+    }
+
+    /// <summary>What a stand-in built from probed codes calls itself, so it is never mistaken for the monitor's own.</summary>
+    private const string ProbedType = "type(probed)";
+
+    /// <summary>Whether a capabilities string is DispCtrl's stand-in rather than the monitor's own.</summary>
+    /// <remarks>Never recorded in the device library: it describes what answered here, not what the model says.</remarks>
+    public static bool IsProbed(string? raw) => raw is not null && raw.Contains(ProbedType, StringComparison.Ordinal);
+
+    private static string? ProbedString(DisplayInfo display)
+    {
+        try
+        {
+            if (SettingsStore.Load().Monitors.TryGetValue(display.Token, out Core.Settings.MonitorSettings? monitor)
+                && monitor.ProbedCodes is { Count: > 0 } codes)
+            {
+                var valid = codes.Where(c => c.Length == 2 && byte.TryParse(c, System.Globalization.NumberStyles.HexNumber, null, out _));
+                return $"({ProbedType}vcp({string.Join(' ', valid)}))";
+            }
+        }
+        catch (Exception) { }
+        return null;
+    }
+
+    /// <summary>One code a monitor answered during a probe.</summary>
+    public sealed record ProbeAnswer(byte Code, string Name, VcpKind Kind, int Current, int Maximum)
+    {
+        public string Hex => $"0x{Code:X2}";
+    }
+
+    /// <summary>
+    /// Codes never read by a probe: the ones MCCS defines as commands. A read
+    /// of one does nothing on a monitor that follows the standard; a probe is
+    /// for the monitors that do not.
+    /// </summary>
+    private static readonly HashSet<byte> ProbeSkips = [0x01, 0x02, 0x04, 0x05, 0x06, 0x08, 0x0A, 0x0B, 0x1E, 0x1F, 0xB0];
+
+    /// <summary>
+    /// Asks a monitor, one read at a time, which of the codes DispCtrl knows it
+    /// answers - for a monitor whose capabilities string is missing or broken.
+    /// </summary>
+    /// <remarks>
+    /// Read-only, unlike Power Display's compatibility mode, which can change
+    /// brightness, contrast or the input as it goes: nothing is written here,
+    /// and what it finds is used only through the allow list and the rule that a
+    /// discrete control's reading must be one of its values. A continuous code
+    /// answering with a maximum of zero or 0xFFFF is a monitor claiming what it
+    /// does not implement, and is left out. About four seconds: the protocol's 40 ms
+    /// between messages, and a short timeout on each code that is not there.
+    /// </remarks>
+    public static IReadOnlyList<ProbeAnswer> Probe(DisplayInfo display)
+    {
+        if (display.IsInternal) return [];
+        var answers = new List<ProbeAnswer>();
+        _ = DdcChannel.With(display, handle =>
+        {
+            bool first = true;
+            foreach ((byte code, (string name, VcpKind kind)) in Known.OrderBy(k => k.Key))
+            {
+                if (ProbeSkips.Contains(code)) continue;
+                if (!first) Thread.Sleep(InterMessageMs);
+                first = false;
+                uint current = 0, maximum = 0;
+                MC_VCP_CODE_TYPE type = default;
+                unsafe
+                {
+                    if (PInvoke.GetVCPFeatureAndVCPFeatureReply(handle, code, &type, &current, &maximum) == 0) continue;
+                }
+                // A maximum of 0, or the 0xFFFF filler, is a monitor answering a
+                // code it does not implement: this Dell answers black levels,
+                // gamma and colour temperature that way. Offered, they would be
+                // sliders writing into nothing.
+                if (kind == VcpKind.Continuous && (maximum == 0 || maximum >= 0xFFFF)) continue;
+                answers.Add(new ProbeAnswer(code, name, kind, (int)current, (int)maximum));
+            }
+            return true;
+        }, false, risky: true);
+        return answers;
     }
 
     /// <summary>How many times a capabilities read is attempted before giving up.</summary>
@@ -552,7 +640,7 @@ public static class MonitorCapabilities
             // ASCII by specification, and treating it as such avoids a stray
             // high byte from a chatty monitor throwing mid-decode.
             return Encoding.ASCII.GetString(buffer, 0, end);
-        }, null);
+        }, null, risky: true);
 
     private static unsafe void ReadCurrentValues(DisplayInfo display, IReadOnlyList<VcpControl> controls, bool useCache = false)
     {

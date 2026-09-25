@@ -95,6 +95,7 @@ internal sealed class UnisonHotplug : IDisposable
             {
                 if (_disposed || Volatile.Read(ref _generation) != generation) return;
                 MonitorSettings monitor = settings.For(display.Token);
+                if (!monitor.InUnison) continue;
                 if (!monitor.HasBrightnessRange && monitor.BrightnessBaseline <= 0) continue;
                 // Read again at the moment of writing: the level may have moved
                 // while this waited, from a key on the laptop alone, say.

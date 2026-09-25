@@ -515,27 +515,29 @@ public sealed partial class ArrangeCanvas : UserControl
     private async Task LoadTileWallpaperAsync(Tile tile)
     {
         WallpaperStamp? previous = tile.WallpaperSignature;
-        // The path Windows reports first, then Windows' own decoded copy: the
-        // reported file can be gone (deleted or moved after it was set), online
-        // only, or a format this decoder cannot read (HEIC, WebP), and on one
-        // laptop the preview stayed empty for exactly that.
-        foreach (bool transcoded in new[] { false, true })
+        // Every picture of this display's wallpaper, best first: the file
+        // Windows reports can be gone, online only, or undecodable, and
+        // Windows' own decoded copy is next (Wallpaper.PreviewSources).
+        List<string> sources;
+        try { sources = await Task.Run(() => Wallpaper.PreviewSources(tile.Display)); }
+        catch (Exception) { sources = []; }
+        foreach (string path in sources)
         {
             try
             {
-                var snapshot = await Task.Run(() => ReadWallpaper(tile.Display, previous, transcoded));
+                var snapshot = await Task.Run(() => OpenWallpaper(path, previous));
                 using var file = snapshot.Stream;
                 if (!WallpapersActive || !_tiles.Contains(tile)) return;
                 if (snapshot.Stamp is not null && snapshot.Stamp == previous) return;
                 if (file is null) continue;
-                // Known not to decode: straight to Windows' copy, until it changes.
-                if (!transcoded && snapshot.Stamp == tile.Undecodable) continue;
+                // Known not to decode: on to the next, until it changes.
+                if (snapshot.Stamp == tile.Undecodable) continue;
                 // Decode from the file stream: no full-sized byte array or second
                 // in-memory copy of a potentially large wallpaper.
                 using var stream = file.AsRandomAccessStream();
                 var bitmap = new BitmapImage { DecodePixelWidth = 320 };
                 try { await bitmap.SetSourceAsync(stream); }
-                catch (Exception) { if (!transcoded) tile.Undecodable = snapshot.Stamp; throw; }
+                catch (Exception) { tile.Undecodable = snapshot.Stamp; throw; }
                 if (!WallpapersActive || !_tiles.Contains(tile)) return;
                 tile.Element.Background = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
                 tile.WallpaperSignature = snapshot.Stamp;
@@ -548,15 +550,8 @@ public sealed partial class ArrangeCanvas : UserControl
         tile.Element.Background = tile.EmptyBackground;
     }
 
-    /// <summary>Windows' decoded copy of the current wallpaper, kept whatever the original was.</summary>
-    private static readonly string TranscodedWallpaper = System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Microsoft", "Windows", "Themes", "TranscodedWallpaper");
-
-    private static (WallpaperStamp? Stamp, FileStream? Stream) ReadWallpaper(DisplayInfo display, WallpaperStamp? previous, bool transcoded)
+    private static (WallpaperStamp? Stamp, FileStream? Stream) OpenWallpaper(string path, WallpaperStamp? previous)
     {
-        string? path = transcoded ? TranscodedWallpaper : Wallpaper.Read(display);
-        if (string.IsNullOrEmpty(path)) return (null, null);
         var info = new FileInfo(path);
         if (!info.Exists || info.Length == 0) return (null, null);
         var stamp = new WallpaperStamp(path, info.Length, info.LastWriteTimeUtc);

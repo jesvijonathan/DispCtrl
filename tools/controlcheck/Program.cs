@@ -235,19 +235,20 @@ try
         "hotkey defaults are offered once, never over a binding, and a removed one stays removed");
     Check(Hotkey.Defaults().All(h => Hotkey.TryParse(h.Describe(), out uint k, out uint m) && k == h.Key && m == h.Modifiers),
         "every default shortcut reads back from how the page writes it");
-    Check(Hotkey.Defaults().Count(h => h.Enabled) == 6 && Hotkey.Defaults().All(h => h.IsComplete),
-        "six default hotkeys are enabled and the remaining shortcuts are ready to enable");
+    Check(Hotkey.Defaults().Count(h => h.Enabled) == 8 && Hotkey.Defaults().All(h => h.IsComplete),
+        "eight default hotkeys are enabled and the remaining shortcuts are ready to enable");
     var upgraded = new DispCtrlSettings();
     upgraded.Global.HotkeyDefaultsOffered = true;
     upgraded.Hotkeys.Add(new Hotkey { Modifiers = 3, Key = 'U', Action = HotkeyAction.Identify });
     Check(Hotkey.OfferDefaults(upgraded) && upgraded.Hotkeys[0].Action == HotkeyAction.Identify
-        && upgraded.Hotkeys.Skip(1).All(h => h.Enabled == (h.Action is HotkeyAction.DisplaysOffToggle or HotkeyAction.RestoreDisplays))
+        && upgraded.Hotkeys.Skip(1).All(h => h.Enabled == (h.Action is HotkeyAction.DisplaysOffToggle or HotkeyAction.RestoreDisplays or HotkeyAction.PinWindow or HotkeyAction.GatherWindows))
         && upgraded.Hotkeys.Any(h => h.Action == HotkeyAction.RestoreDisplays) && !Hotkey.OfferDefaults(upgraded),
-        "upgrading hotkeys keeps existing bindings, offers new actions once, and only Turn off displays and Restore switched on");
+        "upgrading hotkeys keeps existing bindings, offers new actions once, and only Turn off displays, Restore, Pin and Gather switched on");
     var fromThree = new DispCtrlSettings();
     fromThree.Global.HotkeyDefaultsVersion = 3;
-    Check(Hotkey.OfferDefaults(fromThree) && fromThree.Hotkeys.Count == 1 && fromThree.Hotkeys[0].Action == HotkeyAction.RestoreDisplays
-        && fromThree.Hotkeys[0].Enabled, "a desk on version 3 is offered only the restore shortcut, switched on");
+    Check(Hotkey.OfferDefaults(fromThree) && fromThree.Hotkeys.Count == 3 && fromThree.Hotkeys[0].Action == HotkeyAction.RestoreDisplays
+        && fromThree.Hotkeys.All(h => h.Enabled && h.Action is HotkeyAction.RestoreDisplays or HotkeyAction.PinWindow or HotkeyAction.GatherWindows),
+        "a desk on version 3 is offered restore, then pin and gather, switched on");
     var messy = new DispCtrlSettings();
     messy.Global.Awake.DisplaysOffUtc = DateTimeOffset.UtcNow;
     messy.Global.Focus.Enabled = messy.Global.NightLight.Enabled = messy.Global.OledCare.Enabled = true;
@@ -283,7 +284,7 @@ try
     var fromTwo = new DispCtrlSettings();
     fromTwo.Global.HotkeyDefaultsVersion = 2;
     fromTwo.Hotkeys.Add(new Hotkey { Modifiers = 3, Key = 'L', Action = HotkeyAction.Identify });
-    Check(Hotkey.OfferDefaults(fromTwo) && fromTwo.Hotkeys.Count == 2
+    Check(Hotkey.OfferDefaults(fromTwo) && fromTwo.Hotkeys.Count == 4
         && !fromTwo.Hotkeys.Any(h => h.Action == HotkeyAction.DisplaysOffToggle)
         && fromTwo.Hotkeys.Any(h => h.Action == HotkeyAction.RestoreDisplays),
         "a version 3 default is never offered over a combination something else holds, nor are version 2's again");
@@ -426,7 +427,7 @@ try
     var resetReply = service.Execute(Request("settings.reset"));
     var afterReset = SettingsStore.Load();
     Check(resetReply["ok"]!.GetValue<bool>() && afterReset.For("FAKE-panel").Alias == "office"
-        && afterReset.Hotkeys.Count(h => h.Enabled) == 6 && afterReset.Hotkeys.Count == 15
+        && afterReset.Hotkeys.Count(h => h.Enabled) == 8 && afterReset.Hotkeys.Count == 17
         && afterReset.Global.QuickPanel.Simple == new QuickPanelSettings().Simple && afterReset.Global.Focus.DimPercent == new FocusSettings().DimPercent,
         "CLI reset all matches the app: all groups and default hotkeys reset while monitor names survive");
     // A client holding settings while the file is broken by hand: its save used
@@ -438,6 +439,205 @@ try
     try { SettingsStore.Save(holder); } catch (System.Text.Json.JsonException) { savedOverCorrupt = false; }
     Check(savedOverCorrupt && SettingsStore.Load().Global.TaskbarOpacity == 41,
         "a save replaces a settings file that no longer parses");
+
+    // ---- a file from a newer DispCtrl: read what can be read, lose nothing ----
+    {
+        var future = JsonNode.Parse(File.ReadAllText(SettingsStore.Path_))!.AsObject();
+        future["hotkeys"] = new JsonArray(
+            new JsonObject { ["key"] = 0x21, ["modifiers"] = 3, ["action"] = "unisonUp", ["step"] = 5, ["enabled"] = true },
+            new JsonObject { ["key"] = 0x54, ["modifiers"] = 3, ["action"] = "summonTheFuture", ["enabled"] = true });
+        future["global"]!["quickPanel"]!["trayWheel"] = "everyOtherDisplay";
+        future["global"]!["futureSection"] = new JsonObject { ["enabled"] = true, ["level"] = 7 };
+        future["global"]!["taskbarOpacity"] = 57;
+        File.WriteAllText(SettingsStore.Path_, future.ToJsonString());
+        File.Delete(SettingsStore.Path_ + ".bad");
+
+        DispCtrlSettings older = SettingsStore.Load();
+        Check(!File.Exists(SettingsStore.Path_ + ".bad") && older.Global.TaskbarOpacity == 57
+            && older.Hotkeys.Count == 1 && older.Hotkeys[0].Action == HotkeyAction.UnisonUp
+            && older.Global.QuickPanel.TrayWheel == TrayWheelTarget.Off
+            && SettingsStore.SetAside.Count == 2,
+            "a newer file's unknown hotkey action and choice are set aside, and everything else loads - never quarantined");
+
+        older.Global.Focus.DimPercent = 33;
+        SettingsStore.Save(older);
+        var after = JsonNode.Parse(File.ReadAllText(SettingsStore.Path_))!;
+        Check(after["global"]!["focus"]!["dimPercent"]!.GetValue<int>() == 33
+            && after["hotkeys"]!.AsArray().Count == 2
+            && after["hotkeys"]![1]!["action"]!.GetValue<string>() == "summonTheFuture"
+            && after["global"]!["quickPanel"]!["trayWheel"]!.GetValue<string>() == "everyOtherDisplay"
+            && after["global"]!["futureSection"]!["level"]!.GetValue<int>() == 7,
+            "saving from the older build keeps what it set aside and what it never knew, for the newer build");
+        Check(SettingsStore.Lenient("{ not json", out _) is null, "a file that is not JSON at all is still not guessed at");
+
+        // Put the scratch file back to what the checks below expect.
+        after["hotkeys"] = new JsonArray();
+        after["global"]!["quickPanel"]!["trayWheel"] = "off";
+        after["global"]!.AsObject().Remove("futureSection");
+        File.WriteAllText(SettingsStore.Path_, after.ToJsonString());
+    }
+
+    // ---- updates: opt-in, never automatic by default, and no network here ----
+    {
+        int Code(JsonObject reply) => reply["exitCode"]!.GetValue<int>();
+        Check(!SettingsStore.Load().Global.Updates.CheckAutomatically, "update checking starts off: no network request until asked");
+        var on = service.Execute(Request("update.set", new() { ["checkAutomatically"] = true }));
+        Check(on["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.Updates.CheckAutomatically, "update set switches the daily check on");
+        Check(Code(service.Execute(Request("update.set", new() { ["latestVersion"] = "9.9.9" }))) == 2
+            && Code(service.Execute(Request("update.set", new() { ["checkAutomatically"] = true, ["monitor"] = "1" }))) == 2,
+            "only the switch can be set: what was found is the check's to record");
+        var found = SettingsStore.Load(); found.Global.Updates.LatestVersion = "99.0.0";
+        found.Global.Updates.LatestUrl = "https://evil.example/setup.exe"; SettingsStore.Save(found);
+        var get = service.Execute(Request("update.get"));
+        Check(get["data"]?["available"]?["latest"]?.GetValue<string>() == "99.0.0"
+            && get["data"]?["available"]?["url"]?.GetValue<string>() == UpdateCheck.ReleasesPage,
+            "a newer release found is offered, and only ever with a link to the project's own releases");
+        var skip = service.Execute(Request("update.skip"));
+        Check(skip["ok"]!.GetValue<bool>() && service.Execute(Request("update.get"))["data"]?["available"] is null,
+            "Not now hides that release");
+        var later = SettingsStore.Load(); later.Global.Updates.LatestVersion = "99.1.0"; SettingsStore.Save(later);
+        Check(service.Execute(Request("update.get"))["data"]?["available"]?["latest"]?.GetValue<string>() == "99.1.0",
+            "a later release is offered again after Not now");
+        Check(service.Execute(Request("update.check", new() { ["dryRun"] = true }))["data"]?["state"]?.GetValue<string>() == "validated",
+            "update check validates without a request when dry");
+        var updateReset = service.Execute(Request("update.reset"));
+        var updatesAfter = SettingsStore.Load().Global.Updates;
+        Check(updateReset["ok"]!.GetValue<bool>() && !updatesAfter.CheckAutomatically && updatesAfter.LatestVersion.Length == 0,
+            "update reset switches checking off and forgets what was found");
+    }
+
+    // ---- pinning, placement, the DDC/CI guard, unison exclusion, tray wheel, theme schedule ----
+    int Exit(JsonObject reply) => reply["exitCode"]!.GetValue<int>();
+    var pinSet = service.Execute(Request("pin.set", new() { ["borderColour"] = "#FF8800", ["borderThickness"] = 4, ["clearInOledCare"] = true }));
+    var pinNow = SettingsStore.Load().Global.Pin;
+    Check(pinSet["ok"]!.GetValue<bool>() && pinNow.BorderColour == "#FF8800" && pinNow.BorderThickness == 4 && pinNow.ClearInOledCare,
+        "pin border and dimming options set through the shared API");
+    Check(Exit(service.Execute(Request("pin.set", new() { ["borderColour"] = "orange" }))) == 2
+        && Exit(service.Execute(Request("pin.set", new() { ["borderThickness"] = 40 }))) == 2
+        && Exit(service.Execute(Request("pin.set", new() { ["borderOpacity"] = 5 }))) == 2,
+        "a border colour that is not #RRGGBB, and out-of-range sizes, are refused");
+    Check(Exit(service.Execute(Request("pin.set", new() { ["monitor"] = "1", ["border"] = true }))) == 2,
+        "pin settings refuse a display: they are about windows");
+    var stepAside = service.Execute(Request("pin.set", new() { ["stepAsideForFullscreen"] = false }));
+    Check(stepAside["ok"]!.GetValue<bool>() && !SettingsStore.Load().Global.Pin.StepAsideForFullscreen,
+        "pinned windows can be told to stay over fullscreen ones");
+
+    // Focus mode's one choice over its two pointer switches.
+    var clearPointer = service.Execute(Request("focus.set", new() { ["keepClear"] = "pointer" }));
+    var focusPointer = SettingsStore.Load().Global.Focus;
+    var clearFocused = service.Execute(Request("focus.set", new() { ["keepClear"] = "Focused" }));
+    var focusFocused = SettingsStore.Load().Global.Focus;
+    var clearBoth = service.Execute(Request("focus.set", new() { ["keepClear"] = "both", ["dimPercent"] = 44 }));
+    var focusBoth = SettingsStore.Load().Global.Focus;
+    Check(clearPointer["ok"]!.GetValue<bool>() && focusPointer.Clear == FocusClear.Pointer
+        && clearFocused["ok"]!.GetValue<bool>() && focusFocused.Clear == FocusClear.Focused
+        && clearBoth["ok"]!.GetValue<bool>() && focusBoth.Clear == FocusClear.Both && focusBoth.DimPercent == 44,
+        "focus set --keep-clear writes both switches, in any case, beside other settings");
+    Check(Exit(service.Execute(Request("focus.set", new() { ["keepClear"] = "hovered" }))) == 2
+        && Exit(service.Execute(Request("focus.set", new() { ["keepClear"] = "7" }))) == 2,
+        "a keep-clear choice that is not one of the three is refused");
+
+    // OLED care per display, and the apps that keep a display awake.
+    var perDisplay = service.Execute(Request("oled.set", new() { ["perDisplayActivity"] = true, ["excludedApps"] = "vlc.exe, mpv" }));
+    var careNow = SettingsStore.Load().Global.OledCare;
+    Check(perDisplay["ok"]!.GetValue<bool>() && careNow.PerDisplayActivity && careNow.Exclusions().SetEquals(["vlc", "mpv"]),
+        "OLED care rests each display on its own and keeps listed apps' displays awake");
+    Check(Exit(service.Execute(Request("oled.set", new() { ["excludedApps"] = 5 }))) == 2,
+        "an OLED exception list that is not text is refused");
+    var careGet = service.Execute(Request("oled.get"));
+    Check(careGet["data"]?["value"]?["perDisplayActivity"]?.GetValue<bool>() == true
+        && SettingsDocument.Schema().ToJsonString().Contains("perDisplayActivity")
+        && SettingsDocument.Schema().ToJsonString().Contains("stepAsideForFullscreen"),
+        "oled get and the schema carry the new options");
+    service.Execute(Request("oled.set", new() { ["perDisplayActivity"] = false, ["excludedApps"] = "" }));
+
+    Check(Exit(service.Execute(Request("pin.on", new() { ["window"] = "no-such-window-" + Guid.NewGuid().ToString("N") }))) == 2,
+        "pinning a window that is not open is refused as asked wrongly");
+    Check(Exit(service.Execute(Request("pin.off", new() { ["all"] = true, ["window"] = "x" }))) == 2,
+        "pin off --all takes nothing else");
+    var pinReset = service.Execute(Request("pin.reset"));
+    Check(pinReset["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.Pin.BorderThickness == new PinSettings().BorderThickness,
+        "pin reset restores the shipped border");
+    var pinList = service.Execute(Request("pin.list"));
+    Check(pinList["ok"]!.GetValue<bool>() && pinList["data"]!["windows"] is JsonArray, "pin list answers with the open windows");
+
+    // No return-windows here: switching it on hands Windows' own window memory
+    // over, which is a registry value of the account running the check.
+    var placementSet = service.Execute(Request("placement.set", new() { ["newWindowsOnActive"] = true, ["active"] = "activeWindow", ["keepSize"] = false }));
+    var placementNow = SettingsStore.Load().Global.Placement;
+    Check(placementSet["ok"]!.GetValue<bool>() && placementNow.NewWindowsOnActive && placementNow.Active == ActiveDisplay.ActiveWindow && !placementNow.KeepSize,
+        "placement options set by name");
+    Check(Exit(service.Execute(Request("placement.set", new() { ["active"] = "sideways" }))) == 2, "an unknown active display is refused");
+    Check(Exit(service.Execute(Request("placement.gather", new() { ["to"] = "99" }))) == 2, "gathering onto a display that is not connected is refused");
+    Check(Exit(service.Execute(Request("placement.gather", new() { ["into"] = "1" }))) == 2, "gather refuses options it does not take");
+    service.Execute(Request("placement.reset"));
+    Check(!SettingsStore.Load().Global.Placement.NewWindowsOnActive, "placement reset restores the defaults");
+
+    var withBlock = SettingsDocument.Read();
+    withBlock["global"]!["ddcGuard"]!["blocked"] = new JsonArray(new JsonObject
+    {
+        ["token"] = "FAKE-crash-1", ["model"] = "FAK-0001", ["label"] = "Fake", ["sinceUtc"] = DateTimeOffset.UtcNow.ToString("O"), ["reason"] = "test",
+    });
+    Check(service.Execute(Request("settings.import", new() { ["document"] = withBlock }))["ok"]!.GetValue<bool>(), "a blocked monitor imports");
+    service.Execute(Request("ddc.set", new() { ["guard"] = false }));
+    Check(!SettingsStore.Load().Global.DdcGuard.Enabled, "the guard can be switched off");
+    service.Execute(Request("ddc.reset"));
+    var guardNow = SettingsStore.Load().Global.DdcGuard;
+    Check(guardNow.Enabled && guardNow.Blocked.Count == 1, "ddc reset turns the guard on and forgets no block");
+    Check(Exit(service.Execute(Request("ddc.allow", new() { ["model"] = "NOT-0000" }))) == 2, "allowing a monitor that is not blocked is refused");
+    // The guard's own check, as every DDC/CI conversation asks it, against the
+    // same file: a first call must already see the block.
+    var fakeMonitor = new DispCtrl.Core.Displays.DisplayInfo
+    {
+        Key = new DispCtrl.Core.Displays.DisplayKey(@"\\?\DISPLAY#FAK0001#guard", "FAK-0001", "GUARD1"),
+        GdiName = @"\\.\DISPLAY9", FriendlyName = "Fake", Connector = DispCtrl.Core.Displays.ConnectorKind.Hdmi, IsPrimary = false,
+        Bounds = new(0, 0, 1920, 1080), WorkArea = new(0, 0, 1920, 1040), RefreshHz = 60, BitsPerPixel = 32, Dpi = 96,
+    };
+    var guardDocument = SettingsDocument.Read();
+    guardDocument["global"]!["ddcGuard"]!["blocked"]!.AsArray().Add(new JsonObject
+    {
+        ["token"] = fakeMonitor.Token, ["model"] = "FAK-0001", ["label"] = "Fake", ["sinceUtc"] = DateTimeOffset.UtcNow.ToString("O"), ["reason"] = "test",
+    });
+    service.Execute(Request("settings.import", new() { ["document"] = guardDocument }));
+    DispCtrl.Display.DdcGuard.Invalidate();
+    Check(DispCtrl.Display.DdcGuard.IsBlocked(fakeMonitor), "a blocked monitor is refused from the first conversation, not a second later");
+    var allowed = service.Execute(Request("ddc.allow", new() { ["model"] = "FAK-0001" }));
+    Check(allowed["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.DdcGuard.Blocked.Count == 0, "a blocked monitor is allowed again by its model");
+    Check(!DispCtrl.Display.DdcGuard.IsBlocked(fakeMonitor), "once allowed, the monitor is talked to again at once");
+    var ddcGet = service.Execute(Request("ddc.get"));
+    Check(ddcGet["ok"]!.GetValue<bool>() && ddcGet["data"]!["guard"]!.GetValue<bool>(), "ddc get reports the guard");
+    Check(Exit(service.Execute(Request("ddc.probe", new() { ["monitor"] = "1", ["save"] = true, ["clear"] = true }))) == 2,
+        "a probe cannot save and clear at once");
+    var badProbe = (JsonObject)SettingsDocument.Read().DeepClone();
+    badProbe["monitors"]!["FAKE-panel"]!["probedCodes"] = new JsonArray("1G");
+    Check(Exit(service.Execute(Request("settings.import", new() { ["document"] = badProbe }))) == 2, "probed codes that are not hex are refused");
+
+    Check(Exit(service.Execute(Request("unison.set", new() { ["include"] = false }))) == 2, "leaving a display out of unison needs the display");
+
+    var wheel = service.Execute(Request("tray.set", new() { ["trayWheel"] = "all", ["wheelStep"] = 10, ["wheelOnSliders"] = true }));
+    var panelNow = SettingsStore.Load().Global.QuickPanel;
+    Check(wheel["ok"]!.GetValue<bool>() && panelNow.TrayWheel == TrayWheelTarget.All && panelNow.WheelStep == 10 && panelNow.WheelOnSliders,
+        "the tray wheel is set by name");
+    Check(Exit(service.Execute(Request("tray.set", new() { ["wheelStep"] = 30 }))) == 2, "a wheel step past 25 is refused");
+    // What the terminal hands over for "--tray-wheel off": it reads on and off as switches.
+    var wheelOff = service.Execute(Request("tray.set", new() { ["trayWheel"] = false }));
+    Check(wheelOff["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.QuickPanel.TrayWheel == TrayWheelTarget.Off,
+        "--tray-wheel off switches the wheel off rather than failing");
+
+    service.Execute(Request("settings.set", new() { ["path"] = "/global/nightLight/themeAppliedUtc", ["value"] = DateTimeOffset.UtcNow.ToString("O") }));
+    var theme = service.Execute(Request("nightlight.set", new() { ["darkModeOnSchedule"] = true, ["scheduled"] = true }));
+    var nightNow = SettingsStore.Load().Global.NightLight;
+    Check(theme["ok"]!.GetValue<bool>() && nightNow.DarkModeOnSchedule && nightNow.ThemeAppliedUtc is null,
+        "switching dark mode on the schedule on applies it at the next look");
+
+    var actions = service.Execute(Request("hotkeys.list"))["data"]!["actions"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+    Check(actions.Contains("pin-window") && actions.Contains("unpin-all-windows") && actions.Contains("gather-windows"),
+        "the new actions are named on the command line");
+    var gatherKey = service.Execute(Request("hotkeys.add", new() { ["keys"] = "Ctrl+Alt+Shift+G", ["action"] = "gather-windows", ["display"] = 2 }));
+    Check(gatherKey["ok"]!.GetValue<bool>() && gatherKey["data"]!["does"]!.GetValue<string>().Contains("display 2"), "a gather shortcut can name its display");
+    string schema = service.Execute(Request("settings.schema"))["data"]!["schema"]!.ToJsonString();
+    Check(schema.Contains("inUnison") && schema.Contains("probedCodes") && schema.Contains("trayWheel") && schema.Contains("darkModeOnSchedule")
+        && schema.Contains("clearInFocus") && schema.Contains("newWindowsOnActive"), "the schema describes every new setting");
     Console.WriteLine($"{checks} control checks passed.");
 }
 finally

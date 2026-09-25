@@ -36,6 +36,19 @@ public enum TrayIconColour
     Accent,
 }
 
+/// <summary>What turning the mouse wheel over the notification area icon moves.</summary>
+public enum TrayWheelTarget
+{
+    /// <summary>Nothing: the wheel over the icon does what it does anywhere else.</summary>
+    Off,
+
+    /// <summary>The main display's brightness, or unison when the main display is in it.</summary>
+    Main,
+
+    /// <summary>Every display: unison when it is on, otherwise each display by the same step.</summary>
+    All,
+}
+
 /// <summary>One entry in one of the panel's ordered lists.</summary>
 public sealed class QuickPanelItem
 {
@@ -159,6 +172,8 @@ public static class QuickPanelCatalog
             "Every saved preset as a button that applies it. Presets are still being built, so for now this is a placeholder.", true),
         new("displayMode", "Display mode", "\uEBC6",
             "Extend, duplicate, or one screen only - the choices Win+P offers, one click each.", false),
+        new("windows", "Windows", "\uE71D",
+            "Windows pinned on top, gathering every window onto one display, and putting windows back when a display returns.", false),
     ];
 
     public static IReadOnlyList<Entry> Tiles { get; } =
@@ -178,6 +193,10 @@ public static class QuickPanelCatalog
         new("cast", "Cast", "\uE7F7", "Connect to a wireless display.", false),
         new("restAll", "Rest OLED", "\uEA14", "Rest every OLED display under the idle-protection dimming until the computer is next used.", false),
         new("engine", "Engine", "\uE9F5", "DispCtrl's background engine, which runs taskbar hiding, night light, focus and shortcuts.", false),
+        new("pin", "Pin on top", "\uE718", "Keep a window above every other. The arrow lists the open windows to pin or unpin, and how a pinned window is marked.", false),
+        new("gather", "Gather", "\uE7C2", "Bring every window onto the display the pointer is on. The arrow chooses another display.", false),
+        new("returnWindows", "Put back", "\uE7A7", "When a display comes back, put its windows back on it as they were.", false),
+        new("newWindows", "New here", "\uE8A7", "Open new windows on the display in use, wherever the app puts them.", false),
     ];
 
     public static IReadOnlyList<Entry> DisplayRows { get; } =
@@ -207,6 +226,8 @@ public static class QuickPanelCatalog
         new("adaptive", "Adaptive brightness", "\uE9F3", "Windows' automatic brightness, where the display has a sensor.", true),
         new("rotation", "Auto-rotate", "\uE7AD", "Rotate with the device, where it can sense which way up it is.", true),
         new("identify", "Identify", "\uE7C4", "Show this display's number on it.", false),
+        new("unison", "In unison", "\uE793", "Whether unison brightness moves this display. Off, it keeps its own brightness while the others move together.", true),
+        new("gather", "Gather here", "\uE7C2", "Bring every window onto this display.", false),
     ];
 
     public static IReadOnlyList<Entry> For(QuickPanelGroup group) => group switch
@@ -313,6 +334,26 @@ public sealed class QuickPanelSettings
     /// <summary>Draws the glyph bolder while Stay active or Keep awake is on, so it can be seen at a glance.</summary>
     public bool IconShowsActive { get; set; } = true;
 
+    /// <summary>Brightness from the mouse wheel over the icon.</summary>
+    /// <remarks>
+    /// Off by default, as Power Display ships it. Windows sends a notification
+    /// icon no wheel messages, so the engine watches the wheel through a
+    /// low-level hook it holds only while the pointer is over the icon.
+    /// </remarks>
+    public TrayWheelTarget TrayWheel { get; set; } = TrayWheelTarget.Off;
+
+    /// <summary>How far one notch of the wheel moves brightness, in percent.</summary>
+    public int WheelStep { get; set; } = 5;
+
+    public const int MinWheelStep = 1, MaxWheelStep = 25;
+
+    /// <summary>Let the wheel move the panel's sliders when the pointer is over one.</summary>
+    /// <remarks>
+    /// Off by default: the panel scrolls, and a wheel meant for scrolling that
+    /// lands on a brightness slider changes the brightness instead.
+    /// </remarks>
+    public bool WheelOnSliders { get; set; }
+
     public QuickPanelDensity Density { get; set; } = QuickPanelDensity.Comfortable;
 
     /// <summary>Panel width in DIP.</summary>
@@ -397,7 +438,7 @@ public sealed class QuickPanelSettings
     /// is there. A separate list of opened ones, rather than a default written
     /// into <see cref="Collapsed"/>, so a section added later still starts folded.
     /// </remarks>
-    public static readonly string[] FoldedByDefault = ["oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets"];
+    public static readonly string[] FoldedByDefault = ["oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets", "windows"];
 
     public bool IsCollapsed(string key) =>
         Collapsed.Contains(key) || (FoldedByDefault.Contains(key) && !Expanded.Contains(key));
@@ -503,6 +544,9 @@ public sealed class QuickPanelSettings
         var fresh = new QuickPanelSettings();
 
         Icon = fresh.Icon;
+        TrayWheel = fresh.TrayWheel;
+        WheelStep = fresh.WheelStep;
+        WheelOnSliders = fresh.WheelOnSliders;
         Density = fresh.Density;
         Width = fresh.Width;
         TileColumns = fresh.TileColumns;

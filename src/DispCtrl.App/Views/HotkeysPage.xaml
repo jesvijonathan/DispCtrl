@@ -97,7 +97,7 @@
                   <NumberBox Value="{x:Bind Step, Mode=TwoWay}" Minimum="1" Maximum="50" SmallChange="1"
                              SpinButtonPlacementMode="Compact" Width="110" AutomationProperties.Name="HotkeyStep"/>
                 </tk:SettingsCard>
-                <tk:SettingsCard Header="Display" Description="The number shown by Identify; 0 for every display."
+                <tk:SettingsCard Header="Display" Description="{x:Bind DisplayHint, Mode=OneWay}"
                                  Visibility="{x:Bind DisplayVisibility, Mode=OneWay}">
                   <NumberBox Value="{x:Bind DisplayNumber, Mode=TwoWay}" Minimum="0" Maximum="8" SmallChange="1"
                              SpinButtonPlacementMode="Compact" Width="110" AutomationProperties.Name="HotkeyDisplay"/>

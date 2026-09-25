@@ -56,6 +56,7 @@ public sealed partial class DisplaysPage : Page
         _wallpaperWindow.Activated += OnWallpaperWindowActivated;
         _wallpaperWindow.Closed += OnWallpaperWindowClosed;
         UpdateWallpaperVisibility();
+        ViewModel.RefreshPinnedWindows();
         if (ViewModel.PresetsEnabled) ViewModel.Presets.RefreshDrift();
     }
 
@@ -252,6 +253,68 @@ public sealed partial class DisplaysPage : Page
     {
         if ((sender as FrameworkElement)?.Tag is DisplayViewModel display)
             ViewModel.MakePrimary(display);
+    }
+
+    // ---- pinned windows, gathering, the DDC/CI guard and the probe ----
+
+    private void OnUnpin(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is WindowItem item) ViewModel.Unpin(item);
+    }
+
+    private void OnUnpinAll(object sender, RoutedEventArgs e) => ViewModel.UnpinAll();
+
+    private void OnRefreshPins(object sender, RoutedEventArgs e) => ViewModel.RefreshPinnedWindows();
+
+    private async void OnGather(object sender, RoutedEventArgs e)
+    {
+        // async void: an exception here would take the window down with it.
+        try
+        {
+            if ((sender as FrameworkElement)?.Tag is DisplayViewModel display) await ViewModel.GatherAsync(display);
+        }
+        catch (Exception) { }
+    }
+
+    private async void OnAllowDdc(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not DisplayViewModel display) return;
+        try
+        {
+            var confirm = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = $"Talk to {display.Info.Label} over DDC/CI again?",
+                Content = new TextBlock
+                {
+                    TextWrapping = TextWrapping.Wrap,
+                    Text = "Windows went down while DispCtrl was reading this monitor's capabilities. If the monitor was the cause, reading it again may crash Windows again. Allow it only if the crash had another explanation.",
+                },
+                PrimaryButtonText = "Talk to it again",
+                CloseButtonText = "Keep it off",
+                DefaultButton = ContentDialogButton.Close,
+            };
+            if (await confirm.ShowAsync() == ContentDialogResult.Primary) await display.AllowDdcAsync();
+        }
+        catch (Exception) { }
+    }
+
+    private async void OnProbe(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if ((sender as FrameworkElement)?.Tag is DisplayViewModel display) await display.ProbeAsync();
+        }
+        catch (Exception) { }
+    }
+
+    private async void OnForgetProbe(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if ((sender as FrameworkElement)?.Tag is DisplayViewModel display) await display.ForgetProbeAsync();
+        }
+        catch (Exception) { }
     }
 
     /// <summary>

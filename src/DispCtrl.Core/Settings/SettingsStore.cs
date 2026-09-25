@@ -150,7 +150,19 @@ public static partial class SettingsStore
             if (!File.Exists(Path_)) return Track(new DispCtrlSettings());
 
             string json = ReadShared();
-            DispCtrlSettings? s = JsonSerializer.Deserialize(json, SettingsJsonContext.Default.DispCtrlSettings);
+            DispCtrlSettings? s;
+            try
+            {
+                s = JsonSerializer.Deserialize(json, SettingsJsonContext.Default.DispCtrlSettings);
+                SetAside = [];
+            }
+            catch (JsonException)
+            {
+                // Whole JSON with a value this build cannot read - most often one
+                // a newer DispCtrl wrote, such as a hotkey action added since.
+                s = Lenient(json, out List<string> setAside);
+                SetAside = setAside;
+            }
             if (s is not null) return Track(s);
 
             Quarantine();
@@ -167,6 +179,105 @@ public static partial class SettingsStore
             // that lost a race with a save moved a good file aside and every
             // client fell back to defaults.
             return Track(new DispCtrlSettings());
+        }
+    }
+
+    /// <summary>
+    /// What the last load could not read and left out, as JSON paths; empty
+    /// nearly always. For the engine's log.
+    /// </summary>
+    public static IReadOnlyList<string> SetAside { get; private set; } = [];
+
+    /// <summary>
+    /// Reads a settings file that is whole JSON but holds values this build does
+    /// not understand, leaving out only those values.
+    /// </summary>
+    /// <remarks>
+    /// The case is an older DispCtrl meeting a newer one's file - after a
+    /// downgrade, a Store build a version behind a test build, a second copy.
+    /// It used to quarantine the whole file for one word it did not know (a
+    /// hotkey action added since), and every setting went back to defaults, in
+    /// that build and in the newer one once it came back. Now each value that
+    /// fails is removed from the in-memory copy - a list entry whole, so a hotkey
+    /// never runs with its action gone to a default - and the rest loads. The
+    /// file is not touched, and a save merges into it (<see cref="MergeEdits"/>),
+    /// so what was left out here is still there for the build that understands
+    /// it. A file that is not JSON at all is still quarantined.
+    /// </remarks>
+    public static DispCtrlSettings? Lenient(string json, out List<string> setAside)
+    {
+        setAside = [];
+        JsonNode? root;
+        try { root = JsonNode.Parse(json); }
+        catch (JsonException) { return null; }
+        if (root is not JsonObject) return null;
+        for (int attempt = 0; attempt < 64; attempt++)
+        {
+            try { return root.Deserialize(SettingsJsonContext.Default.DispCtrlSettings); }
+            catch (JsonException ex) when (ex.Path is { Length: > 1 } path && RemoveAt(root, path))
+            {
+                setAside.Add(path);
+            }
+            catch (JsonException) { return null; }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Removes what a JSON path names: the innermost list entry on the way if
+    /// there is one, otherwise the property itself.
+    /// </summary>
+    private static bool RemoveAt(JsonNode root, string path)
+    {
+        // $.hotkeys[5].action, $.monitors['DEL-A234-X'].isOled, $.global.pin
+        var steps = new List<object>();
+        int i = path.StartsWith('$') ? 1 : 0;
+        while (i < path.Length)
+        {
+            if (path[i] == '.')
+            {
+                int end = path.IndexOfAny(['.', '['], i + 1);
+                if (end < 0) end = path.Length;
+                steps.Add(path[(i + 1)..end]);
+                i = end;
+            }
+            else if (path[i] == '[' && i + 1 < path.Length && path[i + 1] == '\'')
+            {
+                int end = path.IndexOf("']", i + 2, StringComparison.Ordinal);
+                if (end < 0) return false;
+                steps.Add(path[(i + 2)..end]);
+                i = end + 2;
+            }
+            else if (path[i] == '[')
+            {
+                int end = path.IndexOf(']', i);
+                if (end < 0 || !int.TryParse(path[(i + 1)..end], out int index)) return false;
+                steps.Add(index);
+                i = end + 1;
+            }
+            else return false;
+        }
+        if (steps.Count == 0) return false;
+
+        // A list entry goes whole: half an entry is worse than none.
+        int cut = steps.FindLastIndex(step => step is int);
+        if (cut < 0) cut = steps.Count - 1;
+
+        JsonNode? parent = root;
+        for (int s = 0; s < cut && parent is not null; s++)
+            parent = steps[s] is int n
+                ? (parent is JsonArray a && n < a.Count ? a[n] : null)
+                : (parent is JsonObject o ? o[(string)steps[s]] : null);
+        switch (parent, steps[cut])
+        {
+            case (JsonArray array, int index) when index < array.Count:
+                array.RemoveAt(index);
+                return true;
+            case (JsonObject obj, string name) when obj.ContainsKey(name):
+                obj.Remove(name);
+                return true;
+            default:
+                return false;
         }
     }
 

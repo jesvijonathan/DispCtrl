@@ -342,6 +342,44 @@ internal sealed class HotkeyService : IDisposable
                 // asks, and starts the app hidden if none is running.
                 if (!QuickPanelSignal.Identify()) Log.Write("hotkey: identify needs the app, which could not be found");
                 break;
+
+            case HotkeyAction.PinWindow:
+            {
+                // The window in front when the keys went down: the hotkey does
+                // not take the foreground from it.
+                nint window = Display.Placement.WindowPins.Foreground();
+                Display.Placement.PinOutcome outcome = Display.Placement.WindowPins.Toggle(window, settings.Global.Pin);
+                Log.Write($"hotkey: {outcome.Message}");
+                break;
+            }
+
+            case HotkeyAction.UnpinAllWindows:
+                Log.Write($"hotkey: {Display.Placement.WindowPins.UnpinAll()} window(s) unpinned");
+                break;
+
+            case HotkeyAction.GatherWindows:
+            {
+                // Off the pump: moving a desk of windows is a second or two of
+                // other programs answering, and every other shortcut waits on this thread.
+                int wanted = hotkey.Display;
+                PlacementSettings placement = settings.Global.Placement;
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        List<DisplayInfo> displays = Displays();
+                        DisplayInfo? target = wanted > 0
+                            ? (wanted <= displays.Count ? displays[wanted - 1] : null)
+                            : Display.Placement.WindowMover.Active(placement, displays);
+                        if (target is null) { Log.Write($"hotkey: no display {wanted} to gather windows onto"); return; }
+                        Display.Placement.GatherOutcome gathered = Display.Placement.WindowMover.Gather(target, placement);
+                        Log.Write($"hotkey: {gathered.Moved} window(s) gathered onto {target.Label}"
+                            + (gathered.Skipped.Count > 0 ? $"; left: {string.Join("; ", gathered.Skipped)}" : ""));
+                    }
+                    catch (Exception ex) { Log.Write($"hotkey: gathering windows failed: {ex.Message}"); }
+                });
+                break;
+            }
         }
     }
 

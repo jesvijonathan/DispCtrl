@@ -30,8 +30,21 @@ public static class SettingsDocument
         if (settings.Global is null || settings.Monitors is null || settings.Hotkeys is null || settings.AppRules is null)
             throw new ArgumentException("Settings sections cannot be null.");
         var g = settings.Global;
-        if (g.Focus is null || g.OledCare is null || g.Awake is null || g.NightLight is null || g.QuickPanel is null)
+        if (g.Focus is null || g.OledCare is null || g.Awake is null || g.NightLight is null || g.QuickPanel is null
+            || g.Pin is null || g.Placement is null || g.DdcGuard is null || g.Updates is null)
             throw new ArgumentException("Global settings sections cannot be null.");
+        if (g.Updates.LatestVersion is null || g.Updates.LatestUrl is null || g.Updates.SkippedVersion is null)
+            throw new ArgumentException("Update settings cannot be null.");
+        if (g.Pin.BorderColour is null || g.Pin.ExcludedApps is null || g.Placement.ExcludedApps is null || g.OledCare.ExcludedApps is null)
+            throw new ArgumentException("Pin and placement text settings cannot be null.");
+        string colour = g.Pin.BorderColour.Trim();
+        if (colour.Length > 0 && !(colour.Length == 7 && colour[0] == '#'
+                && uint.TryParse(colour.AsSpan(1), System.Globalization.NumberStyles.HexNumber, null, out _)))
+            throw new ArgumentException("The pin border colour is #RRGGBB, or empty for Windows' accent colour.");
+        if (!Enum.IsDefined(g.Placement.Active)) throw new ArgumentException("Unknown active display: pointer or activeWindow.");
+        if (g.DdcGuard.Blocked is null || g.DdcGuard.Blocked.Any(b => b is null || string.IsNullOrWhiteSpace(b.Token)
+                || b.Model is null || b.Label is null || b.Reason is null))
+            throw new ArgumentException("Invalid DDC/CI guard entry.");
         if (!Enum.IsDefined(g.Awake.Mode)) throw new ArgumentException("Unknown awake mode.");
         if (g.BeforeRestore is { } restored && (restored.Monitors is null || restored.Monitors.Any(p => p.Value is null || string.IsNullOrWhiteSpace(p.Key))))
             throw new ArgumentException("Invalid record of what the way back switched off.");
@@ -39,6 +52,7 @@ public static class SettingsDocument
             throw new ArgumentException("Rules and hotkeys cannot contain null entries.");
         var panel = g.QuickPanel;
         if (!Enum.IsDefined(panel.Density) || !Enum.IsDefined(panel.Icon)) throw new ArgumentException("Unknown quick-panel density or icon.");
+        if (!Enum.IsDefined(panel.TrayWheel)) throw new ArgumentException("Tray wheel: off, main or all.");
         if (panel.Sections is null || panel.Tiles is null || panel.DisplayRows is null || panel.DisplayTiles is null
             || panel.CustomTiles is null || panel.Collapsed is null || panel.Expanded is null || panel.HiddenDisplays is null)
             throw new ArgumentException("Quick-panel lists cannot be null.");
@@ -61,6 +75,9 @@ public static class SettingsDocument
         foreach (var pair in settings.Monitors)
         {
             if (pair.Value is null || string.IsNullOrWhiteSpace(pair.Key)) throw new ArgumentException("Invalid monitor entry.");
+            if (pair.Value.ProbedCodes is { } codes && codes.Any(c => c is null || c.Length != 2
+                    || !byte.TryParse(c, System.Globalization.NumberStyles.HexNumber, null, out _)))
+                throw new ArgumentException("Probed codes are two hex digits each, as \"10\" or \"60\".");
             string alias = pair.Value.Alias;
             if (alias is null || alias.Length > 64 || alias.Any(c => !(char.IsLetterOrDigit(c) || c is '-' or '_')))
                 throw new ArgumentException("Monitor aliases use up to 64 letters, digits, dashes or underscores.");
@@ -100,6 +117,9 @@ public static class SettingsDocument
                         "intervalHours" => (0, 168),
                         "intervalMinutes" => (0, 59),
                         "hideDelayMs" or "animMs" or "revealPx" or "armDistancePx" => (0, 60000),
+                        "borderThickness" => (1, 16),
+                        "borderOpacity" => (20, 100),
+                        "wheelStep" => (QuickPanelSettings.MinWheelStep, QuickPanelSettings.MaxWheelStep),
                         _ => null,
                     };
                     if (range is { } r && (number < r.min || number > r.max))

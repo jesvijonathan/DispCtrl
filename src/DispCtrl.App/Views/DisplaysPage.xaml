@@ -376,6 +376,19 @@
             </StackPanel>
           </tk:SettingsCard>
 
+          <!-- PowerToys' Light Switch, on the hours night light already has.
+               Enabled only with the schedule on: it has no hours of its own. -->
+          <tk:SettingsCard Header="Dark mode on the schedule"
+                           Description="{x:Bind ViewModel.NightLightThemeDescription, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.NightLightVisibility, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE708;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightDarkModeOnSchedule, Mode=TwoWay}"
+                          IsEnabled="{x:Bind ViewModel.NightLightScheduled, Mode=OneWay}"
+                          AutomationProperties.Name="NightLightDarkModeOnSchedule"/>
+          </tk:SettingsCard>
+
           <tk:SettingsCard Header="Gamma range"
                            Description="{x:Bind ViewModel.GammaRangeDetail, Mode=OneWay}">
             <tk:SettingsCard.HeaderIcon>
@@ -460,12 +473,18 @@
             </tk:SettingsCard.HeaderIcon>
             <ToggleSwitch IsOn="{x:Bind ViewModel.FocusPerMonitor, Mode=TwoWay}" AutomationProperties.Name="FocusPerMonitor"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Keep the hovered window clear too"
-                           Description="Hold both the focused window and the one under the pointer clear at once, for reading one while typing in another. The taskbar counts as a window, so pointing at it clears it too.">
+          <!-- One choice, not two switches. "Follow the mouse" and "keep the
+               hovered window clear" read as the same thing: the first clears
+               the window under the pointer instead of the focused one, the
+               second as well as it. Both leaves how they were stored alone. -->
+          <tk:SettingsCard Header="Which windows stay clear"
+                           Description="Both suits reading one window while typing in another. Whenever the pointer counts, pointing at the taskbar clears it too.">
             <tk:SettingsCard.HeaderIcon>
               <FontIcon Glyph="&#xE962;"/>
             </tk:SettingsCard.HeaderIcon>
-            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusKeepHoveredClear, Mode=TwoWay}" AutomationProperties.Name="FocusKeepHoveredClear"/>
+            <ComboBox ItemsSource="{x:Bind ViewModel.FocusClearChoices}"
+                      SelectedIndex="{x:Bind ViewModel.FocusClearIndex, Mode=TwoWay}"
+                      MinWidth="260" AutomationProperties.Name="FocusClear"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="OLED displays only" Description="Dim only the panels marked as OLED under Each display, below.">
             <ToggleSwitch IsOn="{x:Bind ViewModel.FocusOledOnly, Mode=TwoWay}" AutomationProperties.Name="FocusOledOnly"/>
@@ -476,13 +495,6 @@
               <FontIcon Glyph="&#xE706;"/>
             </tk:SettingsCard.HeaderIcon>
             <ToggleSwitch IsOn="{x:Bind ViewModel.FocusScaleWithBrightness, Mode=TwoWay}" AutomationProperties.Name="FocusScaleWithBrightness"/>
-          </tk:SettingsCard>
-          <tk:SettingsCard Header="Follow the mouse"
-                           Description="Keep whatever the pointer is over clear, rather than the window with keyboard focus.">
-            <tk:SettingsCard.HeaderIcon>
-              <FontIcon Glyph="&#xE962;"/>
-            </tk:SettingsCard.HeaderIcon>
-            <ToggleSwitch IsOn="{x:Bind ViewModel.FocusFollowMouse, Mode=TwoWay}" AutomationProperties.Name="FocusFollowMouse"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Follow new and activated windows"
                            Description="Temporarily keep an app opened or activated by a launcher, script or automation clear. Moving the pointer returns control to mouse following.">
@@ -532,10 +544,54 @@
         </tk:SettingsExpander.HeaderIcon>
         <ToggleSwitch IsOn="{x:Bind ViewModel.OledIdleEnabled, Mode=TwoWay}" AutomationProperties.Name="OledIdleProtection"/>
         <tk:SettingsExpander.Items>
-          <tk:SettingsCard Header="Which displays" Description="{x:Bind ViewModel.OledCoverage, Mode=OneWay}">
+          <!-- Every monitor this PC has seen, connected ones first and then
+               the most recently seen, so one can be set up while it is unplugged. -->
+          <tk:SettingsCard Header="Which displays" Description="{x:Bind ViewModel.OledCoverage, Mode=OneWay}"
+                           ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
             <tk:SettingsCard.HeaderIcon>
               <FontIcon Glyph="&#xE7F4;"/>
             </tk:SettingsCard.HeaderIcon>
+            <ItemsControl ItemsSource="{x:Bind ViewModel.OledMonitors}" Margin="0,4,0,8">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="4"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:OledMonitorItem">
+                  <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                      <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis"/>
+                      <TextBlock Text="{x:Bind Status}" Style="{StaticResource CaptionTextBlockStyle}"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                    <CheckBox Grid.Column="1" Content="OLED" IsChecked="{x:Bind IsOled, Mode=TwoWay}" MinWidth="0"
+                              AutomationProperties.Name="{x:Bind OledAutomationName}"/>
+                    <CheckBox Grid.Column="2" Content="Protect" IsChecked="{x:Bind Protected, Mode=TwoWay}" MinWidth="0"
+                              IsEnabled="{x:Bind IsOled, Mode=OneWay}"
+                              AutomationProperties.Name="{x:Bind ProtectAutomationName}"/>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Each display rests on its own"
+                           Description="A display rests when neither the pointer nor the window you are typing into has been on it for the idle time, even while you work on another. Off, any input keeps every display awake.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7F4;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.OledPerDisplayActivity, Mode=TwoWay}" AutomationProperties.Name="OledPerDisplayActivity"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep these apps' displays awake"
+                           Description="A display showing one of these apps - not minimized - never rests, whichever window has focus: a film or a dashboard you watch without touching. Executable names, separated by commas."
+                           ContentAlignment="Vertical">
+            <TextBox Text="{x:Bind ViewModel.OledExcludedApps, Mode=TwoWay}" PlaceholderText="vlc.exe, obs64.exe"
+                     AutomationProperties.Name="OledExcludedApps"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Dim after inactivity" Description="Minutes without keyboard or mouse input. Input restores the display automatically.">
             <NumberBox Value="{x:Bind ViewModel.OledIdleMinutes, Mode=TwoWay}" Minimum="1" Maximum="120" SmallChange="1" Width="135" SpinButtonPlacementMode="Compact" AutomationProperties.Name="OledIdleMinutes"/>
@@ -648,7 +704,7 @@
             <ToggleSwitch IsOn="{x:Bind ViewModel.DisplaysOffLockOnWake, Mode=TwoWay}" AutomationProperties.Name="DisplaysOffLockOnWake"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Stay active"
-                           Description="Until you switch it off: the screen stays on, and a tiny pointer nudge after a minute idle stops the lock screen and chat apps showing you as Away. OLED idle dimming waits while it is on.">
+                           Description="Until you switch it off: the screen stays on, and a tiny pointer nudge after a minute idle stops the lock screen and chat apps showing you as Away. OLED idle dimming still comes: the nudge is not taken for you.">
             <ToggleSwitch IsOn="{x:Bind ViewModel.AwakeStayActive, Mode=TwoWay}"
                           AutomationProperties.Name="AwakeStayActive"/>
           </tk:SettingsCard>
@@ -678,6 +734,184 @@
                           AutomationProperties.Name="AwakeKeepDisplaysOn"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Right now" Description="{x:Bind ViewModel.AwakeStatus, Mode=OneWay}"/>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <!-- Always on top. What is pinned is each window's own state, so the list
+           is read from the windows, not the settings: it is refreshed whenever
+           this window comes back to the front. The switch in the header takes
+           every pin back when turned off. -->
+      <tk:SettingsExpander Header="Pin windows on top"
+                           Description="Keep a window above every other, marked with a border. Pinned windows stay clear when focus mode dims the rest."
+                           Margin="0,4,0,0">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE718;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.PinEnabled, Mode=TwoWay}" AutomationProperties.Name="PinEnabled"/>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Pinned now" Description="{x:Bind ViewModel.PinShortcut, Mode=OneWay}"
+                           ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE840;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <StackPanel Spacing="6" Margin="0,4,0,8">
+              <TextBlock Text="Nothing is pinned."
+                         Visibility="{x:Bind ViewModel.NoPinnedWindowsVisibility, Mode=OneWay}"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <ItemsControl ItemsSource="{x:Bind ViewModel.PinnedWindows}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="2"/>
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:WindowItem">
+                    <Grid ColumnSpacing="12">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                      </Grid.ColumnDefinitions>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                      </StackPanel>
+                      <Button Grid.Column="1" Content="Unpin" Click="OnUnpin" Tag="{x:Bind}"
+                              AutomationProperties.Name="{x:Bind AutomationName}"/>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Look again" Click="OnRefreshPins" AutomationProperties.Name="RefreshPinnedWindows"/>
+                <Button Content="Unpin all" Click="OnUnpinAll" AutomationProperties.Name="UnpinAllWindows"/>
+              </StackPanel>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Border" Description="A coloured frame around each pinned window, so it is plain which ones stay on top.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinBorder, Mode=TwoWay}" AutomationProperties.Name="PinBorder"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Border colour" IsEnabled="{x:Bind ViewModel.PinBorder, Mode=OneWay}">
+            <ComboBox ItemsSource="{x:Bind ViewModel.PinBorderColours, Mode=OneWay}"
+                      SelectedIndex="{x:Bind ViewModel.PinBorderColourIndex, Mode=TwoWay}"
+                      MinWidth="200" AutomationProperties.Name="PinBorderColour"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Border width" Description="In the display's own scale, so it looks the same on every display."
+                           IsEnabled="{x:Bind ViewModel.PinBorder, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.PinBorderThickness, Mode=TwoWay}" Minimum="1" Maximum="16" StepFrequency="1"
+                      Width="200" AutomationProperties.Name="PinBorderThickness"/>
+              <TextBlock Text="{x:Bind ViewModel.PinBorderThickness, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Border opacity" IsEnabled="{x:Bind ViewModel.PinBorder, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.PinBorderOpacity, Mode=TwoWay}" Minimum="20" Maximum="100" StepFrequency="5"
+                      Width="200" AutomationProperties.Name="PinBorderOpacity"/>
+              <TextBlock Text="{x:Bind ViewModel.PinBorderOpacity, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep pinned windows clear of focus mode"
+                           Description="A video or a chat pinned beside the work stays lit while focus mode dims everything else.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE890;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinClearInFocus, Mode=TwoWay}" AutomationProperties.Name="PinClearInFocus"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep them clear of OLED idle dimming too"
+                           Description="Off by default: idle dimming rests a screen nobody is looking at, and a window that sits in one place for hours is what burns in.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7F4;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinClearInOledCare, Mode=TwoWay}" AutomationProperties.Name="PinClearInOledCare"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Never pin a fullscreen window"
+                           Description="A game or a film filling its display is left as it is.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinSkipFullscreen, Mode=TwoWay}" AutomationProperties.Name="PinSkipFullscreen"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Step aside for fullscreen"
+                           Description="A film or game going fullscreen in front goes over the pinned windows on its display, and they come back on top when it leaves. Off, pinned windows stay over it.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinStepAsideForFullscreen, Mode=TwoWay}" AutomationProperties.Name="PinStepAsideForFullscreen"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Never pin these apps"
+                           Description="Executable names, separated by commas, for example game.exe, obs64.exe."
+                           ContentAlignment="Vertical">
+            <TextBox Text="{x:Bind ViewModel.PinExcludedApps, Mode=TwoWay}" PlaceholderText="App executable names"
+                     AutomationProperties.Name="PinExcludedApps"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <!-- Moving windows between displays: on demand (gather), and on the two
+           occasions a display arrives - one coming back, and a new window
+           opening on the wrong one. Windows' own two switches sit beside
+           DispCtrl's, because returning windows takes one of them over. -->
+      <tk:SettingsExpander Header="Move windows between displays"
+                           Description="Gather every window onto one display, put them back when a display returns, and open new windows where you are working."
+                           Margin="0,4,0,0">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE7C2;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Gather every window" Description="{x:Bind ViewModel.GatherShortcut, Mode=OneWay}"
+                           ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7C2;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ItemsControl ItemsSource="{x:Bind ViewModel.Displays, Mode=OneWay}" Margin="0,4,0,8">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="8"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DisplayViewModel">
+                  <Button Content="{x:Bind GatherLabel}" Click="OnGather" Tag="{x:Bind}"
+                          AutomationProperties.Name="{x:Bind GatherAutomationName}"/>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Put windows back when a display returns"
+                           Description="Its windows go back where they were, as long as nobody has moved them since. The same monitor on another port still counts.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7A7;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.ReturnWindows, Mode=TwoWay}" AutomationProperties.Name="ReturnWindows"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Windows: remember window locations"
+                           Description="Windows' own setting in Settings &gt; System &gt; Display &gt; Multiple displays; a change may not take effect until you next sign in. It works alongside DispCtrl's: a window Windows has already put back is left alone.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.WindowsRemembersLocations, Mode=TwoWay}"
+                          AutomationProperties.Name="WindowsRemembersLocations"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Windows: minimize windows when a monitor is disconnected"
+                           Description="Windows' own setting: a departing display's windows are minimized rather than moved onto another display.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.WindowsMinimizesOnDisconnect, Mode=TwoWay}"
+                          AutomationProperties.Name="WindowsMinimizesOnDisconnect"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Open new windows on the display in use"
+                           Description="A window that opens on another display is moved to the one you are working on. Dialogs and fullscreen games are left alone.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE8A7;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.NewWindowsOnActive, Mode=TwoWay}" AutomationProperties.Name="NewWindowsOnActive"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="The display in use" Description="Where new windows go, and what the gather shortcut gathers onto.">
+            <ComboBox ItemsSource="{x:Bind ViewModel.ActiveDisplayChoices}"
+                      SelectedIndex="{x:Bind ViewModel.ActiveDisplayIndex, Mode=TwoWay}"
+                      MinWidth="260" AutomationProperties.Name="ActiveDisplay"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep a window's size to the eye"
+                           Description="A window moved from a 100% display to a 200% one is doubled in pixels, so it looks the same size. Off keeps its pixels.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PlacementKeepSize, Mode=TwoWay}" AutomationProperties.Name="PlacementKeepSize"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Never move these apps"
+                           Description="Executable names, separated by commas. Gathering, putting back and new windows all leave them where they are."
+                           ContentAlignment="Vertical">
+            <TextBox Text="{x:Bind ViewModel.PlacementExcludedApps, Mode=TwoWay}" PlaceholderText="App executable names"
+                     AutomationProperties.Name="PlacementExcludedApps"/>
+          </tk:SettingsCard>
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
@@ -915,6 +1149,15 @@
                                VerticalAlignment="Center" MinWidth="32"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                   </StackPanel>
+                </tk:SettingsCard>
+
+                <!-- Power Display's "exclude from linked brightness". -->
+                <tk:SettingsCard Header="In unison" Description="{x:Bind InUnisonDescription, Mode=OneWay}"
+                                 Visibility="{x:Bind BrightnessVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE793;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <ToggleSwitch IsOn="{x:Bind InUnison, Mode=TwoWay}" AutomationProperties.Name="{x:Bind InUnisonAutomationName}"/>
                 </tk:SettingsCard>
 
                 <!-- Only where the real thing is missing. On a panel with a
@@ -1186,6 +1429,22 @@
                      card-like children, and an expander inside one does not
                      fail to render — it takes the process down when the item is
                      realised. That has now cost this project two crashes. -->
+                <!-- The DDC/CI guard's notice, in a card like the wallpaper one:
+                     a bare InfoBar in Items takes the process down. -->
+                <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch"
+                                 Visibility="{x:Bind DdcBlockedVisibility, Mode=OneWay}">
+                  <InfoBar IsOpen="True" IsClosable="False" Severity="Warning"
+                           HorizontalAlignment="Stretch" Margin="0,0,0,8"
+                           Title="DDC/CI is off for this monitor"
+                           Message="{x:Bind DdcBlockedMessage, Mode=OneWay}">
+                    <InfoBar.ActionButton>
+                      <Button Content="Talk to it again" Click="OnAllowDdc" Tag="{x:Bind}"
+                              ToolTipService.ToolTip="Only if the crash had another cause: if the monitor is at fault, the next capabilities read may crash Windows again."
+                              AutomationProperties.Name="AllowDdc"/>
+                    </InfoBar.ActionButton>
+                  </InfoBar>
+                </tk:SettingsCard>
+
                 <tk:SettingsCard ContentAlignment="Vertical"
                                  HorizontalContentAlignment="Stretch"
                                  Header="The monitor's own controls"
@@ -1245,6 +1504,24 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
+                  </StackPanel>
+                </tk:SettingsCard>
+
+                <!-- For a monitor that answers no capabilities string: ask it
+                     code by code, reading only. -->
+                <tk:SettingsCard Header="Look for its controls"
+                                 Description="{x:Bind ProbeDescription, Mode=OneWay}"
+                                 Visibility="{x:Bind ProbeVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE721;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Forget" Click="OnForgetProbe" Tag="{x:Bind}"
+                            Visibility="{x:Bind ForgetProbeVisibility, Mode=OneWay}"
+                            AutomationProperties.Name="ForgetProbe"/>
+                    <Button Content="Probe (read-only)" Click="OnProbe" Tag="{x:Bind}"
+                            IsEnabled="{x:Bind ProbeReady, Mode=OneWay}"
+                            AutomationProperties.Name="ProbeMonitor"/>
                   </StackPanel>
                 </tk:SettingsCard>
 

@@ -102,8 +102,15 @@ internal static class DdcChannel
     /// Blocking. The handle must be destroyed explicitly: leaking it holds the
     /// channel open, after which the monitor refuses later requests.
     /// </remarks>
-    public static unsafe T With<T>(DisplayInfo display, Func<HANDLE, T> work, T fallback)
+    /// <param name="risky">
+    /// A capabilities read: marked on disk for <see cref="DdcGuard"/> every time,
+    /// not only on this process's first conversation with the monitor.
+    /// </param>
+    public static unsafe T With<T>(DisplayInfo display, Func<HANDLE, T> work, T fallback, bool risky = false)
     {
+        // A monitor that has taken Windows down is not spoken to at all.
+        if (DdcGuard.IsBlocked(display)) return fallback;
+
         Mutex gate = GateFor(display);
 
         bool held;
@@ -121,6 +128,8 @@ internal static class DdcChannel
 
         if (!held) return fallback;
 
+        // Marked after the gate, so a mark covers the read and not the wait for it.
+        IDisposable? mark = risky || DdcGuard.FirstConversation(display) ? DdcGuard.Enter(display) : null;
         try
         {
             var hmon = new HMONITOR((void*)display.Handle);
@@ -148,6 +157,7 @@ internal static class DdcChannel
         }
         finally
         {
+            mark?.Dispose();
             gate.ReleaseMutex();
         }
     }

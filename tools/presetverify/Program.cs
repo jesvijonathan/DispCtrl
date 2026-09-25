@@ -48,6 +48,14 @@ Check(DispCtrl.Core.Displays.FocusGeometry.RestingWhenIdle(careCheck.Enabled, tr
     "OLED idle activation has no focus-mode dependency");
 Check(careCheck.DimAtIdle(60_000) == 50 && careCheck.DimAtIdle(179_999) == 50
     && careCheck.DimAtIdle(180_000) == 95, "OLED stages use their selected levels and additional delay");
+// A person's last input at 10 s; Stay active nudges at 65 s and 120 s.
+var personIdle = new DispCtrl.Core.Displays.PersonIdle();
+personIdle.Update(10_000, 0, 0);
+Check(personIdle.Update(64_000, 54_000, 0) == 54_000, "idle counts from a person's input before any nudge");
+Check(personIdle.Update(66_000, 1_000, 65_000) == 56_000, "Stay active's nudge does not reset OLED idle time");
+Check(personIdle.Update(190_000, 70_000, 120_000) == 180_000
+    && careCheck.DimAtIdle(180_000) == 95, "second OLED stage arrives under repeated nudges");
+Check(personIdle.Update(191_000, 0, 120_000) == 0, "a person's input after a nudge still resets idle time");
 var oledBounds = new DispCtrl.Core.Displays.DisplayRect(0, 0, 1920, 1080);
 var panelIdleState = new DispCtrl.Core.Displays.OledIdleState();
 uint PanelAge(long now, uint idle, int x, int y, bool enabled = true, bool sticky = true, bool pointer = true) =>
@@ -147,6 +155,7 @@ Check(merged.For("panel-a").SoftwareBrightness == 60 && merged.For("panel-b").So
 CacheChecks.Run(Check);
 ShellChecks.Run(Check);
 SettingsChecks.Run(Check);
+WindowChecks.Run(Check);
 var screen = new DispCtrl.Core.Displays.DisplayRect(0, 0, 1920, 1080);
 var active = new DispCtrl.Core.Displays.DisplayRect(500, 100, 1400, 900);
 var cut = DispCtrl.Core.Displays.FocusGeometry.Intersect(screen, active);

@@ -99,6 +99,7 @@ internal sealed partial class QuickPanelContent
                 case "displays": Displays(); break;
                 case "taskbar": Taskbar(); break;
                 case "presets": Presets(); break;
+                case "windows": WindowsSection(); break;
             }
 
             // A gap between sections that drew something, none above the first.

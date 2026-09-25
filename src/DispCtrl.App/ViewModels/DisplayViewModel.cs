@@ -10,7 +10,6 @@ using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
 using DispCtrl.Display;
 using Windows.Storage;
-using Windows.Storage.Streams;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
@@ -147,11 +146,10 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         _fitReady = true;
         Raise(nameof(SelectedWallpaperFit));
 
-        bool wallpaperChanged = _wallpaperPath != wallpaper;
+        bool wallpaperChanged = _wallpaperPath != wallpaper || _wallpaperImage is null;
         _wallpaperPath = wallpaper;
         Raise(nameof(WallpaperName));
-        if (wallpaperChanged && _wallpaperPath is not null && File.Exists(_wallpaperPath))
-            _ = DecodeWallpaperAsync(_wallpaperPath);
+        if (wallpaperChanged) _ = DecodeWallpaperAsync();
 
         await Task.WhenAll(advanced, brightness, monitorControls);
     }
@@ -1379,51 +1377,42 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     {
         _wallpaperPath = Wallpaper.Read(_display);
         Raise(nameof(WallpaperName));
-
-        if (_wallpaperPath is null || !File.Exists(_wallpaperPath))
-        {
-            WallpaperImage = null;
-            return;
-        }
-
-        _ = DecodeWallpaperAsync(_wallpaperPath);
+        _ = DecodeWallpaperAsync();
     }
 
     /// <summary>
-    /// Decodes the wallpaper thumbnail from a stream rather than a URI.
+    /// Decodes this display's wallpaper thumbnail from the first picture of it that decodes.
     /// </summary>
     /// <remarks>
-    /// The active wallpaper is usually Windows' own <c>TranscodedWallpaper</c>,
-    /// which is a JPEG with no file extension. Handing that path to
-    /// <c>UriSource</c> relies on the decoder sniffing the content; opening the
-    /// file and decoding the stream does not.
-    /// <para>
-    /// Decoded small on purpose — this is a 96px thumbnail beside a settings
-    /// row, and decoding a 4K image at full size for it would be wasteful.
-    /// </para>
+    /// The reported file first, then Windows' own decoded copy of this
+    /// display's wallpaper (<see cref="Wallpaper.PreviewSources"/>): the
+    /// reported file can be gone - OLED Shifter deletes its moved copies - and
+    /// the card stayed empty while the arrangement tiles, which already fell
+    /// back, showed the picture. Decoded from a file stream opened on a worker,
+    /// never a whole image read into memory, and small: this is a thumbnail.
     /// </remarks>
-    private async Task DecodeWallpaperAsync(string path)
+    private async Task DecodeWallpaperAsync()
     {
-        try
+        DisplayInfo d = _display;
+        List<string> sources;
+        try { sources = await Task.Run(() => Wallpaper.PreviewSources(d)).ConfigureAwait(true); }
+        catch (Exception) { sources = []; }
+        foreach (string path in sources)
         {
-            byte[] bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(true);
-
-            var stream = new InMemoryRandomAccessStream();
-            using (DataWriter writer = new(stream.GetOutputStreamAt(0)))
+            try
             {
-                writer.WriteBytes(bytes);
-                await writer.StoreAsync();
+                using FileStream file = await Task.Run(() => new FileStream(path, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan)).ConfigureAwait(true);
+                using var stream = file.AsRandomAccessStream();
+                var bitmap = new BitmapImage { DecodePixelWidth = 320 };
+                await bitmap.SetSourceAsync(stream);
+                WallpaperImage = bitmap;
+                return;
             }
-
-            var bitmap = new BitmapImage { DecodePixelWidth = 320 };
-            await bitmap.SetSourceAsync(stream);
-            WallpaperImage = bitmap;
+            catch (Exception) { /* on to the next picture of it */ }
         }
-        catch (Exception)
-        {
-            // An unreadable or exotic format degrades to the filename only.
-            WallpaperImage = null;
-        }
+        // Nothing decodes: the file name alone.
+        WallpaperImage = null;
     }
 
     // ------------------------------------------------------------------ fit --
@@ -1614,7 +1603,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         // one is adjusted — which looks exactly like unison only working on the
         // built-in panel.
         await BrightnessReady.ConfigureAwait(true);
-        if (!_brightness.Supported) return;
+        if (!_brightness.Supported || !_settings.InUnison) return;
 
         if (UsesBrightnessRange)
         {
@@ -1904,7 +1893,9 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             ? $"{MonitorControls.Count} of {_reportedControls} controls this panel reports over DDC/CI"
             : _display.IsInternal
                 ? "A built-in panel has no DDC/CI channel."
-                : "This monitor answered no capabilities string.")
+                : DdcBlocked
+                    ? "DDC/CI to this monitor is off: see the notice above."
+                    : "This monitor answered no capabilities string.")
         : "Asking the monitor what it supports…";
 
     /// <summary>
@@ -2036,6 +2027,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(MonitorControlsSummary));
         Raise(nameof(UnofferedSummary));
         Raise(nameof(UnofferedVisibility));
+        RaiseProbe();
     }
 
     // --------------------------------------------------------- night light --
@@ -2151,6 +2143,131 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     }
 
     public string FocusDimmingAutomationName => $"FocusDimming {Number}";
+
+    // ------------------------------------------------------ unison, the guard, the probe --
+
+    /// <summary>Whether unison brightness moves this display.</summary>
+    /// <remarks>
+    /// Left out, it keeps whatever brightness it has; back in, it goes straight
+    /// to where unison puts it, so the switch does what it says at once.
+    /// </remarks>
+    public bool InUnison
+    {
+        get => _settings.InUnison;
+        set
+        {
+            if (_settings.InUnison == value) return;
+            _settings.InUnison = value;
+            _persist();
+            Raise();
+            Raise(nameof(InUnisonDescription));
+            if (value && _root.Global.UnisonBrightness) _ = ApplyUnisonAsync(_root.Global.UnisonLevel / 100.0);
+            UnisonMembershipChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Raised when this display joins or leaves unison, for the lines that describe the whole set.</summary>
+    public event Action? UnisonMembershipChanged;
+
+    public string InUnisonDescription => _settings.InUnison
+        ? (_display.IsInternal
+            ? "Unison brightness moves this display with the others, and so do Windows' brightness keys when they drive unison."
+            : "Unison brightness moves this display with the others.")
+        : (_display.IsInternal
+            ? "Left out: it keeps its own brightness, and Windows' brightness keys move only this screen again."
+            : "Left out: it keeps its own brightness while the others move together.");
+
+    public string InUnisonAutomationName => $"InUnison {Number}";
+
+    /// <summary>The gather button for this display.</summary>
+    public string GatherLabel => $"Onto {Number}: {ShortName}";
+
+    public string GatherAutomationName => $"Gather onto {Number}";
+
+    /// <summary>Whether the DDC/CI guard has stopped DispCtrl talking to this monitor.</summary>
+    public bool DdcBlocked => _root.Global.DdcGuard.IsBlocked(Token);
+
+    public Visibility DdcBlockedVisibility => DdcBlocked ? Visibility.Visible : Visibility.Collapsed;
+
+    public string DdcBlockedMessage =>
+        _root.Global.DdcGuard.Blocked.FirstOrDefault(b => string.Equals(b.Token, Token, StringComparison.OrdinalIgnoreCase))?.Reason
+        ?? "DispCtrl does not talk to this monitor over DDC/CI.";
+
+    /// <summary>Talks to a monitor the guard blocked again, and reads it afresh.</summary>
+    public async Task AllowDdcAsync()
+    {
+        await Task.Run(() => DdcGuard.Allow(Token)).ConfigureAwait(true);
+        _root.Global.DdcGuard.Blocked.RemoveAll(b => string.Equals(b.Token, Token, StringComparison.OrdinalIgnoreCase));
+        Raise(nameof(DdcBlocked));
+        Raise(nameof(DdcBlockedVisibility));
+        MonitorCapabilities.Forget(_display);
+        await RefreshReadingsAsync().ConfigureAwait(true);
+        Raise(nameof(ProbeVisibility));
+    }
+
+    /// <summary>
+    /// The read-only probe: offered for an external monitor that answered no
+    /// capabilities string, or one already using what a probe found.
+    /// </summary>
+    public Visibility ProbeVisibility => !_display.IsInternal && !DdcBlocked && _capabilitiesRead
+        && (_reportedControls == 0 || _settings.ProbedCodes is { Count: > 0 })
+        ? Visibility.Visible : Visibility.Collapsed;
+
+    private string _probeStatus = "";
+    private bool _probing;
+
+    public string ProbeDescription => _probeStatus.Length > 0 ? _probeStatus
+        : _settings.ProbedCodes is { Count: > 0 } codes
+            ? $"Using {codes.Count} code(s) a probe found this monitor answering, in place of the capabilities string it does not give."
+            : "This monitor does not say what it supports. A probe asks it, one read at a time, about each code DispCtrl knows. It reads, never writes, and takes a few seconds.";
+
+    public bool ProbeReady => !_probing;
+
+    public Visibility ForgetProbeVisibility => _settings.ProbedCodes is { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+
+    public async Task ProbeAsync()
+    {
+        if (_probing) return;
+        _probing = true;
+        _probeStatus = "Asking the monitor, one code at a time…";
+        RaiseProbe();
+        try
+        {
+            IReadOnlyList<MonitorCapabilities.ProbeAnswer> answers = await Task.Run(() => MonitorCapabilities.Probe(_display)).ConfigureAwait(true);
+            if (answers.Count == 0)
+            {
+                _probeStatus = "The monitor answered none of the codes: it does not take DDC/CI on this connection. Check that DDC/CI is on in its own menu.";
+                return;
+            }
+            _settings.ProbedCodes = answers.Select(a => a.Code.ToString("X2")).ToList();
+            _persist();
+            _probeStatus = $"Answered {answers.Count}: {string.Join(", ", answers.Select(a => a.Name))}. Its controls below are read from these.";
+            MonitorCapabilities.Forget(_display);
+            await RefreshReadingsAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex) { _probeStatus = "The probe failed: " + ex.Message; }
+        finally
+        {
+            _probing = false;
+            RaiseProbe();
+        }
+    }
+
+    public async Task ForgetProbeAsync()
+    {
+        _settings.ProbedCodes = null;
+        _persist();
+        _probeStatus = "";
+        MonitorCapabilities.Forget(_display);
+        await RefreshReadingsAsync().ConfigureAwait(true);
+        RaiseProbe();
+    }
+
+    private void RaiseProbe()
+    {
+        foreach (string name in new[] { nameof(ProbeVisibility), nameof(ProbeDescription), nameof(ProbeReady), nameof(ForgetProbeVisibility) })
+            Raise(name);
+    }
 
     public Visibility OledProtectionVisibility => IsOled ? Visibility.Visible : Visibility.Collapsed;
     public bool OledProtectionEnabled

@@ -413,6 +413,7 @@ public sealed partial class MainViewModel
             nameof(QuickPanelWidth), nameof(QuickPanelWidthText),
             nameof(QuickPanelColumns), nameof(QuickPanelColumnsText),
             nameof(QuickPanelDensityIndex), nameof(QuickPanelIconIndex), nameof(QuickPanelIconColourIndex), nameof(QuickPanelIconShowsActive), nameof(QuickPanelSummary),
+            nameof(TrayWheelIndex), nameof(WheelStep), nameof(WheelOnSliders),
         })
         {
             Raise(name);

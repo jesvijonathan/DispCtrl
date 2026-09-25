@@ -1,8 +1,49 @@
+using System.Text.Json.Serialization;
+
 namespace DispCtrl.Core.Settings;
+
+/// <summary>Which windows focus mode keeps clear: one choice over two stored switches.</summary>
+public enum FocusClear
+{
+    /// <summary>The window with keyboard focus.</summary>
+    Focused,
+
+    /// <summary>The window under the pointer, instead of the focused one.</summary>
+    Pointer,
+
+    /// <summary>Both: the focused window and the one under the pointer.</summary>
+    Both,
+}
 
 /// <summary>Shared window focus settings. No per-application injection or pixel sampling.</summary>
 public sealed class FocusSettings
 {
+    /// <summary>
+    /// <see cref="FollowMouse"/> and <see cref="KeepHoveredClear"/> as the one
+    /// question they answer.
+    /// </summary>
+    /// <remarks>
+    /// Two switches read as the same thing twice. Following the mouse makes the
+    /// window under the pointer the clear one <em>instead of</em> the focused
+    /// one; keeping the hovered window clear keeps it clear <em>as well</em>.
+    /// With the second on, the first changes only which of the pair counts as
+    /// in use, so Both leaves it as it was.
+    /// </remarks>
+    [JsonIgnore]
+    public FocusClear Clear
+    {
+        get => KeepHoveredClear ? FocusClear.Both : FollowMouse ? FocusClear.Pointer : FocusClear.Focused;
+        set
+        {
+            switch (value)
+            {
+                case FocusClear.Focused: FollowMouse = false; KeepHoveredClear = false; break;
+                case FocusClear.Pointer: FollowMouse = true; KeepHoveredClear = false; break;
+                default: KeepHoveredClear = true; break;
+            }
+        }
+    }
+
     public bool Enabled { get; set; }
     public int DimPercent { get; set; } = 64;
     public int DelayMs { get; set; } = 500;
@@ -80,10 +121,7 @@ public sealed class FocusSettings
     /// <summary>Executable names separated by commas, semicolons or newlines.</summary>
     public string ExcludedApps { get; set; } = "";
 
-    public HashSet<string> Exclusions() => (ExcludedApps ?? "").Split([',', ';', '\r', '\n'],
-        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        .Select(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name)
-        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> Exclusions() => AppList.Parse(ExcludedApps);
 }
 
 /// <summary>Black or dimmed screen rest for monitors identified as OLED.</summary>
@@ -98,6 +136,24 @@ public sealed class OledCareSettings
     public int SecondStageDimPercent { get; set; } = 95;
     public int FadeMs { get; set; } = 2000;
     public bool PauseFullscreen { get; set; } = true;
+
+    /// <summary>Rest each display when it goes unused, rather than when the whole computer does.</summary>
+    /// <remarks>
+    /// Off, typing on one screen keeps every screen awake. On, a display rests
+    /// once neither the pointer nor the window being typed into has been on it
+    /// for <see cref="IdleMinutes"/>; see <see cref="Displays.DisplayActivity"/>.
+    /// </remarks>
+    public bool PerDisplayActivity { get; set; }
+
+    /// <summary>Executable names that keep the display showing them awake, separated by commas.</summary>
+    /// <remarks>
+    /// A film or a dashboard is looked at without being touched. Any of these
+    /// apps' windows showing on a display - not minimized, mostly on it - keeps
+    /// that display from resting, whichever window has focus.
+    /// </remarks>
+    public string ExcludedApps { get; set; } = "";
+
+    public HashSet<string> Exclusions() => AppList.Parse(ExcludedApps);
 
     /// <summary>The configured idle-rest level at a given system idle age.</summary>
     public int DimAtIdle(uint idleMilliseconds)

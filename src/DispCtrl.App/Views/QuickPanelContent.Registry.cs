@@ -71,6 +71,16 @@ internal sealed partial class QuickPanelContent
             "detect" => ActionTile(e, () => _vm.DetectDisplays()),
             "project" => ActionTile(e, () => { _dismiss(); ShellFlyout.OpenProject(); }, ProjectMenu(), split: true),
             "cast" => ActionTile(e, () => { _dismiss(); ShellFlyout.OpenCast(); }),
+            // The panel is in front when it is clicked, so the tile chooses from
+            // the open windows; the hotkey pins the one in front.
+            "pin" => PinTile(e),
+            "gather" => _vm.SeveralDisplays ? ActionTile(e, GatherHere, GatherMenu(), split: true) : null,
+            "returnWindows" => _vm.SeveralDisplays
+                ? Tile(e, () => _vm.ReturnWindows, v => _vm.ReturnWindows = v, nameof(MainViewModel.ReturnWindows))
+                : null,
+            "newWindows" => _vm.SeveralDisplays
+                ? Tile(e, () => _vm.NewWindowsOnActive, v => _vm.NewWindowsOnActive = v, nameof(MainViewModel.NewWindowsOnActive))
+                : null,
             "restAll" => _vm.Displays.Any(d => d.IsOled)
                 ? ActionTile(e, () =>
                 {
@@ -82,6 +92,15 @@ internal sealed partial class QuickPanelContent
                 : null,
             _ => null,
         };
+    }
+
+    /// <summary>A tile that opens the list of windows to pin, from its whole face.</summary>
+    private FrameworkElement? PinTile(Entry e)
+    {
+        Flyout flyout = PinFlyout();
+        FrameworkElement? anchor = null;
+        anchor = ActionTile(e, () => flyout.ShowAt(anchor!, new FlyoutShowOptions { Placement = FlyoutPlacementMode.Bottom }), flyout);
+        return anchor;
     }
 
     // ---- keep awake ----
@@ -123,7 +142,15 @@ internal sealed partial class QuickPanelContent
     }
 
     /// <summary>One of several, as radio buttons; re-read each time the flyout opens.</summary>
-    private FrameworkElement Choices(params (string Text, Func<bool> On, Action Pick)[] options)
+    private FrameworkElement Choices(params (string Text, Func<bool> On, Action Pick)[] options) => Choices(null, options);
+
+    /// <summary>
+    /// One of several, re-read as well whenever <paramref name="watch"/> changes:
+    /// in a section, which stays built while the panel is hidden, Loaded comes
+    /// once, and a choice made on the page or the command line meanwhile showed
+    /// the old one at the next opening.
+    /// </summary>
+    private FrameworkElement Choices(string? watch, params (string Text, Func<bool> On, Action Pick)[] options)
     {
         var panel = new StackPanel { Margin = new Thickness(RowInset, 2, 0, 2) };
         string group = "choice" + Guid.NewGuid().ToString("N");
@@ -145,6 +172,7 @@ internal sealed partial class QuickPanelContent
         }
 
         panel.Loaded += (_, _) => Sync();
+        if (watch is not null) Watch(_vm, watch, Sync);
         return panel;
     }
 
@@ -241,6 +269,11 @@ internal sealed partial class QuickPanelContent
                 () => _vm.NightLightScheduled, v => _vm.NightLightScheduled = v,
                 nameof(MainViewModel.NightLightScheduled), "QuickNightSchedule"),
             schedule,
+            // Its hours are the schedule's, so it means nothing without one.
+            EnabledWhen(SwitchRow("Dark mode on the schedule", "Windows goes dark when the schedule starts and light when it ends, once each.",
+                    () => _vm.NightLightDarkModeOnSchedule, v => _vm.NightLightDarkModeOnSchedule = v,
+                    nameof(MainViewModel.NightLightDarkModeOnSchedule), "QuickNightDarkMode"),
+                () => _vm.NightLightScheduled, nameof(MainViewModel.NightLightScheduled)),
         ];
     }
 
@@ -270,7 +303,7 @@ internal sealed partial class QuickPanelContent
                 v => _vm.FocusFade = v, _vm, nameof(MainViewModel.FocusFade), () => _vm.FocusFade,
                 "QuickFocusFade", " ms", labelled: true),
             Caption("Between windows"),
-            Choices(
+            Choices(nameof(MainViewModel.WindowTransition),
                 ("No transition", () => _vm.WindowTransition == 0, () => _vm.WindowTransition = 0),
                 ("Fade the brightness", () => _vm.WindowTransition == 1, () => _vm.WindowTransition = 1),
                 ("Slide the shape", () => _vm.WindowTransition == 2, () => _vm.WindowTransition = 2)),
@@ -278,10 +311,11 @@ internal sealed partial class QuickPanelContent
                 () => _vm.FocusPerMonitor, v => _vm.FocusPerMonitor = v, nameof(MainViewModel.FocusPerMonitor), "QuickFocusPerMonitor"),
             SwitchRow("Dim other monitors", "Displays without the active window are dimmed too.",
                 () => _vm.FocusOtherMonitors, v => _vm.FocusOtherMonitors = v, nameof(MainViewModel.FocusOtherMonitors), "QuickFocusOthers"),
-            SwitchRow("Follow the mouse", "The window under the pointer is the clear one.",
-                () => _vm.FocusFollowMouse, v => _vm.FocusFollowMouse = v, nameof(MainViewModel.FocusFollowMouse), "QuickFocusMouse"),
-            SwitchRow("Keep the hovered window clear", "A window under the pointer is never dimmed.",
-                () => _vm.FocusKeepHoveredClear, v => _vm.FocusKeepHoveredClear = v, nameof(MainViewModel.FocusKeepHoveredClear), "QuickFocusHover"),
+            Caption("Kept clear"),
+            Choices(nameof(MainViewModel.FocusClearIndex),
+                ("The focused window", () => _vm.FocusClearIndex == 0, () => _vm.FocusClearIndex = 0),
+                ("The window under the pointer", () => _vm.FocusClearIndex == 1, () => _vm.FocusClearIndex = 1),
+                ("Both", () => _vm.FocusClearIndex == 2, () => _vm.FocusClearIndex = 2)),
             SwitchRow("Keep the taskbar clear", "The taskbar is never dimmed.",
                 () => _vm.FocusKeepTaskbar, v => _vm.FocusKeepTaskbar = v, nameof(MainViewModel.FocusKeepTaskbar), "QuickFocusTaskbar"),
             SwitchRow("Clear new windows first", "A window that has just opened is the clear one.",
@@ -337,6 +371,9 @@ internal sealed partial class QuickPanelContent
             SwitchRow("Pause during fullscreen", "No dimming while a fullscreen app or game runs.",
                 () => _vm.OledPauseFullscreen, v => _vm.OledPauseFullscreen = v,
                 nameof(MainViewModel.OledPauseFullscreen), "QuickOledFullscreen"),
+            SwitchRow("Each display on its own", "A display rests when the pointer and your typing have been elsewhere, even while you work on another.",
+                () => _vm.OledPerDisplayActivity, v => _vm.OledPerDisplayActivity = v,
+                nameof(MainViewModel.OledPerDisplayActivity), "QuickOledPerDisplay"),
             rest,
         ];
     }
@@ -624,6 +661,13 @@ internal sealed partial class QuickPanelContent
         identify.Click += (_, _) => IdentifyOne(display);
         menu.Items.Add(identify);
 
+        if (_vm.SeveralDisplays)
+        {
+            var gather = new MenuFlyoutItem { Text = "Bring every window here", Icon = new FontIcon { Glyph = "\uE7C2" } };
+            gather.Click += (_, _) => GatherInto(display);
+            menu.Items.Add(gather);
+        }
+
         if (display.IsOled)
         {
             var rest = new MenuFlyoutItem { Text = "Rest this display now", Icon = new FontIcon { Glyph = "\uEA14" } };
@@ -830,6 +874,11 @@ internal sealed partial class QuickPanelContent
         "rest" => display.IsOled
             ? StripAction(e, display, () => { display.RequestOledRest(); _dismiss(); })
             : null,
+        // Only where there is a unison to be in or out of.
+        "unison" => display.BrightnessSupported && _vm.SeveralDisplays
+            ? StripToggle(e, display, () => display.InUnison, v => display.InUnison = v, nameof(DisplayViewModel.InUnison))
+            : null,
+        "gather" => _vm.SeveralDisplays ? StripAction(e, display, () => GatherInto(display)) : null,
         "identify" => StripAction(e, display, () => _vm.Identify()),
 
         // Shown on the main display too, lit and still, so the strip says which

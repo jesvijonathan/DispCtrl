@@ -24,7 +24,11 @@ public sealed partial class ControlService
         "awake.get", "awake.set", "awake.reset", "nightlight.get", "nightlight.set", "nightlight.reset",
         "ambient.get", "ambient.set", "ambient.reset", "ambient.capture", "ambient.forget",
         "taskbar.get", "taskbar.set", "taskbar.reset", "tray.get", "tray.set", "tray.reset", "windows.get", "windows.set",
-        "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "maintenance.repair", "maintenance.clear-cache", "tray.show", "apply", "commands", "diagnostics", "report"];
+        "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "maintenance.repair", "maintenance.clear-cache", "tray.show", "apply", "commands", "diagnostics", "report",
+        "pin.get", "pin.set", "pin.reset", "pin.list", "pin.on", "pin.off", "pin.toggle",
+        "placement.get", "placement.set", "placement.reset", "placement.gather", "placement.move",
+        "ddc.get", "ddc.set", "ddc.reset", "ddc.allow", "ddc.probe",
+        "update.get", "update.check", "update.set", "update.skip", "update.reset"];
 
     public JsonObject Execute(JsonObject request)
     {
@@ -106,6 +110,10 @@ public sealed partial class ControlService
         if (command.StartsWith("unison.", StringComparison.Ordinal)) return UnisonCommand(command[7..], args);
         if (command.StartsWith("ambient.", StringComparison.Ordinal)) return AmbientCommand(command[8..], args);
         if (command.StartsWith("maintenance.", StringComparison.Ordinal)) return MaintenanceCommand(command[12..], args);
+        if (command.StartsWith("pin.", StringComparison.Ordinal)) return PinCommand(command[4..], args);
+        if (command.StartsWith("placement.", StringComparison.Ordinal)) return PlacementCommand(command[10..], args);
+        if (command.StartsWith("ddc.", StringComparison.Ordinal)) return DdcCommand(command[4..], args);
+        if (command.StartsWith("update.", StringComparison.Ordinal)) return UpdateCommand(command[7..], args);
         if (command == "gamma.get")
         {
             var state = GammaRange.Read();
@@ -298,8 +306,10 @@ public sealed partial class ControlService
             }, Flag(args, "dryRun"));
         }
         string path = group switch { "focus" => "/global/focus", "oled" => "/global/oledCare", "awake" => "/global/awake",
-            "nightlight" => "/global/nightLight", "ambient" => "/global/ambient", "tray" => "/global/quickPanel", "taskbar" => "/global", _ => throw new ArgumentException("Unknown settings group.") };
+            "nightlight" => "/global/nightLight", "ambient" => "/global/ambient", "tray" => "/global/quickPanel", "taskbar" => "/global",
+            "pin" => "/global/pin", "placement" => "/global/placement", _ => throw new ArgumentException("Unknown settings group.") };
         string? selector = Text(args, "monitor");
+        if (selector is not null && group is "pin" or "placement") throw new ArgumentException("These settings apply to the whole desk, not one display.");
         string? token = selector is null ? null : Resolve(selector, false).Single().Token;
         if (token is not null) path = "/monitors/" + token;
         if (action == "get" && group == "taskbar" && token is null)
@@ -352,6 +362,26 @@ public sealed partial class ControlService
                 name = group == "taskbar" ? name switch { "opacity" => "taskbarOpacity", "glass" => "taskbarGlassEnabled", "blur" => "taskbarGlassRadius",
                     "tint" => "taskbarGlassTint", "hide" => "hideTaskbar", "reclaimSpace" => "reclaimWorkArea", _ => name } : name;
                 if (group == "oled" && token is not null && name == "enabled") name = "oledProtection";
+                // The terminal reads "off" as false before it gets here, and the
+                // wheel's choices are words: off is a choice, not a switch.
+                if (group == "tray" && name == "trayWheel" && value is JsonValue wheel && wheel.TryGetValue(out bool on))
+                    value = JsonValue.Create(on ? "All" : "Off");
+                // The page's one choice over the two switches it stands for.
+                if (group == "focus" && token is null && name == "keepClear")
+                {
+                    if (!Enum.TryParse(value?.ToString(), ignoreCase: true, out FocusClear clear) || !Enum.IsDefined(clear))
+                        throw new ArgumentException("--keep-clear focused, pointer or both.");
+                    var focusNow = new FocusSettings
+                    {
+                        FollowMouse = SettingsDocument.Get(document, path + "/followMouse")?.GetValue<bool>() ?? true,
+                        KeepHoveredClear = SettingsDocument.Get(document, path + "/keepHoveredClear")?.GetValue<bool>() ?? true,
+                        Clear = clear,
+                    };
+                    SettingsDocument.Set(document, path + "/followMouse", JsonValue.Create(focusNow.FollowMouse));
+                    SettingsDocument.Set(document, path + "/keepHoveredClear", JsonValue.Create(focusNow.KeepHoveredClear));
+                    count++;
+                    continue;
+                }
                 // Every taskbar field is loose in /global, so an unchecked name
                 // here could set unison or night light by accident.
                 if (group == "taskbar" && token is null && !TaskbarKeys.Contains(name))
@@ -362,6 +392,10 @@ public sealed partial class ControlService
                         throw new ArgumentException($"--{name} is a time of day: 20:00.");
                     name += "Minutes"; value = JsonValue.Create((int)at.TotalMinutes);
                 }
+                // A theme chosen by the schedule is set once per boundary; one
+                // just switched on, or with new hours, is set at the next look.
+                if (group == "nightlight" && token is null && name is "darkModeOnSchedule" or "fromMinutes" or "toMinutes" or "scheduled")
+                    SettingsDocument.Set(document, path + "/themeAppliedUtc", null);
                 SettingsDocument.Set(document, path + "/" + name, value);
                 count++;
             }
@@ -399,6 +433,16 @@ public sealed partial class ControlService
             "ambient.capture" => ["as", "dryRun"],
             "ambient.forget" => ["dryRun"],
             "display.reset" => ["monitor", "factory", "confirm", "dryRun"],
+            "pin.list" or "ddc.get" => [],
+            "update.check" or "update.skip" => ["dryRun"],
+            "update.set" => ["checkAutomatically", "dryRun"],
+            "pin.on" or "pin.toggle" => ["window", "dryRun"],
+            "pin.off" => ["window", "all", "dryRun"],
+            "placement.gather" => ["to", "from", "dryRun"],
+            "placement.move" => ["window", "to", "dryRun"],
+            "ddc.set" => ["guard", "dryRun"],
+            "ddc.allow" => ["monitor", "model", "token", "dryRun"],
+            "ddc.probe" => ["monitor", "save", "clear", "dryRun"],
             _ when command.EndsWith(".get", StringComparison.Ordinal) => ["monitor"],
             _ when command.EndsWith(".reset", StringComparison.Ordinal) => ["monitor", "dryRun", "revision"],
             _ => null,

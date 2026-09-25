@@ -139,6 +139,57 @@ public static unsafe partial class Wallpaper
         }
     }
 
+    /// <summary>
+    /// Where a picture of a display's wallpaper can be found, best first; only files that exist.
+    /// </summary>
+    /// <remarks>
+    /// The file Windows reports can be gone while it still reports it: ASUS
+    /// OLED Shifter writes a moved copy every few minutes and deletes the old
+    /// ones, and on this desk the laptop's reported file had been deleted, so
+    /// its preview stayed empty. It can also be online-only or a format the
+    /// decoder cannot read (HEIC, WebP). Windows keeps its own decoded copy of
+    /// each monitor's wallpaper, <c>Themes\Transcoded_NNN</c>, numbered by the
+    /// monitor's index in <see cref="IDesktopWallpaper"/> (measured here: the
+    /// Dell's 7000x4665 picture is <c>Transcoded_001</c>, its index). The one
+    /// <c>TranscodedWallpaper</c> is last, and only when there is no numbered
+    /// copy: with a wallpaper per monitor it is one of them, maybe another's.
+    /// </remarks>
+    public static List<string> PreviewSources(DisplayInfo display)
+    {
+        var sources = new List<string>(3);
+        void Add(string? path)
+        {
+            if (string.IsNullOrEmpty(path) || sources.Contains(path, StringComparer.OrdinalIgnoreCase)) return;
+            try { if (new FileInfo(path) is { Exists: true, Length: > 0 }) sources.Add(path); }
+            catch (Exception) { }
+        }
+
+        Add(Read(display));
+        string themes = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Microsoft", "Windows", "Themes");
+        int count = sources.Count;
+        if (MonitorIndex(display) is { } index) Add(Path.Combine(themes, $"Transcoded_{index:000}"));
+        if (sources.Count == count) Add(Path.Combine(themes, "TranscodedWallpaper"));
+        return sources;
+    }
+
+    /// <summary>The display's position in <see cref="IDesktopWallpaper"/>'s list of monitors.</summary>
+    private static int? MonitorIndex(DisplayInfo display)
+    {
+        try
+        {
+            IDesktopWallpaper? api = Create();
+            if (api is null) return null;
+            api.GetMonitorDevicePathCount(out uint count);
+            for (uint i = 0; i < count; i++)
+            {
+                api.GetMonitorDevicePathAt(i, out nint id);
+                if (string.Equals(TakeString(id), display.Key.DevicePath, StringComparison.OrdinalIgnoreCase)) return (int)i;
+            }
+        }
+        catch (COMException) { }
+        return null;
+    }
+
     public static unsafe bool Write(DisplayInfo display, string imagePath)
     {
         using var stateChange = new DisplayStateChange();

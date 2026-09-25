@@ -137,6 +137,22 @@ internal sealed partial class QuickPanelContent
             write(e.NewValue);
         };
 
+        // Only when asked for: a wheel meant to scroll the panel that lands on
+        // a slider would otherwise change the brightness under it. A notch is a
+        // share of the slider's range, so milliseconds move as far as percent.
+        if (_panel.WheelOnSliders)
+        {
+            bar.PointerWheelChanged += (_, e) =>
+            {
+                int delta = e.GetCurrentPoint(bar).Properties.MouseWheelDelta;
+                if (delta == 0 || !bar.IsEnabled) return;
+                double step = (bar.Maximum - bar.Minimum)
+                    * Math.Clamp(_panel.WheelStep, QuickPanelSettings.MinWheelStep, QuickPanelSettings.MaxWheelStep) / 100.0;
+                bar.Value = Math.Clamp(bar.Value + Math.Max(1, Math.Round(step)) * Math.Sign(delta), bar.Minimum, bar.Maximum);
+                e.Handled = true;
+            };
+        }
+
         Watch(source, property, () =>
         {
             double now = read();
