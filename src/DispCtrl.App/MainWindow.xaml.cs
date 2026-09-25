@@ -48,7 +48,7 @@ public sealed partial class MainWindow : Window
             // appear or disappear on its own, without reaching for Rescan. The
             // check is one cheap enumeration; the rebuild behind it only runs
             // when the layout genuinely changed.
-            App.ViewModel.RefreshIfDisplaysChanged();
+            App.ViewModel.RefreshIfDisplaysChanged(settled: false);
         };
         _statusTimer.Start();
 

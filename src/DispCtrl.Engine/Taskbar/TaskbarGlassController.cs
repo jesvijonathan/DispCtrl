@@ -187,34 +187,62 @@ internal sealed class TaskbarGlassController : IDisposable
         }
     }
 
-    /// <summary>A path to the helper that Explorer is allowed to load.</summary>
+    /// <summary>A path to the helper that Explorer is allowed to load, and may keep.</summary>
     /// <remarks>
-    /// Explorer loads the helper itself, from the path the engine hands it. In
-    /// a Store install that path is under WindowsApps, where a conditional ACE
-    /// grants execute only to processes whose SYSAPPID is the package's own:
-    /// Explorer may read the file but not map it as an image, so the glass did
-    /// nothing at all there while the installer and the zips worked. A copy in
-    /// the package's LocalCache - its real path, not the redirected
-    /// %LOCALAPPDATA% view - has the user's own ACL. The name carries the
-    /// revision, so an existing copy is the same bytes and is never rewritten:
-    /// Explorer may have it mapped.
+    /// Explorer loads the helper itself, from the path the engine hands it, and
+    /// keeps it mapped until Explorer restarts. Two things follow.
+    /// <para>
+    /// In a Store install that path is under WindowsApps, where a conditional
+    /// ACE grants execute only to processes whose SYSAPPID is the package's
+    /// own: Explorer may read the file but not map it as an image, so the glass
+    /// did nothing at all there while the installer and the zips worked. A copy
+    /// in the package's LocalCache - its real path, not the redirected
+    /// %LOCALAPPDATA% view - has the user's own ACL.
+    /// </para>
+    /// <para>
+    /// Anywhere else it was handed the file in the engine's own folder, which
+    /// for a development build is <c>bin</c>: Explorer then held a file in the
+    /// build output, and <c>build clean</c> failed with access denied on it
+    /// until Explorer restarted. So every build hands over a copy in
+    /// DispCtrl's data folder instead.
+    /// </para>
+    /// The name carries the revision, so an existing copy is the same bytes and
+    /// is never rewritten: Explorer may have it mapped. A copy that cannot be
+    /// made falls back to the original path, which works, only less tidily.
     /// </remarks>
     private static string ExplorerLoadable(string path, string name)
     {
-        string cache;
-        try { _ = Windows.ApplicationModel.Package.Current.Id; cache = Windows.Storage.ApplicationData.Current.LocalCacheFolder.Path; }
-        catch (InvalidOperationException) { return path; }
-        string directory = Path.Combine(cache, "TaskbarGlass");
-        string copy = Path.Combine(directory, name);
-        if (!File.Exists(copy))
+        string directory;
+        try
         {
-            Directory.CreateDirectory(directory);
-            File.Copy(path, copy + ".tmp", true);
-            File.Move(copy + ".tmp", copy, true);
-            Log.Write($"taskbar glass: helper copied out of the package to {copy}");
+            _ = Windows.ApplicationModel.Package.Current.Id;
+            directory = Path.Combine(Windows.Storage.ApplicationData.Current.LocalCacheFolder.Path, "TaskbarGlass");
         }
+        catch (InvalidOperationException)
+        {
+            directory = Path.Combine(SettingsStore.Directory, "taskbar-glass");
+        }
+
+        string copy = Path.Combine(directory, name);
+        try
+        {
+            if (!File.Exists(copy))
+            {
+                Directory.CreateDirectory(directory);
+                File.Copy(path, copy + ".tmp", true);
+                File.Move(copy + ".tmp", copy, true);
+                Log.Write($"taskbar glass: helper copied to {copy} for Explorer to load");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"taskbar glass: could not copy the helper ({ex.Message}); Explorer loads it from {path}");
+            return path;
+        }
+
         // Earlier revisions go when nothing holds them; one Explorer still has
-        // mapped stays until it restarts, and is tried again next time.
+        // mapped stays until it restarts, and is tried again next time. Another
+        // build's revision deleted here is copied again when that build loads.
         foreach (string old in Directory.EnumerateFiles(directory, "DispCtrl.TaskbarGlass.*.dll"))
             if (!string.Equals(old, copy, StringComparison.OrdinalIgnoreCase))
                 try { File.Delete(old); } catch (IOException) { } catch (UnauthorizedAccessException) { }

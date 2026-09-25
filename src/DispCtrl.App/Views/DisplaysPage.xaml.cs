@@ -31,6 +31,7 @@ public sealed partial class DisplaysPage : Page
         {
             StopWallpaperRefresh();
             ViewModel.PropertyChanged -= OnViewModelChanged;
+            ViewModel.DisplaysRebuilt -= LoadArrangement;
         };
 
         // Dark mode is read from Windows rather than stored here, so the switch
@@ -43,6 +44,10 @@ public sealed partial class DisplaysPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         LoadArrangement();
+        // A monitor plugged in or out while the page is open: the diagram is
+        // drawn from the whole set, so it follows the list, not the Rescan button.
+        ViewModel.DisplaysRebuilt -= LoadArrangement;
+        ViewModel.DisplaysRebuilt += LoadArrangement;
         _ = ViewModel.LoadAmbientSensorsAsync();
         ViewModel.PropertyChanged -= OnViewModelChanged;
         ViewModel.PropertyChanged += OnViewModelChanged;
@@ -241,11 +246,7 @@ public sealed partial class DisplaysPage : Page
     private void OnOpenWindowsNightLight(object sender, RoutedEventArgs e) =>
         WindowsNightLight.OpenSettings();
 
-    private void OnRescan(object sender, RoutedEventArgs e)
-    {
-        ViewModel.Refresh();
-        LoadArrangement();
-    }
+    private void OnRescan(object sender, RoutedEventArgs e) => ViewModel.Refresh();
 
     private void OnMakePrimary(object sender, RoutedEventArgs e)
     {

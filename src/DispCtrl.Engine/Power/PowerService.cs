@@ -66,7 +66,17 @@ internal sealed partial class PowerService : IDisposable
         _settings = settings;
         _thread = new Thread(Run) { IsBackground = true, Name = "Display power" };
         _thread.Start();
+        Color.DisplayChanges.Settled += OnDisplaysSettled;
     }
+
+    /// <summary>A monitor reconnected is a new handle: the old one reaches nothing.</summary>
+    private void OnDisplaysSettled(Color.DisplayChange change)
+    {
+        Volatile.Write(ref _displaysChanged, true);
+        _wake.Set();
+    }
+
+    private bool _displaysChanged;
 
     public void Update(DispCtrlSettings settings)
     {
@@ -83,6 +93,11 @@ internal sealed partial class PowerService : IDisposable
                 if (Interlocked.Exchange(ref _pending, null) is { } settings)
                 {
                     _settings = settings;
+                    _nextDisplayRefresh = default;
+                }
+                if (Volatile.Read(ref _displaysChanged))
+                {
+                    Volatile.Write(ref _displaysChanged, false);
                     _nextDisplayRefresh = default;
                 }
 
@@ -266,6 +281,7 @@ internal sealed partial class PowerService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        Color.DisplayChanges.Settled -= OnDisplaysSettled;
         _wake.Set();
         _thread.Join();
         _wake.Dispose();

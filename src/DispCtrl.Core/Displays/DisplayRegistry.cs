@@ -297,6 +297,11 @@ public static class DisplayRegistry
             // caller is specifically looking for displays that are switched off.
             if (activeOnly && gdi.Length == 0) continue;
 
+            // Every path the adapter could drive is listed, connected or not;
+            // only an available target has a monitor on the end of it. Without
+            // this an unplugged monitor could read as connected but switched off.
+            if (!activeOnly && !p.targetInfo.targetAvailable) continue;
+
             // In clone mode several targets share one source. The first is the
             // one GDI reports a mode for, so the rest would be duplicates —
             // except when the caller is counting them to detect duplication.

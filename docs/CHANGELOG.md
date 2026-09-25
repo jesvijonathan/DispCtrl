@@ -8,7 +8,16 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+### Changed
+- With one display connected, unison steps aside: the quick panel's unison section shows that display's own brightness, simple view drops "All displays", and the Displays page says why its unison slider is idle. Display mode and "Multiple displays" are greyed until a second display is connected. Nothing is switched off, and unison carries on from where it was left when another display arrives.
+- Replace Windows brightness no longer pulls the laptop's screen back inside its calibrated range while it is the only display, so the brightness keys reach the whole range.
+
 ### Fixed
+- Unplugging the main monitor left the taskbar in a mess: the laptop's screen became the primary display, and DispCtrl kept trying to hide a taskbar Windows always puts back, and took the whole screen for windows under it. A display set to hide its taskbar now leaves it to Windows while it is the primary display, and hides it again once it is not.
+- A monitor plugged in or reconnected often showed no brightness or controls until Rescan was pressed, because it was read before it could answer. DispCtrl now waits for the displays to settle, reads a new monitor again a few seconds later if it did not answer, and updates the Displays page, its arrangement diagram and an open quick panel by itself.
+- A loose cable that drops a monitor for a moment no longer sets off a round of taskbar and brightness changes: a change counts only once the displays have stayed the same for a second and a half.
+- Night light reaches a newly connected monitor straight away, instead of up to 20 seconds later.
+- `build clean` failed with "access denied" on the taskbar glass helper, because Windows Explorer had loaded it straight from the build folder. The engine now gives Explorer its own copy in DispCtrl's data folder, and clean skips, with a note, a helper an older engine left loaded until Explorer restarts.
 - Taskbar glass did nothing after switching between the installer or a zip and the Microsoft Store version until Windows Explorer was restarted: Explorer still held the other build's glass helper. The engine now retires that helper and attaches its own, as long as no other DispCtrl engine is running.
 - Following the room's light kept the engine waking about four times a second in a still room, because a light sensor's readings jitter. Readings too small to count are now noted without waking it at all.
 

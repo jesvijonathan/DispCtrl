@@ -699,6 +699,33 @@ Every one of these was a real bug. Do not reintroduce them.
   after unison moved came back out of step. `UnisonHotplug` writes arrivals
   only, after 1.5 s, because the DDC/CI channel is not up when the monitor
   enumerates.
+- **Hot-plug is one settled event, not every step of it.** An arrival is an
+  enumeration, a mode, a moved desktop and Explorer rebuilding its bars, and a
+  loose cable adds a departure and a return inside a second. The engine's
+  `DisplayChanges` (woken by `WM_DISPLAYCHANGE` and resume, 30 s safety net)
+  raises `Settled` with what arrived and left only once `DisplaySettle` has
+  seen the same GDI fingerprint for 1.5 s; a layout that returns to where it
+  was raises nothing. Taskbars, unison arrivals, night light and monitor sleep
+  all hear it, and `Local\DispCtrl.Displays.Changed` tells the app. Monitorian
+  and Twinkle Tray both wait out a change before rescanning.
+- **Never manage the primary taskbar, even on a display set to hide it.**
+  Unplug the primary monitor and the laptop becomes primary; the manager
+  adopted `Shell_TrayWnd`, fought Explorer over it two dozen times, and
+  reclaimed the whole work area under a bar that stayed. Only
+  `Shell_SecondaryTrayWnd` is discovered; the setting sleeps while its display
+  is primary. Rediscovery runs on a settled change, a changed set of bars, or a
+  dead handle - it used to enumerate every second whenever it held no bar,
+  which is a laptop with its monitor unplugged - and a live bar it stops
+  managing is put back on its monitor as that monitor now is.
+- **The app reads an arrival again.** Read the moment it appears, a monitor
+  answers nothing, and the card stayed without brightness or controls until
+  Rescan. `LookAgainAsync` re-reads arrivals that answered nothing at 3 s and
+  8 s; a hot-plug refresh keeps cached capabilities (they describe the model),
+  and `DisplaysRebuilt` redraws the arrangement diagram.
+- **One display is not a desk to unify.** Unison, "Multiple displays" and the
+  quick panel's display mode step aside with a line saying why, and the
+  brightness bridge stops holding a lone laptop inside its calibrated range.
+  Nothing in settings changes: unison resumes where it was left.
 
 ### Unison calibration
 
@@ -988,6 +1015,12 @@ unrecallable.
   copies the helper to the package's real `LocalCacheFolder` (the user's ACL)
   and loads that. Anything else handed to another process by path from a
   Store install needs the same.
+- **Never hand Explorer a file in `bin`.** It keeps the helper mapped until it
+  restarts, so `build clean` failed with access denied on
+  `bin\...\taskbar-glass\DispCtrl.TaskbarGlass.*.dll`. Unpackaged builds now
+  copy the helper to `%LOCALAPPDATA%\DispCtrl\taskbar-glass\` too, and
+  `dev.ps1 clean` (`Remove-Tree`) leaves a held helper behind with a warning,
+  failing only on anything else that is locked.
 - **Explorer records a tray icon's path by known-folder id**:
   `{6D809377-...}\WindowsApps\...` for the Store engine. Compared as a plain
   path it never matched, so the Store icon was never kept on the taskbar.

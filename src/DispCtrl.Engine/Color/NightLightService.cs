@@ -65,6 +65,15 @@ internal sealed class NightLightService : IDisposable
         // felt here at once rather than at the next one.
         foreach (string path in WindowsNightLight.WatchPaths)
             _watchers.Add(new RegistryValueWatcher(path, Tick));
+
+        // A monitor that arrives comes with Windows' neutral ramp; without
+        // this it stayed cold for up to one interval.
+        DisplayChanges.Settled += OnDisplaysSettled;
+    }
+
+    private void OnDisplaysSettled(DisplayChange change)
+    {
+        if (change.Arrived.Count > 0) Tick();
     }
 
     /// <summary>
@@ -277,6 +286,7 @@ internal sealed class NightLightService : IDisposable
             _disposed = true;
         }
 
+        DisplayChanges.Settled -= OnDisplaysSettled;
         _timer.Dispose();
         foreach (RegistryValueWatcher watcher in _watchers) watcher.Dispose();
 

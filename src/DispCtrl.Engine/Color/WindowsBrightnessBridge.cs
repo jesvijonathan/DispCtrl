@@ -251,8 +251,14 @@ internal sealed class WindowsBrightnessBridge : IDisposable
 
             DispCtrlSettings settings = SettingsStore.Load();
             if (!Wanted(settings)) return;
-            DisplayInfo? panel = DisplayRegistry.Enumerate().FirstOrDefault(d => d.IsInternal);
+            List<DisplayInfo> displays = DisplayRegistry.Enumerate();
+            DisplayInfo? panel = displays.FirstOrDefault(d => d.IsInternal);
             if (panel is null) return;
+            // Alone, the range only fought the keys: the calibrated limits
+            // exist to match the panel to the others, and there are none. The
+            // level is still followed above, so a monitor plugged in later
+            // arrives where the keys left things.
+            if (displays.Count < 2) return;
 
             MonitorSettings reference = Reference(settings.For(panel.Token));
             bool calibrated = settings.Global.UnisonCalibrated;

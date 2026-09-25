@@ -87,7 +87,10 @@ public partial class App : Application
         // process started for it would build a second copy of every display
         // just to show a flyout.
         _listening = QuickPanelHost.Listen(DispatcherQueue.GetForCurrentThread(), () => SummonPanel(toggle: true),
-            () => ViewModel.Identify(), () => ShowMainWindow(), Quit);
+            () => ViewModel.Identify(), () => ShowMainWindow(), Quit,
+            // The engine has waited for the change to be over. Hidden or not:
+            // the next summons then shows the desk as it is, at once.
+            () => ViewModel.RefreshIfDisplaysChanged());
 
         if (panelOnly)
         {

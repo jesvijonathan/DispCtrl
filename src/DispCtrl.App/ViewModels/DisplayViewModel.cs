@@ -461,6 +461,12 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     public bool BrightnessSupported => _brightness.Supported;
 
+    /// <summary>
+    /// Whether the last read came back empty: no brightness, or an external
+    /// monitor that listed no controls - what a DDC/CI channel not up yet looks like.
+    /// </summary>
+    public bool AnsweredNothing => !BrightnessSupported || (!IsInternalPanel && _reportedControls == 0);
+
     public Visibility BrightnessVisibility =>
         _brightness.Supported ? Visibility.Visible : Visibility.Collapsed;
 

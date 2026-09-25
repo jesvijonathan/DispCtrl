@@ -36,7 +36,6 @@ internal enum Edge
 /// </remarks>
 internal sealed class TaskbarManager
 {
-    private const string PrimaryClass = "Shell_TrayWnd";
     private const string SecondaryClass = "Shell_SecondaryTrayWnd";
     private const int RescanIntervalMs = 1000;
     private const int AnimFrameMs = 8;
@@ -50,9 +49,11 @@ internal sealed class TaskbarManager
     /// <remarks>
     /// The primary taskbar cannot be moved from outside explorer: SetWindowPos
     /// reports success and explorer snaps it straight back, measured within
-    /// 120ms. Without this cap the engine would call SetWindowPos forever at
-    /// the armed poll rate, burning CPU on a fight it cannot win — so a bar
-    /// that refuses to stay put is dropped, once, with an explanation.
+    /// 120ms. It is no longer adopted at all, but a secondary bar Explorer
+    /// decides to hold behaves the same way. Without this cap the engine would
+    /// call SetWindowPos forever at the armed poll rate, burning CPU on a fight
+    /// it cannot win — so a bar that refuses to stay put is dropped, once,
+    /// with an explanation.
     /// </remarks>
     private const int StubbornLimit = 25;
 
@@ -131,7 +132,19 @@ internal sealed class TaskbarManager
     private DispCtrlSettings? _pendingSettings;
     private readonly bool _trace;
     private List<Bar> _bars = [];
-    private string _lastSignature = string.Empty;
+    private string _lastBarKey = string.Empty;
+
+    /// <summary>Set by <see cref="Color.DisplayChanges"/> when the displays have changed and settled.</summary>
+    private int _layoutChanged = 1;
+
+    /// <summary>Secondary displays set to hide their bar, as of the last discovery.</summary>
+    private int _wantedBars;
+
+    private void OnDisplaysSettled(Color.DisplayChange change)
+    {
+        Interlocked.Exchange(ref _layoutChanged, 1);
+        _wake.Set();
+    }
     private int _lastBarCount = -1;
     private bool _highRes;
 
@@ -169,6 +182,7 @@ internal sealed class TaskbarManager
         long nextRescan = 0;
 
         Log.Write("taskbar manager started");
+        Color.DisplayChanges.Settled += OnDisplaysSettled;
 
         while (!ct.IsCancellationRequested)
         {
@@ -181,6 +195,7 @@ internal sealed class TaskbarManager
                     AdoptSettings(incoming);
                     nextRescan = now;   // re-discover immediately
                 }
+                if (Volatile.Read(ref _layoutChanged) != 0) nextRescan = now;
 
                 if (now >= nextRescan)
                 {
@@ -232,11 +247,12 @@ internal sealed class TaskbarManager
                 Log.Write($"ERROR in loop: {ex.GetType().Name}: {ex.Message}");
                 _bars = [];
                 _lastBarCount = -1;
-                _lastSignature = string.Empty;
+                _lastBarKey = string.Empty;
                 Sleep(1000, ct);
             }
         }
 
+        Color.DisplayChanges.Settled -= OnDisplaysSettled;
         EndHighResTimer();
         Restore();
         Log.Write("taskbar manager stopped");
@@ -281,7 +297,7 @@ internal sealed class TaskbarManager
 
         // Force the next rescan to re-discover, so a monitor that was just
         // switched on gets adopted without waiting for a layout change.
-        _lastSignature = string.Empty;
+        _lastBarKey = string.Empty;
 
         Log.Write($"settings reloaded (managing {keep.Count})");
     }
@@ -486,9 +502,8 @@ internal sealed class TaskbarManager
         b.Unmanageable = true;
         Log.Write(
             $"giving up on the taskbar for {b.MonitorLabel}: it returns to {currentPos} " +
-            $"however it is positioned (wanted {b.TargetPos}). This is expected for the " +
-            "PRIMARY monitor's taskbar, which explorer actively restores; only secondary " +
-            "taskbars can be moved from outside explorer.");
+            $"however it is positioned (wanted {b.TargetPos}); Explorer is holding it, " +
+            "as it does the primary display's bar. Left to Explorer until the displays change.");
     }
 
     /// <summary>
@@ -658,40 +673,51 @@ internal sealed class TaskbarManager
     /// </summary>
     /// <remarks>
     /// Deliberately layered by cost. Full display enumeration means a CCD query
-    /// plus a registry EDID read per monitor, which is far too expensive to run
-    /// every second to recompute an answer that only changes when the layout
-    /// does — measured as the dominant cost of this loop. So the cheap GDI
-    /// fingerprint gates it, and only the per-bar geometry (one
-    /// <c>GetWindowRect</c> each) is refreshed unconditionally.
+    /// plus a registry EDID read per monitor, far too expensive to run every
+    /// second for an answer that only changes when the desk does. So it runs
+    /// when <see cref="Color.DisplayChanges"/> says a change is over, when
+    /// Explorer's set of bars changes (a restart, a bar built after a monitor
+    /// arrived), or when a handle dies; otherwise only the per-bar geometry
+    /// (one <c>GetWindowRect</c> each) is refreshed.
+    /// <para>
+    /// It used to re-enumerate every second whenever it held no bar, which is
+    /// exactly the state of a laptop whose external monitor has been
+    /// unplugged, for as long as it stayed unplugged.
+    /// </para>
     /// </remarks>
     private void Rescan()
     {
         bool any = false;
         foreach (MonitorSettings m in _settings.Monitors.Values) if (m.ManagesTaskbar) { any = true; break; }
         if (!any) return;
-        string signature = DisplayRegistry.CheapSignature();
-        bool layoutChanged = signature != _lastSignature;
+
+        bool layoutChanged = Interlocked.Exchange(ref _layoutChanged, 0) != 0;
+        List<HWND> windows = FindSecondaryTaskbars();
+        string key = BarKey(windows);
+        bool barsChanged = key != _lastBarKey;
 
         bool stale = false;
         foreach (Bar b in _bars)
             if (!PInvoke.IsWindow(b.Hwnd)) { stale = true; break; }
 
-        if (layoutChanged || stale || _bars.Count == 0)
+        if (layoutChanged || barsChanged || stale)
         {
-            if (layoutChanged && _lastSignature.Length > 0)
-                Log.Write($"monitor layout changed: {_lastSignature}  ->  {signature}");
-            _lastSignature = signature;
-
             List<DisplayInfo> displays = DisplayRegistry.Enumerate();
-            List<Bar> fresh = Discover(displays);
-            if (fresh.Count > 0 || _bars.Count == 0) _bars = fresh;
+            List<Bar> fresh = Discover(displays, windows);
+            Release(fresh, displays);
+            _bars = fresh;
+            _wantedBars = displays.Count(d => !d.IsPrimary && _settings.For(d.Token).ManagesTaskbar);
+            // Discovery moves nothing, so the key it saw still stands, but a
+            // managed bar's rectangle is no longer part of it.
+            _lastBarKey = BarKey(windows);
 
             if (_bars.Count != _lastBarCount)
             {
-                string why = stale ? " [stale handle]" : layoutChanged ? " [layout change]" : "";
+                string why = stale ? " [stale handle]" : layoutChanged ? " [displays changed]" : " [taskbars changed]";
                 Log.Write($"managing {_bars.Count} taskbar(s){why}");
                 _lastBarCount = _bars.Count;
             }
+            if (layoutChanged) NotePrimary(displays);
         }
         else
         {
@@ -711,11 +737,79 @@ internal sealed class TaskbarManager
         }
     }
 
-    private List<Bar> Discover(List<DisplayInfo> displays)
+    /// <summary>
+    /// Explorer's secondary bars as a string: each handle, and where the ones
+    /// not managed here sit.
+    /// </summary>
+    /// <remarks>
+    /// A bar Explorer has only just built can sit at a default position that
+    /// resolves to the wrong monitor, and is then moved into place without a
+    /// new handle; its rectangle is in the key so that move is noticed. A
+    /// managed bar's is not, or every slide would rediscover; and only while a
+    /// display that wants its bar hidden has none, or an unmanaged bar under
+    /// Windows' own auto-hide would rediscover at every reveal.
+    /// </remarks>
+    private string BarKey(List<HWND> windows)
+    {
+        bool looking = _bars.Count < _wantedBars;
+        var key = new System.Text.StringBuilder();
+        foreach (HWND h in windows)
+        {
+            key.Append(((nint)h).ToString("X")).Append(';');
+            bool managed = false;
+            foreach (Bar b in _bars) if (b.Hwnd == h) { managed = true; break; }
+            if (looking && !managed && PInvoke.GetWindowRect(h, out RECT r))
+                key.Append(r.left).Append(',').Append(r.top).Append(',').Append(r.right).Append(',').Append(r.bottom).Append(';');
+        }
+        return key.ToString();
+    }
+
+    /// <summary>
+    /// Puts back a bar that is still there but no longer managed.
+    /// </summary>
+    /// <remarks>
+    /// Rediscovery used to keep the old list whenever it found nothing, so a
+    /// dead handle was rediscovered every second, and to drop a live bar
+    /// without a word, so one that stopped resolving stayed parked off-screen
+    /// with nothing left that knew it was there. It is moved to its own
+    /// monitor as that monitor is now, not as it was.
+    /// </remarks>
+    private void Release(List<Bar> fresh, List<DisplayInfo> displays)
+    {
+        foreach (Bar old in _bars)
+        {
+            bool kept = false;
+            foreach (Bar b in fresh) if (b.Hwnd == old.Hwnd) { kept = true; break; }
+            if (kept || !PInvoke.IsWindow(old.Hwnd)) continue;
+            DisplayInfo? home = displays.FirstOrDefault(d => d.Token == old.MonitorToken);
+            if (home is null) continue; // its monitor has gone; Explorer takes the bar down with it
+            old.Monitor = home.Bounds;
+            RestoreBar(old);
+            Log.Write($"taskbar on {old.MonitorLabel}: no longer managed, put back");
+        }
+    }
+
+    /// <summary>Says why a display set to hide its taskbar is showing it.</summary>
+    /// <remarks>
+    /// Unplug the primary monitor and the laptop becomes primary, and the
+    /// primary bar belongs to Explorer: it puts it back within ~120 ms of any
+    /// move. Managing it anyway was the disconnect "disaster" - the bar fought
+    /// over two dozen times, and the work area was taken for the whole screen
+    /// under a bar that stayed. The setting is kept, and applies again the
+    /// moment the display is secondary.
+    /// </remarks>
+    private void NotePrimary(List<DisplayInfo> displays)
+    {
+        foreach (DisplayInfo d in displays)
+            if (d.IsPrimary && _settings.For(d.Token).ManagesTaskbar)
+                Log.Write($"taskbar on {d.Label}: the primary display's bar is Explorer's; hidden again once {d.Label} is not the primary display");
+    }
+
+    private List<Bar> Discover(List<DisplayInfo> displays, List<HWND> windows)
     {
         var bars = new List<Bar>();
 
-        foreach (HWND h in FindTaskbars())
+        foreach (HWND h in windows)
         {
             if (!PInvoke.GetWindowRect(h, out RECT r)) continue;
 
@@ -727,7 +821,7 @@ internal sealed class TaskbarManager
             if (thickness is <= 0 or > MaxPlausibleThickness) continue;   // not a real bar
 
             DisplayInfo? d = ResolveMonitor(displays, h, r, horizontal);
-            if (d is null) continue;
+            if (d is null || d.IsPrimary) continue;
 
             string token = d.Token;
             MonitorSettings ms = _settings.For(token);
@@ -757,17 +851,21 @@ internal sealed class TaskbarManager
         return bars;
     }
 
-    private static List<HWND> FindTaskbars()
+    /// <summary>
+    /// Explorer's secondary bars. Never the primary one, <c>Shell_TrayWnd</c>.
+    /// </summary>
+    /// <remarks>
+    /// Explorer restores the primary bar within ~120 ms of any move from
+    /// outside, so a display that hides its taskbar gets Windows' own
+    /// auto-hide while it is primary, and DispCtrl's parking only while it is
+    /// not. See <see cref="NotePrimary"/>.
+    /// </remarks>
+    private static List<HWND> FindSecondaryTaskbars()
     {
         var found = new List<HWND>();
-
-        HWND primary = PInvoke.FindWindowEx(HWND.Null, HWND.Null, PrimaryClass, null);
-        if (!primary.IsNull) found.Add(primary);
-
         HWND h = HWND.Null;
         while (!(h = PInvoke.FindWindowEx(HWND.Null, h, SecondaryClass, null)).IsNull)
             found.Add(h);
-
         return found;
     }
 

@@ -402,9 +402,36 @@ function Invoke-Clean {
     }
     $was = Stop-RepoProcesses
     if ($was) { Write-Warning 'The engine was stopped; it has nothing to run until the next build.' }
-    foreach ($folder in $targets) { Remove-Item -LiteralPath $folder.FullName -Recurse -Force }
-    if (Test-Path -LiteralPath $artifacts) { Remove-Item -LiteralPath $artifacts -Recurse -Force }
-    Write-Host 'Clean.'
+    $held = @()
+    foreach ($folder in $targets) { $held += @(Remove-Tree $folder.FullName) }
+    if (Test-Path -LiteralPath $artifacts) { $held += @(Remove-Tree $artifacts) }
+    if ($held.Count -gt 0) {
+        Write-Warning ("Windows Explorer still has the taskbar glass helper loaded from the build output, so it stays until Explorer restarts (Taskbar page > Restart Windows Explorer, or sign out):`n  " + ($held -join "`n  "))
+        Write-Host 'Clean, apart from that.'
+    }
+    else { Write-Host 'Clean.' }
+}
+
+# Removes a folder, and returns the taskbar glass helpers it could not: engines
+# before the helper was copied out of bin handed Explorer the file in bin, and
+# Explorer keeps a helper mapped until it restarts. Anything else still locked
+# is a real failure.
+function Remove-Tree([string]$path) {
+    try { Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop; return @() }
+    catch {
+        foreach ($file in @(Get-ChildItem -LiteralPath $path -Recurse -File -Force -ErrorAction SilentlyContinue)) {
+            try { Remove-Item -LiteralPath $file.FullName -Force -ErrorAction Stop } catch { }
+        }
+        $left = @(Get-ChildItem -LiteralPath $path -Recurse -File -Force -ErrorAction SilentlyContinue)
+        $other = @($left | Where-Object { $_.Name -notlike 'DispCtrl.TaskbarGlass.*.dll' })
+        if ($other.Count -gt 0) { throw "Could not remove $($other[0].FullName): it is in use." }
+        # Empty folders go deepest first; the ones holding a helper stay.
+        Get-ChildItem -LiteralPath $path -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+            Sort-Object { $_.FullName.Length } -Descending |
+            Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName -Force) } |
+            ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+        return @($left | ForEach-Object FullName)
+    }
 }
 
 function Invoke-Options {
