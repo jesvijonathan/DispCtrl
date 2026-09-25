@@ -76,9 +76,11 @@
         <Border x:Name="NoDrag" Width="0" Height="0"/>
       </Grid>
 
+      <!-- Hidden still scrolls (wheel, touch, keys); the bar is drawn only
+           while the pointer is over the rows. See ShowScrollBar. -->
       <ScrollViewer Grid.Row="1"
                     x:Name="Scroller"
-                    VerticalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Hidden"
                     HorizontalScrollBarVisibility="Disabled"
                     Padding="0,0,0,4">
         <StackPanel x:Name="Sections" Padding="12,0,12,8" Spacing="4"/>

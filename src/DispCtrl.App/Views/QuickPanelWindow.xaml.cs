@@ -94,7 +94,7 @@ public sealed partial class QuickPanelWindow : Window
         // one click away and then gone.
         _appWindow.IsShownInSwitchers = false;
 
-        SystemBackdrop = new DesktopAcrylicBackdrop();
+        SystemBackdrop = new FlyoutAcrylicBackdrop();
         RoundCorners();
 
         // The title row is the drag handle, so the panel can be moved off the
@@ -113,6 +113,11 @@ public sealed partial class QuickPanelWindow : Window
         App.ViewModel.QuickPanelChanged += () => QueueRebuild(place: true);
 
         Activated += OnActivated;
+        // Opening the panel changes the scroll extent, and WinUI answers any
+        // such change by flashing the scroll indicator: every summons showed
+        // a bar nobody was reaching for. Only a pointer over the rows asks for it.
+        Scroller.PointerEntered += (_, _) => ShowScrollBar(true);
+        Scroller.PointerExited += (_, _) => ShowScrollBar(false);
         Closed += (_, _) => { _closing = true; _content.Detach(); };
 
         // The rows, not the window: the window's size only changes when this
@@ -269,13 +274,14 @@ public sealed partial class QuickPanelWindow : Window
         AfterFrames(2, () =>
         {
             if (token != _animation || _closing) return;
-            // Again, uncloaked: activation of a window still cloaked is not
-            // always honoured, and this is the frame it is first seen in.
-            TakeForeground();
-            WatchOutsideIfInactive();
             Fit();
             if (animate) Slide(show: true, token);
-            else { TuckUnderTaskbar(false); Cloak(false); }
+            else { Unclip(); TuckUnderTaskbar(false); Cloak(false); }
+            // Again, uncloaked - both branches above uncloak it: activation of
+            // a window still cloaked is not always honoured, and this is the
+            // frame it is first seen in. It used to run a line too early.
+            TakeForeground();
+            WatchOutsideIfInactive();
         });
     }
 
@@ -337,6 +343,9 @@ public sealed partial class QuickPanelWindow : Window
 
     /// <summary>Up from a bottom taskbar, down from a top one.</summary>
     private int _slideSign = 1;
+
+    /// <summary>The line the panel slides out of: the work area's edge on that side.</summary>
+    private int _edgeLine;
 
     private int _animation;
     private bool _stale = true;
@@ -403,9 +412,10 @@ public sealed partial class QuickPanelWindow : Window
         // of the backdrop appears or vanishes in one frame.
         int travel = (height + QuickPanelPlacement.Scale(QuickPanelPlacement.MarginDip, dpi)) * _slideSign;
         int ms = show ? SlideInMs : SlideOutMs;
+        _corner = 2 * QuickPanelPlacement.Scale(8, dpi);
 
         TuckUnderTaskbar(true);
-        if (show) MoveTo(travel);
+        if (show) { MoveTo(travel); ClipAtEdge(travel); }
         Cloak(false);
         // In only. Faded on the way out, the rows were gone within 60 ms and an
         // empty backdrop sank on its own for the rest of the slide.
@@ -423,10 +433,15 @@ public sealed partial class QuickPanelWindow : Window
 
             double t = Math.Min(1, clock.Elapsed.TotalMilliseconds / ms);
             double eased = show ? EaseOut(t) : EaseIn(t);
-            MoveTo((int)Math.Round(travel * (show ? 1 - eased : eased)));
+            int offset = (int)Math.Round(travel * (show ? 1 - eased : eased));
+            // Clipped on the side of the move that only ever hides more: rising,
+            // moved and then uncovered; sinking, covered and then moved.
+            if (show) { MoveTo(offset); ClipAtEdge(offset); }
+            else { ClipAtEdge(offset); MoveTo(offset); }
 
             if (t < 1) return;
             CompositionTarget.Rendering -= Tick;
+            if (show) Unclip();
             // Hidden before it is raised again on the way out, or the empty
             // backdrop would flash above the taskbar for a frame.
             if (show) TuckUnderTaskbar(false);
@@ -473,6 +488,66 @@ public sealed partial class QuickPanelWindow : Window
         _ = SetWindowPos(_hwnd, 0, _intended.Left, _intended.Top + offset, 0, 0,
             SwpNoSize | SwpNoZOrder | SwpNoActivate);
     }
+
+    /// <summary>
+    /// Cuts the panel off at the edge it slides out of, for one frame of a slide.
+    /// </summary>
+    /// <remarks>
+    /// Tucking the panel under the taskbar hides the part not yet risen only
+    /// while the taskbar is opaque. Through a translucent one - Windows' own
+    /// transparency or DispCtrl's glass - the panel was seen sliding underneath,
+    /// and the glass's blur could keep its last frame after it had gone. A
+    /// window region that ends at the edge leaves nothing to show through. The
+    /// corners are rounded as DWM rounds them, which a region turns off.
+    /// </remarks>
+    private void ClipAtEdge(int offset)
+    {
+        int width = _intended.Width, height = _intended.Height;
+        if (width <= 0 || height <= 0) return;
+        int top = _intended.Top + offset;
+        int inside = Math.Clamp(_edgeLine - top, 0, height);
+        (int from, int to) = _slideSign > 0 ? (0, inside) : (inside, height);
+
+        // Wholly on screen - most of a slide, since the easing lingers at the
+        // settled end - needs no region, and DWM's own corners stay on.
+        if (to - from == height) { Unclip(); return; }
+        // An unchanged cut is a repaint for nothing.
+        if (_clipped && from == _clipFrom && to == _clipTo) return;
+
+        nint region = CreateRoundRectRgn(0, 0, width + 1, height + 1, _corner, _corner);
+        nint visible = CreateRectRgn(0, from, width, to);
+        _ = CombineRgn(region, region, visible, 1); // RGN_AND
+        _ = DeleteObject(visible);
+        // Windows owns the region only once it has been set. No redraw: DWM
+        // clips a composited window by its region as it composes, and asking
+        // for a repaint made every frame of the slide re-render the whole panel.
+        if (SetWindowRgn(_hwnd, region, false) == 0) { _ = DeleteObject(region); return; }
+        _clipped = true;
+        (_clipFrom, _clipTo) = (from, to);
+    }
+
+    /// <summary>Hands the shape back to DWM, whose rounded corners return with it.</summary>
+    private void Unclip()
+    {
+        if (!_clipped) return;
+        _clipped = false;
+        _ = SetWindowRgn(_hwnd, 0, true);
+    }
+
+    private bool _clipped;
+    private int _clipFrom, _clipTo, _corner;
+
+    [LibraryImport("gdi32.dll")]
+    private static partial nint CreateRoundRectRgn(int left, int top, int right, int bottom, int width, int height);
+    [LibraryImport("gdi32.dll")]
+    private static partial nint CreateRectRgn(int left, int top, int right, int bottom);
+    [LibraryImport("gdi32.dll")]
+    private static partial int CombineRgn(nint destination, nint source1, nint source2, int mode);
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool DeleteObject(nint handle);
+    [LibraryImport("user32.dll")]
+    private static partial int SetWindowRgn(nint hwnd, nint region, [MarshalAs(UnmanagedType.Bool)] bool redraw);
 
     /// <summary>
     /// Puts the panel just below the taskbar of its display, or back on top.
@@ -645,6 +720,8 @@ public sealed partial class QuickPanelWindow : Window
         if (!AnimationsOn || !_appWindow.IsVisible)
         {
             _appWindow.Hide();
+            Unclip();
+            ShowScrollBar(false);
             PrepareContent(false);
             TrimWhenIdle();
             return;
@@ -656,10 +733,15 @@ public sealed partial class QuickPanelWindow : Window
             _leaving = false;
             _appWindow.Hide();
             MoveTo(0);
+            Unclip();
+            ShowScrollBar(false);
             PrepareContent(false);
             TrimWhenIdle();
         });
     }
+
+    private void ShowScrollBar(bool show) =>
+        Scroller.VerticalScrollBarVisibility = show ? ScrollBarVisibility.Auto : ScrollBarVisibility.Hidden;
 
     private void Place(QuickPanelSettings panel)
     {
@@ -687,6 +769,7 @@ public sealed partial class QuickPanelWindow : Window
 
         ScreenEdge edge = QuickPanelPlacement.EdgeOf(bounds, work);
         _slideSign = edge == ScreenEdge.Top ? -1 : 1;
+        _edgeLine = edge == ScreenEdge.Top ? work.Top : work.Bottom;
         DisplayRect at = QuickPanelPlacement.Place(
             work, edge, QuickPanelHost.CursorX(), width, height, margin);
 

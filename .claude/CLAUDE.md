@@ -755,6 +755,16 @@ Every one of these was a real bug. Do not reintroduce them.
   just below it in the topmost band so the taskbar clips it. DWM's own show
   transition is disabled. Closing does not fade: faded, an empty backdrop sank
   alone.
+- **Tucking under the taskbar hides nothing behind a translucent one.** With
+  glass or Windows' transparency the panel was seen sliding underneath, and
+  could linger in the blur. `ClipAtEdge` sets a window region ending at the
+  work area's edge on every frame of a slide (move-then-clip rising,
+  clip-then-move sinking) and `Unclip` hands the shape back to DWM after.
+- **The panel's acrylic ignores activation** (`FlyoutAcrylicBackdrop`,
+  `IsInputActive` always true). The panel was foreground within ~120 ms of a
+  summons, yet `DesktopAcrylicBackdrop` sometimes kept its grey inactive
+  fallback until clicked - it was activated while cloaked. Windows' flyouts
+  are always acrylic too.
 - **Never slot the panel after a taskbar that is not topmost.** A bar DispCtrl
   has hidden is off-screen and not topmost; ordering after it dropped the panel
   behind every ordinary window. `TaskbarOf` requires `WS_EX_TOPMOST` and an
