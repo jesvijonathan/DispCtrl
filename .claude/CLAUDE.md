@@ -712,6 +712,14 @@ Every one of these was a real bug. Do not reintroduce them.
   extent, scrolled it out of the realisation window, recycled and collapsed it,
   shrank the extent — a self-feeding open/close flicker. Use `ItemsControl` with
   a plain `StackPanel` panel; there are never more than a few displays.
+- **So does every `SettingsExpander`'s item list**: the toolkit lays `Items` out
+  in an `ItemsRepeater`. A display's card (a 300 px overview among 70 px rows)
+  looped when scrolled to the bottom and never reached it - measured through
+  UIA, a jump to the end landed at 72%, then 81%. A bigger `VerticalCacheLength`
+  is not enough (the cache fills over idle frames, so the end still moved);
+  `ExpanderLayout` swaps in a non-virtualising stack when an expander opens
+  (`Expanded="OnExpanderExpanded"` on the Displays page's expanders). Verified:
+  three rounds of expand-then-jump 0.3 s later all held at 100%.
 - **A `ComboBox` applies `SelectedItem` before its `ItemsSource` is filled**,
   finds nothing matching and renders blank. Bind `SelectedIndex` instead.
 - **A two-way `Slider`/`ToggleSwitch` writes its own value to the source as it
@@ -1057,6 +1065,12 @@ Every one of these was a real bug. Do not reintroduce them.
 - **Never `Process.GetCurrentProcess().SessionId`.** .NET snapshots every
   process on the machine to answer it (7.9 ms warm); `Session.Id` asks Windows
   (0.28 ms). Every pipe and mutex name scoped to the session uses it.
+- **Windows' colour-profile call can take seconds.** `WcsGetDefaultColorProfileSize`
+  took ~7 s and then failed for both displays on this desk, from PowerShell as
+  well (perfcheck "details read"), and HDR, VRR, orientation and the details
+  table all waited on it in one task. The card now reads the profile on its
+  own, and `ColorProfile.ReadName` remembers an answer, a failure too, for a
+  minute.
 - The gamma clamp state is cached for a minute, not for the process's life:
   `Recheck` only ever ran in the app, and the engine that owns the ramp kept the
   old limit until restarted.

@@ -138,7 +138,7 @@
         <Button Content="Connect" Click="OnConnectWireless"/>
       </tk:SettingsCard>
 
-      <tk:SettingsExpander Header="Unison brightness"
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Unison brightness"
                            Description="{x:Bind ViewModel.UnisonDescription, Mode=OneWay}"
                            Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
@@ -294,7 +294,7 @@
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
-      <tk:SettingsExpander Header="Night light"
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Night light"
                            Description="Warmer colours on every display at once, to cut blue light in the evening."
                            Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
@@ -432,7 +432,7 @@
         </StackPanel>
       </tk:SettingsCard>
 
-      <tk:SettingsExpander Header="Focus mode"
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Focus mode"
                            Description="Keep the active window clear and dim its surroundings. Applies to windows, not to individual browser tabs."
                            Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
@@ -536,7 +536,7 @@
            and have protection left on, so the first card says which those are.
            A global-looking toggle that quietly skips half the desk is the kind
            of control someone has to test to understand. -->
-      <tk:SettingsExpander Header="OLED idle protection"
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="OLED idle protection"
                            Description="Rest OLED panels after a spell without input. Panels not marked as OLED are never touched."
                            Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
@@ -645,7 +645,7 @@
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
-      <tk:SettingsExpander Header="Keep awake"
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Keep awake"
                            Description="Temporarily prevent system sleep without changing the selected Windows power plan."
                            Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
@@ -741,7 +741,7 @@
            is read from the windows, not the settings: it is refreshed whenever
            this window comes back to the front. The switch in the header takes
            every pin back when turned off. -->
-      <tk:SettingsExpander Header="Pin windows on top"
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Pin windows on top"
                            Description="Keep a window above every other, marked with a border. Pinned windows stay clear when focus mode dims the rest."
                            Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
@@ -847,7 +847,7 @@
            occasions a display arrives - one coming back, and a new window
            opening on the wrong one. Windows' own two switches sit beside
            DispCtrl's, because returning windows takes one of them over. -->
-      <tk:SettingsExpander Header="Move windows between displays"
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Move windows between displays"
                            Description="Gather every window onto one display, put them back when a display returns, and open new windows where you are working."
                            Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
@@ -937,7 +937,7 @@
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:DisplayViewModel">
 
-            <tk:SettingsExpander Header="{x:Bind Name}" Description="{x:Bind Details}">
+            <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="{x:Bind Name}" Description="{x:Bind Details}">
               <tk:SettingsExpander.HeaderIcon>
                 <FontIcon Glyph="&#xE7F4;"/>
               </tk:SettingsExpander.HeaderIcon>

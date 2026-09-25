@@ -38,7 +38,12 @@ public sealed record DisplayDetail
 public static class DisplayDetails
 {
     /// <summary>Gathers the advanced detail for one display.</summary>
-    public static unsafe DisplayDetail Read(DisplayInfo display)
+    /// <param name="colourProfile">
+    /// Include the colour profile. It can take seconds (see
+    /// <see cref="ColorProfile.ReadName"/>), so the app reads it on its own and
+    /// the rest of a display's card does not wait for it.
+    /// </param>
+    public static unsafe DisplayDetail Read(DisplayInfo display, bool colourProfile = true)
     {
         var detail = new DisplayDetail();
 
@@ -65,14 +70,14 @@ public static class DisplayDetails
             DISPLAYCONFIG_PATH_INFO p = paths[i];
             if (!MatchesDisplay(p, display)) continue;
 
-            return Build(p, modes, display);
+            return Build(p, modes, display, colourProfile);
         }
 
         return detail;
     }
 
     private static unsafe DisplayDetail Build(
-        DISPLAYCONFIG_PATH_INFO path, DISPLAYCONFIG_MODE_INFO[] modes, DisplayInfo display)
+        DISPLAYCONFIG_PATH_INFO path, DISPLAYCONFIG_MODE_INFO[] modes, DisplayInfo display, bool colourProfile)
     {
         string signal = "—", desktop = "—", scan = "—", clock = "—";
 
@@ -117,7 +122,7 @@ public static class DisplayDetails
             BitDepth = bits,
             HdrStatus = hdr,
             Orientation = Describe(path.targetInfo.rotation),
-            ColorProfile = ColorProfile.ReadName(display) ?? "System default",
+            ColorProfile = colourProfile ? ColorProfile.ReadName(display) ?? "System default" : "",
         };
     }
 

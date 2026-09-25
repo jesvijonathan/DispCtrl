@@ -164,11 +164,14 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     private async Task LoadAdvancedAsync()
     {
         DisplayInfo d = _display;
+        // On its own: Windows can take seconds to answer it, and HDR, VRR,
+        // orientation and the table used to wait for it (~7 s on this desk).
+        _ = LoadColourProfileAsync();
 
         (HdrState hdr, ScalingState scaling, DisplayDetail detail, VrrState vrr, EdidDetails edid) =
             await Task.Run(
                 () => (AdvancedDisplay.ReadHdr(d), AdvancedDisplay.ReadScaling(d),
-                       DisplayDetails.Read(d), VariableRefreshRate.Read(d),
+                       DisplayDetails.Read(d, colourProfile: false), VariableRefreshRate.Read(d),
                        EdidReader.Describe(d.Key.DevicePath)))
             .ConfigureAwait(false);
 
@@ -753,7 +756,23 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     public string HdrStatus => _detail.HdrStatus;
     public string ScanLineOrdering => _detail.ScanLineOrdering;
     public string PixelClock => _detail.PixelClock;
-    public string ColorProfileName => _detail.ColorProfile;
+    public string ColorProfileName => _colourProfile ?? "Reading…";
+
+    private string? _colourProfile;
+
+    private async Task LoadColourProfileAsync()
+    {
+        DisplayInfo d = _display;
+        string name;
+        try { name = await Task.Run(() => ColorProfile.ReadName(d) ?? "System default").ConfigureAwait(false); }
+        catch (Exception) { name = "System default"; }
+        _ui.TryEnqueue(() =>
+        {
+            _colourProfile = name;
+            Raise(nameof(ColorProfileName));
+            RaiseInformation();
+        });
+    }
 
     // ------------------------------------------------------ what it is --
     // Everything the panel, its EDID and Windows will say about it. The

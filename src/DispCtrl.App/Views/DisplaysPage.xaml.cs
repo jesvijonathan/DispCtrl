@@ -60,6 +60,9 @@ public sealed partial class DisplaysPage : Page
         if (ViewModel.PresetsEnabled) ViewModel.Presets.RefreshDrift();
     }
 
+    /// <summary>An opened card realises all its rows: see <see cref="ExpanderLayout"/>.</summary>
+    private void OnExpanderExpanded(object? sender, EventArgs e) => ExpanderLayout.RealiseAll(sender);
+
     private void OnDisplayOverviewSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (sender is not Grid grid || grid.Children.Count < 2) return;

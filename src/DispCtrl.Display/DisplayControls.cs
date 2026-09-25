@@ -26,8 +26,29 @@ public static class ColorProfile
     /// Read through WCS rather than the older <c>GetICMProfile</c>, because WCS
     /// is what Windows' own Color Management dialog reads and writes — the two
     /// can disagree on a display the user has configured there.
+    /// <para>
+    /// Remembered for a minute, a failure too. WCS asks a Windows service, and
+    /// on this desk it took ~7 s and then failed for every display, called from
+    /// PowerShell as much as from DispCtrl (perfcheck, "details read"): the
+    /// display report reads it twice per display and a preset capture again, and
+    /// each read paid the whole wait. A minute keeps a profile changed in Colour
+    /// Management current enough.
+    /// </para>
     /// </remarks>
-    public static unsafe string? ReadName(DisplayInfo display)
+    public static string? ReadName(DisplayInfo display)
+    {
+        long now = Environment.TickCount64;
+        if (Names.TryGetValue(display.GdiName, out var known) && now - known.At < NameLifetimeMs) return known.Name;
+        string? name = ReadNameFromWindows(display);
+        Names[display.GdiName] = (name, Environment.TickCount64);
+        return name;
+    }
+
+    private const long NameLifetimeMs = 60_000;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string? Name, long At)> Names =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private static unsafe string? ReadNameFromWindows(DisplayInfo display)
     {
         try
         {
