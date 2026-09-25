@@ -1,6 +1,6 @@
 name: Distribute
 # Sends a published stable release to winget and the Microsoft Store. Runs when
-# you publish a release, or from Actions > Distribute > Run workflow. Beta
+# you publish a release, or from Actions > Distribute > Run workflow. Beta and test
 # releases never leave GitHub. Each target does nothing until its repository
 # variable is set, so this workflow is inert on a fork.
 on:
@@ -32,7 +32,7 @@ jobs:
   winget:
     # The first version is submitted by hand (wingetcreate new); after that
     # each release is an update to the manifest already in winget-pkgs.
-    if: vars.WINGET_PACKAGE_ID != '' && (inputs.targets == '' || inputs.targets == 'both' || inputs.targets == 'winget' || github.event_name == 'release')
+    if: vars.WINGET_PACKAGE_ID != '' && !github.event.release.prerelease && !contains(github.event.release.tag_name || inputs.tag, '-') && (inputs.targets == '' || inputs.targets == 'both' || inputs.targets == 'winget' || github.event_name == 'release')
     runs-on: windows-latest
     timeout-minutes: 20
     permissions: {}
@@ -71,7 +71,7 @@ jobs:
             Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
   store:
-    if: vars.STORE_PRODUCT_ID != '' && (inputs.targets == '' || inputs.targets == 'both' || inputs.targets == 'microsoft store' || github.event_name == 'release')
+    if: vars.STORE_PRODUCT_ID != '' && !github.event.release.prerelease && !contains(github.event.release.tag_name || inputs.tag, '-') && (inputs.targets == '' || inputs.targets == 'both' || inputs.targets == 'microsoft store' || github.event_name == 'release')
     runs-on: windows-latest
     timeout-minutes: 30
     permissions:

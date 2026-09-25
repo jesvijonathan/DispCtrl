@@ -23,7 +23,7 @@ on:
       channel:
         description: Channel the packages are labelled with
         type: choice
-        options: [beta, stable]
+        options: [beta, stable, test]
         default: beta
       version:
         description: Package version (blank = 0.1.<run number>)
@@ -93,7 +93,9 @@ jobs:
 
       - name: Build and test
         shell: pwsh
-        run: ./build/Build.ps1 -Test
+        run: |
+          ./build/Test-Release.ps1
+          ./build/Build.ps1 -Test
 
       - name: Publish portable bundles
         if: env.PACKAGES != 'nothing (tests only)'

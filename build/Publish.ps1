@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('stable','beta')][string]$Channel = 'beta',
-    [string]$Version = '0.1.2',
+    [ValidateSet('stable','beta','test')][string]$Channel = 'beta',
+    [string]$Version,
     [switch]$SkipTests,
     [switch]$Sign,
     # Keep earlier builds in artifacts/. By default they are removed: every
@@ -11,6 +11,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+if (-not $Version) { $Version = ([xml](Get-Content (Join-Path $repo 'Directory.Build.props') -Raw)).Project.PropertyGroup.DispCtrlVersion | Where-Object { $_ } | Select-Object -First 1 }
 if ($Version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') { throw 'Version must be numeric, e.g. 0.1.0.' }
 Push-Location $repo
 try {

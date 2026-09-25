@@ -48,7 +48,7 @@ WinLibs folder.
 ```
 .\build.cmd doctor | setup [-Install] | build | test [-Hardware] | run engine|app|panel|cli <args>
             publish | installer | package | release | clean [-Yes] | options
-Options:    -Configuration Debug|Release   -Channel beta|stable   -Version 0.2.0
+Options:    -Configuration Debug|Release   -Channel beta|stable|test   -Version 0.2.0
             -NoNative / -Native   -NoRestart   -Sign   -Rebuild   -Keep   -Open
 ```
 
@@ -87,6 +87,41 @@ The choice is remembered until `-Native`. It works through the MSBuild property
 `build/local.json`, so `options -Configuration Debug` changes every later
 command. Environment variables win over it: `DISPCTRL_CXX`, `DISPCTRL_ISCC`,
 `DISPCTRL_SIGN_PFX`, and `STORE_IDENTITY` / `STORE_PUBLISHER` for the MSIX.
+
+## Releasing from GitHub Actions
+
+Open **Actions > Release > Run workflow**, select a branch, enter a three-part
+version such as `0.1.3` (blank uses `Directory.Build.props`), and choose `stable`,
+`beta` or `test`. **Update version automatically** is on by default: it updates
+the project version and MSIX template, commits those two files on the selected
+branch, and creates the tag at that commit. Packaging defaults read the project
+version, so there are no script defaults to bump separately.
+
+Stable tags are `v0.1.3`, beta tags are `v0.1.3-beta`, and test tags include the
+workflow run number, for example `v0.1.3-test.42`. Each new test run gets its own
+tag; rerunning the same job reuses its tag if the branch still points at that
+release commit. If the branch has moved on, run from the tag instead.
+Beta and test releases are GitHub
+prereleases, never Latest, and never sent to winget or the Microsoft Store.
+All channels start as drafts unless **Publish immediately** is selected.
+Test packages use the same application identity and settings as the other
+channels; the channel does not provide a separate installation.
+
+Version updates apply only to new releases from branches. Existing tags are
+never moved or edited. To rebuild an existing release, select its tag as the
+workflow ref; a branch run refuses to attach a different commit's packages to
+that tag. A stable tag must already declare the matching version. If branch
+protection prevents the automatic commit, prepare the update through your
+normal pull request process; the atomic push will not leave a tag behind.
+
+To prepare a version locally without committing or tagging:
+
+```powershell
+./build/Update-Version.ps1 -Version 0.1.3
+```
+
+Run `./build/Test-Release.ps1` to check release preparation using temporary local
+Git repositories, without building packages or contacting GitHub.
 
 ## Linux, macOS and WSL
 

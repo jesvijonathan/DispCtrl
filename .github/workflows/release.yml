@@ -12,13 +12,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version, three numbers (the tag will be v<version>, plus -beta for beta)
-        required: true
-        default: '0.1.2'
+        description: Version, e.g. 0.1.3 (blank = current project version)
+        required: false
       channel:
         type: choice
-        options: [stable, beta]
+        options: [stable, beta, test]
         default: stable
+      update_version:
+        description: Update version automatically (commit project and MSIX versions before tagging)
+        type: boolean
+        default: true
       publish:
         description: Publish immediately instead of leaving a draft (a stable publish starts Distribute)
         type: boolean
@@ -41,7 +44,7 @@ on:
         required: false
 permissions: {}
 concurrency:
-  group: release-${{ inputs.version || github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   release:
@@ -58,6 +61,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # A rerun must see the version commit made by its first attempt.
+          # Preparation still rejects an existing tag if the branch moved on.
+          ref: ${{ github.ref }}
+      - name: Prepare version and tag
+        id: v
+        shell: pwsh
+        env:
+          IN_VERSION: ${{ inputs.version }}
+          IN_CHANNEL: ${{ inputs.channel || 'stable' }}
+          UPDATE_VERSION: ${{ inputs.update_version && 'true' || 'false' }}
+          CREATE_TAG: ${{ inputs.create_tag && 'true' || 'false' }}
+        run: |
+          $release = ./build/Prepare-Release.ps1 -Version $env:IN_VERSION -Channel $env:IN_CHANNEL `
+            -RefType $env:GITHUB_REF_TYPE -RefName $env:GITHUB_REF_NAME -TestRun $env:GITHUB_RUN_NUMBER `
+            -UpdateVersion:($env:UPDATE_VERSION -eq 'true') -CreateTag:($env:CREATE_TAG -eq 'true')
+          "version=$($release.Version)", "channel=$($release.Channel)", "tag=$($release.Tag)" |
+            Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
@@ -66,44 +87,12 @@ jobs:
           msystem: UCRT64
           install: mingw-w64-ucrt-x86_64-gcc
 
-      - name: Resolve version, channel and tag
-        id: v
+      - name: Locate the native compiler
         shell: pwsh
-        env:
-          IN_VERSION: ${{ inputs.version }}
-          IN_CHANNEL: ${{ inputs.channel }}
         run: |
-          if ($env:GITHUB_REF_TYPE -eq 'tag') {
-            $tag = $env:GITHUB_REF_NAME
-            $version = $tag -replace '^v','' -replace '-.*$',''
-            $channel = if ($tag -match '-') { 'beta' } else { 'stable' }
-          } else {
-            $version = $env:IN_VERSION; $channel = $env:IN_CHANNEL
-            $tag = "v$version" + $(if ($channel -eq 'beta') { '-beta' } else { '' })
-          }
-          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "'$version' is not <major>.<minor>.<patch>." }
-          $declared = ([xml](Get-Content Directory.Build.props -Raw)).Project.PropertyGroup.DispCtrlVersion | Where-Object { $_ } | Select-Object -First 1
-          if ($declared -ne $version) {
-            $message = "Directory.Build.props declares $declared but this release is $version."
-            if ($channel -eq 'stable') { throw "$message Bump DispCtrlVersion in the release commit." }
-            "::warning::$message"
-          }
           $gpp = (Get-ChildItem $env:RUNNER_TEMP -Filter g++.exe -Recurse | Where-Object FullName -match 'ucrt64' | Select-Object -First 1).FullName
           if (-not $gpp) { throw 'Native compiler not found.' }
           "DISPCTRL_CXX=$gpp" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          "version=$version", "channel=$channel", "tag=$tag" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      - name: Create the tag
-        if: github.ref_type != 'tag' && inputs.create_tag
-        shell: pwsh
-        env:
-          TAG: ${{ steps.v.outputs.tag }}
-        run: |
-          git ls-remote --exit-code --tags origin "refs/tags/$env:TAG" *> $null
-          if ($LASTEXITCODE -eq 0) { "Tag $env:TAG already exists; using it."; exit 0 }
-          git tag $env:TAG
-          git push origin $env:TAG
-          if ($LASTEXITCODE -ne 0) { throw "Could not push tag $env:TAG." }
 
       - name: Load the signing certificate
         if: env.HAS_SIGNING_CERT == 'true' && inputs.sign != false
@@ -213,11 +202,15 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             # A re-run replaces the files rather than failing.
             gh release upload $env:TAG @files --clobber
-            gh release edit $env:TAG --notes-file artifacts/RELEASE-NOTES.md
+            if ($LASTEXITCODE -ne 0) { throw 'Uploading release files failed.' }
+            $options = @('--notes-file', 'artifacts/RELEASE-NOTES.md')
+            if ($env:PUBLISH -eq 'true') { $options += '--draft=false' }
+            if ($env:CHANNEL -ne 'stable') { $options += '--prerelease', '--latest=false' }
+            gh release edit $env:TAG @options
           } else {
             $options = @('--title', "DispCtrl $env:TAG", '--notes-file', 'artifacts/RELEASE-NOTES.md', '--verify-tag')
             if ($env:PUBLISH -ne 'true') { $options += '--draft' }
-            if ($env:CHANNEL -eq 'beta') { $options += '--prerelease' }
+            if ($env:CHANNEL -ne 'stable') { $options += '--prerelease', '--latest=false' }
             gh release create $env:TAG @options @files
           }
           if ($LASTEXITCODE -ne 0) { throw 'Creating the release failed.' }

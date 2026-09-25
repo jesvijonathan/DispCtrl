@@ -9,6 +9,7 @@ using DispCtrl, not for people reading the diff.
 ## [Unreleased]
 
 ### Changed
+- Releases can update and commit the version automatically before tagging. A test channel creates numbered GitHub prereleases alongside beta and stable releases; packaging scripts use the project version by default.
 - With one display connected, unison steps aside: the quick panel's unison section shows that display's own brightness, simple view drops "All displays", and the Displays page says why its unison slider is idle. Display mode and "Multiple displays" are greyed until a second display is connected. Nothing is switched off, and unison carries on from where it was left when another display arrives.
 - Replace Windows brightness no longer pulls the laptop's screen back inside its calibrated range while it is the only display, so the brightness keys reach the whole range.
 

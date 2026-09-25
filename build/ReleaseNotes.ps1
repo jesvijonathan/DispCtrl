@@ -43,9 +43,13 @@ else { $notes.Add('No changelog entry was written for this version.') }
 $notes.Add('')
 $notes.Add('## Install')
 $notes.Add('')
-$notes.Add("- **Microsoft Store**, which keeps it up to date: [DispCtrl on the Microsoft Store](https://apps.microsoft.com/detail/$StoreId)")
-$notes.Add("- **winget**, the Store version from a terminal: ``winget install $StoreId --source msstore``")
-$notes.Add('- **Or download a file below:**')
+if ($Version -match '-') {
+    $notes.Add('This is a prerelease for testing. Download its files below; it is not distributed through winget or the Microsoft Store.')
+} else {
+    $notes.Add("- **Microsoft Store**, which keeps it up to date: [DispCtrl on the Microsoft Store](https://apps.microsoft.com/detail/$StoreId)")
+    $notes.Add("- **winget**, the Store version from a terminal: ``winget install $StoreId --source msstore``")
+    $notes.Add('- **Or download a file below:**')
+}
 $notes.Add('')
 $notes.Add('| File | For |')
 $notes.Add('|---|---|')

@@ -20,7 +20,7 @@ param(
     [string]$Command = 'menu',
     [Parameter(Position = 1)][string]$Target,
     [ValidateSet('Debug','Release')][string]$Configuration,
-    [ValidateSet('beta','stable')][string]$Channel,
+    [ValidateSet('beta','stable','test')][string]$Channel,
     [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version,
     # setup: allow winget to install the .NET SDK and MinGW-w64 system-wide.
     [switch]$Install,
@@ -386,7 +386,8 @@ function Invoke-Release {
     Invoke-Installer $bundle
     Invoke-Package $bundle
     $notes = Join-Path $bundle 'RELEASE-NOTES.md'
-    & (Join-Path $PSScriptRoot 'ReleaseNotes.ps1') -Version $options.version -ArtifactsDirectory $bundle | Set-Content -LiteralPath $notes -Encoding utf8
+    $notesVersion = $options.version + $(if ($options.channel -ne 'stable') { "-$($options.channel)" } else { '' })
+    & (Join-Path $PSScriptRoot 'ReleaseNotes.ps1') -Version $notesVersion -ArtifactsDirectory $bundle | Set-Content -LiteralPath $notes -Encoding utf8
     $files = @(Get-ChildItem -LiteralPath $bundle -File | Sort-Object Name | ForEach-Object FullName)
     Write-Outputs "Release $($options.version) ($($options.channel)):" $files $bundle
 }
@@ -463,7 +464,7 @@ function Invoke-Menu {
         '6' = @('Open the quick panel', '', { $script:Target = 'panel'; Invoke-Run })
         '7' = @('Clean', 'remove every bin, obj and artifacts folder', { Invoke-Clean })
         '8' = @('Check this machine', 'and set up missing tools', { if (-not (Invoke-Doctor)) { $script:Install = (Read-Host 'Fetch the missing tools now? [y/N]') -match '^(y|yes)$'; Invoke-Setup } })
-        '9' = @('Settings', 'Debug or Release, beta or stable, native helper', { Invoke-MenuSettings })
+        '9' = @('Settings', 'Debug or Release, beta/stable/test channel, native helper', { Invoke-MenuSettings })
     }
     $groups = [ordered]@{ 'Everyday' = '1','2','3'; 'Ship' = ,'4'; 'More' = '5','6','7','8','9' }
     while ($true) {
@@ -485,8 +486,9 @@ function Invoke-Menu {
 }
 
 function Invoke-MenuRelease {
-    $channel = Read-Host "Channel: stable or beta? [stable]"
-    $options.channel = if ($channel -match '^b') { 'beta' } else { 'stable' }
+    $channel = Read-Host "Channel: stable, beta or test? [stable]"
+    if ($channel -and $channel -notin 'stable','beta','test') { throw 'Choose stable, beta or test.' }
+    $options.channel = if ($channel) { $channel } else { 'stable' }
     $version = Read-Host "Version? [$($options.version)]"
     if ($version) {
         if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'A version is three numbers: 0.1.0.' }
@@ -519,7 +521,7 @@ function Invoke-MenuSettings {
         Write-Host '  b  Back'
         switch (Read-Host 'Change') {
             '1' { $options.configuration = if ($options.configuration -eq 'Release') { 'Debug' } else { 'Release' }; Invoke-Options }
-            '2' { $options.channel = if ($options.channel -eq 'beta') { 'stable' } else { 'beta' }; Invoke-Options }
+            '2' { $options.channel = switch ($options.channel) { 'beta' { 'stable' } 'stable' { 'test' } default { 'beta' } }; Invoke-Options }
             '3' { $options.skipNative = -not $options.skipNative; Invoke-Options }
             default { return }
         }

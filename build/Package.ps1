@@ -5,7 +5,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9.-]{3,50}$')][string]$IdentityName,
     [string]$Publisher,
     [string]$PublisherDisplayName = 'JustVStudio',
-    [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')][string]$Version = '0.1.2.0',
+    [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')][string]$Version,
     [string]$MakeAppx,
     # Signs with Sign.ps1. The certificate subject must equal -Publisher.
     [switch]$Sign,
@@ -15,6 +15,10 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+if (-not $Version) {
+    $shipping = ([xml](Get-Content (Join-Path $repo 'Directory.Build.props') -Raw)).Project.PropertyGroup.DispCtrlVersion | Where-Object { $_ } | Select-Object -First 1
+    $Version = "$shipping.0"
+}
 $template = [xml](Get-Content -LiteralPath (Join-Path $repo 'build/packaging/AppxManifest.xml') -Raw)
 if (-not $IdentityName) { $IdentityName = $template.Package.Identity.Name }
 if (-not $Publisher) { $Publisher = $template.Package.Identity.Publisher }

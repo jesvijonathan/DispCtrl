@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$DesktopDirectory,
-    [ValidatePattern('^\d+\.\d+\.\d+(\.\d+)?$')][string]$Version = '0.1.2',
-    [ValidateSet('stable','beta')][string]$Channel = 'beta',
+    [ValidatePattern('^\d+\.\d+\.\d+(\.\d+)?$')][string]$Version,
+    [ValidateSet('stable','beta','test')][string]$Channel = 'beta',
     [string]$OutputDirectory,
     [string]$Iscc,
     # Signs the setup executable with Sign.ps1. The files inside it are whatever
@@ -11,6 +11,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+if (-not $Version) { $Version = ([xml](Get-Content (Join-Path $repo 'Directory.Build.props') -Raw)).Project.PropertyGroup.DispCtrlVersion | Where-Object { $_ } | Select-Object -First 1 }
 $source = (Resolve-Path -LiteralPath $DesktopDirectory).Path
 foreach ($exe in @('DispCtrl.App.exe','DispCtrl.Engine.exe','dispctrl.exe')) {
     if (-not (Test-Path -LiteralPath (Join-Path $source $exe))) { throw "Missing published executable: $exe" }

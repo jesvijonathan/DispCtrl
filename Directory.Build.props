@@ -1,10 +1,10 @@
 <Project>
 
   <PropertyGroup>
-    <!-- One place to bump the shipping version. Local builds carry it; release
-         builds pass -p:Version from the tag, and release.yml refuses a stable
-         tag that disagrees with it, so bump this in the release commit. -->
-    <DispCtrlVersion>0.1.2</DispCtrlVersion>
+    <!-- Shipping version for local builds and packaging defaults. Use
+         build/Update-Version.ps1, or Release's automatic version update,
+         before tagging. Stable tags must agree with this version. -->
+    <DispCtrlVersion>0.1.3</DispCtrlVersion>
     <Version Condition="'$(Version)' == ''">$(DispCtrlVersion)</Version>
 
     <!-- Presets are shelved until the beta implementation is ready. -->
