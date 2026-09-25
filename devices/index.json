@@ -1,13 +1,13 @@
 {
   "schema": 2,
   "generated": "tools/devicecheck index - do not edit; regenerated after every merge",
-  "counts": { "brands": 6, "models": 9, "records": 9, "definitions": 2 },
+  "counts": { "brands": 6, "models": 10, "records": 10, "definitions": 2 },
   "common": 0,
   "brands": {
     "BNQ": {"brandCodes":0,"models":1},
     "BOE": {"brandCodes":0,"models":1},
     "DEL": {"brandCodes":0,"models":3},
-    "GSM": {"brandCodes":0,"models":2},
+    "GSM": {"brandCodes":0,"models":3},
     "SDC": {"brandCodes":0,"models":1},
     "TMX": {"brandCodes":0,"models":1}
   },
@@ -19,6 +19,7 @@
     "DEL-D146": {"name":"Dell P2723DE","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T17:28:24Z","extends":[]},
     "GSM-0001": {"name":"LG Electronics LG TV","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-25T07:18:28Z","extends":[]},
     "GSM-5C89": {"name":"LG Electronics FALCON","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T16:35:53Z","extends":[]},
+    "GSM-82CD": {"name":"LG Electronics LG TV SSCR2","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-25T07:20:47Z","extends":[]},
     "SDC-4154": {"name":"Samsung Display 14.0 inch 2880 x 1800 panel","record":true,"codes":0,"panel":"OLED","writable":0,"reports":0,"added":"2026-09-24T16:10:30Z","extends":[]},
     "TMX-1400": {"name":"TMX TL140BDXP01-0","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-24T16:35:53Z","extends":[]}
   }
