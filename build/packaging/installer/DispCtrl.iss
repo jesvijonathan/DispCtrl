@@ -2,9 +2,14 @@
 ;   /DAppVersion=0.1.0  /DChannel=beta  /DSourceDir=<published desktop>
 ;   /DRepoRoot=<repo>   /DOutputDir=<folder for the setup exe>
 ;
-; Per user and unelevated, on purpose: the engine must not run elevated (UIPI
+; Per user and unelevated by default: the engine must not run elevated (UIPI
 ; would cut its tray window off from Explorer, and its command pipe from every
-; client), and a per-machine install would need elevation for nothing else.
+; client). "Install for all users" is offered too (PrivilegesRequiredOverridesAllowed):
+; the files go to Program Files, the shortcuts to everyone's Start menu and the
+; command line to the system PATH, while everything that runs - the engine,
+; its sign-in task, the app - still runs as the person installing, unelevated
+; (runasoriginaluser). Settings stay per person in %LOCALAPPDATA%; each other
+; person is offered the sign-in task the first time they open DispCtrl.
 
 #ifndef AppVersion
   #error Pass /DAppVersion=x.y.z
@@ -37,7 +42,10 @@ AppCopyright=Copyright (c) 2026 Jesvi Jonathan
 VersionInfoVersion={#AppVersion}
 VersionInfoProductName=DispCtrl
 PrivilegesRequired=lowest
-DefaultDirName={localappdata}\Programs\DispCtrl
+PrivilegesRequiredOverridesAllowed=dialog commandline
+; {autopf} is %LOCALAPPDATA%\Programs for one person, where earlier versions
+; installed, and Program Files for everyone.
+DefaultDirName={autopf}\DispCtrl
 DisableProgramGroupPage=yes
 UsePreviousAppDir=yes
 ArchitecturesAllowed=x64compatible
@@ -78,17 +86,33 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 [Icons]
 ; The same file name the app manages from Settings, so the two agree on
 ; whether a shortcut exists rather than making a second one.
-Name: "{userprograms}\DispCtrl"; Filename: "{app}\DispCtrl.App.exe"; Comment: "Open DispCtrl"
-Name: "{userdesktop}\DispCtrl"; Filename: "{app}\DispCtrl.App.exe"; Comment: "Open DispCtrl"; Tasks: desktopicon
+Name: "{autoprograms}\DispCtrl"; Filename: "{app}\DispCtrl.App.exe"; Comment: "Open DispCtrl"
+Name: "{autodesktop}\DispCtrl"; Filename: "{app}\DispCtrl.App.exe"; Comment: "Open DispCtrl"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\dispctrl.exe"; Parameters: "startup set --engine on --json"; Flags: runhidden; Tasks: signin; StatusMsg: "Registering DispCtrl to start at sign-in..."
-Filename: "{app}\DispCtrl.Engine.exe"; Parameters: "run"; Flags: nowait; StatusMsg: "Starting DispCtrl..."
-Filename: "{app}\DispCtrl.App.exe"; Description: "Open DispCtrl now"; Flags: postinstall nowait skipifsilent
+; As the person installing, never elevated, even for an install for all users.
+Filename: "{app}\dispctrl.exe"; Parameters: "startup set --engine on --json"; Flags: runhidden runasoriginaluser; Tasks: signin; StatusMsg: "Registering DispCtrl to start at sign-in..."
+; The sign-in box above is this person's answer: the app's own first-run offer
+; (for everybody else on an install for all users) must not overrule it.
+Filename: "{app}\dispctrl.exe"; Parameters: "settings set --path /global/engineStartupOffered --value on --json"; Flags: runhidden runasoriginaluser
+Filename: "{app}\DispCtrl.Engine.exe"; Parameters: "run"; Flags: nowait runasoriginaluser; StatusMsg: "Starting DispCtrl..."
+Filename: "{app}\DispCtrl.App.exe"; Description: "Open DispCtrl now"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [Code]
 const
   EnvironmentKey = 'Environment';
+  SystemEnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
+
+// The PATH this install owns: the person's own, or the system's for all users.
+function PathRoot(): Integer;
+begin
+  if IsAdminInstallMode() then Result := HKLM else Result := HKCU;
+end;
+
+function PathKey(): String;
+begin
+  if IsAdminInstallMode() then Result := SystemEnvironmentKey else Result := EnvironmentKey;
+end;
 
 { Stops DispCtrl processes running from Root: the engine gracefully, so it puts
   back any taskbar it hid, and the window outright, which is safe. Returns
@@ -146,10 +170,10 @@ procedure AddToPath(Folder: String);
 var
   Paths: String;
 begin
-  if not RegQueryStringValue(HKCU, EnvironmentKey, 'Path', Paths) then Paths := '';
+  if not RegQueryStringValue(PathRoot(), PathKey(), 'Path', Paths) then Paths := '';
   if PathContains(Paths, Folder) then Exit;
   if (Paths <> '') and (Copy(Paths, Length(Paths), 1) <> ';') then Paths := Paths + ';';
-  RegWriteExpandStringValue(HKCU, EnvironmentKey, 'Path', Paths + Folder);
+  RegWriteExpandStringValue(PathRoot(), PathKey(), 'Path', Paths + Folder);
 end;
 
 procedure RemoveFromPath(Folder: String);
@@ -157,13 +181,13 @@ var
   Paths: String;
   P: Integer;
 begin
-  if not RegQueryStringValue(HKCU, EnvironmentKey, 'Path', Paths) then Exit;
+  if not RegQueryStringValue(PathRoot(), PathKey(), 'Path', Paths) then Exit;
   if not PathContains(Paths, Folder) then Exit;
   Paths := ';' + Paths + ';';
   P := Pos(';' + Uppercase(Folder) + ';', Uppercase(Paths));
   Delete(Paths, P, Length(Folder) + 1);
   Paths := Copy(Paths, 2, Length(Paths) - 2);
-  RegWriteExpandStringValue(HKCU, EnvironmentKey, 'Path', Paths);
+  RegWriteExpandStringValue(PathRoot(), PathKey(), 'Path', Paths);
 end;
 
 // Where DispCtrl keeps its settings, logs and history: the same folder the

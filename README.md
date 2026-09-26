@@ -9,10 +9,9 @@
 One place for brightness, night light, taskbars and OLED care across your desk.<br>
 A native Windows app, a quick panel in your tray, and a scriptable command line.
 
-[![Monitor library](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjesvijonathan%2FDispCtrl%2Fmaster%2Fdevices%2Findex.json&query=%24.counts.models&suffix=%20models&label=monitor%20library&color=8b5cf6)](devices/CATALOG.md) [![GitHub stars](https://img.shields.io/github/stars/jesvijonathan/DispCtrl?label=stars&color=8b5cf6&logo=github)](https://github.com/jesvijonathan/DispCtrl/stargazers) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/DispCtrl/total?color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases) [![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
+[![Monitor library](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjesvijonathan%2FDispCtrl%2Fmaster%2Fdevices%2Findex.json&query=%24.counts.models&label=monitor%20library&color=8b5cf6)](devices/CATALOG.md) [![GitHub stars](https://img.shields.io/github/stars/jesvijonathan/DispCtrl?label=stars&color=8b5cf6&logo=github)](https://github.com/jesvijonathan/DispCtrl/stargazers) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/DispCtrl/total?color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases) [![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
 
-[![Get it from the Microsoft Store](https://img.shields.io/badge/Microsoft_Store-8b5cf6?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTguNSA3VjUuNWEzLjUgMy41IDAgMCAxIDcgMFY3IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMS42Ii8+PHBhdGggZD0iTTMuNSA3aDE3bC0xIDEzLjVhMS41IDEuNSAwIDAgMS0xLjUgMS40SDZhMS41IDEuNSAwIDAgMS0xLjUtMS40eiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjEuNiIvPjxyZWN0IHg9IjcuNiIgeT0iMTAuMiIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iI0YyNTAyMiIvPjxyZWN0IHg9IjEyLjQiIHk9IjEwLjIiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiM3RkJBMDAiLz48cmVjdCB4PSI3LjYiIHk9IjE1IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMDBBNEVGIi8+PHJlY3QgeD0iMTIuNCIgeT0iMTUiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNGRkI5MDAiLz48L3N2Zz4=)](https://apps.microsoft.com/detail/9PNQWKNRGVR0)&nbsp;
-[![Download the installer](https://img.shields.io/github/v/release/jesvijonathan/DispCtrl?style=for-the-badge&logo=github&label=Download&color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases/latest)
+<a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Download from the Microsoft Store" width="200" height="55"></a>&nbsp;&nbsp;<a href="https://github.com/jesvijonathan/DispCtrl/releases/latest"><img src="site/assets/badges/download-installer.svg" alt="Download the installer" width="200" height="55"></a>
 
 [Install](#install) · [Getting started](#getting-started) · [Documentation](#documentation) · [Website](https://jesvijonathan.github.io/DispCtrl/)
 
@@ -33,6 +32,7 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 - **Unison**: one slider for every display, each within its own calibrated range
 - **Replace Windows brightness**: let the laptop's brightness keys and Quick Settings move every display
 - Hardware brightness over DDC/CI and WMI, software dimming below it
+- Leave a display out of unison; turn the mouse wheel over the tray icon
 
 </td>
 <td width="50%" valign="top">
@@ -41,7 +41,7 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 
 - Night light per display or in unison, scheduled or following Windows
 - Warmth down to 1900K with the optional expanded gamma range
-- Focus mode, keep-awake, Stay active and dark mode
+- Focus mode, keep-awake, Stay active and dark mode, on night light's schedule if you like
 
 </td>
 </tr>
@@ -60,6 +60,7 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 ### OLED care
 
 - Two-stage idle dimming, paused for full-screen video and games
+- Rests each display on its own while you work on another, and keeps apps you watch awake
 - Knows OLED panels from the monitor or the device library; pairs with taskbar hiding
 
 </td>
@@ -81,6 +82,26 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 - A quick panel on the tray icon: tiles, sliders, a row per display
 - Global hotkeys that work with the window closed
 - `dispctrl.exe`: every option, with JSON output
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Windows
+
+- Pin any window on top, marked with a border and kept clear of focus dimming
+- Gather every window onto one display, maximized and fullscreen ones included
+- Put windows back when a monitor returns; open new windows where you work
+
+</td>
+<td width="50%" valign="top">
+
+### Safety and updates
+
+- Stops talking to a monitor whose capabilities read crashed Windows
+- Settings that survive moving to a newer or an older version
+- An opt-in check for new releases; the Microsoft Store updates itself
 
 </td>
 </tr>
@@ -118,6 +139,7 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
   - Use Windows' night light (switch), and a button to Windows' own page
   - Strength (slider 5-100)
   - Schedule (switch), Hours (from and to; a window past midnight is fine)
+  - Dark mode on the schedule (switch): Windows goes dark when the schedule starts and light when it ends, once each
   - Gamma range: lift Windows' limit so warmth reaches 1900 K and dimming near black (asks for administrator once)
   - Right now: what is applied
 - **Dark mode** (switch), and a button to Windows' colours page
@@ -126,11 +148,14 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
   - Delay after switching windows (0-10000 ms)
   - Fade duration (0-2000 ms)
   - Transition between windows: None, Fade the brightness, Slide the shape
-  - One clear window per display, Keep the hovered window clear too, OLED displays only, Match the dimming to brightness, Follow the mouse, Follow new and activated windows, Dim other monitors, Keep taskbar area clear, Pause for fullscreen windows (switches)
+  - Which windows stay clear: the focused window, the window under the pointer, or both
+  - One clear window per display, OLED displays only, Match the dimming to brightness, Follow new and activated windows, Dim other monitors, Keep taskbar area clear, Pause for fullscreen windows (switches)
   - Excluded apps (executable names)
   - Right now; Reset focus mode
 - **OLED idle protection** (switch)
-  - Which displays
+  - Which displays: every monitor this PC has seen, connected ones first, each marked OLED and protected or not, even while it is unplugged
+  - Each display rests on its own (switch): a display rests once neither the pointer nor your typing has been on it, even while you work on another
+  - Keep these apps' displays awake (executable names): a film or a dashboard on a display keeps it from resting
   - Dim after inactivity (1-120 minutes)
   - Idle dimming (slider 0-100, steps of 5, previewed for two seconds)
   - Second-stage dimming (switch), Second stage after (1-120 minutes), Second-stage dimming level (from the first level to 100)
@@ -150,9 +175,20 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
   - Expiration (date and time)
   - Keep displays on (switch)
   - Right now; Reset
+- **Pin windows on top** (switch)
+  - Pinned now: every pinned window with Unpin, Look again, Unpin all; Ctrl+Alt+P pins the window in front
+  - Border (switch), Border colour (Windows accent or a choice of colours), Border width (1-16), Border opacity (20-100%)
+  - Keep pinned windows clear of focus mode, Keep them clear of OLED idle dimming too, Never pin a fullscreen window, Step aside for fullscreen (switches)
+  - Never pin these apps (executable names)
+- **Move windows between displays**
+  - Gather every window: a button per display (maximized, fullscreen and minimized windows included); Ctrl+Alt+G gathers onto the display in use
+  - Put windows back when a display returns (switch); Windows' own window memory and minimize-on-disconnect switches beside it
+  - Open new windows on the display in use (switch); which display is in use: the pointer's or the active window's
+  - Keep a gathered window's size to the eye across scales (switch); Never move these apps (executable names)
 - **Each display** (one card per display)
   - Wallpaper: Change; Fit: Fill, Fit, Stretch, Tile, Centre, Span
   - Brightness (0-100), or Software brightness where the display has no hardware control
+  - In unison (switch): left out, the display keeps its own brightness while the rest move together
   - Night light: this display's own warmth (5-100)
   - Adaptive brightness, Rotate with the device, OLED panel, Focus dimming (switches)
   - OLED burn-in protection (switch): Run screen rest, for 1-30 minutes
@@ -165,6 +201,8 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
   - Hide the taskbar, Reclaim the work area (switches)
   - The monitor's own controls: Show controls, then a slider or a choice for each one it offers
   - Also reported: the monitor's read-only answers (firmware, hours in use and the like)
+  - Probe (a monitor that does not say what it supports): asks it, read-only, about each code DispCtrl knows, and uses what answered
+  - A notice, and Talk to it again, when the DDC/CI guard has stopped talking to this monitor
   - Reset this display
 
 </details>
@@ -197,21 +235,23 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
 - **The panel**: rises from the taskbar and sinks back; closes when you click elsewhere unless pinned
 - **Title bar**: the DispCtrl title drags it; buttons for simple mode (the dot), density, stay open (the pin) and customise
 - **Simple mode**: one slider for all displays with the unison switch, then one slider per display
-- **Sections**: Unison brightness, Quick toggles, Displays, Night light, Taskbar, Focus mode, OLED protection, Display mode (PC screen only, duplicate, extend, second screen only), Presets (coming soon); each can be folded
+- **Sections**: Unison brightness, Quick toggles, Displays, Night light, Taskbar, Focus mode, OLED protection, Display mode (PC screen only, duplicate, extend, second screen only), Windows (gather, put back, new windows, what is pinned; hidden until you show it), Presets (coming soon); each can be folded
 - **Quick toggles** (right-click one with an arrow for its options)
-  - Night light: Strength, On a schedule, Warm each display separately, Follow Windows' night light
+  - Night light: Strength, On a schedule, Dark mode on the schedule, Warm each display separately, Follow Windows' night light
   - Dark mode
-  - Focus: Dimming, Fade, transition (No transition, Fade the brightness, Slide the shape), One clear window per display, Keep the hovered window clear, Follow the mouse, Clear new windows first, OLED displays only, Scale with brightness, Dim other monitors, Keep the taskbar clear, Pause for fullscreen
+  - Focus: Dimming, Fade, transition (No transition, Fade the brightness, Slide the shape), One clear window per display, Kept clear (the focused window, the one under the pointer, or both), Clear new windows first, OLED displays only, Scale with brightness, Dim other monitors, Keep the taskbar clear, Pause for fullscreen
   - Keep awake: Keep awake, Keep the displays on too, Stay active
   - Stay active
   - Taskbar: Glass, Glass tint, Corner rounding, Opacity, Transparency effects, Auto-hide the main taskbar
-  - OLED care: Wait, Dim to, Dim further after longer, Then after, Down to, Pause during fullscreen
+  - OLED care: Wait, Dim to, Dim further after longer, Then after, Down to, Pause during fullscreen, Each display on its own
+  - Pin on top (the open windows, each with a switch, and the border's options), Gather (onto the display in use; the arrow chooses another), Put back, New here - hidden until you add them
   - Project (Win+P modes), Displays off (Darkness, Which, Backlight down too, Wake only by the pointer, Hide the pointer, Lock when they wake), Detect, Unison (Use Windows brightness), Identify, Cast, Rest OLED, Engine
   - Your own tiles
 - **Rows per display**: Brightness, Switches, Resolution, Scale, Refresh rate, Software dimming, Orientation, Monitor controls, Warmth, Input source
-- **Switches per display**: Hide taskbar, HDR, Make main, Focus dimming, OLED care, Rest now, Monitor sleep, Variable refresh, Adaptive brightness, Auto-rotate, Identify (each only where the display supports it)
+- **Switches per display**: Hide taskbar, HDR, Make main, Focus dimming, OLED care, Rest now, Monitor sleep, Variable refresh, Adaptive brightness, Auto-rotate, Identify, In unison, Gather here (each only where the display supports it)
 - **Quick panel page**
   - Simple mode, Show the icon in the notification area (and Open it now), Keep it on the taskbar
+  - The mouse wheel over the icon: Off, The main display, Every display; step (1-25%); the wheel on the panel's sliders (switch)
   - Icon: Brightness, Display, or DispCtrl's logo; Icon colour: the taskbar's white or black, or your accent colour; Show when active (bolder while Keep awake or Stay active is on)
   - Density: Compact, Comfortable, Spacious; Width; Quick toggles per row; Height: fit or fixed
   - Stay open when it loses focus, Lock its position, Link to all display settings, Animate opening and closing
@@ -227,9 +267,9 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
 <details>
 <summary><b>Hotkeys</b></summary>
 
-- **Actions**: Unison brightness up, down, and on or off; Brightness up and down, one display; Night light on or off, warmer, cooler; Focus mode on or off; OLED care on or off; Rest the OLED displays now; Keep awake on or off; Stay active on or off; Turn the displays off, or back on; Put every display back (emergency); Dark or light mode; Hide or show the taskbar; Taskbar glass on or off; Contrast up and down; Next input source; Show the display numbers; Open or close the quick panel; Apply a preset (beta)
+- **Actions**: Unison brightness up, down, and on or off; Brightness up and down, one display; Night light on or off, warmer, cooler; Focus mode on or off; OLED care on or off; Rest the OLED displays now; Keep awake on or off; Stay active on or off; Turn the displays off, or back on; Put every display back (emergency); Dark or light mode; Hide or show the taskbar; Taskbar glass on or off; Contrast up and down; Next input source; Show the display numbers; Open or close the quick panel; Pin the active window on top, or unpin it; Unpin every window; Gather every window onto one display; Apply a preset (beta)
 - **Per shortcut**: the keys, on or off, step (1-50%), display (0 for all, 1-8), preset
-- **On by default**: Ctrl+Alt+Page Up and Page Down (unison, by 5), Ctrl+Alt+D (quick panel), Ctrl+Alt+N (night light), Ctrl+Alt+L (turn off displays), Ctrl+Alt+Backspace (put every display back)
+- **On by default**: Ctrl+Alt+Page Up and Page Down (unison, by 5), Ctrl+Alt+D (quick panel), Ctrl+Alt+N (night light), Ctrl+Alt+L (turn off displays), Ctrl+Alt+Backspace (put every display back), Ctrl+Alt+P (pin the window in front), Ctrl+Alt+G (gather every window)
 - **Set up, switched off**: Ctrl+Alt+U (unison on or off), F (focus), K (keep awake), I (identify), M (dark mode), T (taskbar), O (OLED care), Ctrl+Alt+Shift+Page Up and Page Down (contrast)
 - Never the arrow keys: some graphics drivers rotate the screen on Ctrl+Alt and an arrow, and the page says so
 - Shows whether each shortcut is registered or taken by another program, and warns about combinations Windows keeps
@@ -265,7 +305,7 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
 
 - **Startup**: Start engine at sign-in, Keep the quick panel ready, Open DispCtrl at sign-in, Start Menu shortcut, Desktop shortcut, Startup apps, Startup folder
 - **Engine**: Settings file (Show in folder), Log (Open log), Executable, and the engine's state
-- **Settings**: Write a log, Updates (Check for updates, by hand only), Repair, Clear logs and cached data, Undo the way back (Put back), Reset everything
+- **Settings**: Write a log, Updates (Check for updates; Check for updates automatically, off until you switch it on, and never for a Store install), Monitors (the DDC/CI crash guard, and any monitor it stopped talking to), Repair, Clear logs and cached data, Undo the way back (Put back), Reset everything
 - **Help**: Source code, Report a problem (a scrubbed report reviewed before a prefilled issue opens), Request a feature, Contribute code; fixes for a taskbar stuck off-screen, a main taskbar that will not hide, a monitor that forgot its settings
 - **About**: purpose, the author, GitHub Sponsors, PayPal, UPI (with a QR code), version, runtime, Windows, components
 
@@ -283,7 +323,10 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
 - `windows get|set` (taskbar preferences, VRR, dark mode, wallpaper fit), `windows open --page display|nightlight|colors|taskbar|startup|power|hdr|cast|colormanagement`
 - `hotkeys list|add|set|remove|reset`; `unison get|set [--level] [--monitor --floor --ceiling]`; `ambient get|set|capture|forget|reset`
 - `startup get|set --engine --preload-panel --open-window --start-menu --desktop`; `tray show`; `topology get|set --mode extend|duplicate|internal|external`
-- `oled preview --percent`; `oled rest --monitor --minutes`; `awake displays-off --enabled on`; `restore now|undo|get`
+- `oled preview --percent`; `oled rest --monitor --minutes`; `oled set --per-display-activity --excluded-apps`; `awake displays-off --enabled on`; `restore now|undo|get`
+- `focus set --keep-clear focused|pointer|both`; `unison set --monitor --include on|off`
+- `pin list|on|off|toggle [--window W] [--all]|get|set|reset`; `placement gather [--to --from]|move --window --to|get|set|reset`
+- `ddc get|set --guard|allow|probe [--save|--clear]|reset`; `update check|get|set --check-automatically|skip|reset`
 - `engine start|stop|status`; `maintenance repair|clear-cache`
 - `apply FILE [--dry-run]`; `watch [--events displays,settings,engine] [--interval] [--script]`; `scripts list|run`; `request FILE`
 - `commands`, `status`, `diagnostics`, `report [--what --steps]`
@@ -306,6 +349,9 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
 - Settings are saved atomically and merged between the app, the engine and the command line; a file being written is never read half-finished
 - Only one DispCtrl window runs; opening it again brings the running one forward
 - The installer stops the engine cleanly before updating, keeps your settings, and offers repair and a reset; uninstalling puts every taskbar back
+- A settings file written by a newer DispCtrl still loads: what this version cannot read is left out and kept in the file for the newer one
+- A monitor whose capabilities read took Windows down is not read again until you allow it
+- Windows go back to a monitor that returns, beside Windows' own window memory; a window already home is left alone
 
 </details>
 
@@ -492,7 +538,7 @@ Every download is **Windows · x64 · self-contained**: no separate .NET install
 
 | Package | What you get |
 |---|---|
-| **`...-setup.exe`** (recommended) | Per-user install, no administrator rights. Starts at sign-in, adds a desktop shortcut and `dispctrl` to your `PATH`. Updates in place and keeps your settings; can reset or repair on the way. |
+| **`...-setup.exe`** (recommended) | Installs for you alone, with no administrator rights, or for everybody on the PC. Starts at sign-in, adds a desktop shortcut and `dispctrl` to your `PATH`. Updates in place and keeps your settings; can reset or repair on the way. |
 | `...-desktop.zip` | Portable: unzip anywhere and run `DispCtrl.App.exe` |
 | `...-cli.zip` | `dispctrl.exe` and the engine, without the window |
 

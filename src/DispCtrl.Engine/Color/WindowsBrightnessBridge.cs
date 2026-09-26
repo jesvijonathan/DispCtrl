@@ -115,7 +115,9 @@ internal sealed class WindowsBrightnessBridge : IDisposable
                     // Turned-off displays taking the laptop's backlight down, and
                     // back, are not somebody moving Windows' slider.
                     // Nor is following the room's light walking the panel.
-                    if (_disposed || UnisonCalibration.IsActive || Power.DisplaysOffBacklight.Busy || AmbientSync.Writing) return;
+                    // Nor is the app's own unison slider moving it (UnisonSlider).
+                    if (_disposed || UnisonCalibration.IsActive || Power.DisplaysOffBacklight.Busy || AmbientSync.Writing
+                        || UnisonSlider.IsMoving) return;
                     int value = Convert.ToInt32(e.NewEvent["Brightness"]);
                     long at = Environment.TickCount64;
                     if (value == Volatile.Read(ref _ownWrite) && at - Volatile.Read(ref _ownWriteAt) < 1500)
@@ -244,6 +246,8 @@ internal sealed class WindowsBrightnessBridge : IDisposable
     private void HoldInRange()
     {
         if (_disposed || UnisonCalibration.IsActive || Volatile.Read(ref _pending) >= 0) return;
+        // The app's slider is still moving the panel: its own range, its own saves.
+        if (UnisonSlider.IsMoving) { _quiet.Change(QuietMs, Timeout.Infinite); return; }
         // Something moved it since this was scheduled: not quiet yet.
         long since = Environment.TickCount64 - Volatile.Read(ref _lastEvent);
         if (since < QuietMs) { _quiet.Change(QuietMs - since, Timeout.Infinite); return; }

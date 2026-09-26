@@ -1,0 +1,14 @@
+<svg width="161" height="44" viewBox="0 0 161 44" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Download the installer">
+<!-- Drawn to Microsoft's "Get it from Microsoft" badge (en-us dark): the same
+     161x44 box, fill, corner radius and outline, the icon where its logo sits
+     and the two lines where its text sits, so the two read as a pair. -->
+<rect x="1" y="1" width="159" height="42" rx="4" fill="#202020"/>
+<rect x="0.5" y="0.5" width="160" height="43" rx="4.5" stroke="black" stroke-opacity="0.1"/>
+<g stroke="#8B5CF6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M21 12.5v13"/>
+<path d="M15.8 20.4 21 25.6l5.2-5.2"/>
+<path d="M12.2 26.5v2.8a2.2 2.2 0 0 0 2.2 2.2h13.2a2.2 2.2 0 0 0 2.2-2.2v-2.8"/>
+</g>
+<text x="41" y="17.6" fill="#FFFFFF" font-family="'Segoe UI', 'Segoe UI Variable', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="9.4">Download the</text>
+<text x="40.5" y="33.6" fill="#FFFFFF" font-family="'Segoe UI', 'Segoe UI Variable', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="16.2" font-weight="600">Installer</text>
+</svg>

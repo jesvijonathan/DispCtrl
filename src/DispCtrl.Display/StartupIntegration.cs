@@ -11,6 +11,22 @@ namespace DispCtrl.Display;
 /// </summary>
 public static class StartupIntegration
 {
+    /// <summary>An install for all users, in Program Files: nobody but the installer's own user was asked about starting at sign-in.</summary>
+    public static bool InstalledForAllUsers
+    {
+        get
+        {
+            try
+            {
+                string app = AppContext.BaseDirectory;
+                return !IsPackaged && new[] { Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86 }
+                    .Select(Environment.GetFolderPath)
+                    .Any(root => root.Length > 0 && app.StartsWith(Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception) { return false; }
+        }
+    }
+
     public static bool IsPackaged
     {
         get { try { _ = Windows.ApplicationModel.Package.Current.Id; return true; } catch (InvalidOperationException) { return false; } }

@@ -1084,6 +1084,8 @@ internal sealed unsafe partial class FocusService : IDisposable
 
             Apply(mask.Live, liveAlpha, ref mask.LiveVisible, ref mask.LiveApplied);
             Apply(mask.Ghost, ghostAlpha, ref mask.GhostVisible, ref mask.GhostApplied);
+            // A rest, or displays off, covers the taskbar too.
+            if (rest && mask.LiveVisible) KeepAboveTaskbar(mask.Live);
         }
         // Cleared whenever dimming is not allowed, so the next window that does
         // qualify waits out the delay again rather than snapping straight to it -
@@ -1263,6 +1265,27 @@ internal sealed unsafe partial class FocusService : IDisposable
 
     /// <summary>The finest the hovered-window checks are worth repeating at.</summary>
     private const uint PointerCoalesceMs = 50;
+
+    /// <summary>Puts a resting display's overlay back above a taskbar that has come up over it.</summary>
+    /// <remarks>
+    /// The overlay is made topmost once, when it shows; the taskbar is topmost
+    /// as well, and Windows raises it - a notification, a flashing button, a
+    /// hidden bar revealed - after which it stayed above the rest, undimmed on
+    /// an OLED panel all night. Checked on the rest's once-a-second tick by
+    /// walking up from the overlay, which only the few topmost windows are
+    /// above; raised only when a taskbar is found there. Never in focus mode,
+    /// which leaves the taskbar alone on purpose.
+    /// </remarks>
+    private static void KeepAboveTaskbar(nint overlay)
+    {
+        int looked = 0;
+        for (nint above = GetWindow(overlay, 3); above != 0 && looked++ < 64; above = GetWindow(above, 3)) // GW_HWNDPREV
+        {
+            if (!IsTaskbar(ClassOf(above))) continue;
+            SetWindowPos(overlay, -1, 0, 0, 0, 0, 0x13); // HWND_TOPMOST; no move, size or activation
+            return;
+        }
+    }
 
     /// <summary>The taskbar, as opposed to the wallpaper behind everything.</summary>
     /// <remarks>

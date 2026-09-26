@@ -507,9 +507,11 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   /* One line, centred: the short form of the pill's text. */
   .pill{max-width:100%;padding-right:12px}
   .pill .long{display:none}.pill .short{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  /* Both buttons the same width, stacked, thumb-sized. */
-  .cta{flex-direction:column;align-items:stretch;max-width:380px;margin:0 auto;gap:10px}
-  .cta .btn{width:100%;padding:14px 18px}
+  /* Both buttons the same width, stacked, and scaled down together - text,
+     icon and padding - so the pair sits under the lead rather than filling the screen. */
+  .cta{flex-direction:column;align-items:stretch;max-width:290px;margin:0 auto;gap:8px}
+  .cta .btn{width:100%;padding:10px 16px;font-size:14px;gap:8px;border-radius:11px}
+  .cta .btn svg{width:16px;height:16px}
   .trust{gap:8px 16px;font-size:13px}
   .trust span{white-space:nowrap}
   .stack{margin-top:44px}
@@ -533,7 +535,9 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   .navstar span:not(#stars){display:none}
   .navstar{padding:0 10px}
   .trust{font-size:12.5px;gap:6px 12px}
-  .cta .btn{font-size:14.5px;padding:14px 12px;gap:8px}
+  .cta{max-width:260px}
+  .cta .btn{font-size:13px;padding:9px 12px;gap:7px}
+  .cta .btn svg{width:15px;height:15px}
 }
 @media (hover:none){
   /* Hover lifts stick after a tap on a touch screen. */
@@ -637,6 +641,10 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <symbol id="i-focus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></symbol>
       <symbol id="i-hotkeys" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol>
       <symbol id="i-setup" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 15h8M8 9h3"/></symbol>
+      <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3H7l3-3z"/><path d="M12 13v7"/></symbol>
+      <symbol id="i-gather" viewBox="0 0 24 24"><rect x="2" y="5" width="9" height="7" rx="1.5"/><rect x="13" y="5" width="9" height="7" rx="1.5"/><path d="M6.5 15.5 12 19l5.5-3.5"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="i-update" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
     </svg>
 
     <div class="fgrid4">
@@ -665,8 +673,8 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-oled"/></svg></div>
         <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-oled"/></svg></div>
         <h3>OLED care</h3>
-        <p>Two-stage idle dimming that pauses for full-screen video and games.</p>
-        <div class="tags"><span>Screen rest</span><span>Burn-in aware</span></div>
+        <p>Two-stage idle dimming that pauses for full-screen video, rests each display on its own, and leaves the apps you watch alone.</p>
+        <div class="tags"><span>Per display</span><span>Burn-in aware</span></div>
       </div>
       <div class="card feat reveal" style="--tint:#ff8fc7;--tint-l:#bd3c81">
         <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-controls"/></svg></div>
@@ -679,15 +687,15 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-focus"/></svg></div>
         <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-focus"/></svg></div>
         <h3>Focus mode</h3>
-        <p>Dims everything around the window you're using, per monitor, following the mouse if you like.</p>
+        <p>Dims everything around the window you're using, per monitor: the focused one, the one under the pointer, or both.</p>
         <div class="tags"><span>Per monitor</span><span>Hover aware</span></div>
       </div>
       <div class="card feat reveal" style="--tint:#ffd36b;--tint-l:#a4740a">
         <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-hotkeys"/></svg></div>
         <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hotkeys"/></svg></div>
         <h3>Global hotkeys</h3>
-        <p>Brightness, night light, focus and more, even with the window closed.</p>
-        <div class="tags"><span>Conflict warnings</span><span>21 actions</span></div>
+        <p>Brightness, night light, focus, pinning and more, even with the window closed.</p>
+        <div class="tags"><span>Conflict warnings</span><span>26 actions</span></div>
       </div>
       <div class="card feat reveal" style="--tint:#6be0d6;--tint-l:#0f7c76">
         <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-setup"/></svg></div>
@@ -695,6 +703,34 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <h3>Display setup</h3>
         <p>Modes, scaling, HDR, orientation, per-monitor wallpaper, and an arrangement by real size.</p>
         <div class="tags"><span>HDR</span><span>Wallpaper</span></div>
+      </div>
+      <div class="card feat reveal" style="--tint:#ff9d7a;--tint-l:#b8481f">
+        <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-pin"/></svg></div>
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pin"/></svg></div>
+        <h3>Pin windows on top</h3>
+        <p>Keep a video or a chat above everything, marked with a border, clear of focus dimming, and out of the way of a fullscreen film.</p>
+        <div class="tags"><span>Ctrl+Alt+P</span><span>Border</span></div>
+      </div>
+      <div class="card feat reveal" style="--tint:#8fd3ff;--tint-l:#1c6fa8">
+        <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-gather"/></svg></div>
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gather"/></svg></div>
+        <h3>Windows where you want them</h3>
+        <p>Gather every window onto one display, put them back when a monitor returns, and open new ones where you work.</p>
+        <div class="tags"><span>Ctrl+Alt+G</span><span>Replug aware</span></div>
+      </div>
+      <div class="card feat reveal" style="--tint:#b3e57a;--tint-l:#4f7f16">
+        <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-shield"/></svg></div>
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg></div>
+        <h3>Safe with every monitor</h3>
+        <p>Stops talking to a monitor whose capabilities read took Windows down, and asks a silent one, read-only, what it supports.</p>
+        <div class="tags"><span>Crash guard</span><span>Read-only probe</span></div>
+      </div>
+      <div class="card feat reveal" style="--tint:#d9a6ff;--tint-l:#8238c2">
+        <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-update"/></svg></div>
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-update"/></svg></div>
+        <h3>Updates on your terms</h3>
+        <p>The Store keeps itself current. The installer checks once a day only if you ask it to, and your settings survive any version.</p>
+        <div class="tags"><span>Opt-in</span><span>No telemetry</span></div>
       </div>
     </div>
   </div>

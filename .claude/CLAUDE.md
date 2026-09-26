@@ -764,6 +764,14 @@ Every one of these was a real bug. Do not reintroduce them.
 
 ### Protection hooks
 
+- **A rest stays above the taskbar.** The overlay was made topmost once, when
+  it showed; the taskbar is topmost too and Windows raises it (a notification,
+  a flashing button, a revealed bar), after which it sat undimmed over the
+  rest. `KeepAboveTaskbar` walks up from the overlay on the rest's
+  once-a-second tick and re-raises it only when a taskbar is above: raised by
+  hand in a test, the overlay was back on top 1.6 s later. Rests and displays
+  off only; focus mode leaves the taskbar alone on purpose.
+
 - **Keep the global location hook behind focus mode.** `EVENT_OBJECT_LOCATIONCHANGE`
   woke the protection thread about 180 times a second on an otherwise idle
   desk. OLED care alone can use its once-a-second tick to inspect the active
@@ -1015,6 +1023,14 @@ Every one of these was a real bug. Do not reintroduce them.
   of place and was undone. Now the bridge remembers its own write and drops only
   that echo, corrects only a panel outside its range, and waits for 400 ms of
   real quiet. A press that changes nothing is logged, not silent.
+- **The app's own unison slider is not Windows' slider** (`UnisonSlider`). A
+  drag moves the built-in panel, whose WMI event the bridge compared with the
+  *saved* level - saved at most every 300 ms - so each step between saves read
+  as a brightness key: the bridge saved its own level, drove the Dell beside
+  the app, and the app pulled that back into the slider. Measured with a
+  60-step UIA drag: 9 takeovers and a final level of 51 for 50 before; now the
+  slider sets a session-scoped event per step (held 800 ms after the last) and
+  the bridge ignores events and corrections while it is set: 0 and 50.
 - **Correct the built-in panel only once the slider is still (400 ms).**
   Corrected mid-drag, the panel was pulled to its floor under the pointer while
   Windows kept moving it, and the two fought.
@@ -1238,6 +1254,14 @@ unrecallable.
 - **A Store install has no `DispCtrl.Engine` scheduled task**; the package's
   startup task starts it. Restart it inside the package:
   `Invoke-CommandInDesktopPackage -PackageFamilyName JustVStudio.DispCtrl_5fm6x6q82qb7g -AppId App -Command '<WindowsApps path>\DispCtrl.Engine.exe' -Args 'run'`.
+- **The installer offers "for me" (default, unelevated, `%LOCALAPPDATA%\Programs`)
+  or "for all users" (Program Files)** - `PrivilegesRequiredOverridesAllowed=dialog`,
+  `{autopf}`/`{autoprograms}`/`{autodesktop}`, and the system PATH in admin mode.
+  Everything it runs is `runasoriginaluser`: the engine must never be elevated.
+  The sign-in task is per person, so the installer marks its own user as
+  offered (`engineStartupOffered`), and the app offers it to everybody else on
+  first opening (`StartupIntegration.InstalledForAllUsers`). Compiled, not yet
+  installed (a clean account or VM, never this desk).
 - **Never let an installer kill the engine.** Inno's Restart Manager
   (`CloseApplications`) would, and a killed engine strands a hidden taskbar.
   `DispCtrl.iss` turns it off and runs `DispCtrl.Engine.exe stop` itself,

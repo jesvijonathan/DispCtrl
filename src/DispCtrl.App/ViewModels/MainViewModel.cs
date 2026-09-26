@@ -1468,7 +1468,12 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             Raise();
             Raise(nameof(UnisonPercentText));
 
-            if (UnisonBrightness && !Calibrating) _ = ApplyUnisonAsync(v / 100.0);
+            if (UnisonBrightness && !Calibrating)
+            {
+                // Before the panel moves: its WMI event must not read as Windows' slider.
+                UnisonSlider.Step();
+                _ = ApplyUnisonAsync(v / 100.0);
+            }
         }
     }
 
@@ -1923,22 +1928,24 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
 
     /// <summary>
     /// Starts the engine if it is not running, and switches on starting it at
-    /// sign-in the first time a Store install is opened.
+    /// sign-in the first time a Store install, or an install for all users, is opened.
     /// </summary>
     /// <remarks>
     /// The engine is what works with the window shut: the tray icon, hotkeys,
     /// taskbar hiding and glass, night light. A Store install cannot run
     /// anything when it is installed, so the first opening is the first chance;
     /// without this, a fresh install had none of those until the engine was
-    /// found and started by hand. The sign-in task is offered once only, so
-    /// switching it off afterwards stays off.
+    /// found and started by hand. An install for all users is the same for
+    /// everybody but the person who ran Setup, whom Setup asked (and marked as
+    /// offered). The sign-in task is offered once only, so switching it off
+    /// afterwards stays off.
     /// </remarks>
     public async Task StartEngineByDefaultAsync()
     {
         RefreshEngineStatus();
         if (!_status.Running) SetEngineRunning(true);
 
-        if (!_settings.Global.EngineStartupOffered && StartupIntegration.IsPackaged)
+        if (!_settings.Global.EngineStartupOffered && (StartupIntegration.IsPackaged || StartupIntegration.InstalledForAllUsers))
         {
             try { await StartupIntegration.SetEngineStartupAsync(true, _engine.EnginePath); }
             catch (Exception ex) { ShowFooterStatus("Start at sign-in: " + ex.Message); }

@@ -41,6 +41,7 @@ internal static unsafe partial class OverlayNative
     [LibraryImport("user32.dll")] internal static partial int GetCursorPos(out Point point);
     [LibraryImport("user32.dll")] internal static partial nint WindowFromPoint(Point point);
     [LibraryImport("user32.dll")] internal static partial nint GetAncestor(nint hwnd, uint flags);
+    [LibraryImport("user32.dll")] internal static partial nint GetWindow(nint hwnd, uint command);
     [LibraryImport("user32.dll")] internal static partial int GetWindowRect(nint hwnd, out Rect rect);
     [LibraryImport("user32.dll")] internal static partial int IsWindow(nint hwnd);
     [LibraryImport("user32.dll")] internal static partial int IsIconic(nint hwnd);
