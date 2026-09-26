@@ -2,7 +2,7 @@
 
 <img src="site/assets/logo.png" alt="DispCtrl" width="104" height="104">
 
-# DispCtrl
+# DispCtrl - Display Control
 
 **Every monitor on your desk, controlled as one.**
 
