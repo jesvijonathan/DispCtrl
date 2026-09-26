@@ -156,10 +156,14 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 /* On a phone the hero is one screenful - pill, name, lead, buttons, version -
    so every gap here is a fraction of the viewport, not the desktop's spacing. */
 @media (max-width:640px){
-  .hero{padding-top:16px;padding-bottom:0}
-  .wordwrap{position:relative;left:auto;width:auto;margin:0 -18px;top:auto;height:auto;padding:16px 0 14px;z-index:0;
+  .hero{padding-top:12px;padding-bottom:0}
+  /* The space above and below the name scales with it; the deeper one below
+     is the descender of the p, which would otherwise crowd the pill. */
+  .wordwrap{position:relative;left:auto;width:auto;margin:0 -18px;top:auto;height:auto;padding:clamp(22px,7vw,34px) 0 clamp(28px,9vw,42px);z-index:0;
     -webkit-mask-image:none;mask-image:none}
-  .herowm{opacity:1;-webkit-text-stroke-width:1.2px;font-size:clamp(52px,20.5vw,140px)}
+  /* line-height 1 leaves an em box taller than the letters, so the space above
+     and below the name would not be the space these paddings ask for. */
+  .herowm{opacity:1;-webkit-text-stroke-width:1.2px;font-size:clamp(50px,19vw,132px);line-height:.8}
   /* The name above already heads the page; the slogan is kept for desktop. */
   .hero h1{margin:0}.hero h1 .grad{display:none}
   /* The phone's own lead: shorter, with a line of its own to open it. */
