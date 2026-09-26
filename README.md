@@ -11,9 +11,11 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 
 [![Monitor library](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjesvijonathan%2FDispCtrl%2Fmaster%2Fdevices%2Findex.json&query=%24.counts.models&label=monitor%20library&color=8b5cf6)](devices/CATALOG.md) [![GitHub stars](https://img.shields.io/github/stars/jesvijonathan/DispCtrl?label=stars&color=8b5cf6&logo=github)](https://github.com/jesvijonathan/DispCtrl/stargazers) [![Downloads](https://img.shields.io/github/downloads/jesvijonathan/DispCtrl/total?color=8b5cf6)](https://github.com/jesvijonathan/DispCtrl/releases) [![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white)](#install) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
 
-<a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Download from the Microsoft Store" width="200" height="55"></a>&nbsp;&nbsp;<a href="https://github.com/jesvijonathan/DispCtrl/releases/latest"><img src="site/assets/badges/download-installer.svg" alt="Download the installer" width="200" height="55"></a>
-
 [Install](#install) · [Getting started](#getting-started) · [Documentation](#documentation) · [Website](https://jesvijonathan.github.io/DispCtrl/)
+
+<br>
+
+<a href="https://apps.microsoft.com/detail/9PNQWKNRGVR0?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Download from the Microsoft Store" width="200" height="55"></a>&nbsp;&nbsp;<a href="https://github.com/jesvijonathan/DispCtrl/releases/latest"><img src="site/assets/badges/download-installer.svg" alt="Download the installer" width="200" height="55"></a>
 
 <br>
 

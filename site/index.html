@@ -117,6 +117,7 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .navbtn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 13px;border-radius:10px;border:1px solid var(--line2);color:var(--text);font:inherit;font-size:14px;background:var(--soft);cursor:pointer}
 .navbtn:hover{border-color:var(--a1);text-decoration:none}
 .navbtn svg{width:17px;height:17px}
+.navstar #stars::before{content:"\00b7\00a0"}
 .theme,.menu{width:38px;padding:0;justify-content:center}
 /* Links, then the star, the theme and (on narrow screens) the menu, all on the right. */
 .navend{display:flex;align-items:center;gap:8px}
@@ -153,25 +154,33 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .herowm::before,.herowm::after{content:attr(data-text);position:absolute;inset:0;color:transparent;background:none;clip-path:inset(0 0 100% 0)}
 .herowm::before{-webkit-text-stroke:1px color-mix(in srgb,var(--a3) 55%,transparent);transform:translateX(-4px);animation:slice 7s steps(1) infinite}
 .herowm::after{-webkit-text-stroke:1px color-mix(in srgb,var(--a2) 60%,transparent);transform:translateX(4px);animation:slice 7s steps(1) infinite .12s}
-/* On a phone the hero is one screenful - pill, name, lead, buttons, version -
-   so every gap here is a fraction of the viewport, not the desktop's spacing. */
+/* On a phone the hero is three sets, not six loose lines: the name with the
+   licence pill at the top, the sentence in the middle, and the buttons with
+   the version and the promises under them. The gaps inside a set are small,
+   the gaps between them scale with the viewport. */
 @media (max-width:640px){
-  .hero{padding-top:12px;padding-bottom:0}
-  /* The space above and below the name scales with it; the deeper one below
-     is the descender of the p, which would otherwise crowd the pill. */
-  .wordwrap{position:relative;left:auto;width:auto;margin:0 -18px;top:auto;height:auto;padding:clamp(22px,7vw,34px) 0 clamp(28px,9vw,42px);z-index:0;
+  /* Two classes: the .wrap padding shorthand later in this file would otherwise
+     take the top padding away. */
+  .hero.wrap{padding-top:clamp(44px,15vw,72px);padding-bottom:0}
+  .wordwrap{position:relative;left:auto;width:auto;margin:0 -18px;top:auto;height:auto;padding:0 0 clamp(26px,8vw,44px);z-index:0;
     -webkit-mask-image:none;mask-image:none}
   /* line-height 1 leaves an em box taller than the letters, so the space above
      and below the name would not be the space these paddings ask for. */
-  .herowm{opacity:1;-webkit-text-stroke-width:1.2px;font-size:clamp(50px,19vw,132px);line-height:.8}
+  .herowm{opacity:1;-webkit-text-stroke-width:1.2px;font-size:clamp(58px,23vw,160px);line-height:.8}
   /* The name above already heads the page; the slogan is kept for desktop. */
   .hero h1{margin:0}.hero h1 .grad{display:none}
   /* The phone's own lead: shorter, with a line of its own to open it. */
-  .hero .lead{margin-top:18px;margin-bottom:24px;max-width:33ch;font-size:16px;line-height:1.58}
+  .hero .lead{margin-top:clamp(46px,15vw,74px);margin-bottom:clamp(42px,13vw,66px);max-width:33ch;font-size:16px;line-height:1.58}
   .hero .lead .long{display:none}.hero .lead .short{display:inline}
   .hero .lead .short b{display:block;margin-bottom:6px;color:var(--text);font-size:18.5px;font-weight:650;letter-spacing:-.01em}
-  .hero .herover{margin-top:14px}
-  .hero .trust{margin-top:16px}
+  /* The lines take turns in one grid cell, so the hero keeps the height of the
+     longest of them and nothing below it moves as they change. */
+  .hero .lead .short{display:grid}
+  .say{grid-area:1/1;opacity:0;transform:translateY(6px);transition:opacity .5s ease,transform .5s ease}
+  .say.on{opacity:1;transform:none}
+  .hero .herover{margin-top:clamp(24px,7vw,38px)}
+  .hero .trust{margin-top:12px}
+  .hero .stack{margin-top:clamp(40px,12vw,64px)}
 }
 @keyframes sheen{0%,55%{background-position:200% 0,0 0}90%,100%{background-position:-100% 0,0 0}}
 @keyframes slice{0%,90%,100%{clip-path:inset(0 0 100% 0)}91%{clip-path:inset(20% 0 62% 0)}93%{clip-path:inset(58% 0 24% 0)}95%{clip-path:inset(38% 0 44% 0)}}
@@ -537,13 +546,14 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   .cta .btn,.dl .btn{white-space:nowrap}
   .dlhead h2{gap:14px}
   .donate h2{font-size:32px}
+  /* The author is a card the width of the ways below it; as a pill it floated
+     narrow and off-centre against the left edge of the card. */
+  .who{display:flex;width:100%;border-radius:16px;padding:10px 14px;background:var(--card)}
   .upinow>img{width:88px;height:88px}
   .toast{bottom:20px;max-width:calc(100% - 32px)}
 }
 @media (max-width:380px){
-  /* The star keeps its count and loses its word. */
-  .navstar span:not(#stars){display:none}
-  .navstar{padding:0 10px}
+  .navstar{padding:0 9px}
   .trust{font-size:12.5px;gap:6px 12px}
   .cta{max-width:260px}
   .cta .btn{font-size:13px;padding:9px 12px;gap:7px}
@@ -590,7 +600,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   <div class="reveal">
     <span class="pill"><b>Open source</b> <span class="long">Free for Windows 11, under the MIT licence</span><span class="short">Free for Windows 11 · MIT</span></span>
     <h1><span class="vh">DispCtrl, multi-monitor display control for Windows: </span><span class="grad">One App.<br>Full Ctrl.</span></h1>
-    <p class="lead"><span class="long">Windows treats every monitor the same. DispCtrl treats each one on its own terms: brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own settings.</span><span class="short"><b>Every screen, on its own terms.</b> Brightness in step, night light, keep awake, a taskbar that hides where you want it, and OLED care.</span></p>
+    <p class="lead"><span class="long">Windows treats every monitor the same. DispCtrl treats each one on its own terms: brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own settings.</span><span class="short" id="heroSay"><span class="say on"><b>Every screen, on its own terms.</b> Brightness in step, night light, keep awake, a taskbar that hides where you want it, and OLED care.</span><span class="say"><b>A native Windows app.</b> Built on WinUI, with a quick panel in the tray and shortcuts that work anywhere &mdash; not a browser in disguise.</span><span class="say"><b>Your monitor's own settings.</b> Input, contrast, colour temperature and the rest, read over DDC/CI and changed from the desktop.</span><span class="say"><b>Every feature is scriptable.</b> The dispctrl command line does anything the window does, with exit codes a script can trust.</span><span class="say"><b>Open source, under the MIT licence.</b> Read it, change it, or send a fix &mdash; all of it is on GitHub.</span><span class="say"><b>A library of real monitors.</b> Owners share what their model supports, so yours is understood the day you plug it in.</span></span></p>
     <div class="cta">
       <a class="btn primary" href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zm8.5 1.2L21 21v-8.5h-9.5zm0-15.4V11.5H21V3z"/></svg>
@@ -1068,6 +1078,27 @@ if (heroName && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   addEventListener('scroll', () => { if (!pending) pending = requestAnimationFrame(drift); }, { passive: true });
 }
 
+// A phone has room for one sentence, so the hero's takes turns through what
+// DispCtrl is. No dots: each line stands on its own and there is nothing to
+// come back to, so an indicator would only invite a tap that does nothing.
+const heroSay = document.querySelectorAll('#heroSay .say');
+if (heroSay.length > 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const narrow = matchMedia('(max-width: 640px)');
+  let at = 0, timer = 0;
+  const turn = () => {
+    heroSay[at].classList.remove('on');
+    at = (at + 1) % heroSay.length;
+    heroSay[at].classList.add('on');
+  };
+  const run = () => {
+    clearInterval(timer);
+    timer = narrow.matches && !document.hidden ? setInterval(turn, 5200) : 0;
+  };
+  narrow.addEventListener('change', run);
+  document.addEventListener('visibilitychange', run);
+  run();
+}
+
 // Tour
 const shots = [
   ['Displays', 'Arrangement by real size', 'displays.png'],
@@ -1195,7 +1226,7 @@ if (location.hash === '#privacy' || location.hash === '#terms') location.replace
 
 // GitHub: star count and the latest release's files (public API, no cookies)
 const repo = 'https://api.github.com/repos/jesvijonathan/DispCtrl';
-fetch(repo).then(r => r.ok ? r.json() : null).then(d => { if (d && d.stargazers_count >= 0) { $('stars').textContent = '· ' + d.stargazers_count; $('stars').hidden = false; } }).catch(() => {});
+fetch(repo).then(r => r.ok ? r.json() : null).then(d => { if (d && d.stargazers_count >= 0) { $('stars').textContent = d.stargazers_count; $('stars').hidden = false; } }).catch(() => {});
 fetch(repo + '/releases?per_page=5').then(r => r.ok ? r.json() : null).then(list => {
   const rel = (list || []).find(x => !x.draft); if (!rel) return;
   // The version is written into the page so it shows without the API; this keeps it current.
