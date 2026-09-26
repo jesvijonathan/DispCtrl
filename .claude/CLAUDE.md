@@ -1438,9 +1438,16 @@ unrecallable.
   panel's cold start measured the same, ~540 ms). Together: the desktop folder
   281 -> 197 MB, its zip 104 -> 74 MB.
 - `DispCtrlVersion` in `Directory.Build.props` is the default `Version`; a
-  stable tag that disagrees with it fails `release.yml`. Bump it in the
-  release commit. See `docs/RELEASING.md` for the whole procedure and the
-  secrets and variables it needs.
+  stable tag that disagrees with it fails `release.yml`. The Release form's
+  version defaults to **next patch**, and the workflow bumps and commits it
+  itself ("Set shipping version to x.y.z", as `github-actions[bot]`, straight
+  onto `master`): **fetch before pushing after a release**, or the push is
+  rejected - it was, for 0.1.6. 0.1.5 was never released; the owner ran next
+  patch from 0.1.5 and got 0.1.6. **Write the CHANGELOG section for the version
+  before releasing**: the notes are that section, and without one they fall
+  back to Unreleased (the 0.1.6 draft first went out with 0.1.3/0.1.4's notes).
+  See `docs/RELEASING.md` for the whole procedure and the secrets and
+  variables it needs.
 
 ---
 

@@ -109,11 +109,14 @@ command. Environment variables win over it: `DISPCTRL_CXX`, `DISPCTRL_ISCC`,
 ## Releasing from GitHub Actions
 
 Open **Actions > Release > Run workflow**, select a branch, and choose `stable`,
-`beta` or `test`. Nothing needs typing: **Version** is a choice - `current`
-releases what `Directory.Build.props` declares, `next patch`, `next minor` and
-`next major` work the next number out from it (0.1.5 becomes 0.1.6, 0.2.0 or
-1.0.0). An exact three-part version typed in the box below overrides it; typing
-one and choosing a bump is refused. **Update version automatically** is on by default: it updates
+`beta` or `test`. Nothing needs typing: **Version** is a choice, *next patch*
+by default - `current` releases what `Directory.Build.props` declares, `next
+patch`, `next minor` and `next major` work the next number out from it (0.1.6
+becomes 0.1.7, 0.2.0 or 1.0.0). An exact three-part version typed in the box
+below overrides it; typing one and choosing a bump is refused. **Sign** is off
+by default and does nothing without a `SIGNING_CERT_*` secret. Update
+`docs/CHANGELOG.md` first: the release notes are the section for the version.
+**Update version automatically** is on by default: it updates
 the project version and MSIX template, commits those two files on the selected
 branch, and creates the tag at that commit. Packaging defaults read the project
 version, so there are no script defaults to bump separately.

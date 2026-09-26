@@ -96,7 +96,7 @@ commit (Dependabot keeps the pins current, a week behind each release):
 | Workflow | Runs on | Does |
 |---|---|---|
 | **Build and verify** (`build.yml`) | pushes and pull requests to the product | lints every workflow (actionlint with shellcheck), builds, runs the hardware-free checks, then on a push walks the zips, installer and development-identity MSIX. A pull request runs the tests only. Only a manual run uploads packages (kept 7 days by default). Options: what to package, channel, version, native helper, days to keep. Website, device-library and docs changes do not start it. |
-| **Release** (`release.yml`) | a `v*` tag, or by hand | everything below; options: version, channel, publish now or draft, create the tag, packages, signing, extra notes |
+| **Release** (`release.yml`) | a `v*` tag, or by hand | everything below; options: version (next patch by default, or current, next minor, next major, or typed), channel, publish now or draft, create the tag, packages, signing (off by default), extra notes |
 | **Distribute** (`distribute.yml`) | publishing a stable release, or by hand | winget and the Microsoft Store; options: tag, which targets, dry run |
 | **Device library** (`devices.yml`) | changes under `devices/`, issues carrying a device contribution, a maintainer's `/intake` comment, and Mondays | validate and guard pull requests; take a clean contribution straight into the library (its issue closed with a link) and open a pull request for one that needs a look; by hand: validate, reindex, intake one issue or every open one, self-test |
 | **Pull requests** (`pr.yml`) | every pull request | area and size labels, a welcome for a first contribution, the **policy** check (below), a dependency review for known vulnerabilities, and auto-merge for Dependabot's action updates |
@@ -145,12 +145,28 @@ no secrets, and the Device library workflow's token cannot change files under
 
 ## Cutting a release
 
-1. Move the **Unreleased** entries in `CHANGELOG.md` under a new
-   `## [x.y.z] - date` heading and update the links at the bottom.
-2. Set `<DispCtrlVersion>` in `Directory.Build.props` to `x.y.z`. A stable tag
-   that disagrees with it fails the release; a beta only warns.
-3. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`. A
-   hyphen makes it a beta and a GitHub prerelease: `v0.2.0-beta.1`.
+1. Move the **Unreleased** entries in `docs/CHANGELOG.md` under a new
+   `## [x.y.z] - date` heading for the version about to be released, and
+   update the links at the bottom. The release notes are that section; with
+   none, they fall back to Unreleased - which is how a draft ends up with
+   another release's notes. Commit and push it first.
+2. Start the release, either way:
+   - **From Actions (nothing to type).** Actions > Release > Run workflow on
+     `master`. **Version** defaults to *next patch* (0.1.6 becomes 0.1.7);
+     choose *current* to release what `Directory.Build.props` already declares,
+     or *next minor* / *next major*. Pick the **channel**. Leave **Update
+     version automatically** and **Create the tag** on: the workflow commits
+     "Set shipping version to x.y.z" to `master` as `github-actions[bot]` and
+     tags that commit. Pull before pushing anything else afterwards, or the
+     push is rejected. **Sign** stays off until a `SIGNING_CERT_*` secret
+     exists; ticked without one, nothing is signed either way.
+   - **By tag.** Set `<DispCtrlVersion>` in `Directory.Build.props` to `x.y.z`
+     (`build/Update-Version.ps1 -Version x.y.z` also updates the MSIX
+     template), commit, then `git tag vx.y.z && git push origin vx.y.z`. A
+     stable tag that disagrees with the project version fails the release; a
+     beta only warns. A hyphen makes it a prerelease: `v0.2.0-beta.1`.
+3. The run's summary lists the version, tag, release link and whether anything
+   was signed.
 4. **Release** builds, tests, signs (if configured) and packages everything,
    then opens a **draft** release. Started from Actions instead, it can create
    the tag itself and publish at once. Its notes are the CHANGELOG section for the

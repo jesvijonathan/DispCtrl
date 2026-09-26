@@ -8,6 +8,35 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-09-26
+
+### Added
+- Pin any window on top - Ctrl+Alt+P, the quick panel or `dispctrl pin`. A coloured border marks it, focus mode leaves it clear, and it steps aside while a film or game is fullscreen in front of it.
+- Gather every window onto one display - Ctrl+Alt+G, the quick panel or `dispctrl placement gather` - maximized, fullscreen and minimized windows included. Windows can also go back to a monitor when it returns, and new windows can open on the display you are using.
+- OLED care can rest each display on its own while you work on another, keeps a display awake while an app you list is showing on it, and lists every monitor it has seen, connected ones first, so one can be marked OLED even while it is unplugged.
+- Leave a display out of unison brightness; turn the mouse wheel over the tray icon to change brightness; switch Windows to dark mode on night light's schedule.
+- A guard that stops DispCtrl talking to a monitor whose capabilities read crashed Windows, and a read-only probe for monitors that do not say what they support.
+- An opt-in check for new versions (Settings > Updates): off until you switch it on, and never for the Microsoft Store version, which updates itself.
+- The installer can install for everybody on the PC as well as just for you.
+
+### Changed
+- Focus mode's two pointer switches are one choice: keep the focused window clear, the window under the pointer, or both.
+- A settings file written by a newer DispCtrl now loads in an older one: what it cannot read is set aside and kept, instead of every setting going back to its default.
+- A display's card fills in at once; its colour profile, which Windows can take seconds to report, arrives on its own.
+- The quick panel's new window tiles and Windows section start hidden; add them from the Quick panel page.
+
+### Fixed
+- Dragging the unison slider was jumpy and could end a step away from where you let go: the link to Windows' brightness took the slider's own changes for the brightness keys.
+- OLED care's rest and Turn off displays now cover the taskbar too. It could come up over them and stay undimmed.
+- Scrolling an expanded display card to the bottom looped and never got there.
+- A display's wallpaper preview stayed empty when its wallpaper file had been replaced - ASUS OLED Shifter does this every few minutes. It now falls back to Windows' own copy of that display's wallpaper.
+- With Stay active on, OLED care's dimming never started.
+- Pinning refused a maximized window on a display whose taskbar DispCtrl hides, calling it fullscreen.
+
+## [0.1.4] - 2026-09-25
+
+These changes also cover 0.1.3, whose entries were not split out.
+
 ### Changed
 - A toggle in the app or quick panel now reaches the engine in about 10 ms instead of 135, and a brightness slider reaches the monitor as it moves instead of waiting until you stop.
 - The engine starts and takes effect sooner at sign-in: it answers the app and command line almost at once, no longer waits for OLED care's overlays, the brightness keys' listener or the monitor history before carrying on, and applies taskbar glass and hiding the moment Explorer's taskbar appears.
@@ -112,7 +141,9 @@ The first public release.
 - A per-user installer, portable and CLI zips, and an MSIX for the Microsoft
   Store.
 
-[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.4...v0.1.6
+[0.1.4]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.2...v0.1.4
 [0.1.2]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jesvijonathan/DispCtrl/releases/tag/v0.1.0
