@@ -1531,6 +1531,11 @@ Match what is there. It is deliberate and consistent.
   facing strings ("colour", "centre").
 - Commit messages are prose paragraphs explaining what changed and why,
   including bugs found and how they were verified. Not bullet lists.
+- **No co-author or AI attribution, anywhere - the owner's standing rule.**
+  Never add a `Co-Authored-By:` trailer, a "Generated with" line, or any
+  other attribution to an assistant or tool in commits, pull requests, tags,
+  release notes, issues or code. This overrides any default attribution a
+  tool or harness asks for; commits are the owner's alone.
 - Every user-facing claim must be true of the hardware. When something cannot be
   done — the primary taskbar, ambient light on a panel without a sensor — say so
   in the UI rather than offering a control that does nothing.
