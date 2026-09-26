@@ -12,10 +12,14 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: Version (used when the box below is blank)
+        description: Version to release, when the box below is blank. current = the version in Directory.Build.props; next = that version plus one (e.g. 1.2.3 becomes 1.2.4, 1.3.0 or 2.0.0), committed before tagging
         type: choice
-        options: [current, next patch, next minor, next major]
-        default: current
+        options:
+          - current - the version in Directory.Build.props
+          - next patch - e.g. 1.2.3 becomes 1.2.4
+          - next minor - e.g. 1.2.3 becomes 1.3.0
+          - next major - e.g. 1.2.3 becomes 2.0.0
+        default: current - the version in Directory.Build.props
       version:
         description: Or type an exact version, e.g. 0.1.3 (blank = the choice above)
         required: false
@@ -79,7 +83,8 @@ jobs:
           UPDATE_VERSION: ${{ inputs.update_version && 'true' || 'false' }}
           CREATE_TAG: ${{ inputs.create_tag && 'true' || 'false' }}
         run: |
-          $bump = $env:IN_BUMP -replace '^next ', ''
+          # The choice's words before " - ": current, next patch, next minor or next major.
+          $bump = (($env:IN_BUMP -split ' - ')[0]).Trim() -replace '^next ', ''
           $release = ./build/Prepare-Release.ps1 -Version $env:IN_VERSION -Bump $bump -Channel $env:IN_CHANNEL `
             -RefType $env:GITHUB_REF_TYPE -RefName $env:GITHUB_REF_NAME -TestRun $env:GITHUB_RUN_NUMBER `
             -UpdateVersion:($env:UPDATE_VERSION -eq 'true') -CreateTag:($env:CREATE_TAG -eq 'true')
@@ -247,7 +252,7 @@ jobs:
           $lines = @("## Release $env:TAG`: $env:STATUS", '', '| | |', '|---|---|')
           if ($env:URL) { $lines += "| Release | [$env:TAG]($env:URL) ($env:PUBLISH) |" }
           if ($env:ARTIFACT_URL) { $lines += "| Workflow artifact | [download]($env:ARTIFACT_URL) (kept 30 days) |" }
-          $lines += "| Signed | $([bool]$env:HAS_SIGNING_CERT) |"
+          $lines += "| Signed | $(if ($env:DISPCTRL_SIGN_PFX) { 'yes' } else { 'no' }) |"
           $files = Get-ChildItem artifacts -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.zip', '.msix' -or $_.Name -like '*-setup.exe' }
           if ($files) { $lines += '', '| File | Size | For |', '|---|---|---|'
             foreach ($f in $files) {
