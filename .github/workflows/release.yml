@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: Version to release, when the box below is blank. current = the version in Directory.Build.props; next = that version plus one (e.g. 1.2.3 becomes 1.2.4, 1.3.0 or 2.0.0), committed before tagging
+        description: Version to release (when the box below is blank)
         type: choice
         options:
           - current - the version in Directory.Build.props
@@ -45,9 +45,9 @@ on:
         options: [everything, installer and zips, MSIX only]
         default: everything
       sign:
-        description: Sign the binaries (needs the SIGNING_CERT_* secrets)
+        description: Sign the binaries - only once a SIGNING_CERT_* secret is set up; without one nothing is signed
         type: boolean
-        default: true
+        default: false
       notes:
         description: Extra text placed above the generated release notes (optional)
         required: false
