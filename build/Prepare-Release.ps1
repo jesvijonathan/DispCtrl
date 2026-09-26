@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$Version,
+    # With no version given: the project's version as it is, or the next patch,
+    # minor or major one - so a release never needs a number typed.
+    [ValidateSet('current','patch','minor','major')][string]$Bump = 'current',
     [ValidateSet('stable','beta','test')][string]$Channel = 'stable',
     [ValidateSet('branch','tag')][string]$RefType = 'branch',
     [Parameter(Mandatory)][string]$RefName,
@@ -28,7 +31,20 @@ try {
         $Channel = if ($Matches.channel) { $Matches.channel } else { 'stable' }
         $tag = $RefName
     } else {
-        if (-not $Version) { $Version = $declared }
+        if (-not $Version) {
+            $Version = $declared
+            if ($Bump -ne 'current') {
+                if ($declared -notmatch '^(\d+)\.(\d+)\.(\d+)$') { throw "Directory.Build.props declares '$declared', which cannot be bumped." }
+                [long]$major = $Matches[1]; [long]$minor = $Matches[2]; [long]$patch = $Matches[3]
+                $Version = switch ($Bump) {
+                    'patch' { "$major.$minor.$($patch + 1)" }
+                    'minor' { "$major.$($minor + 1).0" }
+                    'major' { "$($major + 1).0.0" }
+                }
+            }
+        } elseif ($Bump -ne 'current') {
+            throw "Give a version or a bump, not both: $Version was typed and '$Bump' chosen."
+        }
         $suffix = if ($Channel -eq 'test' -and $TestRun) { "-test.$TestRun" } elseif ($Channel -ne 'stable') { "-$Channel" } else { '' }
         $tag = "v$Version$suffix"
     }

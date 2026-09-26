@@ -11,8 +11,13 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
+      bump:
+        description: Version (used when the box below is blank)
+        type: choice
+        options: [current, next patch, next minor, next major]
+        default: current
       version:
-        description: Version, e.g. 0.1.3 (blank = current project version)
+        description: Or type an exact version, e.g. 0.1.3 (blank = the choice above)
         required: false
       channel:
         type: choice
@@ -69,11 +74,13 @@ jobs:
         shell: pwsh
         env:
           IN_VERSION: ${{ inputs.version }}
+          IN_BUMP: ${{ inputs.bump || 'current' }}
           IN_CHANNEL: ${{ inputs.channel || 'stable' }}
           UPDATE_VERSION: ${{ inputs.update_version && 'true' || 'false' }}
           CREATE_TAG: ${{ inputs.create_tag && 'true' || 'false' }}
         run: |
-          $release = ./build/Prepare-Release.ps1 -Version $env:IN_VERSION -Channel $env:IN_CHANNEL `
+          $bump = $env:IN_BUMP -replace '^next ', ''
+          $release = ./build/Prepare-Release.ps1 -Version $env:IN_VERSION -Bump $bump -Channel $env:IN_CHANNEL `
             -RefType $env:GITHUB_REF_TYPE -RefName $env:GITHUB_REF_NAME -TestRun $env:GITHUB_RUN_NUMBER `
             -UpdateVersion:($env:UPDATE_VERSION -eq 'true') -CreateTag:($env:CREATE_TAG -eq 'true')
           "version=$($release.Version)", "channel=$($release.Channel)", "tag=$($release.Tag)" |

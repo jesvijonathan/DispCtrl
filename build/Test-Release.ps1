@@ -63,6 +63,13 @@ try {
     Check ($test.Tag -eq 'v0.1.3-test.42' -and $test.Channel -eq 'test') 'Test gets a numbered tag'
     $beta = & $prepare @prepareArgs -Channel beta
     Check ($beta.Tag -eq 'v0.1.3-beta') 'Blank version reads project version'
+    Reject { & $prepare @prepareArgs -Version 0.1.9 -Bump patch } 'not both'
+    $bumped = & $prepare @prepareArgs -Bump patch -Channel beta
+    Check ($bumped.Version -eq '0.1.4' -and $bumped.Tag -eq 'v0.1.4-beta') 'Next patch is worked out from the project version'
+    $bumped = & $prepare @prepareArgs -Bump minor -Channel beta
+    Check ($bumped.Version -eq '0.2.0') 'Next minor resets the patch'
+    $bumped = & $prepare @prepareArgs -Bump major -Channel beta
+    Check ($bumped.Version -eq '1.0.0') 'Next major resets minor and patch'
     RunGit tag -a v0.1.3-beta.2 -m 'Annotated beta' | Out-Host
     RunGit push origin refs/tags/v0.1.3-beta.2 | Out-Host
     $tagged = & $prepare -Repository $repo -RefType tag -RefName v0.1.3-beta.2
