@@ -153,18 +153,21 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .herowm::before,.herowm::after{content:attr(data-text);position:absolute;inset:0;color:transparent;background:none;clip-path:inset(0 0 100% 0)}
 .herowm::before{-webkit-text-stroke:1px color-mix(in srgb,var(--a3) 55%,transparent);transform:translateX(-4px);animation:slice 7s steps(1) infinite}
 .herowm::after{-webkit-text-stroke:1px color-mix(in srgb,var(--a2) 60%,transparent);transform:translateX(4px);animation:slice 7s steps(1) infinite .12s}
+/* On a phone the hero is one screenful - pill, name, lead, buttons, version -
+   so every gap here is a fraction of the viewport, not the desktop's spacing. */
 @media (max-width:640px){
-  .hero{padding-top:28px}
-  .wordwrap{position:relative;left:auto;width:auto;margin:0 -24px;top:auto;height:auto;padding:40px 0 22px;z-index:0;
+  .hero{padding-top:16px;padding-bottom:0}
+  .wordwrap{position:relative;left:auto;width:auto;margin:0 -18px;top:auto;height:auto;padding:16px 0 14px;z-index:0;
     -webkit-mask-image:none;mask-image:none}
-  .herowm{opacity:1;-webkit-text-stroke-width:1.2px}
+  .herowm{opacity:1;-webkit-text-stroke-width:1.2px;font-size:clamp(52px,20.5vw,140px)}
   /* The name above already heads the page; the slogan is kept for desktop. */
   .hero h1{margin:0}.hero h1 .grad{display:none}
-  /* The phone's own lead: shorter, with a line of its own to open it, and
-     room above it now that the slogan is not there to separate it from the pill. */
-  .hero .lead{margin-top:36px;margin-bottom:104px;max-width:330px;font-size:16.5px;line-height:1.6}
+  /* The phone's own lead: shorter, with a line of its own to open it. */
+  .hero .lead{margin-top:18px;margin-bottom:24px;max-width:33ch;font-size:16px;line-height:1.58}
   .hero .lead .long{display:none}.hero .lead .short{display:inline}
-  .hero .lead .short b{display:block;margin-bottom:6px;color:var(--text);font-size:19px;font-weight:650;letter-spacing:-.01em}
+  .hero .lead .short b{display:block;margin-bottom:6px;color:var(--text);font-size:18.5px;font-weight:650;letter-spacing:-.01em}
+  .hero .herover{margin-top:14px}
+  .hero .trust{margin-top:16px}
 }
 @keyframes sheen{0%,55%{background-position:200% 0,0 0}90%,100%{background-position:-100% 0,0 0}}
 @keyframes slice{0%,90%,100%{clip-path:inset(0 0 100% 0)}91%{clip-path:inset(20% 0 62% 0)}93%{clip-path:inset(58% 0 24% 0)}95%{clip-path:inset(38% 0 44% 0)}}
@@ -505,7 +508,6 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   .glist{margin:0 -18px;padding:2px 18px}
   .fgrid4,.dl,.legal{grid-template-columns:1fr}
   section{padding:64px 0}.donate{padding:36px 20px;border-radius:22px}.spot{padding:22px;gap:26px;border-radius:22px}
-  .hero{padding-top:72px}
   h1{margin:20px auto 18px}
   .lead{margin-bottom:26px}
   /* One line, centred: the short form of the pill's text. */

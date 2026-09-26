@@ -13,6 +13,7 @@ param(
     [string]$Repository = (Split-Path -Parent $PSScriptRoot)
 )
 $ErrorActionPreference = 'Stop'
+$Version = "$Version".Trim()
 # Git for Windows puts git.exe on PATH three times; take the first match only.
 $gitExecutable = @(Get-Command git -CommandType Application)[0].Source
 function Git {
@@ -31,6 +32,7 @@ try {
         $Channel = if ($Matches.channel) { $Matches.channel } else { 'stable' }
         $tag = $RefName
     } else {
+        # A version typed by hand wins; the bump is what happens when none is.
         if (-not $Version) {
             $Version = $declared
             if ($Bump -ne 'current') {
@@ -43,7 +45,7 @@ try {
                 }
             }
         } elseif ($Bump -ne 'current') {
-            throw "Give a version or a bump, not both: $Version was typed and '$Bump' chosen."
+            Write-Host "Releasing $Version as typed; the '$Bump' choice applies only when no version is given."
         }
         $suffix = if ($Channel -eq 'test' -and $TestRun) { "-test.$TestRun" } elseif ($Channel -ne 'stable') { "-$Channel" } else { '' }
         $tag = "v$Version$suffix"
