@@ -155,17 +155,21 @@ nav .wrap{display:flex;align-items:center;gap:22px;height:66px}
 .herowm::after{-webkit-text-stroke:1px color-mix(in srgb,var(--a2) 60%,transparent);transform:translateX(4px);animation:slice 7s steps(1) infinite .12s}
 @media (max-width:640px){
   .hero{padding-top:28px}
-  .wordwrap{position:relative;left:auto;width:auto;margin:0 -24px;top:auto;height:auto;padding:26px 0 22px;z-index:0;
+  .wordwrap{position:relative;left:auto;width:auto;margin:0 -24px;top:auto;height:auto;padding:40px 0 22px;z-index:0;
     -webkit-mask-image:none;mask-image:none}
   .herowm{opacity:1;-webkit-text-stroke-width:1.2px}
   /* The name above already heads the page; the slogan is kept for desktop. */
   .hero h1{margin:0}.hero h1 .grad{display:none}
-  .hero .lead{margin-top:22px}
+  /* The phone's own lead: shorter, with a line of its own to open it, and
+     room above it now that the slogan is not there to separate it from the pill. */
+  .hero .lead{margin-top:36px;margin-bottom:104px;max-width:330px;font-size:16.5px;line-height:1.6}
+  .hero .lead .long{display:none}.hero .lead .short{display:inline}
+  .hero .lead .short b{display:block;margin-bottom:6px;color:var(--text);font-size:19px;font-weight:650;letter-spacing:-.01em}
 }
 @keyframes sheen{0%,55%{background-position:200% 0,0 0}90%,100%{background-position:-100% 0,0 0}}
 @keyframes slice{0%,90%,100%{clip-path:inset(0 0 100% 0)}91%{clip-path:inset(20% 0 62% 0)}93%{clip-path:inset(58% 0 24% 0)}95%{clip-path:inset(38% 0 44% 0)}}
 .pill{display:inline-flex;gap:10px;align-items:center;padding:6px 14px 6px 6px;border:1px solid var(--line2);border-radius:999px;color:var(--muted);font-size:13px;background:var(--soft)}
-.pill .short{display:none}
+.pill .short,.lead .short{display:none}
 .pill b{flex:none;white-space:nowrap;background:linear-gradient(135deg,#c4a6ff,var(--a2));color:#120d1c;border-radius:999px;padding:2px 10px;font-weight:650;font-size:12px}
 h1{font-size:clamp(46px,7.4vw,96px);line-height:1;margin:24px auto 22px;letter-spacing:-.04em;font-weight:750}
 .grad{background:linear-gradient(110deg,var(--h1a) 8%,var(--a1) 45%,var(--a3) 72%,var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -501,7 +505,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   .glist{margin:0 -18px;padding:2px 18px}
   .fgrid4,.dl,.legal{grid-template-columns:1fr}
   section{padding:64px 0}.donate{padding:36px 20px;border-radius:22px}.spot{padding:22px;gap:26px;border-radius:22px}
-  .hero{padding-top:44px}
+  .hero{padding-top:72px}
   h1{margin:20px auto 18px}
   .lead{margin-bottom:26px}
   /* One line, centred: the short form of the pill's text. */
@@ -580,7 +584,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
   <div class="reveal">
     <span class="pill"><b>Open source</b> <span class="long">Free for Windows 11, under the MIT licence</span><span class="short">Free for Windows 11 · MIT</span></span>
     <h1><span class="vh">DispCtrl, multi-monitor display control for Windows: </span><span class="grad">One App.<br>Full Ctrl.</span></h1>
-    <p class="lead">Windows treats every monitor the same. DispCtrl treats each one on its own terms: brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own settings.</p>
+    <p class="lead"><span class="long">Windows treats every monitor the same. DispCtrl treats each one on its own terms: brightness in step across every screen, night light, keep awake, a taskbar that hides where you want it, OLED care and your monitor's own settings.</span><span class="short"><b>Every screen, on its own terms.</b> Brightness in step, night light, keep awake, a taskbar that hides where you want it, and OLED care.</span></p>
     <div class="cta">
       <a class="btn primary" href="https://apps.microsoft.com/detail/9PNQWKNRGVR0">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.4v7.1H3zm0 13 7.5 1.1v-7H3zm8.5 1.2L21 21v-8.5h-9.5zm0-15.4V11.5H21V3z"/></svg>

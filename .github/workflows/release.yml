@@ -19,7 +19,7 @@ on:
           - next patch - e.g. 1.2.3 becomes 1.2.4
           - next minor - e.g. 1.2.3 becomes 1.3.0
           - next major - e.g. 1.2.3 becomes 2.0.0
-        default: current - the version in Directory.Build.props
+        default: next patch - e.g. 1.2.3 becomes 1.2.4
       version:
         description: Or type an exact version, e.g. 0.1.3 (blank = the choice above)
         required: false
