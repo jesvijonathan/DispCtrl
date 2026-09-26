@@ -36,8 +36,10 @@ try {
     RunGit remote add origin (Join-Path $testRoot 'origin.git') | Out-Host
     $repo = (Get-Location).Path
     $null = New-Item -ItemType Directory -Path build/packaging -Force
+    $null = New-Item -ItemType Directory -Path site -Force
     Copy-Item (Join-Path $source 'Directory.Build.props') .
     Copy-Item (Join-Path $source 'build/packaging/AppxManifest.xml') build/packaging
+    Copy-Item (Join-Path $source 'site/index.html') site
     & $update -Version 0.1.2 -Repository $repo
     RunGit add . | Out-Host
     RunGit commit -m Initial | Out-Host
@@ -63,7 +65,8 @@ try {
     Check ($test.Tag -eq 'v0.1.3-test.42' -and $test.Channel -eq 'test') 'Test gets a numbered tag'
     $beta = & $prepare @prepareArgs -Channel beta
     Check ($beta.Tag -eq 'v0.1.3-beta') 'Blank version reads project version'
-    Reject { & $prepare @prepareArgs -Version 0.1.9 -Bump patch } 'not both'
+    $typed = & $prepare @prepareArgs -Version 0.1.3 -Bump patch -Channel beta
+    Check ($typed.Version -eq '0.1.3') 'A typed version wins over a bump'
     $bumped = & $prepare @prepareArgs -Bump patch -Channel beta
     Check ($bumped.Version -eq '0.1.4' -and $bumped.Tag -eq 'v0.1.4-beta') 'Next patch is worked out from the project version'
     $bumped = & $prepare @prepareArgs -Bump minor -Channel beta
