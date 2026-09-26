@@ -82,7 +82,7 @@ try {
     if ($commitVersion) {
         & "$PSScriptRoot/Update-Version.ps1" -Version $Version -Repository $Repository
         if (Git status --porcelain) {
-            Git add -- Directory.Build.props build/packaging/AppxManifest.xml | Out-Host
+            Git add -- Directory.Build.props build/packaging/AppxManifest.xml site/index.html | Out-Host
             Git -c user.name=github-actions[bot] -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit -m "Set shipping version to $Version" | Out-Host
             $changed = $true
         }

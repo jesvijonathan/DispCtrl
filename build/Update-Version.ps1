@@ -12,8 +12,10 @@ foreach ($part in $Version.Split('.')) {
 # shipping version and the matching four-part MSIX template version.
 $propsPath = Join-Path $Repository 'Directory.Build.props'
 $manifestPath = Join-Path $Repository 'build/packaging/AppxManifest.xml'
+$sitePath = Join-Path $Repository 'site/index.html'
 $props = [IO.File]::ReadAllText($propsPath)
 $manifest = [IO.File]::ReadAllText($manifestPath)
+$site = [IO.File]::ReadAllText($sitePath)
 if ([regex]::Matches($props, '<DispCtrlVersion>[^<]+</DispCtrlVersion>').Count -ne 1) {
     throw 'Expected one DispCtrlVersion in Directory.Build.props.'
 }
@@ -23,6 +25,13 @@ $updatedProps = $props -replace '<DispCtrlVersion>[^<]+</DispCtrlVersion>', "<Di
 $pattern = '(<Identity\b[^>]*\bVersion=")[^"]+("[^>]*>)'
 if ([regex]::Matches($manifest, $pattern).Count -ne 1) { throw 'Expected one MSIX Identity version attribute.' }
 $updatedManifest = [regex]::Replace($manifest, $pattern, { param($match) $match.Groups[1].Value + "$Version.0" + $match.Groups[2].Value })
+# The site reads the version from the GitHub API and falls back to this text
+# when that call fails - which it does for anyone the API rate-limits, so left
+# unmaintained it shows a version several releases old.
+$sitePattern = '(class="vername">)v[^<]+(</b>)'
+if ([regex]::Matches($site, $sitePattern).Count -lt 1) { throw 'Expected the site to carry a vername.' }
+$updatedSite = [regex]::Replace($site, $sitePattern, { param($match) $match.Groups[1].Value + "v$Version" + $match.Groups[2].Value })
 if ($updatedProps -ne $props) { [IO.File]::WriteAllText($propsPath, $updatedProps) }
 if ($updatedManifest -ne $manifest) { [IO.File]::WriteAllText($manifestPath, $updatedManifest) }
+if ($updatedSite -ne $site) { [IO.File]::WriteAllText($sitePath, $updatedSite) }
 Write-Host "Shipping version: $Version (MSIX $Version.0)"
