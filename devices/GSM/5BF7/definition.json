@@ -1,0 +1,202 @@
+{
+  "schema": 1,
+  "target": "GSM-5BF7",
+  "name": "LG ULTRAWIDE",
+  "extends": [],
+  "controls": [
+    {
+      "code": "0x15",
+      "name": "Picture Mode",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x1",
+          "name": "Reader"
+        },
+        {
+          "value": "0x0b",
+          "name": "Custom"
+        },
+        {
+          "value": "0x6",
+          "name": "Color Weakness"
+        },
+        {
+          "value": "0xE",
+          "name": "Hidden1"
+        },
+        {
+          "value": "0x1A",
+          "name": "Hidden2"
+        },
+        {
+          "value": "0x1E",
+          "name": "FPS"
+        },
+        {
+          "value": "0x1f",
+          "name": "RTS"
+        },
+        {
+          "value": "0x20",
+          "name": "Hidden 3"
+        },
+        {
+          "value": "0x27",
+          "name": "HDR Effect"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": ""
+    },
+    {
+      "code": "0xEB",
+      "name": "OSD Lock",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x0",
+          "name": "Off"
+        },
+        {
+          "value": "0x1",
+          "name": "On"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": ""
+    },
+    {
+      "code": "0xF5",
+      "name": "Aspect Ratio",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x1",
+          "name": "Full Wide(Stretch to 21:9)"
+        },
+        {
+          "value": "0x2",
+          "name": "Original"
+        },
+        {
+          "value": "0x3",
+          "name": "Cinema 1(Crop to 21:9)"
+        },
+        {
+          "value": "0x4",
+          "name": "Cinema 2"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": ""
+    },
+    {
+      "code": "0xF6",
+      "name": "SMART ENERGY SAVING",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x0",
+          "name": "Off"
+        },
+        {
+          "value": "0x1",
+          "name": "Low"
+        },
+        {
+          "value": "0x2",
+          "name": "High"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": ""
+    },
+    {
+      "code": "0xF7",
+      "name": "Response Time",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x0",
+          "name": "Off"
+        },
+        {
+          "value": "0x1",
+          "name": "Fastest"
+        },
+        {
+          "value": "0x2",
+          "name": "Fast 0x3=Normal"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": ""
+    },
+    {
+      "code": "0xF9",
+      "name": "Black Stabiliser",
+      "kind": "range",
+      "writable": false,
+      "values": [],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": ""
+    },
+    {
+      "code": "0xFA",
+      "name": "1ms Motion Blur Reduction",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x0",
+          "name": "On"
+        },
+        {
+          "value": "0x2",
+          "name": "Off"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": ""
+    },
+    {
+      "code": "0xFE",
+      "name": "Gamma",
+      "kind": "range",
+      "writable": false,
+      "values": [],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": ""
+    }
+  ]
+}
