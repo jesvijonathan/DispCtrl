@@ -114,6 +114,9 @@ public sealed partial class ControlService
                 known.TryGetValue(b, out ResolvedControl? mapped);
                 codes.Add((JsonNode)CodeEntry(b, c.Name, c.Kind.ToLowerInvariant(), c.ListedValues, null, mapped, c.Observed));
             }
+            foreach (var mapped in known.Values.Where(m => m.Definition.DdcWrite is not null
+                         && !seen.Codes.Keys.Any(key => DeviceDefinitions.ParseCode(key) == m.Code)))
+                codes.Add((JsonNode)CodeEntry(mapped.Code, "Input source (device mapping)", "discrete", [], null, mapped));
         }
 
         return new JsonObject { ["model"] = model, ["source"] = source, ["panel"] = DeviceLibrary.Panel(model)?.Technology, ["codes"] = codes };
@@ -146,6 +149,11 @@ public sealed partial class ControlService
             entry["origin"] = mapped.Origin;
             entry["maximum"] = mapped.Definition.Maximum;
             entry["notes"] = mapped.Definition.Notes;
+            if (mapped.Definition.DdcWrite is { } write)
+            {
+                entry["ddcWrite"] = new JsonObject { ["sourceAddress"] = write.SourceAddress, ["code"] = write.Code };
+                entry["writeOnly"] = true;
+            }
             entry["values"] = new JsonArray(mapped.Definition.Values
                 .Select(v => (JsonNode)new JsonObject { ["value"] = v.Value, ["name"] = v.Name }).ToArray());
         }
@@ -169,7 +177,7 @@ public sealed partial class ControlService
                 scanned.Add((JsonNode)new JsonObject { ["model"] = d.Key.Model, ["ddc"] = false });
                 continue;
             }
-            MonitorCapability c = MonitorCapabilities.Read(d);
+            MonitorCapability c = MonitorCapabilities.Read(d, includeMappings: false);
             DeviceDiscovery.CacheRecord(d);
             scanned.Add((JsonNode)new JsonObject { ["model"] = d.Key.Model, ["ddc"] = c.Supported, ["codes"] = c.Controls.Count });
         }
@@ -193,7 +201,7 @@ public sealed partial class ControlService
     private static JsonNode DevicesMap(JsonObject args)
     {
         Only(args, "map", "monitor", "model", "code", "name", "key", "kind", "values", "maximum", "writable", "scope",
-            "confidence", "notes", "dryRun");
+            "confidence", "notes", "dryRun", "sourceAddress", "writeCode");
         var (model, _) = ModelOf(args);
         byte code = DeviceDefinitions.ParseCode(Text(args, "code") ?? "")
             ?? throw new ArgumentException("--code is the VCP code, written 0xE2.");
@@ -217,6 +225,12 @@ public sealed partial class ControlService
             Confidence = Text(args, "confidence") ?? DefinedConfidence.Observed,
             Notes = Text(args, "notes"),
             Sources = [model],
+            DdcWrite = args.ContainsKey("sourceAddress") || args.ContainsKey("writeCode")
+                ? new DefinedDdcWrite
+                {
+                    SourceAddress = Text(args, "sourceAddress") ?? "0x50",
+                    Code = Text(args, "writeCode") ?? "0xF4",
+                } : null,
         };
         foreach (string pair in (Text(args, "values") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
@@ -232,9 +246,10 @@ public sealed partial class ControlService
         {
             foreach (string s in before.Sources) if (!control.Sources.Contains(s)) control.Sources.Add(s);
             control.Notes ??= before.Notes;
+            control.DdcWrite ??= before.DdcWrite;
         }
 
-        var probe = new DeviceDefinition { Target = target, Controls = [control] };
+        var probe = new DeviceDefinition { Schema = control.DdcWrite is null ? 1 : 2, Target = target, Controls = [control] };
         List<string> problems = DeviceDefinitions.Validate(probe);
         if (problems.Count > 0) throw new ArgumentException(string.Join("; ", problems));
         if (Flag(args, "dryRun")) return new JsonObject { ["state"] = "validated", ["target"] = target };
@@ -305,9 +320,11 @@ public sealed partial class ControlService
             var resolved = new JsonArray();
             foreach (ResolvedControl r in DeviceLibrary.Resolve(model).Values.OrderBy(r => r.Code))
             {
-                JsonNode wrapped = JsonNode.Parse(JsonSerializer.Serialize(
-                    new DeviceDefinition { Target = model, Controls = [r.Definition] }, DeviceJsonContext.Default.DeviceDefinition))!;
-                resolved.Add((JsonNode)new JsonObject { ["origin"] = r.Origin, ["control"] = wrapped["controls"]![0]!.DeepClone() });
+                resolved.Add((JsonNode)new JsonObject
+                {
+                    ["origin"] = r.Origin,
+                    ["control"] = JsonSerializer.SerializeToNode(r.Definition, DeviceJsonContext.Default.DefinedControl),
+                });
             }
             return new JsonObject { ["model"] = model, ["resolved"] = resolved };
         }

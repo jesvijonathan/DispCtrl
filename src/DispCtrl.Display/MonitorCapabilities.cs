@@ -33,6 +33,8 @@ public enum VcpKind
 /// </param>
 public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyList<VcpValue> Values)
 {
+    public bool WriteOnly { get; init; }
+    public bool MappedWritable { get; init; }
     /// <summary>Current value, once read. -1 when it has not been.</summary>
     public int Current { get; set; } = -1;
 
@@ -80,7 +82,7 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     /// working control.
     /// </para>
     /// </remarks>
-    public bool Settable =>
+    public bool Settable => WriteOnly ? MappedWritable :
         Kind != VcpKind.Information
         && VcpControl.Settables.Contains(Code)
         && (Kind == VcpKind.Continuous || CurrentOption is not null);
@@ -112,6 +114,7 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     {
         get
         {
+            if (WriteOnly) return "write-only; current input is not reported";
             if (Current < 0) return "could not be read";
             if (CurrentOption is { } option) return option.Name;
 
@@ -390,36 +393,52 @@ public static class MonitorCapabilities
     {
         if (display.IsInternal) return MonitorCapability.None;
         string? raw = Capabilities(display);
-        if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
+        if (string.IsNullOrWhiteSpace(raw)) return LgInput.Apply(display, MonitorCapability.None);
         MonitorCapability result = Template(raw);
         var visible = result.Controls.Where(control =>
             (VcpControl.IsAllowed(control.Code) && control.Code != 0x10)
             || control.Code is 0xB6 or 0xC9 or 0xC0 or 0xC8).ToList();
         ReadCurrentValues(display, visible, useCache: true);
         if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, visible);
-        return result;
+        return LgInput.Apply(display, result);
     }
 
     internal static void InvalidateAllValues() => Readings.Clear();
+
+    /// <summary>Reads one advertised control, without sweeping unrelated VCP codes.</summary>
+    public static VcpControl? ReadControl(DisplayInfo display, byte code)
+    {
+        if (display.IsInternal) return null;
+        if (code == 0x60 && LgInput.Mapping(display) is { } mapping) return LgInput.Control(mapping);
+        string? raw = Capabilities(display);
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        VcpControl? template = Parsed.Get(raw, TimeSpan.FromHours(1), () => Parse(raw))
+            .Controls.FirstOrDefault(c => c.Code == code);
+        if (template is null) return null;
+        VcpControl[] wanted = [template with { }];
+        ReadCurrentValues(display, wanted);
+        if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, wanted);
+        return wanted[0];
+    }
 
     /// <summary>Whether the MCCS standard names this code; everything else is left to the manufacturer.</summary>
     public static bool IsNamed(byte code) => Known.ContainsKey(code);
 
     public static void InvalidateValues(DisplayInfo display) => Readings.Remove((display.Key.DevicePath, display.Handle));
 
-    public static MonitorCapability Read(DisplayInfo display, bool readValues = true)
+    public static MonitorCapability Read(DisplayInfo display, bool readValues = true, bool includeMappings = true)
     {
         if (display.IsInternal) return MonitorCapability.None;
 
         string? raw = Capabilities(display);
-        if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
+        if (string.IsNullOrWhiteSpace(raw)) return includeMappings ? LgInput.Apply(display, MonitorCapability.None) : MonitorCapability.None;
 
         MonitorCapability parsed = Template(raw);
-        if (!readValues || parsed.Controls.Count == 0) return parsed;
+        if (!readValues || parsed.Controls.Count == 0) return includeMappings ? LgInput.Apply(display, parsed) : parsed;
 
         ReadCurrentValues(display, parsed.Controls);
         if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, parsed.Controls);
-        return parsed;
+        return includeMappings ? LgInput.Apply(display, parsed) : parsed;
     }
 
     /// <summary>
@@ -448,7 +467,7 @@ public static class MonitorCapabilities
         if (display.IsInternal) return MonitorCapability.None;
 
         string? raw = Capabilities(display);
-        if (string.IsNullOrWhiteSpace(raw)) return MonitorCapability.None;
+        if (string.IsNullOrWhiteSpace(raw)) return LgInput.Apply(display, MonitorCapability.None);
 
         MonitorCapability parsed = Template(raw);
 
@@ -461,7 +480,7 @@ public static class MonitorCapabilities
         if (wanted.Count > 0) ReadCurrentValues(display, wanted, useCache);
         if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, wanted);
 
-        return parsed;
+        return LgInput.Apply(display, parsed);
     }
 
     /// <summary>
@@ -651,6 +670,7 @@ public static class MonitorCapabilities
             var pending = new List<VcpControl>();
             foreach (VcpControl control in controls)
             {
+                if (control.WriteOnly) continue;
                 if (useCache && readings.Values.TryGetValue(control.Code, out var value)
                     && Stopwatch.GetElapsedTime(value.At) < ReadingLifetime)
                 { control.Current = value.Current; control.Maximum = value.Maximum; }
@@ -830,15 +850,41 @@ public static class MonitorCapabilities
 
     /// <summary>Sets one VCP control on a monitor.</summary>
     /// <remarks>
-    /// Only ever called with a code the monitor listed in its own capabilities
-    /// string. Writing a speculative code is how a manufacturer-specific
-    /// feature gets triggered by accident.
+    /// Callers validate advertised controls or an explicit model mapping.
+    /// LG alternate input mappings use raw GPU I2C and restrict writes to the
+    /// mapping's values, including when input is absent from the capabilities.
     /// </remarks>
     public static bool Write(DisplayInfo display, byte code, uint value)
+        => Write(display, code, value, out _);
+
+    public static bool Write(DisplayInfo display, byte code, uint value, out string? error)
+        => Write(display, code, value, null, out error);
+
+    /// <summary>Refuses a stale UI/plan if its input transport was edited after validation.</summary>
+    public static bool Write(DisplayInfo display, VcpControl control, uint value, out string? error)
+        => Write(display, control.Code, value, control.WriteOnly, out error);
+
+    private static bool Write(DisplayInfo display, byte code, uint value, bool? expectedWriteOnly, out string? error)
     {
+        error = null;
+        var mapping = code == 0x60 ? LgInput.Mapping(display) : null;
+        if (expectedWriteOnly is { } expected && expected != (mapping is not null))
+        {
+            error = "The input mapping changed. Refresh the controls before switching input.";
+            return false;
+        }
         using var stateChange = new DisplayStateChange();
         InvalidateValues(display);
-        try { return DdcChannel.With(display, handle => PInvoke.SetVCPFeature(handle, code, value) != 0, false); }
+        try
+        {
+            if (mapping is not null)
+            {
+                LgInput.Result result = LgInput.Write(display, mapping, value);
+                error = result.Error;
+                return result.Sent;
+            }
+            return DdcChannel.With(display, handle => PInvoke.SetVCPFeature(handle, code, value) != 0, false);
+        }
         finally { InvalidateValues(display); }
     }
 

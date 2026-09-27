@@ -29,6 +29,9 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         (HotkeyAction.UnisonToggle, "Unison brightness on or off"),
         (HotkeyAction.BrightnessUp, "Brightness up, one display"),
         (HotkeyAction.BrightnessDown, "Brightness down, one display"),
+        (HotkeyAction.SoftwareDimUp, "Software brightness up (less dimming)"),
+        (HotkeyAction.SoftwareDimDown, "Software brightness down (more dimming)"),
+        (HotkeyAction.AmbientToggle, "Follow the room's light, on or off"),
         (HotkeyAction.NightLightToggle, "Night light on or off"),
         (HotkeyAction.NightLightWarmer, "Night light warmer"),
         (HotkeyAction.NightLightCooler, "Night light cooler"),
@@ -44,12 +47,23 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         (HotkeyAction.TaskbarGlassToggle, "Taskbar glass on or off"),
         (HotkeyAction.ContrastUp, "Contrast up"),
         (HotkeyAction.ContrastDown, "Contrast down"),
+        (HotkeyAction.VolumeUp, "Monitor volume up"),
+        (HotkeyAction.VolumeDown, "Monitor volume down"),
+        (HotkeyAction.MuteToggle, "Mute or unmute the monitor"),
         (HotkeyAction.NextInput, "Next input source"),
         (HotkeyAction.Identify, "Show the display numbers"),
+        (HotkeyAction.DisplayMode, "Display mode: extend, duplicate, one screen"),
+        (HotkeyAction.MakePrimary, "Make a display the main one"),
+        (HotkeyAction.HdrToggle, "HDR on or off"),
+        (HotkeyAction.VariableRefreshToggle, "Variable refresh rate on or off"),
         (HotkeyAction.QuickPanel, "Open or close the quick panel"),
         (HotkeyAction.PinWindow, "Pin the active window on top, or unpin it"),
         (HotkeyAction.UnpinAllWindows, "Unpin every pinned window"),
         (HotkeyAction.GatherWindows, "Gather every window onto one display"),
+        (HotkeyAction.ReturnWindowsToggle, "Put windows back on or off"),
+        (HotkeyAction.NewWindowsToggle, "Open new windows on the display in use"),
+        (HotkeyAction.RunCommand, "Run a dispctrl command"),
+        (HotkeyAction.OpenProgram, "Open a program, file or link"),
         (HotkeyAction.ApplyPreset, "Apply a preset (Beta)"),
     }.Where(item => DispCtrl.Core.FeatureFlags.Presets || item.Item1 != HotkeyAction.ApplyPreset).ToArray();
 
@@ -76,6 +90,9 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
             if (value < 0 || value >= Actions.Length || Actions[value] == Hotkey.Action) return;
 
             Hotkey.Action = Actions[value];
+            // The picker below shows the first arrangement, so record it rather
+            // than leaving the shortcut incomplete under a filled-in control.
+            if (Hotkey.Action == HotkeyAction.DisplayMode && !Hotkey.Modes.Contains(Hotkey.Mode)) Hotkey.Mode = Hotkey.Modes[0];
             persist();
             Raise();
             RaiseAll();
@@ -101,6 +118,76 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     public Visibility PresetVisibility =>
         Hotkey.Action == HotkeyAction.ApplyPreset ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>The four arrangements, worded as Win+P words them.</summary>
+    private static readonly string[] AllModeNames = Hotkey.Modes.Select(Hotkey.ModeName).ToArray();
+    public IReadOnlyList<string> ModeNames => AllModeNames;
+
+    /// <summary>The arrangement, as an index; see <see cref="SelectedActionIndex"/> for why not the string.</summary>
+    public int SelectedModeIndex
+    {
+        get
+        {
+            int at = Array.IndexOf(Hotkey.Modes, Hotkey.Mode);
+            return at < 0 ? 0 : at;
+        }
+        set
+        {
+            // A ComboBox writes its index back as it is realised, collapsed or
+            // not; only a shortcut that is about the arrangement records one.
+            if (Hotkey.Action != HotkeyAction.DisplayMode) return;
+            if (value < 0 || value >= Hotkey.Modes.Length) return;
+            string mode = Hotkey.Modes[value];
+            if (Hotkey.Mode == mode) return;
+            Hotkey.Mode = mode;
+            persist();
+            Raise();
+            RaiseAll();
+        }
+    }
+
+    public Visibility ModeVisibility =>
+        Hotkey.Action == HotkeyAction.DisplayMode ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>The dispctrl arguments, or what to open.</summary>
+    public string Command
+    {
+        get => Hotkey.Command ?? "";
+        set
+        {
+            if ((Hotkey.Command ?? "") == value) return;
+            Hotkey.Command = value;
+            persist();
+            Raise();
+            RaiseAll();
+        }
+    }
+
+    public string Arguments
+    {
+        get => Hotkey.Arguments ?? "";
+        set
+        {
+            if ((Hotkey.Arguments ?? "") == value) return;
+            Hotkey.Arguments = value;
+            persist();
+            Raise();
+            RaiseAll();
+        }
+    }
+
+    public Visibility CommandVisibility =>
+        Hotkey.Action is HotkeyAction.RunCommand or HotkeyAction.OpenProgram ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Only a program takes arguments; a command carries its own.</summary>
+    public Visibility ArgumentsVisibility =>
+        Hotkey.Action == HotkeyAction.OpenProgram ? Visibility.Visible : Visibility.Collapsed;
+
+    public string CommandHeader => Hotkey.Action == HotkeyAction.OpenProgram ? "What to open" : "Command";
+
+    public string CommandHint => Hotkey.Action == HotkeyAction.OpenProgram
+        ? "A program, script, document or link, opened the way Explorer would: notepad.exe, ms-settings:display, https://..."
+        : "The arguments to dispctrl, without the program name: topology set duplicate, brightness -10 --all, preset apply Evening.";
+
     /// <summary>Which display, as "All" or a number.</summary>
     /// <remarks>
     /// Hidden for the actions that are not per display — a display picker beside
@@ -109,10 +196,12 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     public Visibility DisplayVisibility => Hotkey.Action is
         HotkeyAction.BrightnessUp or HotkeyAction.BrightnessDown or HotkeyAction.NextInput
         or HotkeyAction.ContrastUp or HotkeyAction.ContrastDown or HotkeyAction.GatherWindows
+        or HotkeyAction.SoftwareDimUp or HotkeyAction.SoftwareDimDown or HotkeyAction.MakePrimary
+        or HotkeyAction.HdrToggle or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown or HotkeyAction.MuteToggle
         ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>What 0 means for this action: every display, or for gathering the one in use.</summary>
-    public string DisplayHint => Hotkey.Action == HotkeyAction.GatherWindows
+    public string DisplayHint => Hotkey.Action is HotkeyAction.GatherWindows or HotkeyAction.MakePrimary
         ? "The number shown by Identify; 0 for the display in use, as chosen on the Displays page."
         : "The number shown by Identify; 0 for every display.";
 
@@ -121,7 +210,7 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         get => Hotkey.Display;
         set
         {
-            int v = double.IsNaN(value) ? 0 : (int)value;
+            int v = double.IsNaN(value) ? 0 : (int)Math.Clamp(value, 0, 16);
             if (Hotkey.Display == v) return;
 
             Hotkey.Display = v;
@@ -136,7 +225,7 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         get => Hotkey.Step;
         set
         {
-            int v = double.IsNaN(value) ? Hotkey.Step : Math.Clamp((int)value, 1, 50);
+            int v = double.IsNaN(value) ? Hotkey.Step : (int)Math.Clamp(value, 1, 100);
             if (Hotkey.Step == v) return;
 
             Hotkey.Step = v;
@@ -150,6 +239,7 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     public Visibility StepVisibility => Hotkey.Action is
         HotkeyAction.UnisonUp or HotkeyAction.UnisonDown or HotkeyAction.BrightnessUp or HotkeyAction.BrightnessDown
         or HotkeyAction.NightLightWarmer or HotkeyAction.NightLightCooler or HotkeyAction.ContrastUp or HotkeyAction.ContrastDown
+        or HotkeyAction.SoftwareDimUp or HotkeyAction.SoftwareDimDown or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown
         ? Visibility.Visible : Visibility.Collapsed;
 
     public bool Enabled
@@ -186,6 +276,8 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     public string Summary => Hotkey.IsComplete
         ? Hotkey.DescribeAction()
         : Hotkey.Key == 0 ? "New shortcut: choose what it does, then its keys"
+        : Hotkey.Action == HotkeyAction.DisplayMode ? "Pick an arrangement for this shortcut."
+        : Hotkey.Action is HotkeyAction.RunCommand or HotkeyAction.OpenProgram ? "Say what this shortcut should run."
         : "Pick a preset for this shortcut.";
 
     // ---------------------------------------------------------------- state
@@ -259,7 +351,6 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         persist();
         IsCapturing = false;
         RaiseAll();
-        Changed?.Invoke();
     }
 
     public void RaiseAll()
@@ -269,10 +360,17 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         Raise(nameof(Summary));
         Raise(nameof(KeysNote));
         Raise(nameof(PresetVisibility));
+        Raise(nameof(ModeVisibility));
+        Raise(nameof(SelectedModeIndex));
+        Raise(nameof(CommandVisibility));
+        Raise(nameof(ArgumentsVisibility));
+        Raise(nameof(CommandHeader));
+        Raise(nameof(CommandHint));
         Raise(nameof(DisplayVisibility));
         Raise(nameof(DisplayHint));
         Raise(nameof(StepVisibility));
         Raise(nameof(Presets));
+        Changed?.Invoke();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -360,7 +458,10 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
             Hotkey h = item.Hotkey;
             string keys = h.Describe();
             item.SetState(
-                !h.IsComplete ? "Not finished: it needs keys" + (h.Action == HotkeyAction.ApplyPreset ? " and a preset" : "")
+                !h.IsComplete ? "Not finished: it needs keys"
+                    + (h.Action == HotkeyAction.ApplyPreset ? " and a preset"
+                        : h.Action == HotkeyAction.DisplayMode ? " and an arrangement"
+                        : h.Action is HotkeyAction.RunCommand or HotkeyAction.OpenProgram ? " and something to run" : "")
                 : !h.Enabled ? "Off. Switch it on to use it."
                 : duplicates.Contains(item) ? "Shares its keys with another shortcut; only one of them can work"
                 : !_engineRunning ? "Not active: the engine is not running"

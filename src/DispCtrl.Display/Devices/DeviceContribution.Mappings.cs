@@ -166,7 +166,15 @@ public static partial class DeviceContribution
                 entry["observed"] = new JsonArray(c.Observed.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             codes[code] = entry;
         }
-        return new JsonObject { ["capabilities"] = seen?.Capabilities, ["codes"] = codes };
+        var observed = new JsonObject { ["capabilities"] = seen?.Capabilities, ["codes"] = codes };
+        if (known.TryGetValue(0x60, out var input) && input.Definition.DdcWrite is not null)
+            observed["inputSwitchMapping"] = new JsonObject
+            {
+                ["origin"] = input.Origin,
+                ["definition"] = JsonSerializer.SerializeToNode(input.Definition, DeviceJsonContext.Default.DefinedControl),
+                ["verification"] = "Contribution does not test input switching. Confirm the input values on screen.",
+            };
+        return observed;
     }
 
     /// <summary>Puts text on the clipboard from a process that may have no window.</summary>

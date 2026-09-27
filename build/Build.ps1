@@ -12,6 +12,7 @@ try {
         # The same set as dev.ps1 test, less presetcheck, which needs monitors.
         $checks = @(
             @('controlcheck', @()),
+            @('lginputcheck', @()),
             @('presetverify', @()),
             @('devicecheck', @('validate', 'devices')),
             @('devicecheck', @('selftest'))

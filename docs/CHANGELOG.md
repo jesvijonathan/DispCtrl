@@ -8,6 +8,16 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+### Added
+- Shortcuts for the four arrangements Win+P offers - extend, duplicate, PC screen only, second screen only - on Ctrl+Alt+1 to 4. Offered switched off, because each one reconfigures the display stack and a mistyped digit is an expensive accident.
+- Shortcuts for the rest of what DispCtrl does: follow the room's light, software dimming, monitor volume and mute, HDR, variable refresh rate, make a display the main one, put windows back, and open new windows on the display in use.
+- Shortcuts that run something you wrote: a `dispctrl` command, or any program, file or link, the way a custom quick-panel tile does.
+- Experimental LG alternate input switching through NVIDIA, AMD and Intel GPU APIs, enabled only by a model-specific device mapping. Mapping contributions retain the transport metadata; hardware confirmation is still required.
+
+### Fixed
+- Hotkey action fields now update when the action changes. Slow shortcut actions are serialized off the keyboard pump; volume, mute, contrast and input commands read only the requested control.
+- LG mappings require device schema 2 so older builds cannot interpret their wire values as standard DDC. Stale input controls reject writes after their transport mapping changes.
+
 ## [0.1.6] - 2026-09-26
 
 ### Added

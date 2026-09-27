@@ -34,7 +34,8 @@ public sealed partial class ControlService
                     {
                         ["index"] = i + 1, ["keys"] = h.Describe(), ["action"] = KebabAction(h.Action),
                         ["does"] = h.DescribeAction(), ["display"] = h.Display, ["step"] = h.Step,
-                        ["preset"] = h.Preset, ["enabled"] = h.Enabled, ["state"] = state,
+                        ["preset"] = h.Preset, ["mode"] = h.Mode, ["command"] = h.Command, ["arguments"] = h.Arguments,
+                        ["enabled"] = h.Enabled, ["state"] = state,
                     });
                 }
                 return new JsonObject { ["hotkeys"] = list, ["actions"] = new JsonArray(Enum.GetValues<HotkeyAction>().Select(a => (JsonNode?)JsonValue.Create(KebabAction(a))).ToArray()) };
@@ -43,8 +44,8 @@ public sealed partial class ControlService
             case "set":
             {
                 foreach (var pair in args)
-                    if (pair.Key is not ("index" or "keys" or "action" or "step" or "display" or "preset" or "enabled" or "dryRun"))
-                        throw new ArgumentException("hotkeys options: --index, --keys, --action, --step, --display, --preset, --enabled.");
+                    if (pair.Key is not ("index" or "keys" or "action" or "step" or "display" or "preset" or "mode" or "command" or "arguments" or "enabled" or "dryRun"))
+                        throw new ArgumentException("hotkeys options: --index, --keys, --action, --step, --display, --preset, --mode, --command, --arguments, --enabled.");
                 Hotkey h;
                 if (action == "add") h = new Hotkey();
                 else h = settings.Hotkeys.ElementAtOrDefault(Integer(args, "index", 1, 999) - 1)
@@ -61,9 +62,12 @@ public sealed partial class ControlService
                 if (args.ContainsKey("step")) h.Step = Integer(args, "step", 1, 100);
                 if (args.ContainsKey("display")) h.Display = Integer(args, "display", 0, 16);
                 if (Text(args, "preset") is { } preset) h.Preset = preset;
+                if (Text(args, "mode") is { } mode) h.Mode = ParseMode(mode);
+                if (Text(args, "command") is { } command) h.Command = command;
+                if (Text(args, "arguments") is { } arguments) h.Arguments = arguments;
                 if (args.ContainsKey("enabled")) h.Enabled = Flag(args, "enabled");
 
-                if (!h.IsComplete) throw new ArgumentException("A hotkey needs --keys, and a preset name for apply-preset.");
+                if (!h.IsComplete) throw new ArgumentException("A hotkey needs --keys, a preset name for apply-preset, --mode for display-mode, and --command for run-command and open-program.");
                 if (settings.Hotkeys.Any(o => !ReferenceEquals(o, h) && o.Key == h.Key && o.Modifiers == h.Modifiers))
                     throw new ArgumentException($"{h.Describe()} is already bound; set or remove that one instead.");
                 if (Flag(args, "dryRun")) return new JsonObject { ["state"] = "validated", ["keys"] = h.Describe(), ["does"] = h.DescribeAction() };
@@ -99,6 +103,16 @@ public sealed partial class ControlService
 
     private static string KebabAction(HotkeyAction a) => Core.Devices.DeviceDefinitions.KeyFor(
         string.Concat(a.ToString().Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString())));
+
+    /// <summary>The arrangement, named as <c>topology set</c> names it.</summary>
+    private static string ParseMode(string text) => text.ToLowerInvariant() switch
+    {
+        "extend" => "Extend",
+        "duplicate" => "Duplicate",
+        "internal" or "internalonly" or "internal-only" => "InternalOnly",
+        "external" or "externalonly" or "external-only" => "ExternalOnly",
+        _ => throw new ArgumentException("Display mode: extend, duplicate, internal, external."),
+    };
 
     private static HotkeyAction ParseAction(string text)
     {

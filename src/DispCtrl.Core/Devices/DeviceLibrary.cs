@@ -136,7 +136,8 @@ public static class DeviceLibrary
                     if (!string.Equals(link, model, StringComparison.OrdinalIgnoreCase)) Apply(link);
             foreach (var (definition, origin) in layers)
                 foreach (DefinedControl c in definition.Controls)
-                    if (c.CodeValue is byte code) result[code] = new ResolvedControl(code, c, origin);
+                    if (c.CodeValue is byte code && (c.DdcWrite is null || DeviceDefinitions.IsLgModel(model)))
+                        result[code] = new ResolvedControl(code, c, origin);
         }
 
         Apply("*");
@@ -185,6 +186,7 @@ public static class DeviceLibrary
     /// <summary>Validates and writes a local definition; returns its path.</summary>
     public static string SaveLocal(DeviceDefinition definition)
     {
+        if (definition.Schema == 1 && definition.Controls.Any(c => c.DdcWrite is not null)) definition.Schema = 2;
         List<string> problems = DeviceDefinitions.Validate(definition);
         if (problems.Count > 0) throw new ArgumentException(string.Join("; ", problems));
         definition.Controls.Sort((a, b) => (a.CodeValue ?? 0).CompareTo(b.CodeValue ?? 0));

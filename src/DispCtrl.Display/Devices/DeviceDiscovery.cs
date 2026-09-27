@@ -43,7 +43,7 @@ public static class DeviceDiscovery
     public static int Learn(DisplayInfo display)
     {
         if (!Tried.TryAdd(display.Key.Model, 0)) return 0;
-        MonitorCapability capabilities = display.IsInternal ? MonitorCapability.None : MonitorCapabilities.Read(display);
+        MonitorCapability capabilities = display.IsInternal ? MonitorCapability.None : MonitorCapabilities.Read(display, includeMappings: false);
         CacheRecord(display);
         return capabilities.Supported ? capabilities.Controls.Count : -1;
     }

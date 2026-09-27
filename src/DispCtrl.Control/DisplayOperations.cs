@@ -51,7 +51,7 @@ public sealed partial class ControlService
             }
             else if (action == "capabilities")
             {
-                var capabilities = MonitorCapabilities.Read(d);
+                var capabilities = MonitorCapabilities.Read(d, includeMappings: false);
                 var controls = new JsonArray();
                 foreach (var c in capabilities.Controls)
                 {
@@ -176,8 +176,8 @@ public sealed partial class ControlService
                 Add(60, "wallpaper", () => Wallpaper.Write(Live(), path));
             }
             if (Text(args, "controls") is { } list)
-                foreach ((string name, byte code, uint value) in PlanControls(initial, list))
-                    Add(code == 0xD6 ? 100 : code == 0x60 ? 90 : 55, name, () => MonitorCapabilities.Write(Live(), code, value));
+                foreach ((string name, VcpControl control, uint value) in PlanControls(initial, list))
+                    Add(control.Code == 0xD6 ? 100 : control.Code == 0x60 ? 90 : 55, name, () => MonitorCapabilities.Write(Live(), control, value, out _));
             Dictionary<string, byte> controls = new() { ["contrast"] = 0x12, ["volume"] = 0x62, ["sharpness"] = 0x87,
                 ["redGain"] = 0x16, ["greenGain"] = 0x18, ["blueGain"] = 0x1A, ["colorPreset"] = 0x14, ["input"] = 0x60, ["power"] = 0xD6 };
             if (args.ContainsKey("vcpCode")) controls["vcpValue"] = (byte)Integer(args, "vcpCode", 0, 255);
@@ -194,7 +194,7 @@ public sealed partial class ControlService
                         || control.Values.Count == 0 && control.Maximum >= 0 && value > control.Maximum)
                         throw new ArgumentException($"Value {value} is not supported for {pair.Key}.");
                     byte code = pair.Value;
-                    Add(code == 0xD6 ? 100 : code == 0x60 ? 90 : 55, pair.Key, () => MonitorCapabilities.Write(Live(), code, value));
+                    Add(code == 0xD6 ? 100 : code == 0x60 ? 90 : 55, pair.Key, () => MonitorCapabilities.Write(Live(), control, value, out _));
                 }
             }
         }
@@ -459,6 +459,7 @@ public sealed partial class ControlService
         {
             ["key"] = c.Key, ["code"] = c.Control.Hex, ["name"] = c.Name, ["kind"] = c.Kind,
             ["settable"] = c.Settable,
+            ["writeOnly"] = c.Control.WriteOnly,
             ["current"] = c.Current,
             ["currentName"] = c.CurrentName,
             ["maximum"] = c.Kind == DefinedKinds.Range && c.Maximum >= 0 ? c.Maximum : null,
@@ -468,6 +469,8 @@ public sealed partial class ControlService
         {
             entry["mapped"] = c.Origin;
             entry["confidence"] = c.Mapping.Confidence;
+            if (c.Mapping.DdcWrite is { } write)
+                entry["ddcWrite"] = new JsonObject { ["sourceAddress"] = write.SourceAddress, ["code"] = write.Code };
             if (c.Mapping.Notes is { } notes) entry["notes"] = notes;
         }
         return entry;
@@ -488,9 +491,7 @@ public sealed partial class ControlService
         foreach (DisplayInfo d in targets)
         {
             if (d.IsInternal) throw new ArgumentException($"{d.Label} is a built-in panel and has no DDC/CI controls.");
-            MonitorCapability capabilities = MonitorCapabilities.Read(d);
-            if (!capabilities.Supported) throw new ArgumentException($"{d.Label} does not answer DDC/CI.");
-            Effective control = FindControl(Effectives(d, capabilities), selector, d.Label);
+            Effective control = ReadControl(d, selector);
             var entry = Describe(control);
             entry["monitor"] = d.Token;
             if (wanted is not null)
@@ -504,8 +505,10 @@ public sealed partial class ControlService
                 if (dryRun) entry["state"] = "validated";
                 else
                 {
-                    if (!MonitorCapabilities.Write(d, control.Control.Code, value)) throw new InvalidOperationException($"{d.Label} refused {control.Name} = {wanted}.");
-                    entry["state"] = "applied";
+                    if (!MonitorCapabilities.Write(d, control.Control, value, out string? writeError))
+                        throw new InvalidOperationException(writeError ?? $"{d.Label} refused {control.Name} = {wanted}.");
+                    entry["state"] = control.Control.WriteOnly ? "sent" : "applied";
+                    if (control.Control.WriteOnly) entry["note"] = "The monitor does not acknowledge this input switch; confirm on screen.";
                 }
             }
             results.Add((JsonNode)entry);
@@ -514,17 +517,38 @@ public sealed partial class ControlService
     }
 
     /// <summary>A control by its key, its name, or its code.</summary>
-    private static Effective FindControl(List<Effective> controls, string selector, string label)
+    private static Effective? MatchControl(IEnumerable<Effective> controls, string selector)
     {
         string wanted = selector.Trim();
         byte? code = ParseCode(wanted);
-        Effective? match = controls.FirstOrDefault(c =>
+        string key = DeviceDefinitions.KeyFor(wanted);
+        return controls.FirstOrDefault(c =>
             code is { } k ? c.Control.Code == k
-            : c.Key == DeviceDefinitions.KeyFor(wanted) || c.Name.Equals(wanted, StringComparison.OrdinalIgnoreCase)
-              || DeviceDefinitions.KeyFor(c.Control.Name) == DeviceDefinitions.KeyFor(wanted));
+            : c.Key == key || c.Name.Equals(wanted, StringComparison.OrdinalIgnoreCase)
+              || DeviceDefinitions.KeyFor(c.Control.Name) == key);
+    }
+
+    private static Effective FindControl(List<Effective> controls, string selector, string label)
+    {
+        Effective? match = MatchControl(controls, selector);
         if (match is not null) return match;
         string known = string.Join(", ", controls.Where(c => c.Settable).Select(c => c.Key));
         throw new ArgumentException($"{label} has no control called '{selector}'. It offers: {known}.");
+    }
+
+    private static Effective ReadControl(DisplayInfo display, string selector)
+    {
+        if (DeviceDefinitions.IsLgModel(display.Key.Model)
+            && DeviceLibrary.Resolve(display.Key.Model).TryGetValue(0x60, out var input)
+            && input.Definition.DdcWrite is not null)
+        {
+            var mapped = new Effective(LgInput.Control(input.Definition), input.Definition, input.Origin);
+            if (MatchControl([mapped], selector) is not null) return mapped;
+        }
+        MonitorCapability capabilities = MonitorCapabilities.Read(display, readValues: false);
+        if (!capabilities.Supported) throw new ArgumentException($"{display.Label} does not answer DDC/CI.");
+        Effective control = FindControl(Effectives(display, capabilities), selector, display.Label);
+        return control with { Control = MonitorCapabilities.ReadControl(display, control.Control.Code) ?? control.Control };
     }
 
     /// <summary>A value by its listed name or key, or a number the control accepts.</summary>
@@ -558,7 +582,7 @@ public sealed partial class ControlService
     /// Parses <c>--controls "contrast=70,picture-mode=games"</c> into steps
     /// resolved against what the monitor lists.
     /// </summary>
-    private static IEnumerable<(string Name, byte Code, uint Value)> PlanControls(DisplayInfo display, string list)
+    private static IEnumerable<(string Name, VcpControl Control, uint Value)> PlanControls(DisplayInfo display, string list)
     {
         MonitorCapability capabilities = MonitorCapabilities.Read(display);
         if (!capabilities.Supported) throw new ArgumentException($"{display.Label} does not answer DDC/CI.");
@@ -569,7 +593,7 @@ public sealed partial class ControlService
             if (equals <= 0) throw new ArgumentException("Controls are name=value pairs, separated by commas.");
             Effective control = FindControl(controls, part[..equals], display.Label);
             if (!control.Settable) throw new ArgumentException($"{control.Name} on {display.Label} is read-only here.");
-            yield return (control.Key, control.Control.Code, FindValue(control, part[(equals + 1)..]));
+            yield return (control.Key, control.Control, FindValue(control, part[(equals + 1)..]));
         }
     }
 }

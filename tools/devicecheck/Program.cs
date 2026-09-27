@@ -134,6 +134,19 @@ static int SelfTest()
             "a manufacturer's definition may not: a maker ships both kinds");
         Check(DeviceDefinitions.Validate(new DeviceDefinition { Target = "TST-0303", Panel = new() { Technology = " " } }).Count == 1,
             "a panel needs a technology");
+        string lgShare = Share("GSM-1234", "0x60").Replace("\"kind\":\"information\"",
+            "\"kind\":\"choice\",\"writable\":true,\"ddcWrite\":{\"sourceAddress\":\"0x50\",\"code\":\"0xF4\"},\"values\":[{\"value\":\"0x90\",\"name\":\"HDMI 1\"}]");
+        lgShare = lgShare.Replace("\"schema\":1,\"target\"", "\"schema\":2,\"target\"");
+        File.WriteAllText(input, lgShare);
+        string lgRoot = Path.Combine(temp, "lg");
+        Check(Intake(input, lgRoot) == 0, "LG alternate input contribution is accepted for model review");
+        var lgDefinition = DeviceLibrary.LoadLibrary(lgRoot)["GSM-1234"];
+        Check(lgDefinition.Controls[0].DdcWrite?.SourceAddress == "0x50" && !lgDefinition.Controls[0].Writable,
+            "intake preserves LG transport and input values but requires a reviewer to enable writes");
+        var changedWrite = new DefinedControl { Code = "0x60", Name = "Input", Kind = "choice" };
+        string standardEssence = Essence(changedWrite);
+        changedWrite.DdcWrite = new();
+        Check(Essence(changedWrite) != standardEssence, "review guard detects a change to the DDC transport");
         string library = Path.Combine(temp, "library");
         Directory.CreateDirectory(Path.GetDirectoryName(DeviceLayout.DefinitionPath(library, "TST-0404"))!);
         File.WriteAllText(DeviceLayout.DefinitionPath(library, "TST-0404"), "{\"schema\":1,\"target\":\"TST-0404\",\"panel\":{\"technology\":\"OLED\"},\"controls\":[]}");
@@ -429,7 +442,7 @@ static int IntakeModel(string body, JsonNode payload, string root, Dictionary<st
         bool known = pending.TryGetValue(path, out string? staged) || File.Exists(path);
         DeviceDefinition current = known
             ? JsonSerializer.Deserialize(staged ?? File.ReadAllText(path), DeviceJsonContext.Default.DeviceDefinition)!
-            : new DeviceDefinition { Target = incoming.Target, Name = incoming.Name, Extends = incoming.Extends };
+            : new DeviceDefinition { Schema = incoming.Schema, Target = incoming.Target, Name = incoming.Name, Extends = incoming.Extends };
         if (known && !incoming.Extends.All(current.Extends.Contains))
             Console.WriteLine($"review: {model} kept its links; this share would link it to {string.Join(", ", incoming.Extends)}");
         if (incoming.Panel is { } said)
@@ -460,6 +473,7 @@ static int IntakeModel(string body, JsonNode payload, string root, Dictionary<st
             added++;
         }
         if (known && added == 0 && incoming.Panel is null) continue;
+        if (current.Controls.Any(c => c.DdcWrite is not null)) current.Schema = 2;
         current.Controls.Sort((a, b) => (a.CodeValue ?? 0).CompareTo(b.CodeValue ?? 0));
         var merged = DeviceDefinitions.Validate(current);
         if (merged.Count > 0) { Console.Error.WriteLine($"{current.Target} after merge: {string.Join("; ", merged)}"); return 1; }
@@ -495,7 +509,7 @@ static int IntakeModel(string body, JsonNode payload, string root, Dictionary<st
 static string Essence(DefinedControl c) => JsonSerializer.Serialize(new DefinedControl
 {
     Code = c.CodeValue?.ToString("X2", System.Globalization.CultureInfo.InvariantCulture) ?? c.Code,
-    Key = c.Key, Name = c.Name, Kind = c.Kind, Writable = c.Writable, Maximum = c.Maximum, Values = c.Values,
+    Key = c.Key, Name = c.Name, Kind = c.Kind, Writable = c.Writable, Maximum = c.Maximum, Values = c.Values, DdcWrite = c.DdcWrite,
 }, DeviceJsonContext.Default.DefinedControl);
 
 // What a change does to reviewed data: a record, a report, or any mapping the

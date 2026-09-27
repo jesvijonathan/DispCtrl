@@ -36,6 +36,7 @@ public static class ControlTerminal
       devices probe --monitor ID [--codes unknown|all|0xE2,0xF0] [--seconds 120]
                                             Watch codes while you change the monitor's own menu
       devices map --monitor ID --code 0xE2 --name "Preset mode" [--values "0x0B=ComfortView"]
+                                            LG input: --code 0x60 --source-address 0x50 --write-code 0xF4
                   [--kind range|choice|action|information] [--writable] [--scope model|brand|all]
       devices unmap|link|definitions        Remove, cross-link (--to DEL-A233), inspect layers
       devices panel --monitor ID --technology OLED [--notes TEXT]   What the panel is (none clears); built-in panels too
@@ -55,6 +56,8 @@ public static class ControlTerminal
                                             --remember-window-locations, --minimize-on-disconnect
       windows open --page display|nightlight|colors|taskbar|startup|power|hdr|cast|colormanagement
       hotkeys list|add|set|remove|reset     --keys "Ctrl+Alt+PageUp" --action unison-up --step 5 --display 2
+                                           --action display-mode --mode extend|duplicate|internal|external
+                                           --action run-command --command "topology set duplicate"
       unison get|set --level 50             Shared brightness and Windows-slider following
       unison set --monitor ID --floor 20 --ceiling 80   A display's calibrated range
       unison set --monitor ID --include off   Leave a display out of unison (its own brightness)
@@ -230,7 +233,8 @@ public static class ControlTerminal
             else throw new ArgumentException("Missing value for --" + parts[0]);
             // Selectors are strings even when the user chooses display number 2.
             if (key is "monitor" or "path" or "output" or "resolution" or "wallpaper" or "script" or "events" or "revision" or "what" or "steps"
-                or "window" or "to" or "from" or "token" or "model" or "borderColour" or "excludedApps") options[key] = value;
+                or "window" or "to" or "from" or "token" or "model" or "borderColour" or "excludedApps"
+                or "command" or "arguments" or "mode") options[key] = value;
             else if (value is "on" or "off") options[key] = value == "on";
             else
             {

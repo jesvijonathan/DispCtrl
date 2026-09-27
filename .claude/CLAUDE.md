@@ -251,18 +251,34 @@ ship. The app's **Devices** page sends the same
 ### Hotkeys
 
 Global shortcuts live in `settings.Hotkeys` and are registered by the **engine**,
-which also carries them out: 27 actions, from unison and night light to focus,
-OLED care, keep awake, taskbar, contrast, pinning, gathering and the quick panel. A new desk is
-offered seventeen defaults (`Hotkey.OfferDefaults`), eight enabled: Ctrl+Alt with
-Page Up/Down, N, D, L, Backspace, P (pin) and G (gather). Nine more are configured but disabled. The defaults are
+which also carries them out: 41 actions, from unison and night light to focus,
+OLED care, keep awake, taskbar, contrast, pinning, gathering, the quick panel,
+the four Win+P arrangements (`DisplayMode`, carrying `Mode`), and two that run
+whatever somebody wrote (`RunCommand` through `dispctrl.exe`, `OpenProgram`
+through the shell, both carrying `Command`) — the same two kinds a custom quick
+panel tile has, run the same way so the words mean one thing. A new desk is
+offered twenty-one defaults (`Hotkey.OfferDefaults`), eight enabled: Ctrl+Alt with
+Page Up/Down, N, D, L, Backspace, P (pin) and G (gather). Thirteen more are configured but disabled,
+including Ctrl+Alt+1 to 4 for extend, duplicate, PC screen only and second
+screen only — off, because each reconfigures the display stack and a mistyped
+digit is expensive. The defaults are
 versioned: upgrades offer newly added actions disabled once, preserving existing
-bindings and removals. Never use the arrows, which Intel drivers take for screen
+bindings and removals. **`OfferDefaults` judges display-mode defaults by action and
+`Mode`**, or the four arrangements would collapse into one offer. Other actions ignore stale mode fields. Never use the arrows, which Intel drivers take for screen
 rotation. The page and `dispctrl hotkeys reset` restore
 them. **Unison hotkeys write the hardware themselves** (`ApplyUnison`): they
 used to save the level and nothing else, so with the app closed no display
-moved. Registered
+moved. **Topology, gather, contrast, volume, mute, input and custom-launch actions run
+through one bounded worker queue off the pump**. It runs only while work is pending,
+serializes slow actions and drops pending work on Restore. Targeted VCP actions
+read only their own control. Registered
 because a panel that registered them would lose them on closing — the opposite
 of what a global shortcut is for. The Hotkeys page only edits the list.
+
+**A ComboBox on the Hotkeys page writes its index back as it is realised,
+collapsed or not**, so `SelectedModeIndex` refuses a write unless the action is
+the one that owns it; without that, choosing a brightness shortcut recorded an
+arrangement on it.
 
 `RegisterHotKey` delivers `WM_HOTKEY` to the queue of the thread that
 registered it, and the engine polls rather than pumping, so `HotkeyService` owns

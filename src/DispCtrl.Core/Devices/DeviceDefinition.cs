@@ -31,9 +31,11 @@ namespace DispCtrl.Core.Devices;
 /// </remarks>
 public sealed class DeviceDefinition
 {
-    public const int CurrentSchema = 1;
+    public const int CurrentSchema = 2;
 
-    public int Schema { get; set; } = CurrentSchema;
+    // Standard mappings stay readable by older builds. Alternate transports
+    // require v2 so a v1 reader cannot mistake wire values for standard VCP.
+    public int Schema { get; set; } = 1;
 
     /// <summary><c>*</c>, a manufacturer (<c>DEL</c>) or a model (<c>DEL-A234</c>).</summary>
     public string Target { get; set; } = "";
@@ -89,6 +91,9 @@ public sealed class DefinedControl
     /// </summary>
     public bool Writable { get; set; }
 
+    /// <summary>Optional wire command for a model's LG alternate input control.</summary>
+    public DefinedDdcWrite? DdcWrite { get; set; }
+
     /// <summary>For a range, the highest value, when the monitor's own reply is wrong.</summary>
     public int? Maximum { get; set; }
 
@@ -120,6 +125,13 @@ public sealed class DefinedValue
 
     [JsonIgnore]
     public uint? Number => DeviceDefinitions.ParseNumber(Value);
+}
+
+/// <summary>Logical input (0x60) mapped to LG's write-only input command.</summary>
+public sealed class DefinedDdcWrite
+{
+    public string SourceAddress { get; set; } = "0x50";
+    public string Code { get; set; } = "0xF4";
 }
 
 public static class DefinedKinds
@@ -198,7 +210,7 @@ public static partial class DeviceDefinitions
     public static List<string> Validate(DeviceDefinition definition)
     {
         var problems = new List<string>();
-        if (definition.Schema != DeviceDefinition.CurrentSchema) problems.Add($"schema must be {DeviceDefinition.CurrentSchema}");
+        if (definition.Schema is < 1 or > DeviceDefinition.CurrentSchema) problems.Add($"schema must be 1 to {DeviceDefinition.CurrentSchema}");
         if (!IsTarget(definition.Target)) problems.Add($"target '{definition.Target}' is not *, a manufacturer (DEL) or a model (DEL-A234)");
         Text(definition.Name, "name", 120, problems);
 
@@ -231,6 +243,17 @@ public static partial class DeviceDefinitions
             if (c.Writable && c.Kind == DefinedKinds.Information) problems.Add($"{at}: information cannot be writable");
             if (c.Writable && c.Kind == DefinedKinds.Choice && c.Values.Count == 0) problems.Add($"{at}: a writable choice must list its values");
             if (c.Maximum is < 0 or > 65535) problems.Add($"{at}: maximum must be 0 to 65535");
+            if (c.DdcWrite is { } write)
+            {
+                if (definition.Schema < 2) problems.Add($"{at}: alternate input writes require schema 2");
+                if (!IsModel(definition.Target) || !IsLgModel(definition.Target))
+                    problems.Add($"{at}: alternate input writes require a specific LG model");
+                if (code != 0x60 || c.Kind != DefinedKinds.Choice || c.Values.Count == 0
+                    || ParseCode(write.SourceAddress ?? "") != 0x50 || ParseCode(write.Code ?? "") != 0xF4)
+                    problems.Add($"{at}: LG input requires logical code 0x60, choice values, sourceAddress 0x50 and wire code 0xF4");
+                if (c.Values.Any(v => v.Number is > 255))
+                    problems.Add($"{at}: LG input values must fit in one byte");
+            }
             var seen = new HashSet<uint>();
             foreach (DefinedValue v in c.Values)
             {
@@ -244,6 +267,10 @@ public static partial class DeviceDefinitions
         }
         return problems;
     }
+
+    public static bool IsLgModel(string model) => model.Length == 8
+        && (model.StartsWith("GSM-", StringComparison.Ordinal) || model.StartsWith("LGD-", StringComparison.Ordinal)
+            || model.StartsWith("LPL-", StringComparison.Ordinal)) && IsModel(model);
 
     /// <summary>
     /// Free text is checked for what must never be published: paths carry an

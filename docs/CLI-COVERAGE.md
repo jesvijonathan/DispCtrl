@@ -89,6 +89,8 @@ calls it. The Devices page already works that way - it sends the same
 | --- | --- |
 | The list | `hotkeys list` |
 | Add | `hotkeys add --keys "Ctrl+Alt+Up" --action unison-up --step 5` (pin: `pin-window`, `unpin-all-windows`; gather: `gather-windows --display 2`, 0 for the display in use) |
+| Add a Win+P arrangement | `hotkeys add --keys "Ctrl+Alt+Shift+2" --action display-mode --mode duplicate` (also `extend`, `internal`, `external`; Ctrl+Alt+1 to 4 are already supplied as disabled defaults) |
+| Add one that runs something | `hotkeys add --keys "Ctrl+Alt+F9" --action run-command --command "topology set duplicate"`, or `--action open-program --command notepad.exe --arguments notes.txt` |
 | Change one | `hotkeys set --index 2 --enabled off` |
 | Remove | `hotkeys remove --index 2` |
 | Restore the defaults | `hotkeys reset` |

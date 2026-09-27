@@ -1474,7 +1474,7 @@
 
                           <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock Text="{x:Bind Name}"/>
-                            <TextBlock Text="{x:Bind Description}"
+                            <TextBlock Text="{x:Bind Description, Mode=OneWay}"
                                        Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                           </StackPanel>

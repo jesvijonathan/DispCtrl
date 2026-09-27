@@ -35,6 +35,13 @@ internal static class DisplaySuite
             if (d.IsInternal) continue;
             context.Add(Bench.Time(S, $"{label}: capabilities (first read)", 1, 0, null, () => MonitorCapabilities.ReadForUi(d), "cold unless the cache is warm"));
             context.Add(Bench.Time(S, $"{label}: capabilities (cached)", o.N(20), 1, 5.0, () => MonitorCapabilities.ReadForUi(d)));
+            if (MonitorCapabilities.Read(d, readValues: false).Controls.Any(c => c.Code == 0x12))
+            {
+                context.Add(Bench.Time(S, $"{label}: all settable controls (fresh)", o.N(6), 0, null,
+                    () => MonitorCapabilities.ReadSettable(d), "previous per-shortcut read path"));
+                context.Add(Bench.Time(S, $"{label}: contrast only (fresh)", o.N(6), 0, null,
+                    () => MonitorCapabilities.ReadControl(d, 0x12), "one VCP read; no monitor writes"));
+            }
         }
 
         DispCtrlSettings settings = SettingsStore.Load();

@@ -159,7 +159,7 @@ public sealed record DeviceSubmission
     /// </param>
     public static DeviceSubmission Build(DisplayInfo display, bool? isOled = null, bool includePrivateDetails = true)
     {
-        MonitorCapability capability = Safely(() => MonitorCapabilities.Read(display), MonitorCapability.None);
+        MonitorCapability capability = Safely(() => MonitorCapabilities.Read(display, includeMappings: false), MonitorCapability.None);
         DisplayDetail detail = Safely(() => DisplayDetails.Read(display), new DisplayDetail());
         VrrState vrr = Safely(() => VariableRefreshRate.Read(display), VrrState.Unsupported);
         HdrState hdr = Safely(() => AdvancedDisplay.ReadHdr(display), HdrState.Unsupported);

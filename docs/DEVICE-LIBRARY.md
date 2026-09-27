@@ -121,6 +121,14 @@ dispctrl devices panel --monitor 1 --technology none     # forget it
 
 ### What a definition changes
 
+For LG alternate input switching, a model's logical `0x60` control can carry
+`"ddcWrite": { "sourceAddress": "0x50", "code": "0xF4" }`. This explicit
+mapping can expose a write-only input even when the capabilities string does
+not list it. Its values are LG wire values, and writes require `writable`.
+These definitions require schema 2 so older builds reject the alternate transport.
+Contributions retain the transport metadata. See
+[LG input switching](LG-INPUT-SWITCHING.md) for setup and limitations.
+
 - `display controls` and `display control` show a mapped code by its name,
   key and values, with where the mapping came from.
 - A panel's technology decides whether the display is treated as OLED, in the

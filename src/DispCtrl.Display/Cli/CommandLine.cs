@@ -266,16 +266,17 @@ public static class CommandLine
         int failures = 0;
         foreach (DisplayInfo d in targets)
         {
-            if (!Supports(d, code))
+            VcpControl? control = Find(d, code);
+            if (control is null)
             {
                 Console.Error.WriteLine($"{d.Label}: does not report a {name} control");
                 failures++;
                 continue;
             }
 
-            if (!MonitorCapabilities.Write(d, code, (uint)number))
+            if (!MonitorCapabilities.Write(d, control, (uint)number, out string? writeError))
             {
-                Console.Error.WriteLine($"{d.Label}: would not take {number}");
+                Console.Error.WriteLine(writeError ?? $"{d.Label}: would not take {number}");
                 failures++;
                 continue;
             }
@@ -332,14 +333,16 @@ public static class CommandLine
                 continue;
             }
 
-            if (!MonitorCapabilities.Write(d, 0x60, match.Value.Value))
+            if (!MonitorCapabilities.Write(d, control, match.Value.Value, out string? writeError))
             {
-                Console.Error.WriteLine($"{d.Label}: would not switch to {match.Value.Name}");
+                Console.Error.WriteLine(writeError ?? $"{d.Label}: would not switch to {match.Value.Name}");
                 failures++;
                 continue;
             }
 
-            Console.WriteLine($"{d.Label}: input {match.Value.Name}");
+            Console.WriteLine(control.WriteOnly
+                ? $"{d.Label}: sent input {match.Value.Name}; confirm the switch on screen"
+                : $"{d.Label}: input {match.Value.Name}");
         }
 
         return failures == 0 ? 0 : 1;
@@ -401,10 +404,8 @@ public static class CommandLine
 
     private static VcpControl? Find(DisplayInfo display, byte code)
     {
-        foreach (VcpControl c in MonitorCapabilities.ReadSettable(display).Controls)
-            if (c.Code == code && c.Settable) return c;
-
-        return null;
+        VcpControl? control = MonitorCapabilities.ReadControl(display, code);
+        return control is { Settable: true } ? control : null;
     }
 
     private static bool Supports(DisplayInfo display, byte code) => Find(display, code) is not null;

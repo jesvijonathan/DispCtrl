@@ -306,6 +306,7 @@ function Invoke-Test {
     try {
         $checks = @(
             @('controlcheck', @()),
+            @('lginputcheck', @()),
             @('presetverify', @()),
             # The index is regenerated after each merge, so a new device folder
             # is valid without it: only the layout and the rules are checked.

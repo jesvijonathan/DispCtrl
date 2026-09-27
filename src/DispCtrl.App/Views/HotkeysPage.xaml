@@ -94,17 +94,32 @@
                 </tk:SettingsCard>
                 <tk:SettingsCard Header="Step" Description="How far one press moves it, in percent."
                                  Visibility="{x:Bind StepVisibility, Mode=OneWay}">
-                  <NumberBox Value="{x:Bind Step, Mode=TwoWay}" Minimum="1" Maximum="50" SmallChange="1"
+                  <NumberBox Value="{x:Bind Step, Mode=TwoWay}" Minimum="1" Maximum="100" SmallChange="1"
                              SpinButtonPlacementMode="Compact" Width="110" AutomationProperties.Name="HotkeyStep"/>
                 </tk:SettingsCard>
                 <tk:SettingsCard Header="Display" Description="{x:Bind DisplayHint, Mode=OneWay}"
                                  Visibility="{x:Bind DisplayVisibility, Mode=OneWay}">
-                  <NumberBox Value="{x:Bind DisplayNumber, Mode=TwoWay}" Minimum="0" Maximum="8" SmallChange="1"
+                  <NumberBox Value="{x:Bind DisplayNumber, Mode=TwoWay}" Minimum="0" Maximum="16" SmallChange="1"
                              SpinButtonPlacementMode="Compact" Width="110" AutomationProperties.Name="HotkeyDisplay"/>
                 </tk:SettingsCard>
                 <tk:SettingsCard Header="Preset" Visibility="{x:Bind PresetVisibility, Mode=OneWay}">
                   <ComboBox ItemsSource="{x:Bind Presets, Mode=OneWay}" SelectedItem="{x:Bind SelectedPreset, Mode=TwoWay}"
                             PlaceholderText="Choose a preset" MinWidth="200" AutomationProperties.Name="HotkeyPreset"/>
+                </tk:SettingsCard>
+                <tk:SettingsCard Header="Arrangement" Description="Takes a few seconds and blacks the screens, as Win+P does."
+                                 Visibility="{x:Bind ModeVisibility, Mode=OneWay}">
+                  <ComboBox ItemsSource="{x:Bind ModeNames}" SelectedIndex="{x:Bind SelectedModeIndex, Mode=TwoWay}"
+                            MinWidth="200" AutomationProperties.Name="HotkeyMode"/>
+                </tk:SettingsCard>
+                <tk:SettingsCard Header="{x:Bind CommandHeader, Mode=OneWay}" Description="{x:Bind CommandHint, Mode=OneWay}"
+                                 Visibility="{x:Bind CommandVisibility, Mode=OneWay}">
+                  <TextBox Text="{x:Bind Command, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                           MinWidth="280" AutomationProperties.Name="HotkeyCommand"/>
+                </tk:SettingsCard>
+                <tk:SettingsCard Header="Arguments" Description="Passed to the program; leave empty for none."
+                                 Visibility="{x:Bind ArgumentsVisibility, Mode=OneWay}">
+                  <TextBox Text="{x:Bind Arguments, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                           MinWidth="280" AutomationProperties.Name="HotkeyArguments"/>
                 </tk:SettingsCard>
                 <tk:SettingsCard Header="Remove this shortcut">
                   <Button Content="Remove" Click="OnRemove" Tag="{x:Bind}" AutomationProperties.Name="RemoveHotkey"/>

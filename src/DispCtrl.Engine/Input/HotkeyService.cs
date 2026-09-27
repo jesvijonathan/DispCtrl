@@ -33,6 +33,7 @@ internal sealed class HotkeyService : IDisposable
 
     private readonly Lock _gate = new();
     private readonly Action<DispCtrlSettings> _persist;
+    private readonly HotkeyWorkQueue _work = new(ex => Log.Write($"hotkey failed: {ex.Message}"));
 
     private Thread? _thread;
     private uint _threadId;
@@ -47,8 +48,8 @@ internal sealed class HotkeyService : IDisposable
         _settings = settings;
         _persist = persist;
 
-        if (settings.Hotkeys.Count == 0) return;
-
+        // Keep the sleeping pump even with no bindings, so adding the first
+        // shortcut later does not require an engine restart.
         _thread = new Thread(Pump)
         {
             IsBackground = true,
@@ -62,21 +63,30 @@ internal sealed class HotkeyService : IDisposable
     /// <summary>Takes a reloaded settings file and re-registers.</summary>
     public void Update(DispCtrlSettings settings)
     {
-        lock (_gate) { _settings = settings; }
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _settings = settings;
+            if (_threadId != 0) _ = PInvoke.PostThreadMessage(_threadId, PInvoke.WM_APP, default, default);
+        }
 
         // The pump re-reads its bindings when poked. Posting rather than
         // touching the table directly, because registration only works from the
         // thread that owns it.
-        if (_threadId != 0) _ = PInvoke.PostThreadMessage(_threadId, PInvoke.WM_APP, default, default);
     }
 
     private unsafe void Pump()
     {
-        _threadId = PInvoke.GetCurrentThreadId();
-        Register();
-
+        MSG queued;
+        _ = PInvoke.PeekMessage(&queued, HWND.Null, 0, 0, PEEK_MESSAGE_REMOVE_TYPE.PM_NOREMOVE);
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _threadId = PInvoke.GetCurrentThreadId();
+        }
         try
         {
+            Register();
             MSG message;
             while (PInvoke.GetMessage(&message, HWND.Null, 0, 0) > 0)
             {
@@ -87,6 +97,9 @@ internal sealed class HotkeyService : IDisposable
                 else if (message.message == PInvoke.WM_APP)
                 {
                     Unregister();
+                    // Old notifications refer to IDs that are about to be
+                    // reused for different bindings.
+                    while (PInvoke.PeekMessage(&queued, HWND.Null, PInvoke.WM_HOTKEY, PInvoke.WM_HOTKEY, PEEK_MESSAGE_REMOVE_TYPE.PM_REMOVE)) { }
                     Register();
                 }
             }
@@ -160,7 +173,21 @@ internal sealed class HotkeyService : IDisposable
         if (!_registered.TryGetValue(id, out Hotkey? hotkey)) return;
 
         DispCtrlSettings settings;
-        lock (_gate) { settings = _settings; }
+        lock (_gate) { if (_disposed) return; settings = _settings; }
+
+        if (hotkey.Action is HotkeyAction.ContrastUp or HotkeyAction.ContrastDown or HotkeyAction.NextInput
+            or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown or HotkeyAction.MuteToggle
+            or HotkeyAction.DisplayMode or HotkeyAction.MakePrimary or HotkeyAction.HdrToggle
+            or HotkeyAction.GatherWindows or HotkeyAction.RunCommand or HotkeyAction.OpenProgram)
+        {
+            if (!_work.TryEnqueue(() =>
+            {
+                DispCtrlSettings current;
+                lock (_gate) { if (_disposed) return; current = _settings; }
+                Act(hotkey, current);
+            })) Log.Write("hotkey: slow-action queue is full; shortcut skipped");
+            return;
+        }
 
         try
         {
@@ -238,6 +265,7 @@ internal sealed class HotkeyService : IDisposable
                 break;
 
             case HotkeyAction.RestoreDisplays:
+                _work.Clear();
                 settings.RestoreVisibility();
                 _persist(settings);
                 Log.Write("hotkey: every display put back (dimming, night light, hiding, displays off); Settings > Undo the way back, or dispctrl restore undo, reverses it");
@@ -290,10 +318,10 @@ internal sealed class HotkeyService : IDisposable
                 foreach (DisplayInfo d in Targets(hotkey))
                 {
                     if (d.IsInternal) continue;
-                    VcpControl? contrast = MonitorCapabilities.ReadSettable(d).Controls.FirstOrDefault(c => c.Code == 0x12 && c.Settable);
-                    if (contrast is null || contrast.Current < 0) continue;
+                    VcpControl? contrast = MonitorCapabilities.ReadControl(d, 0x12);
+                    if (contrast is not { Settable: true } || contrast.Current < 0) continue;
                     int max = contrast.Maximum > 0 ? contrast.Maximum : 100;
-                    int step = (int)Math.Round(max * delta / 100.0);
+                    int step = Math.Sign(delta) * Math.Max(1, (int)Math.Round(max * Math.Abs(delta) / 100.0));
                     _ = MonitorCapabilities.Write(d, 0x12, (uint)Math.Clamp(contrast.Current + step, 0, max));
                 }
                 break;
@@ -363,24 +391,190 @@ internal sealed class HotkeyService : IDisposable
                 // other programs answering, and every other shortcut waits on this thread.
                 int wanted = hotkey.Display;
                 PlacementSettings placement = settings.Global.Placement;
-                _ = Task.Run(() =>
-                {
-                    try
-                    {
-                        List<DisplayInfo> displays = Displays();
-                        DisplayInfo? target = wanted > 0
-                            ? (wanted <= displays.Count ? displays[wanted - 1] : null)
-                            : Display.Placement.WindowMover.Active(placement, displays);
-                        if (target is null) { Log.Write($"hotkey: no display {wanted} to gather windows onto"); return; }
-                        Display.Placement.GatherOutcome gathered = Display.Placement.WindowMover.Gather(target, placement);
-                        Log.Write($"hotkey: {gathered.Moved} window(s) gathered onto {target.Label}"
-                            + (gathered.Skipped.Count > 0 ? $"; left: {string.Join("; ", gathered.Skipped)}" : ""));
-                    }
-                    catch (Exception ex) { Log.Write($"hotkey: gathering windows failed: {ex.Message}"); }
-                });
+                List<DisplayInfo> displays = Displays();
+                DisplayInfo? target = wanted > 0
+                    ? (wanted <= displays.Count ? displays[wanted - 1] : null)
+                    : Display.Placement.WindowMover.Active(placement, displays);
+                if (target is null) { Log.Write($"hotkey: no display {wanted} to gather windows onto"); return; }
+                Display.Placement.GatherOutcome gathered = Display.Placement.WindowMover.Gather(target, placement);
+                Log.Write($"hotkey: {gathered.Moved} window(s) gathered onto {target.Label}"
+                    + (gathered.Skipped.Count > 0 ? $"; left: {string.Join("; ", gathered.Skipped)}" : ""));
                 break;
             }
+
+            case HotkeyAction.DisplayMode:
+            {
+                if (!Enum.TryParse(hotkey.Mode, out DesktopArrangement arrangement))
+                {
+                    Log.Write($"hotkey wanted display mode '{hotkey.Mode}', which is not one of Extend, Duplicate, InternalOnly, ExternalOnly");
+                    break;
+                }
+                // Off the pump: the display stack blocks for seconds while it
+                // reconfigures, and every other shortcut waits on this thread.
+                Log.Write(DesktopLayout.Apply(arrangement)
+                    ? $"hotkey: displays switched to {arrangement}"
+                    : $"hotkey: Windows refused the switch to {arrangement}");
+                break;
+            }
+
+            case HotkeyAction.AmbientToggle:
+                settings.Global.Ambient.Enabled = !settings.Global.Ambient.Enabled;
+                // The engine only follows the room with unison on; switching one
+                // on without the other would do nothing and look broken.
+                if (settings.Global.Ambient.Enabled) settings.Global.UnisonBrightness = true;
+                _persist(settings);
+                break;
+
+            case HotkeyAction.ReturnWindowsToggle:
+                settings.Global.Placement.ReturnWindows = !settings.Global.Placement.ReturnWindows;
+                _persist(settings);
+                break;
+
+            case HotkeyAction.NewWindowsToggle:
+                settings.Global.Placement.NewWindowsOnActive = !settings.Global.Placement.NewWindowsOnActive;
+                _persist(settings);
+                break;
+
+            case HotkeyAction.SoftwareDimUp:
+            case HotkeyAction.SoftwareDimDown:
+            {
+                int delta = hotkey.Action == HotkeyAction.SoftwareDimUp ? hotkey.Step : -hotkey.Step;
+                foreach (DisplayInfo d in Targets(hotkey))
+                {
+                    MonitorSettings m = settings.For(d.Token);
+                    m.SoftwareBrightness = Math.Clamp(m.SoftwareBrightness + delta, 10, 100);
+                }
+                _persist(settings);
+                break;
+            }
+
+            case HotkeyAction.MakePrimary:
+            {
+                List<DisplayInfo> all = Displays();
+                DisplayInfo? target = hotkey.Display > 0
+                    ? (hotkey.Display <= all.Count ? all[hotkey.Display - 1] : null)
+                    : Display.Placement.WindowMover.Active(settings.Global.Placement, all);
+                if (target is null) { Log.Write($"hotkey: no display {hotkey.Display} to make the main one"); break; }
+                if (target.IsPrimary) { Log.Write($"hotkey: {target.Label} is already the main display"); break; }
+                Log.Write(DisplayArrangement.SetPrimary(target, all)
+                    ? $"hotkey: {target.Label} is now the main display"
+                    : $"hotkey: Windows refused to make {target.Label} the main display");
+                break;
+            }
+
+            case HotkeyAction.HdrToggle:
+                foreach (DisplayInfo d in Targets(hotkey))
+                {
+                    HdrState hdr = AdvancedDisplay.ReadHdr(d);
+                    if (!hdr.Supported) continue;
+                    _ = AdvancedDisplay.WriteHdr(d, !hdr.Enabled);
+                }
+                break;
+
+            case HotkeyAction.VariableRefreshToggle:
+                // Windows has one setting for the whole machine, so this takes no display.
+                _ = VariableRefreshRate.SetEnabled(!VariableRefreshRate.IsEnabled());
+                break;
+
+            case HotkeyAction.VolumeUp:
+            case HotkeyAction.VolumeDown:
+            {
+                int delta = hotkey.Action == HotkeyAction.VolumeUp ? hotkey.Step : -hotkey.Step;
+                foreach (DisplayInfo d in Targets(hotkey))
+                {
+                    if (d.IsInternal) continue;
+                    VcpControl? volume = MonitorCapabilities.ReadControl(d, 0x62);
+                    if (volume is not { Settable: true } || volume.Current < 0) continue;
+                    int max = volume.Maximum > 0 ? volume.Maximum : 100;
+                    int step = Math.Sign(delta) * Math.Max(1, (int)Math.Round(max * Math.Abs(delta) / 100.0));
+                    _ = MonitorCapabilities.Write(d, 0x62, (uint)Math.Clamp(volume.Current + step, 0, max));
+                }
+                break;
+            }
+
+            case HotkeyAction.MuteToggle:
+                foreach (DisplayInfo d in Targets(hotkey))
+                {
+                    if (d.IsInternal) continue;
+                    VcpControl? mute = MonitorCapabilities.ReadControl(d, 0x8D);
+                    if (mute is not { Settable: true } || mute.CurrentValue is not (1 or 2)) continue;
+                    // MCCS audio mute: 1 muted, 2 unmuted.
+                    _ = MonitorCapabilities.Write(d, 0x8D, mute.CurrentValue == 1 ? 2u : 1u);
+                }
+                break;
+
+            case HotkeyAction.RunCommand:
+            case HotkeyAction.OpenProgram:
+                RunCustom(hotkey);
+                break;
         }
+    }
+
+    /// <summary>
+    /// Runs a shortcut somebody wrote themselves: a <c>dispctrl</c> command, or
+    /// anything Explorer would open.
+    /// </summary>
+    /// <remarks>
+    /// A command goes through <c>dispctrl.exe</c> rather than being executed in
+    /// this process. The engine hosts the command broker, so executing it here
+    /// would be the broker calling itself; and the command line already owns the
+    /// grammar, so there is one place where the words mean something. Started
+    /// and left alone - a shortcut is not a place to wait for output.
+    /// </remarks>
+    private static void RunCustom(Hotkey hotkey)
+    {
+        string target = hotkey.Command!.Trim();
+        try
+        {
+            if (hotkey.Action == HotkeyAction.OpenProgram)
+            {
+                using var opened = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target, hotkey.Arguments ?? "")
+                {
+                    UseShellExecute = true,
+                });
+                Log.Write($"hotkey: opened {target}");
+                return;
+            }
+
+            string? exe = LocateCli();
+            if (exe is null) { Log.Write("hotkey: dispctrl.exe was not found beside the engine, in the build tree, or on PATH"); return; }
+            using var command = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, target)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            Log.Write($"hotkey: ran dispctrl {target}");
+        }
+        catch (Exception ex) { Log.Write($"hotkey: '{target}' failed: {ex.Message}"); }
+    }
+
+    /// <summary>Finds <c>dispctrl.exe</c>: beside the engine, in the build tree, or on PATH.</summary>
+    private static string? LocateCli()
+    {
+        string here = AppContext.BaseDirectory;
+        string beside = Path.Combine(here, "dispctrl.exe");
+        if (File.Exists(beside)) return beside;
+
+        var dir = new DirectoryInfo(here);
+        for (int up = 0; up < 6 && dir is not null; up++, dir = dir.Parent)
+        {
+            if (!string.Equals(dir.Name, "DispCtrl.Engine", StringComparison.OrdinalIgnoreCase) || dir.Parent is null) continue;
+            string candidate = Path.Combine(dir.Parent.FullName, "DispCtrl.Cli",
+                Path.GetRelativePath(dir.FullName, here), "dispctrl.exe");
+            if (File.Exists(candidate)) return Path.GetFullPath(candidate);
+        }
+
+        foreach (string folder in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
+        {
+            if (folder.Length == 0) continue;
+            try
+            {
+                string candidate = Path.Combine(folder.Trim(), "dispctrl.exe");
+                if (File.Exists(candidate)) return candidate;
+            }
+            catch (ArgumentException) { }
+        }
+        return null;
     }
 
     /// <summary>Puts every display where unison says, as the app's slider would.</summary>
@@ -419,18 +613,21 @@ internal sealed class HotkeyService : IDisposable
     {
         foreach (DisplayInfo d in Targets(hotkey))
         {
-            VcpControl? input = null;
-            foreach (VcpControl c in MonitorCapabilities.ReadSettable(d).Controls)
-                if (c.Code == 0x60 && c.Settable) { input = c; break; }
+            VcpControl? input = MonitorCapabilities.ReadControl(d, 0x60);
+            if (input?.WriteOnly == true)
+            {
+                Log.Write("hotkey: this input is write-only; use a RunCommand shortcut with a named input instead of NextInput");
+                continue;
+            }
 
-            if (input is null || input.Values.Count < 2) continue;
+            if (input is not { Settable: true } || input.Values.Count < 2) continue;
 
             int at = 0;
             for (int i = 0; i < input.Values.Count; i++)
                 if (input.Values[i].Value == input.CurrentValue) { at = i; break; }
 
             VcpValue next = input.Values[(at + 1) % input.Values.Count];
-            _ = MonitorCapabilities.Write(d, 0x60, next.Value);
+            _ = MonitorCapabilities.Write(d, input, next.Value, out _);
         }
     }
 
@@ -466,6 +663,7 @@ internal sealed class HotkeyService : IDisposable
         {
             if (_disposed) return;
             _disposed = true;
+            _work.Dispose();
         }
 
         // Ends GetMessage, which unregisters on the way out — on the thread that

@@ -35,6 +35,24 @@ public enum HotkeyAction
     PinWindow,
     UnpinAllWindows,
     GatherWindows,
+    DisplayMode,
+    AmbientToggle,
+    ReturnWindowsToggle,
+    NewWindowsToggle,
+    SoftwareDimUp,
+    SoftwareDimDown,
+    MakePrimary,
+    HdrToggle,
+    VariableRefreshToggle,
+    VolumeUp,
+    VolumeDown,
+    MuteToggle,
+
+    /// <summary>Runs <c>dispctrl</c> with whatever <see cref="Hotkey.Command"/> holds.</summary>
+    RunCommand,
+
+    /// <summary>Opens a program, script, document or link, as Explorer would.</summary>
+    OpenProgram,
 }
 
 /// <summary>One global keyboard shortcut.</summary>
@@ -67,15 +85,45 @@ public sealed class Hotkey
     /// <summary>Preset name, for <see cref="HotkeyAction.ApplyPreset"/>.</summary>
     public string? Preset { get; set; }
 
+    /// <summary>
+    /// Which arrangement, for <see cref="HotkeyAction.DisplayMode"/>: Extend,
+    /// Duplicate, InternalOnly or ExternalOnly.
+    /// </summary>
+    /// <remarks>
+    /// A string because the enum lives in DispCtrl.Display, which Core does not
+    /// reference; the same four names a preset records its topology under.
+    /// </remarks>
+    public string? Mode { get; set; }
+
+    /// <summary>
+    /// The <c>dispctrl</c> arguments for <see cref="HotkeyAction.RunCommand"/>,
+    /// or what <see cref="HotkeyAction.OpenProgram"/> opens.
+    /// </summary>
+    /// <remarks>
+    /// The same two fields a custom quick-panel tile carries, and run the same
+    /// way: the command line is DispCtrl's scriptable surface and owns the
+    /// grammar, so a shortcut and a tile can never mean different things by the
+    /// same words.
+    /// </remarks>
+    public string? Command { get; set; }
+
+    /// <summary>Arguments for <see cref="HotkeyAction.OpenProgram"/>; unused by a command.</summary>
+    public string? Arguments { get; set; }
+
     /// <summary>How much a step changes, for the actions that step.</summary>
     public int Step { get; set; } = 10;
 
     public bool Enabled { get; set; } = true;
 
+    /// <summary>The arrangements <see cref="Mode"/> may name.</summary>
+    public static readonly string[] Modes = ["Extend", "Duplicate", "InternalOnly", "ExternalOnly"];
+
     [JsonIgnore]
     public bool IsComplete =>
         Key != 0
-        && (Action != HotkeyAction.ApplyPreset || !string.IsNullOrWhiteSpace(Preset));
+        && (Action != HotkeyAction.ApplyPreset || !string.IsNullOrWhiteSpace(Preset))
+        && (Action != HotkeyAction.DisplayMode || Modes.Contains(Mode))
+        && (Action is not (HotkeyAction.RunCommand or HotkeyAction.OpenProgram) || !string.IsNullOrWhiteSpace(Command));
 
     /// <summary>
     /// The shortcut as a person reads it.
@@ -155,7 +203,8 @@ public sealed class Hotkey
     /// The rest are set but off - a shortcut nobody asked for that fires by
     /// accident, or holds a combination another program wanted, is worse than
     /// one that is a switch away. Contrast takes Shift as well, beside
-    /// brightness on the same keys.
+    /// brightness on the same keys, and Ctrl+Alt+1 to 4 are the four
+    /// arrangements Win+P offers, in Win+P's own order of usefulness.
     /// </para>
     /// </remarks>
     public static List<Hotkey> Defaults()
@@ -180,6 +229,10 @@ public sealed class Hotkey
             new() { Modifiers = CtrlAlt, Key = 'O', Action = HotkeyAction.OledCareToggle, Enabled = false },
             new() { Modifiers = CtrlAltShift, Key = 0x21, Action = HotkeyAction.ContrastUp, Step = 5, Enabled = false },
             new() { Modifiers = CtrlAltShift, Key = 0x22, Action = HotkeyAction.ContrastDown, Step = 5, Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = '1', Action = HotkeyAction.DisplayMode, Mode = "Extend", Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = '2', Action = HotkeyAction.DisplayMode, Mode = "Duplicate", Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = '3', Action = HotkeyAction.DisplayMode, Mode = "InternalOnly", Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = '4', Action = HotkeyAction.DisplayMode, Mode = "ExternalOnly", Enabled = false },
         ];
     }
 
@@ -200,7 +253,7 @@ public sealed class Hotkey
     }
 
     /// <summary>The defaults version this build offers; see <see cref="OfferDefaults"/>.</summary>
-    public const int DefaultsVersion = 5;
+    public const int DefaultsVersion = 6;
 
     /// <summary>Actions a defaults version added, offered to desks set up before it.</summary>
     private static readonly HotkeyAction[] AddedInVersion2 =
@@ -226,6 +279,13 @@ public sealed class Hotkey
     private static readonly HotkeyAction[] AddedInVersion5 = [HotkeyAction.PinWindow, HotkeyAction.GatherWindows];
 
     /// <summary>
+    /// Added in version 6, switched off: four shortcuts for what Win+P offers,
+    /// Ctrl+Alt+1 to 4. Off because each one reconfigures the display stack -
+    /// seconds of black screen - and a mistyped digit is an expensive accident.
+    /// </summary>
+    private static readonly HotkeyAction[] AddedInVersion6 = [HotkeyAction.DisplayMode];
+
+    /// <summary>
     /// Adds the defaults once, to a desk that has never been offered them, and
     /// later defaults once to a desk that was offered earlier ones.
     /// </summary>
@@ -245,7 +305,9 @@ public sealed class Hotkey
         {
             if (settings.Hotkeys.Any(h => h.Key == d.Key && h.Modifiers == d.Modifiers)) continue;
             if (from == 0) { settings.Hotkeys.Add(d); continue; }
-            if (settings.Hotkeys.Any(h => h.Action == d.Action)) continue;
+            // Four display-mode defaults share one action, so each is judged by
+            // the arrangement it applies as well.
+            if (settings.Hotkeys.Any(h => h.Action == d.Action && (d.Action != HotkeyAction.DisplayMode || h.Mode == d.Mode))) continue;
             if (from < 2 && AddedInVersion2.Contains(d.Action))
             {
                 d.Enabled = false;
@@ -254,6 +316,7 @@ public sealed class Hotkey
             else if (from < 3 && AddedInVersion3.Contains(d.Action)) settings.Hotkeys.Add(d);
             else if (from < 4 && AddedInVersion4.Contains(d.Action)) settings.Hotkeys.Add(d);
             else if (from < 5 && AddedInVersion5.Contains(d.Action)) settings.Hotkeys.Add(d);
+            else if (from < 6 && AddedInVersion6.Contains(d.Action)) settings.Hotkeys.Add(d);
         }
         g.HotkeyDefaultsOffered = true;
         g.HotkeyDefaultsVersion = DefaultsVersion;
@@ -296,9 +359,33 @@ public sealed class Hotkey
             HotkeyAction.GatherWindows => Display == 0
                 ? "Bring every window onto the display in use"
                 : $"Bring every window onto display {Display}",
+            HotkeyAction.DisplayMode => $"Switch the displays to {ModeName(Mode)}",
+            HotkeyAction.AmbientToggle => "Follow the room's light, or stop following it",
+            HotkeyAction.ReturnWindowsToggle => "Put windows back when a display returns, on or off",
+            HotkeyAction.NewWindowsToggle => "Open new windows on the display in use, on or off",
+            HotkeyAction.SoftwareDimUp => $"Software brightness up {Step}% on {where}",
+            HotkeyAction.SoftwareDimDown => $"Software brightness down {Step}% on {where}",
+            HotkeyAction.MakePrimary => Display == 0 ? "Make the display in use the main one" : $"Make display {Display} the main one",
+            HotkeyAction.HdrToggle => $"Turn HDR on or off on {where}",
+            HotkeyAction.VariableRefreshToggle => "Variable refresh rate on or off",
+            HotkeyAction.VolumeUp => $"Monitor volume up {Step}% on {where}",
+            HotkeyAction.VolumeDown => $"Monitor volume down {Step}% on {where}",
+            HotkeyAction.MuteToggle => $"Mute or unmute {where}",
+            HotkeyAction.RunCommand => $"Run: dispctrl {Command}",
+            HotkeyAction.OpenProgram => $"Open: {Command} {Arguments}".TrimEnd(),
             _ => Action.ToString(),
         };
     }
+
+    /// <summary>An arrangement as Win+P names it.</summary>
+    public static string ModeName(string? mode) => mode switch
+    {
+        "Extend" => "Extend",
+        "Duplicate" => "Duplicate",
+        "InternalOnly" => "PC screen only",
+        "ExternalOnly" => "Second screen only",
+        _ => "no arrangement chosen",
+    };
 
     /// <summary>
     /// A readable name for a virtual-key code.

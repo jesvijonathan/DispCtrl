@@ -6,8 +6,28 @@
   "type": "object",
   "required": ["schema", "target", "controls"],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "controls": {
+            "contains": {
+              "required": ["ddcWrite"],
+              "properties": { "ddcWrite": { "type": "object" } }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "schema": { "const": 2 },
+          "target": { "pattern": "^(GSM|LGD|LPL)-[0-9A-F]{4}$" }
+        }
+      }
+    }
+  ],
   "properties": {
-    "schema": { "const": 1 },
+    "schema": { "enum": [1, 2] },
     "target": { "type": "string", "pattern": "^(\\*|[A-Z]{3}(-[0-9A-F]{4})?)$", "description": "* for every monitor, DEL for a manufacturer, DEL-A234 for a model." },
     "name": { "type": ["string", "null"], "maxLength": 120 },
     "extends": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z]{3}(-[0-9A-F]{4})?$" }, "description": "Targets whose mappings this one takes first." },
@@ -33,6 +53,16 @@
           "name": { "type": "string", "minLength": 1, "maxLength": 80 },
           "kind": { "enum": ["range", "choice", "action", "information"] },
           "writable": { "type": "boolean", "description": "Only true once somebody has written it and seen what the monitor does." },
+          "ddcWrite": {
+            "type": ["object", "null"],
+            "description": "Model-specific LG input override. Only valid on logical code 0x60 with choice values; values are the LG wire values. Requires an LG model target.",
+            "required": ["sourceAddress", "code"],
+            "additionalProperties": false,
+            "properties": {
+              "sourceAddress": { "type": "string", "pattern": "^0[xX]50$" },
+              "code": { "type": "string", "pattern": "^0[xX][fF]4$" }
+            }
+          },
           "maximum": { "type": ["integer", "null"], "minimum": 0, "maximum": 65535 },
           "values": {
             "type": "array",

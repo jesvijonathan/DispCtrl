@@ -41,6 +41,8 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
     /// on some panels enough of them in a row makes it stop answering at all.
     /// </remarks>
     private CancellationTokenSource? _pending;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+    private string? _writeStatus;
 
     public MonitorControlViewModel(DisplayInfo display, VcpControl control, Action deskChanged)
     {
@@ -57,12 +59,12 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
     public string Code => _control.Hex;
 
     /// <summary>What this control is, for the line under its name.</summary>
-    public string Description => _control.Kind switch
+    public string Description => _writeStatus ?? (_control.WriteOnly ? "Choose an input; confirm the change on your monitor." : _control.Kind switch
     {
         VcpKind.Continuous => $"{_control.Hex} · the monitor's own setting, {_control.Maximum} steps",
         VcpKind.Discrete => $"{_control.Hex} · the monitor's own setting",
         _ => _control.Hex,
-    };
+    });
 
     public Visibility SliderVisibility =>
         _control.Kind == VcpKind.Continuous ? Visibility.Visible : Visibility.Collapsed;
@@ -90,7 +92,7 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
             Raise();
             Raise(nameof(ValueText));
 
-            Queue(() => MonitorCapabilities.Write(_display, _control.Code, (uint)v));
+            Queue(token => MonitorCapabilities.Write(_display, _control, (uint)v, out _));
             _deskChanged();
         }
     }
@@ -114,32 +116,73 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
             {
                 if (v.Name != value) continue;
 
+                if (_control.WriteOnly)
+                {
+                    Queue(token =>
+                    {
+                        bool sent = MonitorCapabilities.Write(_display, _control, v.Value, out string? error);
+                        _dispatcher?.TryEnqueue(() =>
+                        {
+                            if (token.IsCancellationRequested) return;
+                            _writeStatus = sent ? "Input command sent; confirm the change on your monitor." : error ?? "The input command failed.";
+                            _selected = null;
+                            Raise(nameof(Selected));
+                            Raise(nameof(Description));
+                            if (sent) _deskChanged();
+                        });
+                        return sent;
+                    });
+                    break;
+                }
+
                 _control.Current = v.Value;
-                Queue(() => MonitorCapabilities.Write(_display, _control.Code, v.Value));
+                Queue(token => MonitorCapabilities.Write(_display, _control, v.Value, out _));
                 _deskChanged();
                 break;
             }
         }
     }
 
-    private void Queue(Func<bool> write)
+    private void Queue(Func<CancellationToken, bool> write)
     {
         _pending?.Cancel();
-        _pending = new CancellationTokenSource();
-        CancellationToken token = _pending.Token;
+        _pending?.Dispose();
+        var pending = new CancellationTokenSource();
+        _pending = pending;
+        CancellationToken token = pending.Token;
 
-        _ = Task.Run(async () =>
+        _ = WriteAfterDelay();
+        async Task WriteAfterDelay()
         {
             try
             {
                 await Task.Delay(180, token).ConfigureAwait(false);
-                if (!token.IsCancellationRequested) write();
+                if (!token.IsCancellationRequested) write(token);
             }
             catch (TaskCanceledException)
             {
                 // Superseded by a later position in the same drag.
             }
-        }, token);
+            catch (Exception ex)
+            {
+                _dispatcher?.TryEnqueue(() =>
+                {
+                    if (token.IsCancellationRequested) return;
+                    _writeStatus = "The monitor command failed: " + ex.Message;
+                    if (_control.WriteOnly) { _selected = null; Raise(nameof(Selected)); }
+                    Raise(nameof(Description));
+                });
+            }
+            finally
+            {
+                _dispatcher?.TryEnqueue(() =>
+                {
+                    if (!ReferenceEquals(_pending, pending)) return;
+                    _pending = null;
+                    pending.Dispose();
+                });
+            }
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

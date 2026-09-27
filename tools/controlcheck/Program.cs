@@ -17,6 +17,62 @@ var service = new ControlService();
 try
 {
     Check(SettingsStore.Directory == scratch, "test settings are isolated");
+    using (var entered = new ManualResetEventSlim())
+    using (var release = new ManualResetEventSlim())
+    using (var queue = new DispCtrl.Engine.Input.HotkeyWorkQueue(_ => { }))
+    {
+        var order = new List<int>();
+        var drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Check(queue.TryEnqueue(() => { entered.Set(); release.Wait(TimeSpan.FromSeconds(10)); }), "shortcut worker accepts its first action");
+        Check(entered.Wait(TimeSpan.FromSeconds(5)), "shortcut worker starts independently of the caller");
+        for (int i = 0; i < DispCtrl.Engine.Input.HotkeyWorkQueue.Capacity; i++)
+        {
+            int index = i;
+            if (!queue.TryEnqueue(() =>
+            {
+                order.Add(index);
+                if (index == DispCtrl.Engine.Input.HotkeyWorkQueue.Capacity - 1) drained.SetResult();
+            })) throw new Exception("queue refused work below capacity");
+        }
+        Check(!queue.TryEnqueue(() => order.Add(-1)) && order.Count == 0, "slow shortcuts are bounded and cannot overlap an active action");
+        release.Set();
+        await drained.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Check(order.SequenceEqual(Enumerable.Range(0, DispCtrl.Engine.Input.HotkeyWorkQueue.Capacity)), "shortcut work drains in order");
+        var survived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        queue.TryEnqueue(() => throw new InvalidOperationException("test failure"));
+        queue.TryEnqueue(() => survived.SetResult());
+        await survived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Check(true, "a failed shortcut cannot strand later work");
+        entered.Reset(); release.Reset();
+        queue.TryEnqueue(() => { entered.Set(); release.Wait(TimeSpan.FromSeconds(10)); });
+        if (!entered.Wait(TimeSpan.FromSeconds(5))) throw new Exception("worker did not restart");
+        queue.TryEnqueue(() => order.Add(-2));
+        queue.Clear();
+        var clearDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        queue.TryEnqueue(() => clearDone.SetResult());
+        release.Set();
+        await clearDone.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Check(!order.Contains(-2), "restore can discard pending shortcut actions");
+        queue.Dispose();
+        Check(!queue.TryEnqueue(() => { }), "disposed shortcuts cannot schedule work");
+    }
+    var editorKey = new Hotkey { Key = '9', Modifiers = 3, Action = HotkeyAction.Identify };
+    var editor = new DispCtrl.App.ViewModels.HotkeyViewModel(editorKey, () => { }, () => []);
+    var notified = new HashSet<string?>();
+    editor.PropertyChanged += (_, e) => notified.Add(e.PropertyName);
+    editor.SelectedActionIndex = editor.ActionNames.ToList().FindIndex(n => n.StartsWith("Display mode:"));
+    Check(editorKey.Mode == "Extend" && editor.ModeVisibility == Microsoft.UI.Xaml.Visibility.Visible
+        && notified.Contains(nameof(editor.ModeVisibility)) && notified.Contains(nameof(editor.SelectedModeIndex)),
+        "changing a shortcut to display mode refreshes the picker and stores its visible default");
+    notified.Clear();
+    editor.SelectedActionIndex = editor.ActionNames.ToList().FindIndex(n => n.StartsWith("Open a program"));
+    Check(editor.CommandVisibility == Microsoft.UI.Xaml.Visibility.Visible && editor.ArgumentsVisibility == Microsoft.UI.Xaml.Visibility.Visible
+        && notified.Contains(nameof(editor.CommandVisibility)) && notified.Contains(nameof(editor.ArgumentsVisibility))
+        && notified.Contains(nameof(editor.CommandHeader)), "program shortcut fields appear when the action changes");
+    editor.SelectedModeIndex = 2;
+    Check(editorKey.Mode == "Extend", "a collapsed mode picker cannot edit another action");
+    editor.Step = 100; editor.DisplayNumber = 16;
+    Check(editorKey.Step == 100 && editorKey.Display == 16, "shortcut editor supports the same limits as the CLI");
     var defaults = SettingsDocument.Read();
     Check(SettingsDocument.Validate(defaults).Version == 1, "default settings pass validation");
     Check(SettingsDocument.Schema().ToJsonString().Contains("oledWakeOnPointerReturn"), "schema exposes current monitor features");
@@ -246,9 +302,10 @@ try
         "upgrading hotkeys keeps existing bindings, offers new actions once, and only Turn off displays, Restore, Pin and Gather switched on");
     var fromThree = new DispCtrlSettings();
     fromThree.Global.HotkeyDefaultsVersion = 3;
-    Check(Hotkey.OfferDefaults(fromThree) && fromThree.Hotkeys.Count == 3 && fromThree.Hotkeys[0].Action == HotkeyAction.RestoreDisplays
-        && fromThree.Hotkeys.All(h => h.Enabled && h.Action is HotkeyAction.RestoreDisplays or HotkeyAction.PinWindow or HotkeyAction.GatherWindows),
-        "a desk on version 3 is offered restore, then pin and gather, switched on");
+    Check(Hotkey.OfferDefaults(fromThree) && fromThree.Hotkeys.Count == 7 && fromThree.Hotkeys[0].Action == HotkeyAction.RestoreDisplays
+        && fromThree.Hotkeys.All(h => h.Enabled == h.Action is HotkeyAction.RestoreDisplays or HotkeyAction.PinWindow or HotkeyAction.GatherWindows)
+        && fromThree.Hotkeys.Count(h => h.Action == HotkeyAction.DisplayMode) == 4,
+        "a desk on version 3 is offered restore, pin and gather switched on, and the four display modes switched off");
     var messy = new DispCtrlSettings();
     messy.Global.Awake.DisplaysOffUtc = DateTimeOffset.UtcNow;
     messy.Global.Focus.Enabled = messy.Global.NightLight.Enabled = messy.Global.OledCare.Enabled = true;
@@ -284,10 +341,30 @@ try
     var fromTwo = new DispCtrlSettings();
     fromTwo.Global.HotkeyDefaultsVersion = 2;
     fromTwo.Hotkeys.Add(new Hotkey { Modifiers = 3, Key = 'L', Action = HotkeyAction.Identify });
-    Check(Hotkey.OfferDefaults(fromTwo) && fromTwo.Hotkeys.Count == 4
+    Check(Hotkey.OfferDefaults(fromTwo) && fromTwo.Hotkeys.Count == 8
         && !fromTwo.Hotkeys.Any(h => h.Action == HotkeyAction.DisplaysOffToggle)
         && fromTwo.Hotkeys.Any(h => h.Action == HotkeyAction.RestoreDisplays),
         "a version 3 default is never offered over a combination something else holds, nor are version 2's again");
+    var modes = new DispCtrlSettings();
+    Hotkey.OfferDefaults(modes);
+    Check(modes.Hotkeys.Count(h => h.Action == HotkeyAction.DisplayMode) == 4
+        && Hotkey.Modes.All(m => modes.Hotkeys.Any(h => h.Action == HotkeyAction.DisplayMode && h.Mode == m && !h.Enabled && h.IsComplete))
+        && !new Hotkey { Key = 'E', Modifiers = 3, Action = HotkeyAction.DisplayMode }.IsComplete,
+        "each Win+P arrangement gets a shortcut of its own, off, and one without an arrangement is incomplete");
+    var migratedModes = new DispCtrlSettings();
+    migratedModes.Global.HotkeyDefaultsVersion = 5;
+    migratedModes.Hotkeys.Add(new() { Key = '9', Modifiers = 3, Action = HotkeyAction.DisplayMode, Mode = "Duplicate" });
+    Hotkey.OfferDefaults(migratedModes);
+    Check(migratedModes.Hotkeys.Count(h => h.Action == HotkeyAction.DisplayMode) == 4
+        && migratedModes.Hotkeys.Count(h => h.Mode == "Duplicate") == 1,
+        "display-mode migration retains a custom binding and adds only missing arrangements");
+    Check(await ControlTerminal.RunAsync(["hotkeys", "add", "--keys", "Ctrl+Alt+Shift+F11", "--action", "open-program",
+        "--command", "123", "--arguments=--flag 123", "--local"]) == 0
+        && SettingsStore.Load().Hotkeys.Any(h => h.Command == "123" && h.Arguments == "--flag 123"),
+        "custom shortcut text preserves numeric targets and dash-prefixed arguments");
+    Check(service.Execute(Request("hotkeys.add", new() { ["keys"] = "Ctrl+Alt+Shift+F12", ["action"] = "display-mode", ["mode"] = "bogus" }))["exitCode"]!.GetValue<int>() == 2
+        && service.Execute(Request("hotkeys.add", new() { ["keys"] = "Ctrl+Alt+Shift+F12", ["action"] = "run-command", ["command"] = " " }))["exitCode"]!.GetValue<int>() == 2,
+        "invalid arrangements and empty custom commands are rejected before persistence");
     var resetAll = new DispCtrlSettings();
     resetAll.Global.QuickPanel.Simple = !new QuickPanelSettings().Simple;
     resetAll.Global.UnisonFollowsWindows = !new GlobalSettings().UnisonFollowsWindows;
@@ -427,7 +504,7 @@ try
     var resetReply = service.Execute(Request("settings.reset"));
     var afterReset = SettingsStore.Load();
     Check(resetReply["ok"]!.GetValue<bool>() && afterReset.For("FAKE-panel").Alias == "office"
-        && afterReset.Hotkeys.Count(h => h.Enabled) == 8 && afterReset.Hotkeys.Count == 17
+        && afterReset.Hotkeys.Count(h => h.Enabled) == 8 && afterReset.Hotkeys.Count == Hotkey.Defaults().Count
         && afterReset.Global.QuickPanel.Simple == new QuickPanelSettings().Simple && afterReset.Global.Focus.DimPercent == new FocusSettings().DimPercent,
         "CLI reset all matches the app: all groups and default hotkeys reset while monitor names survive");
     // A client holding settings while the file is broken by hand: its save used

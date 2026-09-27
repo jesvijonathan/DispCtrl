@@ -92,6 +92,12 @@ is the format, and [docs/DEVICE-LIBRARY.md](../docs/DEVICE-LIBRARY.md) the desig
 
 ## Contributing one
 
+LG monitors that need alternate-address input switching can carry a
+model-specific `ddcWrite` mapping. It is included in contributions; the
+contribution itself does not test the switch. See
+[LG input switching](../docs/LG-INPUT-SWITCHING.md) for setup, GPU requirements
+and the definition format.
+
 ```
 dispctrl devices list                    # every monitor this PC has seen
 dispctrl devices show --monitor 2        # every code, and which nobody has named

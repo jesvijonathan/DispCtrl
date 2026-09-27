@@ -107,6 +107,14 @@ internal static class DdcChannel
     /// not only on this process's first conversation with the monitor.
     /// </param>
     public static unsafe T With<T>(DisplayInfo display, Func<HANDLE, T> work, T fallback, bool risky = false)
+        => Locked(display, (display, work, fallback), static state => WithPhysicalMonitor(state.display, state.work, state.fallback), fallback, risky);
+
+    /// <summary>Serializes raw GPU I2C and Windows DDC calls through the same guard.</summary>
+    internal static T Locked<T>(DisplayInfo display, Func<T> work, T fallback, bool risky = false)
+        => Locked(display, work, static action => action(), fallback, risky);
+
+    // Pass state explicitly so the ordinary DDC path adds no capturing closure.
+    private static T Locked<T, TState>(DisplayInfo display, TState state, Func<TState, T> work, T fallback, bool risky)
     {
         // A monitor that has taken Windows down is not spoken to at all.
         if (DdcGuard.IsBlocked(display)) return fallback;
@@ -129,7 +137,19 @@ internal static class DdcChannel
         if (!held) return fallback;
 
         // Marked after the gate, so a mark covers the read and not the wait for it.
-        IDisposable? mark = risky || DdcGuard.FirstConversation(display) ? DdcGuard.Enter(display) : null;
+        try
+        {
+            using IDisposable? mark = risky || DdcGuard.FirstConversation(display) ? DdcGuard.Enter(display) : null;
+            return work(state);
+        }
+        finally
+        {
+            gate.ReleaseMutex();
+        }
+    }
+
+    private static unsafe T WithPhysicalMonitor<T>(DisplayInfo display, Func<HANDLE, T> work, T fallback)
+    {
         try
         {
             var hmon = new HMONITOR((void*)display.Handle);
@@ -145,20 +165,15 @@ internal static class DdcChannel
             {
                 return work(monitors[0].hPhysicalMonitor);
             }
-            catch (Exception)
-            {
-                return fallback;
-            }
             finally
             {
                 foreach (PHYSICAL_MONITOR m in monitors)
                     PInvoke.DestroyPhysicalMonitor(m.hPhysicalMonitor);
             }
         }
-        finally
+        catch (Exception)
         {
-            mark?.Dispose();
-            gate.ReleaseMutex();
+            return fallback;
         }
     }
 }
