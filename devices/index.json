@@ -1,12 +1,12 @@
 {
   "schema": 2,
   "generated": "tools/devicecheck index - do not edit; regenerated after every merge",
-  "counts": { "brands": 7, "models": 11, "records": 11, "definitions": 2 },
+  "counts": { "brands": 7, "models": 12, "records": 12, "definitions": 2 },
   "common": 0,
   "brands": {
     "AUO": {"brandCodes":0,"models":1},
     "BNQ": {"brandCodes":0,"models":1},
-    "BOE": {"brandCodes":0,"models":1},
+    "BOE": {"brandCodes":0,"models":2},
     "DEL": {"brandCodes":0,"models":3},
     "GSM": {"brandCodes":0,"models":3},
     "SDC": {"brandCodes":0,"models":1},
@@ -16,6 +16,7 @@
     "AUO-45EC": {"name":"Built-in panel, 15.5 inch, in Hewlett-Packard 103C_5335KV G=N L=CON B=HP S=PAV X=Null HP Pavilion 15 Notebook PC","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-25T07:21:29Z","extends":[]},
     "BNQ-7FB7": {"name":"BenQ XL2566K","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-25T06:13:37Z","extends":[]},
     "BOE-0923": {"name":"Built-in panel, 15.5 inch, in Dell Latitude 5540","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-24T17:28:24Z","extends":[]},
+    "BOE-0B8E": {"name":"Built-in panel, 15.5 inch, in Dell Latitude 5540","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-26T08:13:51Z","extends":[]},
     "DEL-A234": {"name":"Dell U2424H","record":true,"codes":1,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T16:10:30Z","extends":[]},
     "DEL-A283": {"name":"Dell AW2725Q","record":true,"codes":0,"panel":"OLED","writable":0,"reports":1,"added":"2026-09-25T06:13:37Z","extends":[]},
     "DEL-D146": {"name":"Dell P2723DE","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T17:28:24Z","extends":[]},
