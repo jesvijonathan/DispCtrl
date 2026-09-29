@@ -68,7 +68,7 @@ public static partial class DeviceContribution
         var payload = new JsonObject
         {
             ["schema"] = 1,
-            ["kind"] = "dispctrl-device-mapping",
+            ["kind"] = DeviceShare.Kind,
             ["model"] = model,
             ["name"] = name,
             ["definitions"] = new JsonArray(DeviceLibrary.LocalFor(model)
@@ -104,16 +104,17 @@ public static partial class DeviceContribution
         // code was seen to do - always goes in the link, compact, and only the
         // record, which describes the model rather than anyone's mapping, is
         // left for the clipboard. The intake takes a record only when it has
-        // the "Device key" line, so this placeholder is never saved as one.
+        // the "Device key" line, so this placeholder is never saved as one, and
+        // a share still holding it for a model with no record is sent back.
         if (Link(body).Length <= MaxUrlLength) return new MappingShare(model, name, body, path, new Uri(Link(body)), true, null);
-        string placeholder = $"### {name} ({model})\n\n_DispCtrl copied this model's full record to the clipboard, because it is too long for a link. Paste it here, in place of this line._\n\n";
+        string placeholder = $"### {name} ({model})\n\n{DeviceShare.RecordPlaceholder}\n\n";
         if (Link(placeholder + mappings).Length <= MaxUrlLength)
             return new MappingShare(model, name, body, path, new Uri(Link(placeholder + mappings)), false, record);
 
         // Keep one JSON block per model. Prefilling a reduced block and asking
         // for the complete body to be pasted used to leave two conflicting ones.
         return new MappingShare(model, name, body, path,
-            new Uri(Link("Paste the complete device contribution copied by DispCtrl here, replacing this line.")), false, body);
+            new Uri(Link(DeviceShare.BodyPlaceholder)), false, body);
     }
 
     /// <summary>Combines every model in the device list into one reviewable issue.</summary>
@@ -133,11 +134,11 @@ public static partial class DeviceContribution
         string body = string.Join("\n\n---\n\n", shares.Select(s => s.Body.Trim()));
         string title = $"Device library: {shares.Count} model(s)";
         string summary = "Devices: " + string.Join(", ", shares.Select(s => s.Model))
-            + "\n\nPaste the complete device contribution copied by DispCtrl here, replacing this text.";
+            + "\n\n" + DeviceShare.BodyPlaceholder;
         string Link(string text) => $"https://github.com/{Repository}/issues/new?labels=device,{MappingLabel}"
             + $"&title={WebUtility.UrlEncode(title)}&body={WebUtility.UrlEncode(text)}";
         bool fits = Link(body).Length <= MaxUrlLength;
-        if (Link(summary).Length > MaxUrlLength) summary = "Paste the complete device contribution copied by DispCtrl here.";
+        if (Link(summary).Length > MaxUrlLength) summary = DeviceShare.BodyPlaceholder;
         string path = System.IO.Path.Combine(Outbox, "all-devices.md");
         Directory.CreateDirectory(Outbox);
         File.WriteAllText(path, body);

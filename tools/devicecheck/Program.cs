@@ -167,6 +167,62 @@ static int SelfTest()
             "each issue is counted once per model, by number, and a repeat of the same issue changes nothing");
         Check(!File.ReadAllText(DeviceLayout.ReportsPath(reported, "TST-0707")).Contains('@')
             && Validate(reported) == 0, "a report list holds numbers only and passes validation");
+
+        // A share whose paste was forgotten. The intake used to take #24 in as
+        // a bare report - a model with no name - and ignore #25 altogether.
+        (int Code, string Log) Run(Func<int> intake)
+        {
+            TextWriter was = Console.Out;
+            using var log = new StringWriter();
+            Console.SetOut(log);
+            try { return (intake(), log.ToString()); }
+            finally { Console.SetOut(was); }
+        }
+        string Mappings(string model) { string s = Share(model); return s[s.IndexOf("### Mappings", StringComparison.Ordinal)..]; }
+        const string EarlierRecordPlaceholder = "_DispCtrl copied this model's full record to the clipboard, because it is too long for a link. Paste it here, in place of this line._";
+        const string EarlierBodyPlaceholder = "Paste the complete device contribution copied by DispCtrl here, replacing this text.";
+        Check(DeviceShare.HasPlaceholder(DeviceShare.RecordPlaceholder) && DeviceShare.HasPlaceholder(DeviceShare.BodyPlaceholder)
+            && DeviceShare.HasPlaceholder(EarlierRecordPlaceholder) && DeviceShare.HasPlaceholder(EarlierBodyPlaceholder)
+            && !DeviceShare.HasPlaceholder(Share("TST-0101")), "the app's placeholders, this release's and earlier, are the ones the intake looks for");
+        string unpasted = Path.Combine(temp, "unpasted");
+        foreach (string placeholder in new[] { EarlierBodyPlaceholder, DeviceShare.BodyPlaceholder })
+        {
+            File.WriteAllText(input, $"Devices: TST-0B0B, TST-0C0C\n\n{placeholder}");
+            var run = Run(() => Intake(input, unpasted, 25));
+            Check(run.Code == 5 && run.Log.Contains("incomplete: ", StringComparison.Ordinal) && !Directory.Exists(unpasted),
+                "a combined share submitted as its placeholder is sent back, not passed over (#25)");
+        }
+        foreach (string placeholder in new[] { EarlierRecordPlaceholder, DeviceShare.RecordPlaceholder })
+        {
+            File.WriteAllText(input, $"### DELL TEST (TST-0B0B)\n\n{placeholder}\n\n" + Mappings("TST-0B0B"));
+            var run = Run(() => Intake(input, unpasted, 24));
+            Check(run.Code == 5 && run.Log.Contains("incomplete: TST-0B0B", StringComparison.Ordinal) && !Directory.Exists(unpasted),
+                "a new model whose record placeholder was not pasted over writes nothing, not even a report (#24)");
+        }
+        File.WriteAllText(input, Share("TST-0C0C") + "\n\n---\n\n" + $"### DELL TEST (TST-0B0B)\n\n{DeviceShare.RecordPlaceholder}\n\n" + Mappings("TST-0B0B"));
+        var partly = Run(() => Intake(input, unpasted, 26));
+        Check(partly.Code == 5 && partly.Log.Contains("incomplete: TST-0B0B", StringComparison.Ordinal) && !Directory.Exists(unpasted),
+            "one unpasted model holds back the whole combined share, so it goes in complete once edited");
+        File.WriteAllText(input, $"### TST-0101 (TST-0101)\n\n{DeviceShare.RecordPlaceholder}\n\n" + Mappings("TST-0101"));
+        var known = Run(() => Intake(input, output, 27));
+        Check(known.Code == 0 && !known.Log.Contains("incomplete", StringComparison.Ordinal)
+            && ReadReports(DeviceLayout.ReportsPath(output, "TST-0101")) is [27],
+            "a placeholder left for a model the library already has a record of costs nothing");
+        string beside = Path.Combine(temp, "beside");
+        File.WriteAllText(input, $"### DELL TEST (TST-0D0D)\n\n{DeviceShare.RecordPlaceholder}\n\n" + Share("TST-0D0D"));
+        string record0D = Run(() => Intake(input, beside, 28)).Code == 0 ? File.ReadAllText(DeviceLayout.RecordPath(beside, "TST-0D0D")) : "";
+        string above = Share("TST-0E0E");
+        int mappingsAt = above.IndexOf("### Mappings", StringComparison.Ordinal);
+        File.WriteAllText(input, above[..mappingsAt] + $"\n### DELL TEST (TST-0E0E)\n\n{EarlierRecordPlaceholder}\n\n" + above[mappingsAt..]);
+        string record0E = Run(() => Intake(input, beside, 29)).Code == 0 ? File.ReadAllText(DeviceLayout.RecordPath(beside, "TST-0E0E")) : "";
+        Check(record0D.StartsWith("### TST-0D0D\n", StringComparison.Ordinal) && record0E.StartsWith("### TST-0E0E\n", StringComparison.Ordinal)
+            && !DeviceShare.HasPlaceholder(record0D + record0E) && !record0D.Contains("DELL TEST") && !record0E.Contains("DELL TEST")
+            && Validate(beside) == 0,
+            "a record pasted under or above the placeholder goes in without the placeholder");
+        File.WriteAllText(input, Mappings("TST-0F0F"));
+        var nameless = Run(() => Intake(input, Path.Combine(temp, "nameless"), 30));
+        Check(nameless.Code == 0 && nameless.Log.Contains("review: TST-0F0F", StringComparison.Ordinal),
+            "a new model shared with no record at all waits for a person instead of going in nameless");
         Console.WriteLine($"{checks} intake checks passed.");
         return 0;
     }
@@ -363,15 +419,26 @@ static int Index(string root, bool check)
 // for a well-formed model key are written, and a person reviews the pull request.
 // The index is not touched: it is regenerated after the merge, so two shares
 // never conflict over it.
+// Exit codes: 0 written, 1 refused, 3 not a share, 4 already in the library,
+// 5 incomplete - DispCtrl's "paste here" placeholder is still where a record or
+// the whole contribution belongs. Nothing is written for 5; the workflow asks
+// for the paste and leaves the issue open, and editing it runs the intake again.
 static int Intake(string bodyFile, string root, int? issue = null)
 {
     string body = File.ReadAllText(bodyFile).Replace("\r\n", "\n");
     MatchCollection blocks = Regex.Matches(body, "```json\\s*\\n(?<json>\\{.*?\\})\\s*\\n```", RegexOptions.Singleline);
+    if (blocks.Count == 0 && DeviceShare.HasPlaceholder(body))
+    {
+        // #25: the combined link's summary, submitted without the paste.
+        Console.WriteLine("incomplete: the issue still holds DispCtrl's placeholder, and no device data; paste the contribution DispCtrl copied to the clipboard over it");
+        return 5;
+    }
     if (blocks.Count == 0) { Console.Error.WriteLine("No JSON block: not a DispCtrl device share."); return 3; }
     // Stage every model first. A malformed later model must not leave half a
     // combined submission written to disk.
     var pending = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     int start = 0, recognised = 0;
+    bool incomplete = false;
     foreach (Match block in blocks)
     {
         JsonNode? payload;
@@ -385,9 +452,11 @@ static int Intake(string bodyFile, string root, int? issue = null)
         // model's record no longer began with its heading and was dropped.
         if (Regex.Match(section, "^### ", RegexOptions.Multiline) is { Success: true, Index: > 0 } heading)
             section = section[heading.Index..];
-        if (payload?["kind"]?.GetValue<string>() != "dispctrl-device-mapping") continue;
+        if (payload?["kind"]?.GetValue<string>() != DeviceShare.Kind) continue;
         recognised++;
         int code = IntakeModel(section, payload, root, pending);
+        // Every model is still read, so the issue is told all that is missing at once.
+        if (code == 5) { incomplete = true; continue; }
         if (code != 0) return code;
 
         // The issue it came in, by number: a second owner confirming a model
@@ -406,6 +475,12 @@ static int Intake(string bodyFile, string root, int? issue = null)
         }
     }
     if (recognised == 0) return 3;
+    if (incomplete)
+    {
+        // #24 went in as a bare report: a model with no name and no record.
+        Console.WriteLine("nothing written: the share is incomplete");
+        return 5;
+    }
     foreach (var (path, text) in pending)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -486,19 +561,38 @@ static int IntakeModel(string body, JsonNode payload, string root, Dictionary<st
     // was attached while sharing. New models get one; existing ones keep theirs
     // unless the maintainer takes the new text from the pull request.
     int split = body.IndexOf("\n### Mappings", StringComparison.Ordinal);
-    string record = split > 0 ? body[..split].Trim() : "";
+    string head = split > 0 ? body[..split] : "";
+    // Pasted beside the placeholder rather than over it, the record is kept
+    // and the placeholder is not: it would otherwise be saved as part of it.
+    // The placeholder is one line, under a heading of its own.
+    const string PlaceholderLine = @"^(?:### [^\n]*\n\s*)?[^\n]*(?:DispCtrl copied|copied by DispCtrl)[^\n]*(?:\n|$)";
+    string record = Regex.Replace(head, PlaceholderLine, "", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Trim();
     string recordPath = DeviceLayout.RecordPath(root, model);
+    bool haveRecord = File.Exists(recordPath) || pending.ContainsKey(recordPath);
     // A real record names its key; a share whose record was too long for the
     // link carries a placeholder heading instead, and one made while the
     // monitor was unplugged carries none. Neither is a record.
     if (record.StartsWith("### ", StringComparison.Ordinal) && record.Contains($"Device key: `{model}`", StringComparison.Ordinal)
-        && !File.Exists(recordPath) && !pending.ContainsKey(recordPath))
+        && !haveRecord)
     {
         var leaks = RecordProblems(record, model).Where(p => !p.StartsWith("does not name", StringComparison.Ordinal)).ToList();
         if (leaks.Count > 0) { Console.Error.WriteLine($"record refused: {string.Join("; ", leaks)}"); return 1; }
         pending[recordPath] = record + "\n";
         Console.WriteLine($"record {model} -> {Rel(root, recordPath)}");
         written++;
+    }
+    else if (!haveRecord)
+    {
+        // The paste was forgotten: the record is on the sharer's clipboard,
+        // and the library has nothing else to name the model by.
+        if (DeviceShare.HasPlaceholder(head))
+        {
+            Console.WriteLine($"incomplete: {model}: the placeholder is still where its record belongs; paste the record DispCtrl copied to the clipboard over that line");
+            return 5;
+        }
+        // Shared while unplugged: worth having, but a person decides whether a
+        // model the library cannot name goes in as it is.
+        Console.WriteLine($"review: {model} arrives with no record, so the library would list it with no name; share it again with the monitor attached, or merge it as it is");
     }
 
     Console.WriteLine(written == 0 ? "nothing to add" : $"{written} file(s) written");

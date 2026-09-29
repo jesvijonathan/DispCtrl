@@ -149,13 +149,17 @@ jobs:
 
   shares:
     # Recognised by the payload, not a label: GitHub drops the labels a
-    # prefilled link asks for when the author cannot triage. "Every open share"
+    # prefilled link asks for when the author cannot triage. A share whose
+    # paste was forgotten carries DispCtrl's placeholder instead, and is read
+    # too, so its author is asked for the paste rather than left waiting (#25).
+    # "Every open share"
     # is each open issue carrying one, less those with a pull request open
     # already; an issue closed after its merge is not taken in twice.
     # Automatic runs skip bots, accounts under two weeks old and anyone with
     # more than three shares open; naming an issue by hand takes it regardless.
     if: >-
-      (github.event_name == 'issues' && contains(github.event.issue.body, 'dispctrl-device-mapping')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, 'dispctrl-device-mapping') ||
+       contains(github.event.issue.body, 'DispCtrl copied') || contains(github.event.issue.body, 'copied by DispCtrl'))) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && startsWith(github.event.comment.body, '/intake') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
       github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'intake an issue' || inputs.action == 'intake every open share'))
@@ -213,7 +217,7 @@ jobs:
             while read -r number login; do
               if [ -n "$number" ] && eligible "$login" "$number"; then list="$list$number,"; fi
             done < <(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json number,body,author \
-              --jq ".[] | select((.body // \"\") | contains(\"dispctrl-device-mapping\")) | select(([.number] - $pending) | length > 0) | \"\\(.number) \\(.author.login)\"")
+              --jq ".[] | select((.body // \"\") | test(\"dispctrl-device-mapping|DispCtrl copied|copied by DispCtrl\"; \"i\")) | select(([.number] - $pending) | length > 0) | \"\\(.number) \\(.author.login)\"")
             list="${list%,}]"
           fi
           echo "issues=$list" >> "$GITHUB_OUTPUT"
@@ -359,8 +363,30 @@ jobs:
           # Exit 4: every model in it already carries this issue's number.
           gh issue comment "$ISSUE" --body "Everything in this share is already in the device library. Thanks!"
           gh issue close "$ISSUE" --reason completed
+      - name: Ask for what was not pasted
+        if: steps.intake.outputs.code == '5'
+        run: |
+          # Exit 5: DispCtrl's placeholder is still where a record, or the
+          # whole contribution, belongs. Nothing was written and the issue stays
+          # open; saving it with the paste runs the intake again. Asked once per
+          # version of the issue, so the weekly run does not repeat itself.
+          marker="<!-- dispctrl-intake-incomplete $(sha256sum "$RUNNER_TEMP/issue.md" | cut -c1-16) -->"
+          if gh issue view "$ISSUE" --json comments --jq '.comments[].body' | grep -qF "$marker"; then
+            echo "Already asked about this version of the issue."
+            exit 0
+          fi
+          {
+            echo "$marker"
+            echo "Thanks for sharing. Part of this share was on your clipboard and did not make it into the issue, so nothing has been added yet:"
+            echo
+            # Fixed text and validated model keys only; nothing from the body.
+            sed -n 's/^incomplete: /- /p' "$RUNNER_TEMP/intake.log"
+            echo
+            echo "Edit this issue and paste over the placeholder line. If the clipboard has moved on, **Devices > Contribute > Copy all** in DispCtrl copies it again (it is also saved under \`devices\\outbox\` in DispCtrl's data folder). The share is read again as soon as you save the edit."
+          } > "$RUNNER_TEMP/comment.md"
+          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/comment.md"
       - name: Explain a share that could not be read
-        if: steps.intake.outputs.code != '0' && steps.intake.outputs.code != '3' && steps.intake.outputs.code != '4'
+        if: steps.intake.outputs.code != '0' && steps.intake.outputs.code != '3' && steps.intake.outputs.code != '4' && steps.intake.outputs.code != '5'
         run: |
           {
             echo "The intake could not read this share:"
@@ -381,6 +407,7 @@ jobs:
             0/*) result="stopped by the gate; see the log" ;;
             3/*) result="not a device share; nothing to do" ;;
             4/*) result="already in the library; issue closed" ;;
+            5/*) result="incomplete: the pasted part is missing; the issue was asked for it and left open" ;;
             *) result="could not be read; the issue has a comment explaining why" ;;
           esac
           echo "## Device share intake: issue #$ISSUE - $result" >> "$GITHUB_STEP_SUMMARY"

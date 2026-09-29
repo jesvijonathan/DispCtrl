@@ -181,8 +181,10 @@ named - they are what a mapping is worked out from; a standard control's value
 is somebody's setting and stays out. The whole body goes through `Redact.Scrub`
 and the ASCII fold, like every record. The app shows the exact text first.
 There is no token and no request from DispCtrl: the browser opens with the body
-filled in, or, when it is too long for a link, with an empty form and the body
-on the clipboard.
+filled in, or, when it is too long for a link, with a placeholder where the
+record (or the whole contribution) goes and that text on the clipboard, to be
+pasted over the placeholder before submitting. **Copy all** in the app copies
+it again, and it is saved under `devices\outbox` in DispCtrl's data folder.
 
 ## The backend
 
@@ -214,6 +216,15 @@ The repository is the backend; there is no server.
   push that meets a conflicting change gives up and the weekly run retries. A share it cannot read gets
   a comment saying why. The issue body is passed through the environment,
   never into a script.
+- **A share whose paste was forgotten is sent back, not taken in.** When
+  DispCtrl's placeholder is still where a new model's record belongs, or the
+  issue is nothing but the combined link's placeholder, the intake writes
+  nothing (exit 5), the issue is asked once for the paste and stays open, and
+  editing it runs the intake again. One such model holds back the whole share,
+  so it goes in complete. Issues carrying only the placeholder are picked up
+  too. A record pasted beside the placeholder is kept without it. A new model
+  shared with no record at all (shared while unplugged) is not refused, but it
+  becomes a pull request, since the library could not name it.
 - Automatic intake passes over bots, accounts under two weeks old and
   authors with more than three shares open; the run summary says which and
   why, and the issue is told a maintainer will take it in. "Intake an issue"

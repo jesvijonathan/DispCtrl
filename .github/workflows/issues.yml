@@ -28,7 +28,7 @@ jobs:
     steps:
       - name: Label, and ask for what is missing
         run: |
-          if printf '%s' "$BODY" | grep -q 'dispctrl-device-mapping'; then
+          if printf '%s' "$BODY" | grep -qE 'dispctrl-device-mapping|DispCtrl copied|copied by DispCtrl'; then
             gh issue edit "$ISSUE" --add-label device || true
             exit 0
           fi
