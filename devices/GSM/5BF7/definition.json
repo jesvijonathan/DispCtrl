@@ -1,169 +1,110 @@
 {
-  "schema": 1,
+  "schema": 2,
   "target": "GSM-5BF7",
   "name": "LG ULTRAWIDE",
   "extends": [],
   "controls": [
     {
+      "code": "0x60",
+      "name": "Input source",
+      "kind": "choice",
+      "writable": true,
+      "ddcWrite": { "sourceAddress": "0x50", "code": "0xF4" },
+      "values": [
+        { "value": "0x90", "name": "HDMI 1" },
+        { "value": "0xD0", "name": "DisplayPort 1" },
+        { "value": "0xD1", "name": "USB-C" }
+      ],
+      "confidence": "verified",
+      "sources": [ "GSM-5BF7" ],
+      "notes": "Standard 0x60 writes do not switch this model. LG alternate input (source 0x50, VCP 0xF4) was confirmed on the reporter's 29U531A in the ddcutil wiki 'Switching input source on LG monitors'. HDMI 2 is not listed until its wire value is confirmed (0x91 on most LG models)."
+    },
+    {
       "code": "0x15",
-      "name": "Picture Mode",
+      "name": "Picture mode",
       "kind": "choice",
       "writable": false,
       "values": [
-        {
-          "value": "0x1",
-          "name": "Reader"
-        },
-        {
-          "value": "0x0b",
-          "name": "Custom"
-        },
-        {
-          "value": "0x6",
-          "name": "Color Weakness"
-        },
-        {
-          "value": "0xE",
-          "name": "Hidden1"
-        },
-        {
-          "value": "0x1A",
-          "name": "Hidden2"
-        },
-        {
-          "value": "0x1E",
-          "name": "FPS"
-        },
-        {
-          "value": "0x1f",
-          "name": "RTS"
-        },
-        {
-          "value": "0x20",
-          "name": "Hidden 3"
-        },
-        {
-          "value": "0x27",
-          "name": "HDR Effect"
-        }
+        { "value": "0x01", "name": "Reader" },
+        { "value": "0x06", "name": "Color Weakness" },
+        { "value": "0x0B", "name": "Custom" },
+        { "value": "0x0E", "name": "Hidden 1" },
+        { "value": "0x1A", "name": "Hidden 2" },
+        { "value": "0x1E", "name": "FPS" },
+        { "value": "0x1F", "name": "RTS" },
+        { "value": "0x20", "name": "Hidden 3" },
+        { "value": "0x27", "name": "HDR Effect" }
       ],
       "confidence": "observed",
-      "sources": [
-        "GSM-5BF7"
-      ],
-      "notes": ""
+      "sources": [ "GSM-5BF7" ],
+      "notes": "Values read back after choosing each mode in the menu; they differ from the capabilities list 15(01 06 11 13 14 28 29 32 48). Reader, Custom, Color Weakness, FPS, RTS and HDR Effect match ddccontrol-db for other LG models. Hidden 1-3 are not in the menu."
     },
     {
       "code": "0xEB",
-      "name": "OSD Lock",
+      "name": "OSD lock",
       "kind": "choice",
       "writable": false,
       "values": [
-        {
-          "value": "0x0",
-          "name": "Off"
-        },
-        {
-          "value": "0x1",
-          "name": "On"
-        }
+        { "value": "0x00", "name": "Off" },
+        { "value": "0x01", "name": "On" }
       ],
       "confidence": "observed",
-      "sources": [
-        "GSM-5BF7"
-      ],
-      "notes": ""
+      "sources": [ "GSM-5BF7" ],
+      "notes": "Same values in ddccontrol-db for other LG models."
     },
     {
       "code": "0xF5",
-      "name": "Aspect Ratio",
+      "name": "Aspect ratio",
       "kind": "choice",
       "writable": false,
       "values": [
-        {
-          "value": "0x1",
-          "name": "Full Wide(Stretch to 21:9)"
-        },
-        {
-          "value": "0x2",
-          "name": "Original"
-        },
-        {
-          "value": "0x3",
-          "name": "Cinema 1(Crop to 21:9)"
-        },
-        {
-          "value": "0x4",
-          "name": "Cinema 2"
-        }
+        { "value": "0x01", "name": "Full Wide" },
+        { "value": "0x02", "name": "Original" },
+        { "value": "0x03", "name": "Cinema 1" },
+        { "value": "0x04", "name": "Cinema 2" }
       ],
       "confidence": "observed",
-      "sources": [
-        "GSM-5BF7"
-      ],
-      "notes": ""
+      "sources": [ "GSM-5BF7" ],
+      "notes": "Full Wide stretches to 21:9, Cinema 1 crops to 21:9."
     },
     {
       "code": "0xF6",
-      "name": "SMART ENERGY SAVING",
+      "name": "Smart Energy Saving",
       "kind": "choice",
       "writable": false,
       "values": [
-        {
-          "value": "0x0",
-          "name": "Off"
-        },
-        {
-          "value": "0x1",
-          "name": "Low"
-        },
-        {
-          "value": "0x2",
-          "name": "High"
-        }
+        { "value": "0x00", "name": "Off" },
+        { "value": "0x01", "name": "Low" },
+        { "value": "0x02", "name": "High" }
       ],
       "confidence": "observed",
-      "sources": [
-        "GSM-5BF7"
-      ],
-      "notes": ""
+      "sources": [ "GSM-5BF7" ],
+      "notes": "Same values in ddccontrol-db for other LG models."
     },
     {
       "code": "0xF7",
-      "name": "Response Time",
+      "name": "Response time",
       "kind": "choice",
       "writable": false,
       "values": [
-        {
-          "value": "0x0",
-          "name": "Off"
-        },
-        {
-          "value": "0x1",
-          "name": "Fastest"
-        },
-        {
-          "value": "0x2",
-          "name": "Fast 0x3=Normal"
-        }
+        { "value": "0x00", "name": "Off" },
+        { "value": "0x01", "name": "Fastest" },
+        { "value": "0x02", "name": "Fast" },
+        { "value": "0x03", "name": "Normal" }
       ],
       "confidence": "observed",
-      "sources": [
-        "GSM-5BF7"
-      ],
-      "notes": ""
+      "sources": [ "GSM-5BF7" ],
+      "notes": null
     },
     {
       "code": "0xF9",
-      "name": "Black Stabiliser",
+      "name": "Black Stabilizer",
       "kind": "range",
       "writable": false,
       "values": [],
       "confidence": "observed",
-      "sources": [
-        "GSM-5BF7"
-      ],
-      "notes": ""
+      "sources": [ "GSM-5BF7" ],
+      "notes": "Scale not confirmed."
     },
     {
       "code": "0xFA",
@@ -171,32 +112,22 @@
       "kind": "choice",
       "writable": false,
       "values": [
-        {
-          "value": "0x0",
-          "name": "On"
-        },
-        {
-          "value": "0x2",
-          "name": "Off"
-        }
+        { "value": "0x00", "name": "On" },
+        { "value": "0x02", "name": "Off" }
       ],
       "confidence": "observed",
-      "sources": [
-        "GSM-5BF7"
-      ],
-      "notes": ""
+      "sources": [ "GSM-5BF7" ],
+      "notes": "Not in the capabilities string."
     },
     {
       "code": "0xFE",
       "name": "Gamma",
-      "kind": "range",
+      "kind": "choice",
       "writable": false,
       "values": [],
       "confidence": "observed",
-      "sources": [
-        "GSM-5BF7"
-      ],
-      "notes": ""
+      "sources": [ "GSM-5BF7" ],
+      "notes": "Capabilities list FE(00 01 02): discrete gamma modes, not a range. Mode names not yet confirmed."
     }
   ]
 }
