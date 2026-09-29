@@ -14,7 +14,7 @@ Device key: `BOE-0B8E`
 | Highest mode | 1920 x 1080 @ 60 Hz |
 | Bit depth | 6-bit per channel |
 | Colour format | RGB |
-| HDR | supported |
+| HDR | not supported |
 | Variable refresh | not advertised |
 | DDC/CI | no answer |
 | Brightness over DDC/CI | no |

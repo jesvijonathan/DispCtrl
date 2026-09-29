@@ -45,8 +45,45 @@ public static class AdvancedDisplay
         return ReadHdrCore(adapter, targetId);
     }
 
+    /// <summary><c>DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2</c>, Windows 11 24H2 and later.</summary>
+    private const int GetAdvancedColorInfo2 = 15;
+
+    private const uint HighDynamicRangeSupported = 1u << 4;
+
+    private const int AdvancedColorModeHdr = 2;
+
+    /// <summary><c>DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2</c>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct AdvancedColorInfo2
+    {
+        public DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+        public uint flags;
+        public uint colorEncoding;
+        public uint bitsPerColorChannel;
+        public int activeColorMode;
+    }
+
     private static unsafe HdrState ReadHdrCore(LUID adapter, uint targetId)
     {
+        // Since 24H2 advancedColorSupported is also set for SDR panels that
+        // only offer Auto Color Management, so ask for HDR itself first.
+        var info2 = new AdvancedColorInfo2
+        {
+            header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
+            {
+                type = (DISPLAYCONFIG_DEVICE_INFO_TYPE)GetAdvancedColorInfo2,
+                size = (uint)sizeof(AdvancedColorInfo2),
+                adapterId = adapter,
+                id = targetId,
+            },
+        };
+
+        if (PInvoke.DisplayConfigGetDeviceInfo(&info2.header) == (int)WIN32_ERROR.ERROR_SUCCESS)
+            return new HdrState(
+                (info2.flags & HighDynamicRangeSupported) != 0,
+                info2.activeColorMode == AdvancedColorModeHdr,
+                info2.bitsPerColorChannel);
+
         var info = new DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO
         {
             header = new DISPLAYCONFIG_DEVICE_INFO_HEADER

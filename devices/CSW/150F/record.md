@@ -14,7 +14,7 @@ Device key: `CSW-150F`
 | Highest mode | 1920 x 1080 @ 144 Hz |
 | Bit depth | 8-bit per channel |
 | Colour format | RGB |
-| HDR | supported |
+| HDR | not supported |
 | Variable refresh | 48-144 Hz |
 | DDC/CI | no answer |
 | Brightness over DDC/CI | no |

@@ -14,7 +14,7 @@ Device key: `DEL-A261`
 | Highest mode | 1920 x 1080 @ 100 Hz |
 | Bit depth | 8-bit per channel |
 | Colour format | RGB |
-| HDR | supported |
+| HDR | not supported |
 | Variable refresh | 48-100 Hz |
 | DDC/CI | answers |
 | Brightness over DDC/CI | yes |
