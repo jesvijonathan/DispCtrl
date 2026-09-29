@@ -131,6 +131,11 @@ Contributions retain the transport metadata. See
 
 - `display controls` and `display control` show a mapped code by its name,
   key and values, with where the mapping came from.
+- A brand-wide or linked definition's values are offered only where the
+  monitor lists them. The model's own definition was read back on that model,
+  so its values are offered even when the capabilities string disagrees (LG
+  firmware lists stale `0x15` picture-mode values). Listed values nobody has
+  named stay available by number.
 - A panel's technology decides whether the display is treated as OLED, in the
   app and in the engine's burn-in protection, when the monitor cannot say.
 - A mapped code becomes **writable only when its definition says so**, and only

@@ -268,6 +268,26 @@ public static partial class DeviceDefinitions
         return problems;
     }
 
+    /// <summary>The values to offer for a control: the mapping's names, reconciled with what the monitor lists.</summary>
+    /// <remarks>
+    /// A brand-wide or linked definition can name values this unit does not
+    /// list; those are left out. The model's own definition was read back on
+    /// that model, so its values stand even where the capabilities string
+    /// disagrees: some firmware (LG's VCP 0x15) lists stale values. Listed
+    /// values nobody has named are kept, by number, rather than hidden.
+    /// </remarks>
+    public static List<(uint Value, string Name)> OfferedValues(
+        IReadOnlyList<(uint Value, string Name)> listed, DefinedControl? mapping, bool ownModel)
+    {
+        if (mapping is not { Values.Count: > 0 }) return [.. listed];
+        var named = mapping.Values.Where(v => v.Number is not null).Select(v => (v.Number!.Value, v.Name)).ToList();
+        if (listed.Count == 0) return named;
+        var result = ownModel ? named : named.Where(n => listed.Any(l => (l.Value & 0xFF) == (n.Value & 0xFF))).ToList();
+        result.AddRange(listed.Where(l => !named.Any(n => (n.Value & 0xFF) == (l.Value & 0xFF)))
+            .Select(l => (l.Value, $"Value 0x{l.Value & 0xFF:X2}")));
+        return result;
+    }
+
     public static bool IsLgModel(string model) => model.Length == 8
         && (model.StartsWith("GSM-", StringComparison.Ordinal) || model.StartsWith("LGD-", StringComparison.Ordinal)
             || model.StartsWith("LPL-", StringComparison.Ordinal)) && IsModel(model);

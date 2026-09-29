@@ -147,6 +147,14 @@ static int SelfTest()
         string standardEssence = Essence(changedWrite);
         changedWrite.DdcWrite = new();
         Check(Essence(changedWrite) != standardEssence, "review guard detects a change to the DDC transport");
+        var picture = new DefinedControl { Code = "0x15", Name = "Picture mode", Kind = "choice",
+            Values = [new() { Value = "0x01", Name = "Reader" }, new() { Value = "0x1E", Name = "FPS" }] };
+        List<(uint Value, string Name)> staleList = [(0x01, "Value 0x01"), (0x28, "Value 0x28")];
+        var own = DeviceDefinitions.OfferedValues(staleList, picture, ownModel: true);
+        var shared = DeviceDefinitions.OfferedValues(staleList, picture, ownModel: false);
+        Check(own.Any(v => v.Name == "FPS") && own.Any(v => v.Value == 0x28) && !shared.Any(v => v.Name == "FPS")
+            && shared.Any(v => v.Name == "Reader") && shared.Any(v => v.Value == 0x28),
+            "a model's own read-back values survive a stale capabilities list; a shared definition stays within it");
         string library = Path.Combine(temp, "library");
         Directory.CreateDirectory(Path.GetDirectoryName(DeviceLayout.DefinitionPath(library, "TST-0404"))!);
         File.WriteAllText(DeviceLayout.DefinitionPath(library, "TST-0404"), "{\"schema\":1,\"target\":\"TST-0404\",\"panel\":{\"technology\":\"OLED\"},\"controls\":[]}");

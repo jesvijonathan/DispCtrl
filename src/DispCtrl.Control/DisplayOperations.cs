@@ -390,7 +390,7 @@ public sealed partial class ControlService
     }
 
     /// <summary>A listed control as the library names it.</summary>
-    private sealed record Effective(VcpControl Control, DefinedControl? Mapping, string? Origin)
+    private sealed record Effective(VcpControl Control, DefinedControl? Mapping, string? Origin, bool OwnModel = false)
     {
         public string Name => Mapping?.Name ?? Control.Name;
         public string Key => Mapping?.EffectiveKey ?? DeviceDefinitions.KeyFor(Control.Name);
@@ -405,30 +405,9 @@ public sealed partial class ControlService
         public bool Settable => Control.Settable
             || Mapping is { Writable: true } m && m.Kind != DefinedKinds.Information;
 
-        /// <summary>The values offered: the mapping's names, within what the monitor itself lists.</summary>
-        /// <remarks>
-        /// A definition is shared across a model, a brand or every monitor, so it
-        /// can name values this unit does not list. Those are left out: nothing is
-        /// written that the monitor did not say it takes. Values the monitor lists
-        /// that nobody has named are kept, by number, rather than hidden. Only
-        /// when the monitor lists no values at all - a code it answers but does
-        /// not enumerate - are the mapping's own, which someone wrote and watched,
-        /// the whole list.
-        /// </remarks>
-        public IReadOnlyList<(uint Value, string Name)> Values
-        {
-            get
-            {
-                var listed = Control.Values.Select(v => ((uint)v.Value, v.Name)).ToList();
-                if (Mapping is not { Values.Count: > 0 } m) return listed;
-                var named = m.Values.Where(v => v.Number is not null).Select(v => (v.Number!.Value, v.Name)).ToList();
-                if (listed.Count == 0) return named;
-                var result = named.Where(n => listed.Any(l => (l.Item1 & 0xFF) == (n.Item1 & 0xFF))).ToList();
-                result.AddRange(listed.Where(l => !named.Any(n => (n.Item1 & 0xFF) == (l.Item1 & 0xFF)))
-                    .Select(l => (l.Item1, $"Value 0x{l.Item1 & 0xFF:X2}")));
-                return result;
-            }
-        }
+        /// <summary>The values offered; see <see cref="DeviceDefinitions.OfferedValues"/>.</summary>
+        public IReadOnlyList<(uint Value, string Name)> Values => DeviceDefinitions.OfferedValues(
+            Control.Values.Select(v => ((uint)v.Value, v.Name)).ToList(), Mapping, OwnModel);
 
         /// <summary>The mapping's maximum, never above what the monitor itself reports.</summary>
         public int Maximum => Mapping?.Maximum is int mapped && Control.Maximum >= 0 ? Math.Min(mapped, Control.Maximum)
@@ -447,7 +426,8 @@ public sealed partial class ControlService
     {
         Dictionary<byte, ResolvedControl> library = DeviceLibrary.Resolve(display.Key.Model);
         return capabilities.Controls.Select(c => library.TryGetValue(c.Code, out ResolvedControl? r)
-            ? new Effective(c, r.Definition, r.Origin) : new Effective(c, null, null)).ToList();
+            ? new Effective(c, r.Definition, r.Origin, r.Origin.EndsWith(" " + display.Key.Model, StringComparison.OrdinalIgnoreCase))
+            : new Effective(c, null, null)).ToList();
     }
 
     private static JsonObject Describe(Effective c)
