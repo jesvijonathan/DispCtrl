@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Nodes;
+using DispCtrl.Control;
 using Microsoft.UI.Xaml;
 using DispCtrl.Core.Presets;
 using DispCtrl.Core.Settings;
@@ -8,7 +10,7 @@ using DispCtrl.Core.Settings;
 namespace DispCtrl.App.ViewModels;
 
 /// <summary>One shortcut, as the Hotkeys page edits it.</summary>
-public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnlyList<string>> presets)
+public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnlyList<string>> presets, Func<IReadOnlyList<string>> features)
     : INotifyPropertyChanged
 {
     public Hotkey Hotkey { get; } = hotkey;
@@ -51,6 +53,12 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         (HotkeyAction.VolumeDown, "Monitor volume down"),
         (HotkeyAction.MuteToggle, "Mute or unmute the monitor"),
         (HotkeyAction.NextInput, "Next input source"),
+        (HotkeyAction.SetControl, "Set a monitor control"),
+        (HotkeyAction.NextControlValue, "Next value of a monitor control"),
+        (HotkeyAction.PreviousControlValue, "Previous value of a monitor control"),
+        (HotkeyAction.ControlUp, "Monitor control up"),
+        (HotkeyAction.ControlDown, "Monitor control down"),
+        (HotkeyAction.RunFeature, "Run a custom feature"),
         (HotkeyAction.Identify, "Show the display numbers"),
         (HotkeyAction.DisplayMode, "Display mode: extend, duplicate, one screen"),
         (HotkeyAction.MakePrimary, "Make a display the main one"),
@@ -118,6 +126,24 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     public Visibility PresetVisibility =>
         Hotkey.Action == HotkeyAction.ApplyPreset ? Visibility.Visible : Visibility.Collapsed;
 
+    public IReadOnlyList<string> Features => features();
+
+    public string? SelectedFeature
+    {
+        get => Hotkey.Feature;
+        set
+        {
+            if (Hotkey.Feature == value) return;
+            Hotkey.Feature = value;
+            persist();
+            Raise();
+            RaiseAll();
+        }
+    }
+
+    public Visibility FeatureVisibility =>
+        Hotkey.Action == HotkeyAction.RunFeature ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>The four arrangements, worded as Win+P words them.</summary>
     private static readonly string[] AllModeNames = Hotkey.Modes.Select(Hotkey.ModeName).ToArray();
     public IReadOnlyList<string> ModeNames => AllModeNames;
@@ -178,6 +204,38 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     public Visibility CommandVisibility =>
         Hotkey.Action is HotkeyAction.RunCommand or HotkeyAction.OpenProgram ? Visibility.Visible : Visibility.Collapsed;
 
+    public string Control
+    {
+        get => Hotkey.Control ?? "";
+        set
+        {
+            if ((Hotkey.Control ?? "") == value) return;
+            Hotkey.Control = value;
+            persist();
+            Raise();
+            RaiseAll();
+        }
+    }
+
+    public string Value
+    {
+        get => Hotkey.Value ?? "";
+        set
+        {
+            if ((Hotkey.Value ?? "") == value) return;
+            Hotkey.Value = value;
+            persist();
+            Raise();
+            RaiseAll();
+        }
+    }
+
+    public Visibility ControlVisibility =>
+        Hotkey.IsControlAction(Hotkey.Action) ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility ValueVisibility =>
+        Hotkey.Action == HotkeyAction.SetControl ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>Only a program takes arguments; a command carries its own.</summary>
     public Visibility ArgumentsVisibility =>
         Hotkey.Action == HotkeyAction.OpenProgram ? Visibility.Visible : Visibility.Collapsed;
@@ -195,6 +253,8 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     /// </remarks>
     public Visibility DisplayVisibility => Hotkey.Action is
         HotkeyAction.BrightnessUp or HotkeyAction.BrightnessDown or HotkeyAction.NextInput
+        or HotkeyAction.SetControl or HotkeyAction.NextControlValue or HotkeyAction.PreviousControlValue
+        or HotkeyAction.ControlUp or HotkeyAction.ControlDown
         or HotkeyAction.ContrastUp or HotkeyAction.ContrastDown or HotkeyAction.GatherWindows
         or HotkeyAction.SoftwareDimUp or HotkeyAction.SoftwareDimDown or HotkeyAction.MakePrimary
         or HotkeyAction.HdrToggle or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown or HotkeyAction.MuteToggle
@@ -240,6 +300,7 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         HotkeyAction.UnisonUp or HotkeyAction.UnisonDown or HotkeyAction.BrightnessUp or HotkeyAction.BrightnessDown
         or HotkeyAction.NightLightWarmer or HotkeyAction.NightLightCooler or HotkeyAction.ContrastUp or HotkeyAction.ContrastDown
         or HotkeyAction.SoftwareDimUp or HotkeyAction.SoftwareDimDown or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown
+        or HotkeyAction.ControlUp or HotkeyAction.ControlDown
         ? Visibility.Visible : Visibility.Collapsed;
 
     public bool Enabled
@@ -278,6 +339,8 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         : Hotkey.Key == 0 ? "New shortcut: choose what it does, then its keys"
         : Hotkey.Action == HotkeyAction.DisplayMode ? "Pick an arrangement for this shortcut."
         : Hotkey.Action is HotkeyAction.RunCommand or HotkeyAction.OpenProgram ? "Say what this shortcut should run."
+        : Hotkey.IsControlAction(Hotkey.Action) ? "Name the monitor control for this shortcut."
+        : Hotkey.Action == HotkeyAction.RunFeature ? "Pick the custom feature for this shortcut."
         : "Pick a preset for this shortcut.";
 
     // ---------------------------------------------------------------- state
@@ -360,12 +423,17 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         Raise(nameof(Summary));
         Raise(nameof(KeysNote));
         Raise(nameof(PresetVisibility));
+        Raise(nameof(FeatureVisibility));
+        Raise(nameof(SelectedFeature));
+        Raise(nameof(Features));
         Raise(nameof(ModeVisibility));
         Raise(nameof(SelectedModeIndex));
         Raise(nameof(CommandVisibility));
         Raise(nameof(ArgumentsVisibility));
         Raise(nameof(CommandHeader));
         Raise(nameof(CommandHint));
+        Raise(nameof(ControlVisibility));
+        Raise(nameof(ValueVisibility));
         Raise(nameof(DisplayVisibility));
         Raise(nameof(DisplayHint));
         Raise(nameof(StepVisibility));
@@ -375,6 +443,54 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    private void Raise([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+public sealed class CustomFeatureViewModel(CustomFeature feature) : INotifyPropertyChanged
+{
+    public CustomFeature Feature { get; } = feature;
+    public string? SavedName { get; set; }
+    private bool _busy;
+    public bool IsIdle => !_busy;
+    public bool Busy
+    {
+        get => _busy;
+        set { _busy = value; Raise(nameof(IsIdle)); }
+    }
+
+    public string Name
+    {
+        get => Feature.Name;
+        set { if (Feature.Name == value) return; Feature.Name = value; Raise(); }
+    }
+
+    public string Description
+    {
+        get => Feature.Description;
+        set { if (Feature.Description == value) return; Feature.Description = value; Raise(); }
+    }
+
+    public string Steps
+    {
+        get => string.Join(Environment.NewLine, Feature.Steps);
+        set
+        {
+            List<string> steps = CustomFeature.SplitSteps(value);
+            if (Feature.Steps.SequenceEqual(steps)) return;
+            Feature.Steps = steps;
+            Raise();
+        }
+    }
+
+    public string Status
+    {
+        get => _status;
+        set { if (_status == value) return; _status = value; Raise(); }
+    }
+    private string _status = "";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
     private void Raise([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
@@ -403,6 +519,8 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
     }
 
     public ObservableCollection<HotkeyViewModel> Items { get; } = [];
+    public ObservableCollection<CustomFeatureViewModel> Features { get; } = [];
+    public string FeatureGrammar => CustomFeature.Grammar;
 
     public void Reload()
     {
@@ -410,13 +528,22 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
         foreach (Hotkey h in _settings().Hotkeys)
             if (DispCtrl.Core.FeatureFlags.Presets || h.Action != HotkeyAction.ApplyPreset)
                 Items.Add(Wrap(h));
+        ReloadFeatures();
 
         RefreshStates();
     }
 
+    public void ReloadFeatures()
+    {
+        Features.Clear();
+        foreach (CustomFeature f in _settings().Features.OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase))
+            Features.Add(new CustomFeatureViewModel(new CustomFeature { Name = f.Name, Description = f.Description, Steps = [.. f.Steps] }) { SavedName = f.Name });
+        Raise(nameof(Features));
+    }
+
     private HotkeyViewModel Wrap(Hotkey h)
     {
-        var item = new HotkeyViewModel(h, _persist, PresetNames);
+        var item = new HotkeyViewModel(h, _persist, PresetNames, FeatureNames);
         item.Changed += RefreshStates;
         return item;
     }
@@ -429,6 +556,9 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
 
         return names;
     }
+
+    private IReadOnlyList<string> FeatureNames() =>
+        _settings().Features.Select(f => f.Name).Where(n => n.Length > 0).OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).ToList();
 
     public Visibility EmptyVisibility => Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -461,7 +591,9 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
                 !h.IsComplete ? "Not finished: it needs keys"
                     + (h.Action == HotkeyAction.ApplyPreset ? " and a preset"
                         : h.Action == HotkeyAction.DisplayMode ? " and an arrangement"
-                        : h.Action is HotkeyAction.RunCommand or HotkeyAction.OpenProgram ? " and something to run" : "")
+                        : h.Action is HotkeyAction.RunCommand or HotkeyAction.OpenProgram ? " and something to run"
+                        : Hotkey.IsControlAction(h.Action) ? h.Action == HotkeyAction.SetControl ? " and a control/value" : " and a control"
+                        : h.Action == HotkeyAction.RunFeature ? " and a feature" : "")
                 : !h.Enabled ? "Off. Switch it on to use it."
                 : duplicates.Contains(item) ? "Shares its keys with another shortcut; only one of them can work"
                 : !_engineRunning ? "Not active: the engine is not running"
@@ -488,6 +620,86 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
         Items.Add(item);
         RefreshStates();
         return item;
+    }
+
+    public CustomFeatureViewModel AddFeature()
+    {
+        var feature = new CustomFeatureViewModel(new CustomFeature { Name = "New feature" });
+        Features.Add(feature);
+        return feature;
+    }
+
+    public async Task SaveFeatureAsync(CustomFeatureViewModel feature)
+    {
+        if (feature.Busy) return;
+        feature.Busy = true;
+        string requestedName = feature.Name.Trim();
+        try
+        {
+            JsonObject result = await FeatureRequestAsync(feature.SavedName is null ? "features.add" : "features.set", new JsonObject
+            {
+                ["name"] = feature.SavedName ?? requestedName,
+                ["rename"] = requestedName,
+                ["description"] = feature.Description,
+                ["steps"] = feature.Steps,
+            });
+            if (result["ok"]?.GetValue<bool>() == true)
+            {
+                SyncFeaturesFromDisk();
+                feature.SavedName = requestedName;
+                feature.Status = $"Saved “{requestedName}”.";
+            }
+            else feature.Status = result["error"]?["message"]?.GetValue<string>() ?? "Not saved.";
+        }
+        catch (Exception ex) { feature.Status = ex.Message; }
+        finally { feature.Busy = false; }
+    }
+
+    public async Task DeleteFeatureAsync(CustomFeatureViewModel feature)
+    {
+        if (feature.Busy) return;
+        if (feature.SavedName is null) { Features.Remove(feature); return; }
+        feature.Busy = true;
+        try
+        {
+            JsonObject result = await FeatureRequestAsync("features.remove", new JsonObject { ["name"] = feature.SavedName });
+            if (result["ok"]?.GetValue<bool>() == true)
+            {
+                SyncFeaturesFromDisk();
+                Features.Remove(feature);
+            }
+            else feature.Status = result["error"]?["message"]?.GetValue<string>() ?? "Not deleted.";
+        }
+        catch (Exception ex) { feature.Status = ex.Message; }
+        finally { feature.Busy = false; }
+    }
+
+    public async Task RunFeatureAsync(CustomFeatureViewModel feature, bool dryRun)
+    {
+        if (feature.Busy) return;
+        var draft = new CustomFeature { Name = feature.Name.Trim(), Description = feature.Description, Steps = [.. feature.Feature.Steps] };
+        if (CustomFeature.Problem([draft]) is { } problem) { feature.Status = problem; return; }
+        JsonObject result;
+        try
+        {
+            feature.Busy = true;
+            result = await Task.Run(() => new ControlService().RunFeature(draft, dryRun));
+        }
+        catch (Exception ex) { feature.Status = ex.Message; return; }
+        finally { feature.Busy = false; }
+        int passed = result["steps"]!.AsArray().Count(s => s?["ok"]?.GetValue<bool>() == true);
+        string? error = result["steps"]!.AsArray().FirstOrDefault(s => s?["ok"]?.GetValue<bool>() == false)?["error"]?.GetValue<string>();
+        feature.Status = $"{result["state"]!.GetValue<string>()}: {passed} step(s) ok." + (error is null ? "" : " " + error);
+    }
+
+    private static Task<JsonObject> FeatureRequestAsync(string command, JsonObject args) =>
+        Task.Run(() => new ControlService().Execute(new JsonObject { ["version"] = 1, ["command"] = command, ["args"] = args }));
+
+    private void SyncFeaturesFromDisk()
+    {
+        DispCtrlSettings fresh = SettingsStore.Load();
+        SettingsStore.RefreshFeatures(_settings(), fresh);
+        foreach (HotkeyViewModel item in Items) item.RaiseAll();
     }
 
     /// <summary>Replaces every shortcut with the defaults: a few on, the rest set but off.</summary>

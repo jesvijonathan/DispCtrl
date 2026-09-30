@@ -1,5 +1,8 @@
 # The quick panel
 
+To use mapped controls or create a tile for a saved feature, see
+[Custom monitor controls and features](CUSTOM-CONTROLS.md).
+
 The panel that opens from DispCtrl's icon in the notification area. This page
 is for anyone adding to it: where each piece lives, and what adding a tile,
 a row or a switch actually takes.

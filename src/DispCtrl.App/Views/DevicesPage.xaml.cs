@@ -136,6 +136,39 @@ public sealed partial class DevicesPage : Page
         _ = await Windows.System.Launcher.LaunchFolderPathAsync(folder);
     }
 
+    private async void OnLearnSetting(object sender, RoutedEventArgs e)
+    {
+        List<DisplayInfo> displays = DisplayRegistry.Enumerate().Where(d => !d.IsInternal).ToList();
+        if (displays.Count == 0)
+        {
+            Show("Attach an external DDC/CI monitor first.", InfoBarSeverity.Warning);
+            return;
+        }
+        DisplayInfo display = displays[0];
+        if (displays.Count > 1)
+        {
+            var picker = new ComboBox { Header = "Monitor", ItemsSource = displays.Select(d => d.Label).ToArray(), SelectedIndex = 0, MinWidth = 280 };
+            var choose = new ContentDialog
+            {
+                Title = "Learn a setting",
+                Content = picker,
+                PrimaryButtonText = "Continue",
+                CloseButtonText = "Cancel",
+                XamlRoot = XamlRoot,
+            };
+            if (await choose.ShowAsync() != ContentDialogResult.Primary) return;
+            display = displays[Math.Max(0, picker.SelectedIndex)];
+        }
+        var dialog = new LearnSettingDialog(display);
+        if (await dialog.ShowAsync(XamlRoot))
+        {
+            Show("Saved. Share it with others from Devices > Contribute.", InfoBarSeverity.Success);
+            await RefreshAsync();
+            foreach (var model in App.ViewModel.Displays.Where(d => d.Info.Key.Model == display.Key.Model))
+                await model.RefreshMonitorControlsAsync();
+        }
+    }
+
     // ================================================================ the list
 
     private async Task RefreshAsync()

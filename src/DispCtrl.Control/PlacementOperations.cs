@@ -202,15 +202,22 @@ public sealed partial class ControlService
                 return new JsonObject
                 {
                     ["guard"] = settings.Global.DdcGuard.Enabled,
+                    ["rawWrites"] = settings.Global.DdcGuard.AllowRawWrites,
                     ["blocked"] = SettingsDocument.Get(SettingsDocument.Read(), "/global/ddcGuard/blocked")?.DeepClone(),
                     ["probed"] = probed,
                 };
             }
             case "set":
             {
-                if (args.Any(p => p.Key is not ("guard" or "dryRun"))) throw new ArgumentException("ddc set takes --guard on|off.");
-                bool guard = Flag(args, "guard");
-                JsonObject result = SettingsDocument.Update(d => d["global"]!["ddcGuard"]!["enabled"] = guard, dryRun);
+                if (args.Any(p => p.Key is not ("guard" or "rawWrites" or "dryRun"))) throw new ArgumentException("ddc set takes --guard on|off and --raw-writes on|off.");
+                if (!args.ContainsKey("guard") && !args.ContainsKey("rawWrites")) throw new ArgumentException("ddc set takes --guard on|off and --raw-writes on|off.");
+                bool? guard = args.ContainsKey("guard") ? Flag(args, "guard") : null;
+                bool? rawWrites = args.ContainsKey("rawWrites") ? Flag(args, "rawWrites") : null;
+                JsonObject result = SettingsDocument.Update(d =>
+                {
+                    if (guard is bool g) d["global"]!["ddcGuard"]!["enabled"] = g;
+                    if (rawWrites is bool r) d["global"]!["ddcGuard"]!["allowRawWrites"] = r;
+                }, dryRun);
                 DdcGuard.Invalidate();
                 return result;
             }

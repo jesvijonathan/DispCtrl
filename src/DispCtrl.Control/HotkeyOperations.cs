@@ -35,6 +35,7 @@ public sealed partial class ControlService
                         ["index"] = i + 1, ["keys"] = h.Describe(), ["action"] = KebabAction(h.Action),
                         ["does"] = h.DescribeAction(), ["display"] = h.Display, ["step"] = h.Step,
                         ["preset"] = h.Preset, ["mode"] = h.Mode, ["command"] = h.Command, ["arguments"] = h.Arguments,
+                        ["control"] = h.Control, ["value"] = h.Value, ["feature"] = h.Feature,
                         ["enabled"] = h.Enabled, ["state"] = state,
                     });
                 }
@@ -44,8 +45,8 @@ public sealed partial class ControlService
             case "set":
             {
                 foreach (var pair in args)
-                    if (pair.Key is not ("index" or "keys" or "action" or "step" or "display" or "preset" or "mode" or "command" or "arguments" or "enabled" or "dryRun"))
-                        throw new ArgumentException("hotkeys options: --index, --keys, --action, --step, --display, --preset, --mode, --command, --arguments, --enabled.");
+                    if (pair.Key is not ("index" or "keys" or "action" or "step" or "display" or "preset" or "mode" or "command" or "arguments" or "control" or "value" or "feature" or "enabled" or "dryRun"))
+                        throw new ArgumentException("hotkeys options: --index, --keys, --action, --step, --display, --preset, --mode, --command, --arguments, --control, --value, --feature, --enabled.");
                 Hotkey h;
                 if (action == "add") h = new Hotkey();
                 else h = settings.Hotkeys.ElementAtOrDefault(Integer(args, "index", 1, 999) - 1)
@@ -65,9 +66,14 @@ public sealed partial class ControlService
                 if (Text(args, "mode") is { } mode) h.Mode = ParseMode(mode);
                 if (Text(args, "command") is { } command) h.Command = command;
                 if (Text(args, "arguments") is { } arguments) h.Arguments = arguments;
+                if (Text(args, "control") is { } control) h.Control = control;
+                if (args["value"] is JsonNode value) h.Value = value.ToString();
+                if (Text(args, "feature") is { } feature) h.Feature = feature;
                 if (args.ContainsKey("enabled")) h.Enabled = Flag(args, "enabled");
 
-                if (!h.IsComplete) throw new ArgumentException("A hotkey needs --keys, a preset name for apply-preset, --mode for display-mode, and --command for run-command and open-program.");
+                if (!h.IsComplete) throw new ArgumentException("A hotkey needs --keys, a preset name for apply-preset, --mode for display-mode, --command for run-command and open-program, --control for the control actions (and --value for set-control), and --feature for run-feature.");
+                if (h.Action == HotkeyAction.RunFeature && !settings.Features.Any(f => f.Name.Trim().Equals(h.Feature?.Trim(), StringComparison.OrdinalIgnoreCase)))
+                    throw new ArgumentException($"No feature is called “{h.Feature}”; add it first with features add.");
                 if (settings.Hotkeys.Any(o => !ReferenceEquals(o, h) && o.Key == h.Key && o.Modifiers == h.Modifiers))
                     throw new ArgumentException($"{h.Describe()} is already bound; set or remove that one instead.");
                 if (Flag(args, "dryRun")) return new JsonObject { ["state"] = "validated", ["keys"] = h.Describe(), ["does"] = h.DescribeAction() };

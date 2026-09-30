@@ -28,6 +28,7 @@ public sealed partial class ControlService
         "pin.get", "pin.set", "pin.reset", "pin.list", "pin.on", "pin.off", "pin.toggle",
         "placement.get", "placement.set", "placement.reset", "placement.gather", "placement.move",
         "ddc.get", "ddc.set", "ddc.reset", "ddc.allow", "ddc.probe",
+        "features.list", "features.get", "features.add", "features.set", "features.remove", "features.run",
         "update.get", "update.check", "update.set", "update.skip", "update.reset"];
 
     public JsonObject Execute(JsonObject request)
@@ -59,7 +60,8 @@ public sealed partial class ControlService
             }
             bool mutation = command.EndsWith(".set", StringComparison.Ordinal) || command.EndsWith(".reset", StringComparison.Ordinal)
                 || command is "settings.import" or "oled.rest" or "restore.now" or "restore.undo" or "awake.displays-off" or "apply" or "display.factory-reset" or "display.reset"
-                or "hotkeys.add" or "hotkeys.remove" or "ambient.capture" or "ambient.forget"
+                or "hotkeys.add" or "hotkeys.remove" or "ambient.capture" or "ambient.forget" or "features.add" or "features.remove"
+                or "devices.map" or "devices.unmap" or "devices.link" or "devices.panel"
                 || command == "display.control" && args.ContainsKey("value");
             using var gate = new Mutex(false, @"Local\DispCtrl.Control.Operations");
             bool held;
@@ -113,6 +115,7 @@ public sealed partial class ControlService
         if (command.StartsWith("pin.", StringComparison.Ordinal)) return PinCommand(command[4..], args);
         if (command.StartsWith("placement.", StringComparison.Ordinal)) return PlacementCommand(command[10..], args);
         if (command.StartsWith("ddc.", StringComparison.Ordinal)) return DdcCommand(command[4..], args);
+        if (command.StartsWith("features.", StringComparison.Ordinal)) return FeaturesCommand(command[9..], args);
         if (command.StartsWith("update.", StringComparison.Ordinal)) return UpdateCommand(command[7..], args);
         if (command == "gamma.get")
         {
@@ -440,7 +443,7 @@ public sealed partial class ControlService
             "pin.off" => ["window", "all", "dryRun"],
             "placement.gather" => ["to", "from", "dryRun"],
             "placement.move" => ["window", "to", "dryRun"],
-            "ddc.set" => ["guard", "dryRun"],
+            "ddc.set" => ["guard", "rawWrites", "dryRun"],
             "ddc.allow" => ["monitor", "model", "token", "dryRun"],
             "ddc.probe" => ["monitor", "save", "clear", "dryRun"],
             _ when command.EndsWith(".get", StringComparison.Ordinal) => ["monitor"],

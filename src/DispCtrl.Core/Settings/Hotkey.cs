@@ -53,6 +53,24 @@ public enum HotkeyAction
 
     /// <summary>Opens a program, script, document or link, as Explorer would.</summary>
     OpenProgram,
+
+    /// <summary>Sets <see cref="Hotkey.Control"/> to <see cref="Hotkey.Value"/>: any standard or mapped monitor control.</summary>
+    SetControl,
+
+    /// <summary>Moves a choice control to its next value, wrapping round.</summary>
+    NextControlValue,
+
+    /// <summary>Moves a choice control to its previous value, wrapping round.</summary>
+    PreviousControlValue,
+
+    /// <summary>Raises a range control by <see cref="Hotkey.Step"/>.</summary>
+    ControlUp,
+
+    /// <summary>Lowers a range control by <see cref="Hotkey.Step"/>.</summary>
+    ControlDown,
+
+    /// <summary>Runs the custom feature named in <see cref="Hotkey.Feature"/>.</summary>
+    RunFeature,
 }
 
 /// <summary>One global keyboard shortcut.</summary>
@@ -113,17 +131,58 @@ public sealed class Hotkey
     /// <summary>How much a step changes, for the actions that step.</summary>
     public int Step { get; set; } = 10;
 
+    /// <summary>
+    /// The monitor control a control action works on: its key as
+    /// <c>display controls</c> lists it (<c>picture-mode</c>), its name, or its
+    /// code (<c>0x15</c>).
+    /// </summary>
+    public string? Control { get; set; }
+
+    /// <summary>What <see cref="HotkeyAction.SetControl"/> sets: a value's key or name, or a number.</summary>
+    public string? Value { get; set; }
+
+    /// <summary>The custom feature <see cref="HotkeyAction.RunFeature"/> runs.</summary>
+    public string? Feature { get; set; }
+
     public bool Enabled { get; set; } = true;
 
     /// <summary>The arrangements <see cref="Mode"/> may name.</summary>
     public static readonly string[] Modes = ["Extend", "Duplicate", "InternalOnly", "ExternalOnly"];
+
+    /// <summary>Whether an action works on a monitor control named in <see cref="Control"/>.</summary>
+    public static bool IsControlAction(HotkeyAction action) => action is HotkeyAction.SetControl
+        or HotkeyAction.NextControlValue or HotkeyAction.PreviousControlValue or HotkeyAction.ControlUp or HotkeyAction.ControlDown;
+
+    public static bool NeedsWorker(HotkeyAction action) => IsControlAction(action) || action is
+        HotkeyAction.ContrastUp or HotkeyAction.ContrastDown or HotkeyAction.NextInput
+        or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown or HotkeyAction.MuteToggle
+        or HotkeyAction.DisplayMode or HotkeyAction.MakePrimary or HotkeyAction.HdrToggle
+        or HotkeyAction.GatherWindows or HotkeyAction.RunCommand or HotkeyAction.OpenProgram;
+
+    /// <summary>
+    /// The value a control action asks for, in the words <c>display control --value</c>
+    /// takes: a value, <c>next</c>, <c>previous</c>, or a signed step.
+    /// </summary>
+    [JsonIgnore]
+    public string? ControlRequest => Action switch
+    {
+        HotkeyAction.SetControl => Value,
+        HotkeyAction.NextControlValue => "next",
+        HotkeyAction.PreviousControlValue => "previous",
+        HotkeyAction.ControlUp => "+" + Step,
+        HotkeyAction.ControlDown => "-" + Step,
+        _ => null,
+    };
 
     [JsonIgnore]
     public bool IsComplete =>
         Key != 0
         && (Action != HotkeyAction.ApplyPreset || !string.IsNullOrWhiteSpace(Preset))
         && (Action != HotkeyAction.DisplayMode || Modes.Contains(Mode))
-        && (Action is not (HotkeyAction.RunCommand or HotkeyAction.OpenProgram) || !string.IsNullOrWhiteSpace(Command));
+        && (Action is not (HotkeyAction.RunCommand or HotkeyAction.OpenProgram) || !string.IsNullOrWhiteSpace(Command))
+        && (!IsControlAction(Action) || !string.IsNullOrWhiteSpace(Control))
+        && (Action != HotkeyAction.SetControl || !string.IsNullOrWhiteSpace(Value))
+        && (Action != HotkeyAction.RunFeature || !string.IsNullOrWhiteSpace(Feature));
 
     /// <summary>
     /// The shortcut as a person reads it.
@@ -373,6 +432,12 @@ public sealed class Hotkey
             HotkeyAction.MuteToggle => $"Mute or unmute {where}",
             HotkeyAction.RunCommand => $"Run: dispctrl {Command}",
             HotkeyAction.OpenProgram => $"Open: {Command} {Arguments}".TrimEnd(),
+            HotkeyAction.SetControl => $"Set {Control} to {Value} on {where}",
+            HotkeyAction.NextControlValue => $"Next {Control} on {where}",
+            HotkeyAction.PreviousControlValue => $"Previous {Control} on {where}",
+            HotkeyAction.ControlUp => $"{Control} up {Step} on {where}",
+            HotkeyAction.ControlDown => $"{Control} down {Step} on {where}",
+            HotkeyAction.RunFeature => $"Run the feature “{Feature}”",
             _ => Action.ToString(),
         };
     }

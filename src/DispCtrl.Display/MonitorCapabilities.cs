@@ -3,6 +3,8 @@ using System.Diagnostics;
 using DispCtrl.Core.Caching;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
+using DispCtrl.Core.Devices;
+using System.Text.Json;
 using Windows.Win32;
 using Windows.Win32.Devices.Display;
 using Windows.Win32.Foundation;
@@ -35,6 +37,7 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
 {
     public bool WriteOnly { get; init; }
     public bool MappedWritable { get; init; }
+    public string? MappingSnapshot { get; init; }
     /// <summary>Current value, once read. -1 when it has not been.</summary>
     public int Current { get; set; } = -1;
 
@@ -60,6 +63,12 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     {
         get
         {
+            if (MappedWritable)
+            {
+                foreach (VcpValue v in Values)
+                    if (v.Value == Current) return v;
+                if (Values.Any(v => v.Value > 0xFF)) return null;
+            }
             foreach (VcpValue v in Values)
                 if (v.Value == CurrentValue) return v;
 
@@ -154,7 +163,7 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
 
 /// <param name="Value">The raw value to write.</param>
 /// <param name="Name">What it means, where the standard says.</param>
-public readonly record struct VcpValue(byte Value, string Name)
+public readonly record struct VcpValue(ushort Value, string Name)
 {
     public override string ToString() => Name;
 }
@@ -862,7 +871,32 @@ public static class MonitorCapabilities
 
     /// <summary>Refuses a stale UI/plan if its input transport was edited after validation.</summary>
     public static bool Write(DisplayInfo display, VcpControl control, uint value, out string? error)
-        => Write(display, control.Code, value, control.WriteOnly, out error);
+    {
+        var resolved = DeviceLibrary.Resolve(display.Key.Model).GetValueOrDefault(control.Code);
+        if (resolved is { Definition.Writable: false })
+        {
+            error = "This control is mapped as read-only. Refresh the controls before writing.";
+            return false;
+        }
+        if (control.MappedWritable && !control.WriteOnly)
+        {
+            var current = resolved?.Definition;
+            if (current is null || !current.Writable || current.DdcWrite is not null || control.MappingSnapshot is null
+                || JsonSerializer.Serialize(current, DeviceJsonContext.Default.DefinedControl) != control.MappingSnapshot)
+            {
+                error = "The control mapping changed. Refresh the controls before writing.";
+                return false;
+            }
+            if (value > 65535 || control.Code == 0x04
+                || control.Kind == VcpKind.Discrete && !control.Values.Any(v => v.Value == value)
+                || control.Kind == VcpKind.Continuous && control.Maximum >= 0 && value > control.Maximum)
+            {
+                error = "The requested value is outside this control's mapped values or range.";
+                return false;
+            }
+        }
+        return Write(display, control.Code, value, control.WriteOnly, out error);
+    }
 
     private static bool Write(DisplayInfo display, byte code, uint value, bool? expectedWriteOnly, out string? error)
     {

@@ -39,6 +39,7 @@ internal sealed class HotkeyService : IDisposable
     private uint _threadId;
     private DispCtrlSettings _settings;
     private bool _disposed;
+    private int _featureRunning;
 
     /// <summary>The bindings the pump thread has registered, by hotkey id.</summary>
     private readonly Dictionary<int, Hotkey> _registered = [];
@@ -175,10 +176,7 @@ internal sealed class HotkeyService : IDisposable
         DispCtrlSettings settings;
         lock (_gate) { if (_disposed) return; settings = _settings; }
 
-        if (hotkey.Action is HotkeyAction.ContrastUp or HotkeyAction.ContrastDown or HotkeyAction.NextInput
-            or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown or HotkeyAction.MuteToggle
-            or HotkeyAction.DisplayMode or HotkeyAction.MakePrimary or HotkeyAction.HdrToggle
-            or HotkeyAction.GatherWindows or HotkeyAction.RunCommand or HotkeyAction.OpenProgram)
+        if (Hotkey.NeedsWorker(hotkey.Action))
         {
             if (!_work.TryEnqueue(() =>
             {
@@ -507,6 +505,66 @@ internal sealed class HotkeyService : IDisposable
             case HotkeyAction.OpenProgram:
                 RunCustom(hotkey);
                 break;
+
+            case HotkeyAction.SetControl:
+            case HotkeyAction.NextControlValue:
+            case HotkeyAction.PreviousControlValue:
+            case HotkeyAction.ControlUp:
+            case HotkeyAction.ControlDown:
+                RunControl(hotkey);
+                break;
+
+            case HotkeyAction.RunFeature:
+            {
+                // Off the hotkey queue: a feature may wait or run a script, and
+                // the next shortcut should not queue behind it.
+                string name = hotkey.Feature!.Trim();
+                if (Interlocked.CompareExchange(ref _featureRunning, 1, 0) != 0) break;
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        System.Text.Json.Nodes.JsonObject result = new DispCtrl.Control.ControlService().Execute(new System.Text.Json.Nodes.JsonObject
+                        {
+                            ["command"] = "features.run",
+                            ["args"] = new System.Text.Json.Nodes.JsonObject { ["name"] = name },
+                        });
+                        Log.Write(result["ok"]?.GetValue<bool>() == true && result["exitCode"]?.GetValue<int>() == 0
+                            ? $"hotkey: ran the feature '{name}'"
+                            : $"hotkey: the feature '{name}' did not complete: {result["error"]?["message"] ?? result["data"]?.ToJsonString()}");
+                    }
+                    finally { Volatile.Write(ref _featureRunning, 0); }
+                });
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets, cycles or steps a monitor control through the same request
+    /// <c>display control</c> makes, so mapped manufacturer codes work and
+    /// unmapped ones stay refused.
+    /// </summary>
+    /// <remarks>
+    /// On every display, a monitor that has no such control is passed over
+    /// quietly: "picture mode on every display" means on the ones that have one.
+    /// </remarks>
+    private static void RunControl(Hotkey hotkey)
+    {
+        var service = new DispCtrl.Control.ControlService();
+        foreach (DisplayInfo d in Targets(hotkey))
+        {
+            if (d.IsInternal) continue;
+            System.Text.Json.Nodes.JsonObject result = service.Execute(new System.Text.Json.Nodes.JsonObject
+            {
+                ["command"] = "display.control",
+                ["args"] = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["monitor"] = d.Token, ["name"] = hotkey.Control!.Trim(), ["value"] = hotkey.ControlRequest,
+                },
+            });
+            if (result["ok"]?.GetValue<bool>() != true && hotkey.Display != 0)
+                Log.Write($"hotkey: {hotkey.DescribeAction()} failed on {d.Label}: {result["error"]?["message"]}");
         }
     }
 

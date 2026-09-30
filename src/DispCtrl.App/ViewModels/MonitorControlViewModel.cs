@@ -50,8 +50,9 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
         _control = control;
         _deskChanged = deskChanged;
 
-        foreach (VcpValue v in control.Values) Options.Add(v.Name);
-        _selected = control.CurrentOption?.Name;
+        foreach (VcpValue v in control.Values) Options.Add(control.Values.Count(x => x.Name == v.Name) > 1 ? $"{v.Name} (0x{v.Value:X2})" : v.Name);
+        if (control.CurrentOption is { } current)
+            _selected = Options[control.Values.ToList().FindIndex(v => v.Value == current.Value)];
     }
 
     public string Name => _control.Name;
@@ -59,7 +60,9 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
     public string Code => _control.Hex;
 
     /// <summary>What this control is, for the line under its name.</summary>
-    public string Description => _writeStatus ?? (_control.WriteOnly ? "Choose an input; confirm the change on your monitor." : _control.Kind switch
+    public string Description => _writeStatus ?? (_control.MappedWritable && !_control.WriteOnly
+        ? $"{_control.Hex} · mapped in the device library"
+        : _control.WriteOnly ? "Choose an input; confirm the change on your monitor." : _control.Kind switch
     {
         VcpKind.Continuous => $"{_control.Hex} · the monitor's own setting, {_control.Maximum} steps",
         VcpKind.Discrete => $"{_control.Hex} · the monitor's own setting",
@@ -78,7 +81,7 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
 
     public string ReadOnlyText => _control.Display;
 
-    public double Maximum => _control.Maximum > 0 ? _control.Maximum : 100;
+    public double Maximum => _control.Maximum >= 0 ? _control.Maximum : 100;
 
     public double Value
     {
@@ -112,9 +115,10 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
             _selected = value;
             Raise();
 
-            foreach (VcpValue v in _control.Values)
+            for (int i = 0; i < _control.Values.Count; i++)
             {
-                if (v.Name != value) continue;
+                if (Options[i] != value) continue;
+                VcpValue v = _control.Values[i];
 
                 if (_control.WriteOnly)
                 {
@@ -157,7 +161,28 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
             try
             {
                 await Task.Delay(180, token).ConfigureAwait(false);
-                if (!token.IsCancellationRequested) write(token);
+                if (!token.IsCancellationRequested && !write(token))
+                {
+                    _dispatcher?.TryEnqueue(() =>
+                    {
+                        if (token.IsCancellationRequested) return;
+                        if (!_control.WriteOnly)
+                        {
+                            _writeStatus = "The monitor command failed. Refresh the controls and try again.";
+                            _control.Current = -1;
+                            _selected = null;
+                            Raise(nameof(Selected)); Raise(nameof(Value)); Raise(nameof(ValueText));
+                        }
+                        Raise(nameof(Description));
+                    });
+                }
+                else if (!token.IsCancellationRequested && !_control.WriteOnly)
+                    _dispatcher?.TryEnqueue(() =>
+                    {
+                        if (token.IsCancellationRequested) return;
+                        _writeStatus = null;
+                        Raise(nameof(Description));
+                    });
             }
             catch (TaskCanceledException)
             {

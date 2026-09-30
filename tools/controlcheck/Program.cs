@@ -3,6 +3,12 @@ using DispCtrl.Control;
 using DispCtrl.Core.Settings;
 using DispCtrl.Display.Devices;
 
+if (args.FirstOrDefault() == "--echo-arguments")
+{
+    Console.Write(new JsonArray(args.Skip(1).Select(a => (JsonNode?)JsonValue.Create(a)).ToArray()).ToJsonString());
+    return;
+}
+
 // Every mutation targets this isolated directory, never the user's live settings.
 string scratch = Path.Combine(Path.GetTempPath(), "DispCtrl-controlcheck-" + Guid.NewGuid().ToString("N"));
 Environment.SetEnvironmentVariable("DISPCTRL_DATA_DIR", scratch);
@@ -57,7 +63,7 @@ try
         Check(!queue.TryEnqueue(() => { }), "disposed shortcuts cannot schedule work");
     }
     var editorKey = new Hotkey { Key = '9', Modifiers = 3, Action = HotkeyAction.Identify };
-    var editor = new DispCtrl.App.ViewModels.HotkeyViewModel(editorKey, () => { }, () => []);
+    var editor = new DispCtrl.App.ViewModels.HotkeyViewModel(editorKey, () => { }, () => [], () => []);
     var notified = new HashSet<string?>();
     editor.PropertyChanged += (_, e) => notified.Add(e.PropertyName);
     editor.SelectedActionIndex = editor.ActionNames.ToList().FindIndex(n => n.StartsWith("Display mode:"));
@@ -714,7 +720,187 @@ try
     Check(gatherKey["ok"]!.GetValue<bool>() && gatherKey["data"]!["does"]!.GetValue<string>().Contains("display 2"), "a gather shortcut can name its display");
     string schema = service.Execute(Request("settings.schema"))["data"]!["schema"]!.ToJsonString();
     Check(schema.Contains("inUnison") && schema.Contains("probedCodes") && schema.Contains("trayWheel") && schema.Contains("darkModeOnSchedule")
-        && schema.Contains("clearInFocus") && schema.Contains("newWindowsOnActive"), "the schema describes every new setting");
+        && schema.Contains("clearInFocus") && schema.Contains("newWindowsOnActive") && schema.Contains("allowRawWrites") && schema.Contains("features"),
+        "the schema describes every new setting");
+
+    // Custom controls and features.
+    var rawOff = service.Execute(Request("display.control", new() { ["monitor"] = "1", ["name"] = "0xE9", ["value"] = "3", ["raw"] = true }));
+    Check(rawOff["exitCode"]!.GetValue<int>() == 2 && rawOff["error"]!["message"]!.GetValue<string>().Contains("Advanced"),
+        "a raw write is refused while the Advanced setting is off");
+    Check(!SettingsStore.Load().Global.DdcGuard.AllowRawWrites, "raw writes are off by default");
+    var rawOn = service.Execute(Request("ddc.set", new() { ["rawWrites"] = true }));
+    Check(rawOn["ok"]!.GetValue<bool>() && service.Execute(Request("ddc.get"))["data"]!["rawWrites"]!.GetValue<bool>()
+        && SettingsStore.Load().Global.DdcGuard.Enabled, "ddc set --raw-writes turns raw writes on and leaves the guard alone");
+    var factoryRaw = service.Execute(Request("display.control", new() { ["monitor"] = "1", ["name"] = "0x04", ["value"] = "1", ["raw"] = true }));
+    Check(factoryRaw["exitCode"]!.GetValue<int>() == 2 && factoryRaw["error"]!["message"]!.GetValue<string>().Contains("factory"),
+        "a raw write never reaches the factory reset");
+    service.Execute(Request("ddc.set", new() { ["rawWrites"] = false }));
+
+    var added = service.Execute(Request("features.add", new() { ["name"] = "Quiet", ["steps"] = "# comment\nwait 0; dispctrl focus get", ["description"] = "test" }));
+    Check(added["ok"]!.GetValue<bool>() && SettingsStore.Load().Features.Single().Steps.Count == 3, "features add keeps each step");
+    var ran = service.Execute(Request("features.run", new() { ["name"] = "quiet" }));
+    Check(ran["ok"]!.GetValue<bool>() && ran["data"]!["state"]!.GetValue<string>() == "applied" && ran["data"]!["steps"]!.AsArray().Count == 2,
+        "a feature runs its steps in order, by name in any case");
+    Check(service.Execute(Request("features.add", new() { ["name"] = "QUIET", ["steps"] = "wait 1" }))["exitCode"]!.GetValue<int>() == 2,
+        "two features cannot share a name");
+    Check(service.Execute(Request("features.add", new() { ["name"] = "Bad", ["steps"] = "jump 3" }))["exitCode"]!.GetValue<int>() == 2
+        && service.Execute(Request("features.add", new() { ["name"] = "Bad", ["steps"] = "dispctrl watch" }))["exitCode"]!.GetValue<int>() == 2,
+        "an unknown step, or a command that cannot run inside a feature, is refused when saved");
+    service.Execute(Request("features.add", new() { ["name"] = "Loop", ["steps"] = "dispctrl features run Loop" }));
+    var loop = service.Execute(Request("features.run", new() { ["name"] = "Loop" }));
+    Check(loop["exitCode"]!.GetValue<int>() == 1 && loop["data"]!["state"]!.GetValue<string>() == "partial", "a feature that runs itself stops instead of looping");
+    var failing = service.Execute(Request("features.set", new() { ["name"] = "Loop", ["rename"] = "Stops", ["steps"] = "dispctrl focus set --no-such-option 1; wait 0" }));
+    var stopped = service.Execute(Request("features.run", new() { ["name"] = "Stops" }));
+    Check(failing["ok"]!.GetValue<bool>() && stopped["data"]!["steps"]!.AsArray().Count == 1 && stopped["data"]!["steps"]![0]!["ok"]!.GetValue<bool>() == false,
+        "features set renames, and a failing step stops the feature");
+    Check(service.Execute(Request("features.run", new() { ["name"] = "Quiet", ["dryRun"] = true }))["data"]!["state"]!.GetValue<string>() == "validated",
+        "a dry run validates a feature without running it");
+    Check(service.Execute(Request("hotkeys.add", new() { ["keys"] = "Ctrl+Alt+Shift+F1", ["action"] = "set-control", ["control"] = "picture-mode" }))["exitCode"]!.GetValue<int>() == 2,
+        "a set-control shortcut needs a value");
+    var controlKey = service.Execute(Request("hotkeys.add", new() { ["keys"] = "Ctrl+Alt+Shift+F2", ["action"] = "next-control-value", ["control"] = "input-source", ["display"] = 2 }));
+    Check(controlKey["ok"]!.GetValue<bool>() && controlKey["data"]!["does"]!.GetValue<string>().Contains("input-source"), "a shortcut can cycle any control");
+    Check(service.Execute(Request("hotkeys.add", new() { ["keys"] = "Ctrl+Alt+Shift+F3", ["action"] = "run-feature", ["feature"] = "Missing" }))["exitCode"]!.GetValue<int>() == 2
+        && service.Execute(Request("hotkeys.add", new() { ["keys"] = "Ctrl+Alt+Shift+F3", ["action"] = "run-feature", ["feature"] = "quiet" }))["ok"]!.GetValue<bool>(),
+        "a run-feature shortcut must name a feature that exists");
+    var removed = service.Execute(Request("features.remove", new() { ["name"] = "Stops" }));
+    Check(removed["ok"]!.GetValue<bool>() && SettingsStore.Load().Features.Count == 1, "features remove drops one feature");
+    Check(CustomFeature.SplitSteps("run \"C:\\Tools\\a;b.exe\"; wait 0").SequenceEqual(new[] { "run \"C:\\Tools\\a;b.exe\"", "wait 0" }),
+        "feature separators preserve semicolons inside quoted arguments");
+    var wideControl = new DispCtrl.Display.VcpControl(0xE2, "Custom choice", DispCtrl.Display.VcpKind.Discrete,
+        [new(0x01, "One"), new(0x101, "Wide"), new(0x102, "Next")]) { MappedWritable = true, Current = 0x101 };
+    Check(wideControl.CurrentOption?.Name == "Wide"
+        && DispCtrl.Core.Devices.ControlValues.Cycle([0x01, 0x101, 0x102], 0x101, true) == 0x102,
+        "mapped choices preserve and cycle full 16-bit values");
+    var featureSettings = SettingsStore.Load();
+    var featureEditor = new DispCtrl.App.ViewModels.HotkeysViewModel(() => featureSettings, () => SettingsStore.Save(featureSettings));
+    var draftFeature = featureEditor.AddFeature();
+    draftFeature.Name = "Editor feature";
+    draftFeature.Steps = "wait 0";
+    await featureEditor.RunFeatureAsync(draftFeature, true);
+    Check(draftFeature.Status.StartsWith("validated") && !SettingsStore.Load().Features.Any(f => f.Name == draftFeature.Name),
+        "the editor tests an unsaved draft without persisting it");
+    await featureEditor.SaveFeatureAsync(draftFeature);
+    draftFeature.Name = "Renamed editor feature";
+    await featureEditor.SaveFeatureAsync(draftFeature);
+    Check(!SettingsStore.Load().Features.Any(f => f.Name == "Editor feature") && SettingsStore.Load().Features.Any(f => f.Name == draftFeature.Name),
+        "the editor renames the saved feature instead of making a copy");
+    draftFeature.Steps = "dispctrl focus set --no-such-option 1";
+    await featureEditor.RunFeatureAsync(draftFeature, true);
+    Check(draftFeature.Status.StartsWith("partial: 0 step(s) ok.") && draftFeature.Status.Length > "partial: 0 step(s) ok.".Length,
+        "the editor tests current edits and shows the failing step's error");
+    await featureEditor.DeleteFeatureAsync(draftFeature);
+    var unsavedFeature = featureEditor.AddFeature();
+    await featureEditor.DeleteFeatureAsync(unsavedFeature);
+    Check(!featureEditor.Features.Contains(unsavedFeature) && SettingsStore.Load().Features.Count == 1,
+        "deleting an unsaved feature only removes the draft");
+    Check(CustomFeature.SplitSteps("# leave this disabled; dispctrl focus set --enabled on\nwait 0").Count == 2
+        && new CustomFeature { Steps = CustomFeature.SplitSteps("# comment; wait 1\nwait 0") }.Parse().Count == 1,
+        "semicolons inside a comment cannot enable commented-out commands");
+    string[] quotedWords = ["features", "run", "Name with \"quotes\"; and a trailing slash\\", ""];
+    Check(FeatureStep.Tokenize(FeatureStep.Join(quotedWords)).SequenceEqual(quotedWords),
+        "feature names and arguments round-trip quotes, semicolons, empty values and backslashes");
+    using (var echoArguments = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("dotnet",
+        FeatureStep.JoinWindowsArguments([typeof(Program).Assembly.Location, "--echo-arguments", .. quotedWords]))
+        { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true })!)
+    {
+        string echo = await echoArguments.StandardOutput.ReadToEndAsync();
+        await echoArguments.WaitForExitAsync();
+        Check(echoArguments.ExitCode == 0 && JsonNode.Parse(echo)!.AsArray().Select(a => a!.GetValue<string>()).SequenceEqual(quotedWords),
+            "quick-panel feature commands preserve quoted names through Windows process argument parsing");
+    }
+    Check(DispCtrl.Core.Devices.ControlValues.Step(0, 5, 0) == 0
+        && DispCtrl.Core.Devices.ControlValues.Step(65535, 5, -1) == 65535,
+        "relative writes respect zero maximum and the wire value limit");
+    Check(Enum.GetValues<HotkeyAction>().Where(Hotkey.IsControlAction).All(Hotkey.NeedsWorker),
+        "every custom control shortcut runs off the Windows message loop");
+    var freshFeatures = SettingsStore.Load();
+    freshFeatures.Features.Add(new() { Name = "From reload", Steps = ["wait 0"] });
+    SettingsStore.RefreshInPlace(featureSettings, freshFeatures);
+    Check(featureSettings.Features.Any(f => f.Name == "From reload"), "settings reload includes custom features");
+    featureSettings = SettingsStore.Load();
+    service.Execute(Request("features.add", new() { ["name"] = "Adopted", ["steps"] = "wait 0" }));
+    SettingsStore.RefreshFeatures(featureSettings, SettingsStore.Load());
+    service.Execute(Request("features.add", new() { ["name"] = "External", ["steps"] = "wait 0" }));
+    featureSettings.Global.DdcGuard.AllowRawWrites = true;
+    SettingsStore.Save(featureSettings);
+    Check(SettingsStore.Load().Features.Any(f => f.Name == "External"), "saving another app setting preserves subsequent external feature edits");
+    service.Execute(Request("features.remove", new() { ["name"] = "External" }));
+    service.Execute(Request("features.remove", new() { ["name"] = "Adopted" }));
+    service.Execute(Request("ddc.set", new() { ["rawWrites"] = false }));
+    int namedOff = await ControlTerminal.RunAsync(["hotkeys", "add", "--keys", "Ctrl+Alt+Shift+F4", "--action", "set-control", "--control", "0xE2", "--value", "off", "--local"]);
+    Check(namedOff == 0 && SettingsStore.Load().Hotkeys.Any(h => h.Control == "0xE2" && h.Value == "off"),
+        "the CLI keeps on/off control values as names instead of booleans");
+    JsonObject AuditFeature(params string[] steps) => service.RunFeature(new() { Name = "Audit", Steps = [.. steps] }, dryRun: true);
+    foreach (string invalidStep in new[] { "dispctrl status extra", "dispctrl displays nonsense", "dispctrl features run Quiet --name Quiet" })
+        Check(AuditFeature(invalidStep)["state"]!.GetValue<string>() == "partial", "feature commands reject ambiguous or extra arguments: " + invalidStep);
+    Check(AuditFeature("dispctrl settings schema", "dispctrl devices definitions")["state"]!.GetValue<string>() == "validated",
+        "feature dry runs accept read-only schema and definition queries");
+    service.Execute(Request("features.add", new() { ["name"] = "Many steps", ["steps"] = string.Join(';', Enumerable.Repeat("wait 0", 100)) }));
+    Check(AuditFeature(Enumerable.Repeat("dispctrl features run \"Many steps\"", 11).ToArray())["state"]!.GetValue<string>() == "partial",
+        "nested features share a bounded total step count");
+    service.Execute(Request("features.remove", new() { ["name"] = "Many steps" }));
+    string beforeDry = File.ReadAllText(SettingsStore.Path_);
+    Check(AuditFeature("dispctrl focus set --enabled on --dry-run=false")["state"]!.GetValue<string>() == "validated"
+        && File.ReadAllText(SettingsStore.Path_) == beforeDry, "an inner dry-run=false cannot override the outer dry run");
+    using (var featureEntered = new ManualResetEventSlim())
+    using (var featureRelease = new ManualResetEventSlim())
+    {
+        var owner = Task.Run(() =>
+        {
+            using var gate = new Mutex(false, @"Local\DispCtrl.Control.FeatureRun");
+            gate.WaitOne(); featureEntered.Set();
+            try { featureRelease.Wait(TimeSpan.FromSeconds(10)); }
+            finally { gate.ReleaseMutex(); }
+        });
+        Check(featureEntered.Wait(TimeSpan.FromSeconds(5)), "feature concurrency test acquired its gate");
+        try
+        {
+            var concurrent = service.Execute(Request("features.run", new() { ["name"] = "Quiet" }));
+            Check(concurrent["ok"]!.GetValue<bool>() == false && concurrent["error"]!["message"]!.GetValue<string>().Contains("already running"),
+                "overlapping feature executions are refused instead of interleaving writes");
+        }
+        finally { featureRelease.Set(); await owner; }
+    }
+    string scriptFolder = Path.Combine(ControlService.ScriptsFolder, "with spaces");
+    Directory.CreateDirectory(scriptFolder);
+    string batch = Path.Combine(scriptFolder, "arguments.cmd");
+    File.WriteAllText(batch, "@echo off\r\necho %~1\r\nexit /b 0\r\n");
+    string scriptStep = FeatureStep.Join(["script", batch, "hello world"]);
+    Check(AuditFeature(scriptStep)["state"]!.GetValue<string>() == "validated", "a script dry run checks the file without launching it");
+    var scriptResult = service.RunFeature(new() { Name = "Batch", Steps = [scriptStep] });
+    Check(scriptResult["state"]!.GetValue<string>() == "applied" && scriptResult["steps"]![0]!["result"]!.GetValue<string>() == "hello world",
+        "batch paths and arguments with spaces run correctly and stdout stays inside the result");
+    Check(AuditFeature(FeatureStep.Join(["script", batch, "hello & whoami"]))["state"]!.GetValue<string>() == "partial",
+        "batch arguments containing shell operators are refused during validation");
+    File.WriteAllText(Path.Combine(scriptFolder, "not-script.txt"), "test");
+    Check(AuditFeature(FeatureStep.Join(["script", Path.Combine(scriptFolder, "not-script.txt")]))["state"]!.GetValue<string>() == "partial",
+        "a dry run refuses unsupported script file types");
+    var retainedDraft = featureEditor.AddFeature();
+    retainedDraft.Name = "Keep my edits";
+    var savedDraft = featureEditor.AddFeature();
+    savedDraft.Name = "Delete only me"; savedDraft.Steps = "wait 0";
+    await featureEditor.SaveFeatureAsync(savedDraft);
+    await featureEditor.DeleteFeatureAsync(savedDraft);
+    Check(featureEditor.Features.Contains(retainedDraft), "deleting one saved feature preserves other unsaved editor drafts");
+    string intactSettings = File.ReadAllText(SettingsStore.Path_);
+    try
+    {
+        var malformedFeatures = JsonNode.Parse(intactSettings)!;
+        malformedFeatures["features"] = new JsonArray(null, new JsonObject { ["name"] = "Broken", ["steps"] = new JsonArray("unknown step") },
+            new JsonObject { ["name"] = " Healthy ", ["steps"] = new JsonArray("wait 0") });
+        string handEdited = malformedFeatures.ToJsonString();
+        File.WriteAllText(SettingsStore.Path_, handEdited);
+        var loadedFeatures = SettingsStore.Load();
+        Check(loadedFeatures.Features.Count == 1 && SettingsStore.SetAside.Count == 2 && File.ReadAllText(SettingsStore.Path_) == handEdited,
+            "malformed hand-edited features are set aside without crashing or rewriting the settings file");
+        Check(service.Execute(Request("features.run", new() { ["name"] = "Healthy", ["dryRun"] = true }))["ok"]!.GetValue<bool>(),
+            "feature lookup handles surrounding spaces in imported names");
+        malformedFeatures["features"] = null;
+        File.WriteAllText(SettingsStore.Path_, malformedFeatures.ToJsonString());
+        Check(SettingsStore.Load().Features.Count == 0 && SettingsStore.SetAside.Contains("$.features"),
+            "a null hand-edited feature list cannot crash the app");
+    }
+    finally { File.WriteAllText(SettingsStore.Path_, intactSettings); }
     Console.WriteLine($"{checks} control checks passed.");
 }
 finally

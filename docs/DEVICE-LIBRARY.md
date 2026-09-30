@@ -1,5 +1,8 @@
 # The device library
 
+For the guided mapping popup, custom features, hotkeys and tiles, see
+[Custom monitor controls and features](CUSTOM-CONTROLS.md).
+
 Every monitor answers DDC/CI with a list of VCP codes. The MCCS standard names
 some of them - brightness, contrast, input source. Manufacturers add their own,
 from `0xE0` up and in the gaps between, and document none of them. That is

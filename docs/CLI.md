@@ -1,5 +1,8 @@
 # DispCtrl CLI and local API
 
+See [Custom monitor controls and features](CUSTOM-CONTROLS.md) for mapping,
+control cycling, feature sequences and advanced raw writes.
+
 `dispctrl.exe` is the console entry point. It waits for completion, writes JSON
 results to stdout and returns an exit code. Add `--json` for compact output.
 Use the CLI+engine ZIP for scripting without installing the native UI.

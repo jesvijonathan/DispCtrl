@@ -71,6 +71,14 @@
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
+      <tk:SettingsCard Header="Allow raw DDC/CI writes (advanced)"
+                       Description="Allows explicit raw writes from commands and custom features, including unmapped manufacturer codes. An unknown code can change settings the monitor's own menu cannot undo. Prefer a tested mapping.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE7BA;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.AllowRawDdcWrites, Mode=TwoWay}" AutomationProperties.Name="AllowRawDdcWrites"/>
+      </tk:SettingsCard>
+
       <TextBlock Text="Diagnostics"
                  Style="{StaticResource BodyStrongTextBlockStyle}"
                  Margin="0,28,0,8"/>

@@ -1454,8 +1454,13 @@
                   </tk:SettingsCard.HeaderIcon>
 
                   <StackPanel Spacing="4">
-                    <Button Content="Show controls" Click="OnToggleMonitorControls"
-                            Visibility="{x:Bind MonitorControlsVisibility, Mode=OneWay}"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Button Content="Show controls" Click="OnToggleMonitorControls"
+                              Visibility="{x:Bind MonitorControlsVisibility, Mode=OneWay}"/>
+                      <Button Content="Learn a setting…" Click="OnLearnSetting" Tag="{x:Bind}"
+                              Visibility="{x:Bind LearnSettingVisibility, Mode=OneWay}"
+                              AutomationProperties.Name="LearnSetting"/>
+                    </StackPanel>
                   <ItemsControl ItemsSource="{x:Bind MonitorControls}"
                                 HorizontalContentAlignment="Stretch"
                                 Margin="12,4,0,8" Visibility="Collapsed">

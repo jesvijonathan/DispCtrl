@@ -19,6 +19,20 @@ public sealed class DdcGuardSettings
     /// <summary>Monitors DispCtrl no longer talks to over DDC/CI, until allowed again.</summary>
     public List<DdcBlock> Blocked { get; set; } = [];
 
+    /// <summary>
+    /// Advanced, off by default: lets <c>display control --raw</c> and the app
+    /// read and write any VCP code, including manufacturer codes nobody has
+    /// mapped.
+    /// </summary>
+    /// <remarks>
+    /// Off because an unmapped manufacturer code can do anything the model's
+    /// firmware decides - including things its own menu cannot undo. Mapping a
+    /// code (devices map) is the safe way to make one writable; this is for
+    /// finding out what a code does in the first place, by someone who accepts
+    /// that risk. Factory reset (0x04) stays behind its own command either way.
+    /// </remarks>
+    public bool AllowRawWrites { get; set; }
+
     /// <summary>Whether a monitor, by identity token, is blocked.</summary>
     public bool IsBlocked(string token) => Enabled && Blocked.Any(b => string.Equals(b.Token, token, StringComparison.OrdinalIgnoreCase));
 }

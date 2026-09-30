@@ -72,7 +72,7 @@ try
     var reported = MonitorCapabilities.Parse("(prot(monitor)vcp(10 60(0F 11)))");
     var applied = LgInput.Apply(display, reported);
     var input = applied.Controls.Single(c => c.Code == 0x60);
-    Check(input.Settable && input.WriteOnly && input.Current == -1 && input.Values.Select(v => v.Value).SequenceEqual(new byte[] { 0x90, 0xD0 }), "mapped input replaces standard values without inventing a current input");
+    Check(input.Settable && input.WriteOnly && input.Current == -1 && input.Values.Select(v => v.Value).SequenceEqual(new ushort[] { 0x90, 0xD0 }), "mapped input replaces standard values without inventing a current input");
     Check(reported.Controls.Single(c => c.Code == 0x60).Values[0].Value == 0x0F, "capability discovery remains unmodified");
     Check(LgInput.Apply(display, MonitorCapability.None).Controls.Single().Settable, "an explicitly mapped write-only input can be absent from advertised capabilities");
     Check(MonitorCapabilities.ReadControl(display, 0x60) is { WriteOnly: true, Current: -1 },
@@ -123,6 +123,27 @@ try
     Check(await ControlTerminal.RunAsync(["devices", "map", "--model", "GSM-1234", "--code", "0x60", "--name", "Input source",
         "--source-address", "0x50", "--write-code", "0xF4", "--values", "0x90=HDMI 1,0xD0=DisplayPort 1",
         "--writable", "--dry-run", "--local"]) == 0, "CLI parses the documented alternate mapping switches");
+    var custom = new DefinedControl { Code = "0xE2", Name = "Custom", Kind = "choice", Writable = true,
+        Values = [new() { Value = "0x101", Name = "Wide" }] };
+    DeviceLibrary.SaveLocal(new DeviceDefinition { Target = "GSM-1234", Controls = [custom] });
+    var mappedUi = new VcpControl(0xE2, "Custom", VcpKind.Discrete, [new(0x101, "Wide")])
+    {
+        MappedWritable = true,
+        MappingSnapshot = JsonSerializer.Serialize(custom, DeviceJsonContext.Default.DefinedControl),
+    };
+    Check(!MonitorCapabilities.Write(display, mappedUi, 1, out _), "mapped UI refuses values outside the displayed choices before touching hardware");
+    custom.Writable = false;
+    DeviceLibrary.SaveLocal(new DeviceDefinition { Target = "GSM-1234", Controls = [custom] });
+    Check(!MonitorCapabilities.Write(display, mappedUi, 0x101, out _), "a stale mapped UI cannot write after permission is revoked");
+    custom.Writable = true; custom.Values[0].Value = "0x102";
+    DeviceLibrary.SaveLocal(new DeviceDefinition { Target = "GSM-1234", Controls = [custom] });
+    Check(!MonitorCapabilities.Write(display, mappedUi, 0x101, out _), "a stale mapped UI cannot write after the mapping changes");
+    DeviceLibrary.Unmap("GSM-1234", 0xE2);
+    Check(!MonitorCapabilities.Write(display, mappedUi, 0x101, out _), "removing a mapping invalidates existing UI writers");
+    var readOnlyContrast = new DefinedControl { Code = "0x12", Name = "Contrast", Kind = "range", Writable = false };
+    DeviceLibrary.SaveLocal(new DeviceDefinition { Target = "GSM-1234", Controls = [readOnlyContrast] });
+    Check(!MonitorCapabilities.Write(display, new VcpControl(0x12, "Contrast", VcpKind.Continuous, []), 50, out _),
+        "read-only overrides also block stale standard-control widgets");
     Console.WriteLine($"{checks} LG input checks passed; no hardware commands sent.");
 }
 finally

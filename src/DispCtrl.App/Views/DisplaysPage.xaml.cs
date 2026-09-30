@@ -141,11 +141,24 @@ public sealed partial class DisplaysPage : Page
 
     private void OnToggleMonitorControls(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button button || button.Parent is not StackPanel panel || panel.Children.Count < 2) return;
-        var controls = (ItemsControl)panel.Children[1];
+        if (sender is not Button button) return;
+        StackPanel? panel = button.Parent as StackPanel;
+        if (panel?.Parent is StackPanel outer) panel = outer;
+        if (panel is null || panel.Children.Count < 2 || panel.Children[1] is not ItemsControl controls) return;
         bool show = controls.Visibility != Visibility.Visible;
         controls.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         button.Content = show ? "Hide controls" : "Show controls";
+    }
+
+    private async void OnLearnSetting(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not DisplayViewModel display) return;
+        var dialog = new LearnSettingDialog(display.Info);
+        if (await dialog.ShowAsync(XamlRoot))
+        {
+            await display.RefreshMonitorControlsAsync();
+            ViewModel.ShowFooterStatus("Saved. Share it with others from Devices > Contribute.");
+        }
     }
 
     private void OnOpenWindowsColours(object sender, RoutedEventArgs e) =>

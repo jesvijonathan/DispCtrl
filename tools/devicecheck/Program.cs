@@ -155,6 +155,36 @@ static int SelfTest()
         Check(own.Any(v => v.Name == "FPS") && own.Any(v => v.Value == 0x28) && !shared.Any(v => v.Name == "FPS")
             && shared.Any(v => v.Name == "Reader") && shared.Any(v => v.Value == 0x28),
             "a model's own read-back values survive a stale capabilities list; a shared definition stays within it");
+        uint[] inputs = [0x90, 0xD0, 0xD1];
+        var wide = new DefinedControl { Code = "0xE2", Name = "Wide", Kind = "choice", Values = [new() { Value = "0x101", Name = "Wide choice" }] };
+        Check(DeviceDefinitions.OfferedValues([(1, "Byte choice")], wide, true).Count == 2
+            && !DeviceDefinitions.OfferedValues([(1, "Byte choice")], wide, false).Any(v => v.Value == 0x101),
+            "16-bit mapping values never alias a different advertised byte value");
+        Check(DeviceDefinitions.Validate(new DeviceDefinition { Target = "TST-0001", Controls = [new() { Code = "0x04", Name = "Reset", Kind = "action", Writable = true }] }).Count > 0,
+            "a writable mapping cannot bypass the factory-reset confirmation");
+        Check(ControlValues.Cycle(inputs, 0xD0, true) == 0xD1 && ControlValues.Cycle(inputs, 0xD1, true) == 0x90
+            && ControlValues.Cycle(inputs, 0x90, false) == 0xD1 && ControlValues.Cycle(inputs, null, true) == 0x90
+            && ControlValues.Cycle(inputs, 0x11D0, true) == 0xD1,
+            "next and previous wrap round, start at an end when the current value is unknown, and read the low byte");
+        Check(ControlValues.Step(18, 5, 20) == 20 && ControlValues.Step(3, -5, 20) == 0 && ControlValues.Step(50, 10, -1) == 60
+            && ControlValues.Classify("+5", out int up) == ControlValues.Request.Relative && up == 5
+            && ControlValues.Classify("-10", out int down) == ControlValues.Request.Relative && down == -10
+            && ControlValues.Classify("Next", out _) == ControlValues.Request.Next && ControlValues.Classify("prev", out _) == ControlValues.Request.Previous
+            && ControlValues.Classify("fps", out _) == ControlValues.Request.Exact && ControlValues.Classify("-", out _) == ControlValues.Request.Exact,
+            "steps stay within the range, and value words are read the same everywhere");
+        var feature = new DispCtrl.Core.Settings.CustomFeature { Name = "Gaming", Steps =
+            ["# LG", "set 2 picture-mode fps", "set all 0xE9 3 raw", "run \"C:\\Program Files\\x.exe\" --fast", "wait 500", "dispctrl nightlight set --enabled off", ""] };
+        var parsed = feature.Parse();
+        Check(parsed.Count == 5 && parsed[0].Control == "picture-mode" && parsed[1].Raw && !parsed[0].Raw
+            && parsed[2].Words[0] == "C:\\Program Files\\x.exe" && parsed[3].Milliseconds == 500
+            && parsed[4].Kind == DispCtrl.Core.Settings.FeatureStepKind.Command,
+            "feature steps parse, with quoted paths and comments");
+        Check(DispCtrl.Core.Settings.CustomFeature.Problem([new() { Name = "A", Steps = ["wait 70000"] }]) is not null
+            && DispCtrl.Core.Settings.CustomFeature.Problem([new() { Name = "A", Steps = ["set 2 x"] }]) is not null
+            && DispCtrl.Core.Settings.CustomFeature.Problem([new() { Name = "A", Steps = ["run \"x"] }]) is not null
+            && DispCtrl.Core.Settings.CustomFeature.Problem([new() { Name = "A" }, new() { Name = "a" }]) is not null
+            && DispCtrl.Core.Settings.CustomFeature.Problem([feature]) is null,
+            "a feature with a bad step, an open quote or a duplicate name is refused");
         string library = Path.Combine(temp, "library");
         Directory.CreateDirectory(Path.GetDirectoryName(DeviceLayout.DefinitionPath(library, "TST-0404"))!);
         File.WriteAllText(DeviceLayout.DefinitionPath(library, "TST-0404"), "{\"schema\":1,\"target\":\"TST-0404\",\"panel\":{\"technology\":\"OLED\"},\"controls\":[]}");

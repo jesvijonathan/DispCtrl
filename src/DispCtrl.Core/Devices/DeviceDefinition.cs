@@ -241,6 +241,7 @@ public static partial class DeviceDefinitions
             if (!DefinedConfidence.All.Contains(c.Confidence)) problems.Add($"{at}: confidence must be one of {string.Join(", ", DefinedConfidence.All)}");
             if (c.Key is { } key && (key.Length == 0 || key != KeyFor(key))) problems.Add($"{at}: key '{key}' must be lower-case words joined by dashes");
             if (c.Writable && c.Kind == DefinedKinds.Information) problems.Add($"{at}: information cannot be writable");
+            if (c.Writable && code == 0x04) problems.Add($"{at}: factory reset requires the dedicated confirmation command");
             if (c.Writable && c.Kind == DefinedKinds.Choice && c.Values.Count == 0) problems.Add($"{at}: a writable choice must list its values");
             if (c.Maximum is < 0 or > 65535) problems.Add($"{at}: maximum must be 0 to 65535");
             if (c.DdcWrite is { } write)
@@ -282,9 +283,9 @@ public static partial class DeviceDefinitions
         if (mapping is not { Values.Count: > 0 }) return [.. listed];
         var named = mapping.Values.Where(v => v.Number is not null).Select(v => (v.Number!.Value, v.Name)).ToList();
         if (listed.Count == 0) return named;
-        var result = ownModel ? named : named.Where(n => listed.Any(l => (l.Value & 0xFF) == (n.Value & 0xFF))).ToList();
-        result.AddRange(listed.Where(l => !named.Any(n => (n.Value & 0xFF) == (l.Value & 0xFF)))
-            .Select(l => (l.Value, $"Value 0x{l.Value & 0xFF:X2}")));
+        var result = ownModel ? named : named.Where(n => listed.Any(l => l.Value == n.Value)).ToList();
+        result.AddRange(listed.Where(l => !named.Any(n => n.Value == l.Value))
+            .Select(l => (l.Value, $"Value 0x{l.Value:X2}")));
         return result;
     }
 

@@ -42,6 +42,17 @@ public sealed class DispCtrlSettings
     public List<Hotkey> Hotkeys { get; set; } = [];
 
     /// <summary>
+    /// Custom features: named lists of steps - monitor controls, dispctrl
+    /// commands, programs and scripts - run by name from the command line, a
+    /// hotkey or a quick-panel tile.
+    /// </summary>
+    /// <remarks>
+    /// Kept by Reset all, like app rules: they are things somebody made, not
+    /// preferences with a default.
+    /// </remarks>
+    public List<CustomFeature> Features { get; set; } = [];
+
+    /// <summary>
     /// Every DispCtrl setting back to its default: the whole desk, every
     /// monitor, and the shortcuts, which return to the default set.
     /// </summary>

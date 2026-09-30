@@ -163,7 +163,24 @@ public static partial class SettingsStore
                 s = Lenient(json, out List<string> setAside);
                 SetAside = setAside;
             }
-            if (s is not null) return Track(s);
+            if (s is not null)
+            {
+                // Hand-edited feature entries must not prevent the app from
+                // opening. Keep the file intact until the owner edits it.
+                var omitted = SetAside.ToList();
+                var features = new List<CustomFeature>();
+                var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (s.Features is null) omitted.Add("$.features");
+                else for (int i = 0; i < s.Features.Count; i++)
+                {
+                    CustomFeature? feature = s.Features[i];
+                    if (CustomFeature.Problem([feature]) is not null || !names.Add(feature!.Name.Trim())) omitted.Add($"$.features[{i}]");
+                    else features.Add(feature);
+                }
+                s.Features = features;
+                SetAside = omitted;
+                return Track(s);
+            }
 
             Quarantine();
             return Track(new DispCtrlSettings());
@@ -388,6 +405,14 @@ public static partial class SettingsStore
         return settings;
     }
 
+    /// <summary>Adopt feature edits made through the control service without replaying them on the next app save.</summary>
+    public static void RefreshFeatures(DispCtrlSettings target, DispCtrlSettings source)
+    {
+        target.Features = source.Features;
+        if (Snapshots.TryGetValue(target, out var baseline))
+            baseline.Json["features"] = JsonSerializer.SerializeToNode(source, SettingsJsonContext.Default.DispCtrlSettings)?["features"]?.DeepClone();
+    }
+
     /// <summary>Adopt a fresh snapshot without replacing monitor objects held by UI bindings.</summary>
     public static void RefreshInPlace(DispCtrlSettings target, DispCtrlSettings source)
     {
@@ -397,6 +422,7 @@ public static partial class SettingsStore
         foreach (string key in target.Monitors.Keys.Except(source.Monitors.Keys).ToArray()) target.Monitors.Remove(key);
         target.Hotkeys = source.Hotkeys;
         target.AppRules = source.AppRules;
+        target.Features = source.Features;
         target.Version = source.Version;
         Snapshots.Remove(target);
         Track(target);

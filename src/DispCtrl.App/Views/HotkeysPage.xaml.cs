@@ -74,6 +74,32 @@ public sealed partial class HotkeysPage : Page
         StartCapture(item);
     }
 
+    private void OnAddFeature(object sender, RoutedEventArgs e) => ViewModel.AddFeature();
+
+    private async void OnSaveFeature(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is CustomFeatureViewModel feature)
+            await ViewModel.SaveFeatureAsync(feature);
+    }
+
+    private async void OnDeleteFeature(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is CustomFeatureViewModel feature)
+            await ViewModel.DeleteFeatureAsync(feature);
+    }
+
+    private async void OnRunFeature(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is CustomFeatureViewModel feature)
+            await ViewModel.RunFeatureAsync(feature, false);
+    }
+
+    private async void OnTestFeature(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is CustomFeatureViewModel feature)
+            await ViewModel.RunFeatureAsync(feature, true);
+    }
+
     private async void OnRestoreDefaults(object sender, RoutedEventArgs e)
     {
         var confirm = new ContentDialog

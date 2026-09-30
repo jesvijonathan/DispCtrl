@@ -402,8 +402,8 @@ public sealed partial class ControlService
         };
 
         /// <summary>Standard codes by the allow list; mapped ones only when the mapping says so.</summary>
-        public bool Settable => Control.Settable
-            || Mapping is { Writable: true } m && m.Kind != DefinedKinds.Information;
+        public bool Settable => Control.Code != 0x04 && (Mapping is null ? Control.Settable
+            : Mapping is { Writable: true } m && m.Kind != DefinedKinds.Information);
 
         /// <summary>The values offered; see <see cref="DeviceDefinitions.OfferedValues"/>.</summary>
         public IReadOnlyList<(uint Value, string Name)> Values => DeviceDefinitions.OfferedValues(
@@ -414,12 +414,13 @@ public sealed partial class ControlService
             : Mapping?.Maximum ?? Control.Maximum;
 
         /// <summary>Null when the monitor did not answer the read: DDC/CI drops the odd reply.</summary>
-        public int? Current => Control.Current < 0 ? null : Kind == DefinedKinds.Choice ? Control.CurrentValue : Control.Current;
+        public int? Current => Control.Current < 0 ? null
+            : Kind == DefinedKinds.Choice && !Values.Any(v => v.Value > 0xFF) ? Control.CurrentValue : Control.Current;
 
         /// <summary>The current value's name; a choice at a value nobody has named says so rather than nothing.</summary>
         public string? CurrentName => Current is not int now ? null
-            : Values.FirstOrDefault(v => (v.Value & 0xFF) == (uint)(now & 0xFF)).Name
-              ?? (Kind == DefinedKinds.Choice ? $"unnamed value 0x{now & 0xFF:X2}" : null);
+            : Values.FirstOrDefault(v => v.Value == (uint)now).Name
+              ?? (Kind == DefinedKinds.Choice ? $"unnamed value 0x{now:X2}" : null);
     }
 
     private static List<Effective> Effectives(DisplayInfo display, MonitorCapability capabilities)
@@ -460,40 +461,170 @@ public sealed partial class ControlService
     private static JsonNode ControlCommand(JsonObject args)
     {
         foreach (var pair in args)
-            if (pair.Key is not ("monitor" or "name" or "value" or "dryRun")) throw new ArgumentException("Unknown option for display control: " + pair.Key);
+            if (pair.Key is not ("monitor" or "name" or "value" or "raw" or "dryRun")) throw new ArgumentException("Unknown option for display control: " + pair.Key);
         string selector = Text(args, "name") ?? throw new ArgumentException("Name the control: --name contrast, or its code: --name 0x12. List them with display controls.");
-        List<DisplayInfo> targets = Resolve(Text(args, "monitor"), false);
-        if (targets.Count == 0) throw new ArgumentException("No monitors are connected.");
 
         string? wanted = args["value"] is JsonNode node ? node.ToString() : null;
         bool dryRun = Flag(args, "dryRun");
+        bool raw = Flag(args, "raw");
+        byte? rawCode = null;
+        if (raw)
+        {
+            if (!SettingsStore.Load().Global.DdcGuard.AllowRawWrites)
+                throw new ArgumentException("Raw DDC/CI access is an Advanced setting and is off. Turn it on with 'ddc set --raw-writes on' (or Settings > Advanced in the app) - "
+                    + "or, safer, map the code with 'devices map' so it is named and checked.");
+            rawCode = ParseCode(selector) ?? throw new ArgumentException("--raw takes a code, as --name 0xE9.");
+            if (rawCode is 0x04) throw new ArgumentException("0x04 is the monitor's factory reset; use display factory-reset, which asks for --confirm.");
+        }
+        List<DisplayInfo> targets = Resolve(Text(args, "monitor"), false);
+        if (string.Equals(Text(args, "monitor"), "all", StringComparison.OrdinalIgnoreCase)) targets.RemoveAll(d => d.IsInternal);
+        if (targets.Count == 0) throw new ArgumentException("No monitors are connected.");
         var results = new JsonArray();
+        var writes = new List<(DisplayInfo Display, Effective Control, uint Value, JsonObject Entry)>();
         foreach (DisplayInfo d in targets)
         {
             if (d.IsInternal) throw new ArgumentException($"{d.Label} is a built-in panel and has no DDC/CI controls.");
-            Effective control = ReadControl(d, selector);
+            Effective control = rawCode is byte code ? ReadRaw(d, code) : ReadControl(d, selector);
             var entry = Describe(control);
             entry["monitor"] = d.Token;
+            if (raw) entry["raw"] = true;
             if (wanted is not null)
             {
-                if (!control.Settable)
+                if (!raw && !control.Settable)
                     throw new ArgumentException(control.Mapping is null
                         ? $"{control.Name} on {d.Label} is read-only here: not a standard control DispCtrl writes, and nobody has mapped it as safe. See devices map."
                         : $"{control.Name} on {d.Label} is mapped but not as writable.");
-                uint value = FindValue(control, wanted);
+                uint value = RequestedValue(d, control, wanted, raw);
                 entry["requested"] = value;
+                if (control.Values.FirstOrDefault(v => v.Value == value).Name is { } requestedName) entry["requestedName"] = requestedName;
                 if (dryRun) entry["state"] = "validated";
-                else
-                {
-                    if (!MonitorCapabilities.Write(d, control.Control, value, out string? writeError))
-                        throw new InvalidOperationException(writeError ?? $"{d.Label} refused {control.Name} = {wanted}.");
-                    entry["state"] = control.Control.WriteOnly ? "sent" : "applied";
-                    if (control.Control.WriteOnly) entry["note"] = "The monitor does not acknowledge this input switch; confirm on screen.";
-                }
+                else { entry["state"] = "pending"; writes.Add((d, control, value, entry)); }
             }
             results.Add((JsonNode)entry);
         }
+        // Validate every target before the first write. Hardware failures can
+        // still occur partway through; retain the earlier results in that case.
+        foreach (var (d, control, value, entry) in writes)
+        {
+            bool written = raw && control.Mapping?.DdcWrite is null
+                ? MonitorCapabilities.Write(d, control.Control.Code, value, out string? writeError)
+                : MonitorCapabilities.Write(d, control.Control, value, out writeError);
+            if (!written)
+            {
+                entry["state"] = "failed";
+                entry["error"] = writeError ?? $"{d.Label} refused {control.Name} = {wanted}.";
+                return new JsonObject { ["state"] = "partial", ["controls"] = results };
+            }
+            if (control.Control.WriteOnly)
+            {
+                if (LastSent.Count >= 256) LastSent.Clear();
+                LastSent[(d.Token, control.Control.Code)] = (value, MappingKey(control));
+                entry["note"] = "The monitor does not acknowledge this input switch; confirm on screen.";
+            }
+            entry["state"] = control.Control.WriteOnly ? "sent" : "applied";
+        }
         return new JsonObject { ["controls"] = results };
+    }
+
+    /// <summary>
+    /// The last value sent to a write-only control, per monitor, so <c>next</c>
+    /// on an input the monitor will not report still moves on from where it is.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Token, byte Code), (uint Value, string Mapping)> LastSent = new();
+    private static string MappingKey(Effective control) => control.Mapping is { } mapping
+        ? System.Text.Json.JsonSerializer.Serialize(mapping, DeviceJsonContext.Default.DefinedControl) : "";
+
+    /// <summary>A requested value: exact, <c>next</c>/<c>previous</c>, or a <c>+N</c>/<c>-N</c> step.</summary>
+    private static uint RequestedValue(DisplayInfo display, Effective control, string text, bool raw)
+    {
+        switch (ControlValues.Classify(text, out int delta))
+        {
+            case ControlValues.Request.Next:
+            case ControlValues.Request.Previous:
+            {
+                IReadOnlyList<(uint Value, string Name)> values = control.Values;
+                if (values.Count == 0) throw new ArgumentException($"{control.Name} has no list of values to move through; step a range with +N or -N.");
+                int? current = control.Current;
+                if (current is null && control.Control.WriteOnly && LastSent.TryGetValue((display.Token, control.Control.Code), out var last)
+                    && last.Mapping == MappingKey(control)) current = (int)last.Value;
+                return ControlValues.Cycle(values.Select(v => v.Value).ToList(), current,
+                    ControlValues.Classify(text, out _) == ControlValues.Request.Next);
+            }
+            case ControlValues.Request.Relative:
+                if (!raw && control.Kind != DefinedKinds.Range)
+                    throw new ArgumentException($"{control.Name} is a choice, not a range; use next or previous.");
+                return ControlValues.Step(control.Control.Current < 0 ? null : control.Control.Current, delta, control.Maximum);
+            default:
+                if (raw && DeviceDefinitions.ParseNumber(text.Trim()) is uint number)
+                    return number <= 0xFFFF ? number : throw new ArgumentException("A VCP value is 0 to 65535.");
+                return FindValue(control, text);
+        }
+    }
+
+    /// <summary>
+    /// Any code, listed or not, for <c>--raw</c>: named by the library or the
+    /// standard when either knows it, and read straight from the monitor.
+    /// </summary>
+    private static Effective ReadRaw(DisplayInfo display, byte code)
+    {
+        Dictionary<byte, ResolvedControl> library = DeviceLibrary.Resolve(display.Key.Model);
+        library.TryGetValue(code, out ResolvedControl? mapped);
+        VcpControl control = MonitorCapabilities.ReadControl(display, code) ?? UnlistedControl(display, code, mapped?.Definition);
+        return new Effective(control, mapped?.Definition, mapped?.Origin,
+            mapped?.Origin.EndsWith(" " + display.Key.Model, StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    /// <summary>A code the monitor did not list, read once so its current value is known.</summary>
+    private static VcpControl UnlistedControl(DisplayInfo display, byte code, DefinedControl? mapping)
+    {
+        VcpKind kind = mapping?.Kind switch
+        {
+            DefinedKinds.Choice => VcpKind.Discrete,
+            DefinedKinds.Information => VcpKind.Information,
+            _ => VcpKind.Continuous,
+        };
+        var control = new VcpControl(code, mapping?.Name ?? $"VCP {code:X2}", kind, []);
+        MonitorCapabilities.ReadValues(display, [control]);
+        return control;
+    }
+
+    /// <summary>
+    /// Controls the library maps as writable that the monitor's standard list
+    /// does not already offer, ready for the Displays page and the quick panel.
+    /// </summary>
+    /// <remarks>
+    /// Names, values and ranges come from the mapping; the current value is read
+    /// from the monitor. A mapped code the monitor does not answer is left out,
+    /// and so are actions and information, which are not sliders or lists.
+    /// </remarks>
+    /// <param name="listed">What the page already shows, so nothing appears twice.</param>
+    public static IReadOnlyList<VcpControl> MappedControls(DisplayInfo display, IReadOnlyCollection<byte> shown)
+    {
+        if (display.IsInternal) return [];
+        Dictionary<byte, ResolvedControl> library = DeviceLibrary.Resolve(display.Key.Model);
+        if (library.Count == 0) return [];
+        MonitorCapability capabilities = MonitorCapabilities.Read(display, readValues: false);
+        var result = new List<VcpControl>();
+        foreach (var (code, resolved) in library.OrderBy(p => p.Key))
+        {
+            DefinedControl mapping = resolved.Definition;
+            if (!mapping.Writable || mapping.Kind is not (DefinedKinds.Range or DefinedKinds.Choice)) continue;
+            if (shown.Contains(code) || code is 0x10 or 0xD6 or 0x04) continue;
+            if (mapping.DdcWrite is not null) continue;
+            VcpControl? listed = capabilities.Controls.FirstOrDefault(c => c.Code == code);
+            bool own = resolved.Origin.EndsWith(" " + display.Key.Model, StringComparison.OrdinalIgnoreCase);
+            if (listed is null && !own) continue;
+            var effective = new Effective(listed ?? new VcpControl(code, mapping.Name, VcpKind.Continuous, []), mapping, resolved.Origin, own);
+            VcpKind kind = mapping.Kind == DefinedKinds.Choice ? VcpKind.Discrete : VcpKind.Continuous;
+            var control = new VcpControl(code, mapping.Name, kind,
+                effective.Values.Select(v => new VcpValue(checked((ushort)v.Value), v.Name)).ToList())
+            { MappedWritable = true, MappingSnapshot = System.Text.Json.JsonSerializer.Serialize(mapping, DeviceJsonContext.Default.DefinedControl) };
+            MonitorCapabilities.ReadValues(display, [control]);
+            if (control.Current < 0) continue;
+            control.Maximum = mapping.Maximum is int max && (control.Maximum < 0 || max < control.Maximum) ? max : control.Maximum;
+            result.Add(control);
+        }
+        return result;
     }
 
     /// <summary>A control by its key, its name, or its code.</summary>
@@ -526,9 +657,27 @@ public sealed partial class ControlService
             if (MatchControl([mapped], selector) is not null) return mapped;
         }
         MonitorCapability capabilities = MonitorCapabilities.Read(display, readValues: false);
+        List<Effective> listed = Effectives(display, capabilities);
+        if (MatchControl(listed, selector) is null && UnlistedMapping(display, selector) is { } unlisted) return unlisted;
         if (!capabilities.Supported) throw new ArgumentException($"{display.Label} does not answer DDC/CI.");
-        Effective control = FindControl(Effectives(display, capabilities), selector, display.Label);
+        Effective control = FindControl(listed, selector, display.Label);
         return control with { Control = MonitorCapabilities.ReadControl(display, control.Control.Code) ?? control.Control };
+    }
+
+    /// <summary>
+    /// A code this model's own definition maps that the monitor leaves out of
+    /// its capabilities string - LG lists fewer codes than it answers.
+    /// </summary>
+    private static Effective? UnlistedMapping(DisplayInfo display, string selector)
+    {
+        foreach (var (code, resolved) in DeviceLibrary.Resolve(display.Key.Model))
+        {
+            if (!resolved.Origin.EndsWith(" " + display.Key.Model, StringComparison.OrdinalIgnoreCase) || resolved.Definition.DdcWrite is not null) continue;
+            var candidate = new Effective(new VcpControl(code, resolved.Definition.Name, VcpKind.Continuous, []), resolved.Definition, resolved.Origin, true);
+            if (MatchControl([candidate], selector) is null) continue;
+            return candidate with { Control = UnlistedControl(display, code, resolved.Definition) };
+        }
+        return null;
     }
 
     /// <summary>A value by its listed name or key, or a number the control accepts.</summary>
@@ -538,13 +687,15 @@ public sealed partial class ControlService
         IReadOnlyList<(uint Value, string Name)> values = control.Values;
         if (values.Count > 0)
         {
-            foreach (var (value, name) in values)
-                if (DeviceDefinitions.KeyFor(name) == DeviceDefinitions.KeyFor(wanted) || name.Equals(wanted, StringComparison.OrdinalIgnoreCase)) return value;
             if (DeviceDefinitions.ParseNumber(wanted) is { } listed && values.Any(v => v.Value == listed)) return listed;
+            var named = values.Where(v => DeviceDefinitions.KeyFor(v.Name) == DeviceDefinitions.KeyFor(wanted)
+                || v.Name.Equals(wanted, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (named.Count == 1) return named[0].Value;
+            if (named.Count > 1) throw new ArgumentException($"More than one value is called '{wanted}'; use its numeric value.");
             throw new ArgumentException($"{control.Name} takes one of: {string.Join(", ", values.Select(v => DeviceDefinitions.KeyFor(v.Name)))}.");
         }
-        if (control.Kind == DefinedKinds.Action) return DeviceDefinitions.ParseNumber(wanted) ?? 1;
         if (DeviceDefinitions.ParseNumber(wanted) is not { } number) throw new ArgumentException($"{control.Name} takes a number.");
+        if (number > 65535) throw new ArgumentException("A VCP value is 0 to 65535.");
         if (control.Maximum >= 0 && number > control.Maximum)
             throw new ArgumentException($"{control.Name} goes up to {control.Maximum}.");
         return number;
@@ -573,7 +724,7 @@ public sealed partial class ControlService
             if (equals <= 0) throw new ArgumentException("Controls are name=value pairs, separated by commas.");
             Effective control = FindControl(controls, part[..equals], display.Label);
             if (!control.Settable) throw new ArgumentException($"{control.Name} on {display.Label} is read-only here.");
-            yield return (control.Key, control.Control, FindValue(control, part[(equals + 1)..]));
+            yield return (control.Key, control.Control, RequestedValue(display, control, part[(equals + 1)..], false));
         }
     }
 }

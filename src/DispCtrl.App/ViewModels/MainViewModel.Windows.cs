@@ -288,6 +288,18 @@ public sealed partial class MainViewModel
         }
     }
 
+    public bool AllowRawDdcWrites
+    {
+        get => _settings.Global.DdcGuard.AllowRawWrites;
+        set
+        {
+            if (_settings.Global.DdcGuard.AllowRawWrites == value) return;
+            _settings.Global.DdcGuard.AllowRawWrites = value;
+            Persist();
+            Raise();
+        }
+    }
+
     public ObservableCollection<BlockedMonitor> BlockedMonitors { get; } = [];
 
     public Visibility BlockedMonitorsVisibility => BlockedMonitors.Count > 0 ? Visibility.Visible : Visibility.Collapsed;

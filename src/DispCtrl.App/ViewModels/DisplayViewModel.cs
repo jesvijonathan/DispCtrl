@@ -281,6 +281,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     public bool IsPrimary => _display.IsPrimary;
 
     public bool IsInternalPanel => _display.IsInternal;
+    public Visibility LearnSettingVisibility => IsInternalPanel ? Visibility.Collapsed : Visibility.Visible;
 
     // ------------------------------------------------------------- preview --
 
@@ -1971,8 +1972,10 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// trips and every control read is another — so it happens once per rescan,
     /// off the UI thread, and never on a timer.
     /// </remarks>
+    private int _monitorControlGeneration;
     private async Task LoadMonitorControlsAsync()
     {
+        int generation = ++_monitorControlGeneration;
         DisplayInfo d = _display;
 
         MonitorCapability cap;
@@ -1985,8 +1988,17 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             cap = MonitorCapability.None;
         }
 
+        var shown = new HashSet<byte> { 0x10, 0xD6 };
+        IReadOnlyList<VcpControl> mapped;
+        HashSet<byte> mappedCodes;
+        try
+        {
+            (mapped, mappedCodes) = await Task.Run(() =>
+                (DispCtrl.Control.ControlService.MappedControls(d, shown), DeviceLibrary.Resolve(d.Key.Model).Keys.ToHashSet()));
+        }
+        catch (Exception) { return; }
+        if (generation != _monitorControlGeneration) return;
         MonitorControls.Clear();
-
         foreach (VcpControl c in cap.Controls)
         {
             // Settable only. A manufacturer-specific code's meaning is
@@ -1997,8 +2009,15 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             // Brightness already has its own card, driven through the same
             // code, and two controls for one value would fight each other.
             if (c.Code is 0x10 or 0xD6) continue;
+            if (!c.WriteOnly && mappedCodes.Contains(c.Code)) continue;
 
+            shown.Add(c.Code);
             MonitorControls.Add(new MonitorControlViewModel(d, c, _deskChanged));
+        }
+
+        foreach (VcpControl c in mapped)
+        {
+            if (shown.Add(c.Code)) MonitorControls.Add(new MonitorControlViewModel(d, c, _deskChanged));
         }
 
         _reportedControls = cap.Controls.Count;
@@ -2048,6 +2067,8 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(UnofferedVisibility));
         RaiseProbe();
     }
+
+    public Task RefreshMonitorControlsAsync() => LoadMonitorControlsAsync();
 
     // --------------------------------------------------------- night light --
 

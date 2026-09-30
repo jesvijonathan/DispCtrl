@@ -8,7 +8,7 @@ namespace DispCtrl.Control;
 
 public static class ControlTerminal
 {
-    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient", "pin", "placement", "ddc", "update"];
+    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient", "pin", "placement", "ddc", "update", "features"];
     public static bool Handles(string[] args) => args.Length > 0 && (Roots.Contains(args[0])
         || args[0] == "nightlight" && args.Length > 1 && args[1] is "get" or "set" or "reset"
         || args[0] == "topology" && args.Length > 1 && args[1] is "get" or "set");
@@ -21,6 +21,9 @@ public static class ControlTerminal
       display controls --monitor ID [--all] The monitor's own controls, by key, with their values
       display control --monitor ID --name KEY [--value V]
                                             Read or set one: --name picture-mode --value games
+                                            V may be next, previous, +5 or -5 (cycle a choice, step a range)
+      display control --monitor ID --name 0xE9 [--value 3] --raw
+                                            Any code, mapped or not (Advanced: ddc set --raw-writes on)
       display set --monitor ID [options]    Mode, layout, scaling, HDR, brightness, wallpaper,
                                             --controls "contrast=70,input-source=hdmi-1"
       display identify                      Show each display's number on it
@@ -58,6 +61,14 @@ public static class ControlTerminal
       hotkeys list|add|set|remove|reset     --keys "Ctrl+Alt+PageUp" --action unison-up --step 5 --display 2
                                            --action display-mode --mode extend|duplicate|internal|external
                                            --action run-command --command "topology set duplicate"
+                                           --action set-control --control picture-mode --value fps --display 2
+                                           --action next-control-value|previous-control-value --control input-source
+                                           --action control-up|control-down --control 0xF9 --step 2
+                                           --action run-feature --feature Gaming
+      features list|add|set|remove|run      Custom features: named steps run in order (docs/CUSTOM-CONTROLS.md)
+      features add --name Gaming --steps "set 2 picture-mode fps; wait 500; dispctrl nightlight set --enabled off"
+      features run Gaming [--dry-run]       Steps: set MONITOR CONTROL VALUE, dispctrl ARGS, run TARGET,
+                                            script PATH, wait MS; set --rename/--description to edit
       unison get|set --level 50             Shared brightness and Windows-slider following
       unison set --monitor ID --floor 20 --ceiling 80   A display's calibrated range
       unison set --monitor ID --include off   Leave a display out of unison (its own brightness)
@@ -79,6 +90,7 @@ public static class ControlTerminal
       placement move --window W --to N|active       Move one window onto a display
       placement get|set|reset               --return-windows on --new-windows-on-active on --active pointer
       ddc get|set --guard on|off            The guard against a capabilities read crashing Windows
+      ddc set --raw-writes on|off           Advanced, off by default: display control --raw on any code
       ddc allow --monitor ID|--model KEY    Talk to a monitor the guard blocked again
       ddc probe --monitor ID [--save|--clear]   Read-only: which known codes a monitor answers
       update check                          Ask GitHub for the newest release (only when asked; never downloads)
@@ -129,9 +141,15 @@ public static class ControlTerminal
                 "settings" when action is "import" or "validate" => 3,
                 "scripts" when action == "run" => 3,
                 "devices" when action == "validate" => 3,
+                "features" when action is "run" or "remove" or "add" or "set" => 3,
                 _ => 2,
             };
             if (positional.Count > maximum) throw new ArgumentException("Unexpected positional argument: " + positional[maximum]);
+            if (root == "features" && positional.Count == 3)
+            {
+                if (options.ContainsKey("name")) throw new ArgumentException("Name the feature once: features run Gaming, or --name Gaming.");
+                options["name"] = positional[2];
+            }
             if (root == "watch") return await Watch(options, cancel.Token);
             if (root == "devices" && action == "probe") return await Probe(options, cancel.Token);
             if (root == "scripts")
@@ -217,7 +235,8 @@ public static class ControlTerminal
     {
         positional = [];
         var options = new JsonObject();
-        string[] flags = ["json", "text", "local", "dry-run", "hardware", "overwrite", "help", "confirm", "all", "writable", "remove", "open", "factory", "history", "save", "clear"];
+        string? controlValue = null;
+        string[] flags = ["json", "text", "local", "dry-run", "hardware", "overwrite", "help", "confirm", "all", "writable", "remove", "open", "factory", "history", "save", "clear", "raw"];
         for (int i = 0; i < words.Length; i++)
         {
             string word = words[i];
@@ -231,10 +250,11 @@ public static class ControlTerminal
             else if (flags.Contains(parts[0]) || parts[0] == "refresh" && words[0] == "displays") value = "true";
             else if (++i < words.Length && !words[i].StartsWith("--", StringComparison.Ordinal)) value = words[i];
             else throw new ArgumentException("Missing value for --" + parts[0]);
+            if (key == "value") controlValue = value;
             // Selectors are strings even when the user chooses display number 2.
             if (key is "monitor" or "path" or "output" or "resolution" or "wallpaper" or "script" or "events" or "revision" or "what" or "steps"
                 or "window" or "to" or "from" or "token" or "model" or "borderColour" or "excludedApps"
-                or "command" or "arguments" or "mode") options[key] = value;
+                or "command" or "arguments" or "mode" or "name" or "control" or "feature" or "description" or "rename") options[key] = value;
             else if (value is "on" or "off") options[key] = value == "on";
             else
             {
@@ -242,7 +262,47 @@ public static class ControlTerminal
                 catch (JsonException) { options[key] = value; }
             }
         }
+        if (controlValue is not null && (positional.FirstOrDefault() == "hotkeys"
+            || positional.Count > 1 && positional[0] == "display" && positional[1] == "control")) options["value"] = controlValue;
         return options;
+    }
+
+    /// <summary>
+    /// A request for command-line words, as a custom feature's <c>dispctrl</c> step writes them.
+    /// </summary>
+    /// <remarks>
+    /// The same parsing the terminal does, for the commands that are one
+    /// request; the ones that stream, read files or manage the engine are not.
+    /// </remarks>
+    internal static JsonObject RequestFor(IReadOnlyList<string> words)
+    {
+        var options = Parse(words.ToArray(), out List<string> positional);
+        foreach (string local in (string[])["json", "text", "local", "timeout"]) options.Remove(local);
+        if (options.Remove("help")) throw new ArgumentException("--help is not a step.");
+        if (positional.Count == 0) throw new ArgumentException("A command is required.");
+        string root = positional[0], action = positional.Count > 1 ? positional[1] : "get";
+        if (!Roots.Contains(root) && root is not ("nightlight" or "topology")) throw new ArgumentException("Unknown command: " + root);
+        if (root is "watch" or "scripts" or "engine" or "request" or "apply"
+            || root == "settings" && action is "import" or "validate" or "export"
+            || root == "devices" && action is "probe" or "validate"
+            || options.ContainsKey("output") || options.ContainsKey("overwrite"))
+            throw new ArgumentException($"dispctrl {root} {action} cannot run inside a feature.");
+        int maximum = root is "commands" or "status" or "diagnostics" or "report" ? 1
+            : root == "features" && action is "run" or "remove" or "add" or "set" ? 3 : 2;
+        if (positional.Count > maximum) throw new ArgumentException("Unexpected positional argument: " + positional[maximum]);
+        if (root == "features" && positional.Count == 3)
+        {
+            if (options.ContainsKey("name")) throw new ArgumentException("Name the feature once.");
+            options["name"] = positional[2];
+        }
+        else if (positional.Count > 2) throw new ArgumentException("Unexpected positional argument: " + positional[2]);
+        string command = root switch
+        {
+            "commands" or "status" or "diagnostics" or "report" => root,
+            "displays" => action is "list" or "get" ? "displays.list" : throw new ArgumentException("Use displays list."),
+            _ => root + "." + action,
+        };
+        return new JsonObject { ["version"] = ControlService.ProtocolVersion, ["command"] = command, ["args"] = options };
     }
 
     private static bool RemoveFlag(JsonObject options, string key)

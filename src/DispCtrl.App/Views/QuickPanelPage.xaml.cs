@@ -224,6 +224,20 @@ public sealed partial class QuickPanelPage : Page
         kind.SelectedIndex = tile.Kind == QuickPanelCustomKind.Command ? 0 : 1;
 
         var target = new TextBox { Text = tile.Target };
+        var feature = new ComboBox
+        {
+            Header = "Use a saved feature",
+            PlaceholderText = "Choose a feature",
+            ItemsSource = SettingsStore.Load().Features.Select(f => f.Name).ToList(),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        feature.SelectionChanged += (_, _) =>
+        {
+            if (feature.SelectedItem is not string selected) return;
+            kind.SelectedIndex = 0;
+            target.Text = FeatureStep.JoinWindowsArguments(["features", "run", selected]);
+            if (string.IsNullOrWhiteSpace(name.Text)) name.Text = selected;
+        };
         AutomationProperties.SetName(target, "QuickCustomTarget");
         var arguments = new TextBox { Header = "Arguments", Text = tile.Arguments, PlaceholderText = "Optional" };
         var result = new TextBlock
@@ -261,6 +275,7 @@ public sealed partial class QuickPanelPage : Page
         body.Children.Add(name);
         body.Children.Add(symbols);
         body.Children.Add(kind);
+        body.Children.Add(feature);
         body.Children.Add(target);
         body.Children.Add(arguments);
         var trial = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };

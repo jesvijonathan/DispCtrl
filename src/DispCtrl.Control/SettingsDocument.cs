@@ -50,6 +50,8 @@ public static class SettingsDocument
             throw new ArgumentException("Invalid record of what the way back switched off.");
         if (settings.Hotkeys.Any(x => x is null) || settings.AppRules.Any(x => x is null))
             throw new ArgumentException("Rules and hotkeys cannot contain null entries.");
+        if (settings.Features is null) throw new ArgumentException("Settings sections cannot be null.");
+        if (CustomFeature.Problem(settings.Features) is { } featureProblem) throw new ArgumentException(featureProblem);
         var panel = g.QuickPanel;
         if (!Enum.IsDefined(panel.Density) || !Enum.IsDefined(panel.Icon)) throw new ArgumentException("Unknown quick-panel density or icon.");
         if (!Enum.IsDefined(panel.TrayWheel)) throw new ArgumentException("Tray wheel: off, main or all.");
