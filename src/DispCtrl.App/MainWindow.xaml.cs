@@ -231,16 +231,16 @@ public sealed partial class MainWindow : Window
         bool show = presets.IsDirty && !presets.Creating && DriftSignature != _bannerDismissedFor;
         if (show)
         {
-            PresetDriftBanner.Title = $"The displays have changed from {presets.Selected}";
-            PresetDriftBanner.Message = presets.Changes.Count == 1 ? "1 setting differs." : $"{presets.Changes.Count} settings differ.";
+            PresetDriftText.Text = $"The displays have changed from {presets.Selected}:";
+            PresetDriftCount.Content = presets.Changes.Count == 1 ? "1 setting" : $"{presets.Changes.Count} settings";
         }
-        PresetDriftBanner.IsOpen = show;
+        PresetDriftBanner.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void OnPresetBannerClosed(InfoBar sender, InfoBarClosedEventArgs args)
+    private void OnPresetBannerClose(object sender, RoutedEventArgs e)
     {
-        // Only a person's close is remembered; the banner closing itself is not.
-        if (args.Reason == InfoBarCloseReason.CloseButton) _bannerDismissedFor = DriftSignature;
+        _bannerDismissedFor = DriftSignature;
+        PresetDriftBanner.Visibility = Visibility.Collapsed;
     }
 
     private void OnEngineToggled(object sender, RoutedEventArgs e)

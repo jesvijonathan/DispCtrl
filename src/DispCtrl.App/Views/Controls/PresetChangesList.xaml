@@ -1,0 +1,46 @@
+<UserControl x:Class="DispCtrl.App.Views.Controls.PresetChangesList"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:presets="using:DispCtrl.Core.Presets">
+
+  <!-- What has changed since the preset was saved, as a list: behind the
+       drift sign, and behind the count in the window's drift banner. -->
+  <StackPanel Spacing="10" MaxWidth="540">
+    <TextBlock Text="What has changed since this preset was saved"
+               Style="{StaticResource BodyStrongTextBlockStyle}"/>
+
+    <ScrollViewer MaxHeight="380" HorizontalScrollBarVisibility="Disabled">
+      <ItemsControl ItemsSource="{x:Bind ViewModel.Changes, Mode=OneWay}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="presets:PresetChange">
+            <Grid ColumnSpacing="16" Margin="0,0,0,8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+
+              <TextBlock Grid.Column="0" Text="{x:Bind Setting}"
+                         TextWrapping="Wrap"
+                         Style="{StaticResource BodyTextBlockStyle}"/>
+
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                          VerticalAlignment="Center">
+                <TextBlock Text="{x:Bind Now}"
+                           Style="{StaticResource BodyTextBlockStyle}"/>
+                <FontIcon Glyph="&#xE72A;" FontSize="10" VerticalAlignment="Center"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="{x:Bind Saved}"
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <TextBlock Text="Left is the desk now. Right is what the preset holds."
+               Style="{StaticResource CaptionTextBlockStyle}"
+               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+  </StackPanel>
+</UserControl>

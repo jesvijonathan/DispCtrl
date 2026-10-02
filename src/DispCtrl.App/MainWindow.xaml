@@ -33,7 +33,7 @@
               AutomationProperties.Name="PresetSwitcher"
               ToolTipService.ToolTip="{x:Bind ViewModel.Presets.DriftTooltip, Mode=OneWay}">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <FontIcon Glyph="&#xE768;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          <FontIcon Glyph="&#xE74E;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
           <TextBlock Text="{x:Bind ViewModel.Presets.SwitcherText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
                      VerticalAlignment="Center"/>
           <Ellipse Width="7" Height="7" VerticalAlignment="Center"
@@ -182,25 +182,49 @@
       <!-- Page content owns the status bar, so the navigation pane continues
            all the way to the bottom instead of being cut off by it. -->
       <Grid RowDefinitions="Auto,*,Auto">
-        <!-- Shown only when the desk has moved from the preset in use, on any
-             page, and gone again once that is settled. Closing it hides it
-             until the desk moves again. -->
-        <InfoBar x:Name="PresetDriftBanner" Grid.Row="0" Margin="12,4,12,4"
-                 Severity="Warning" IsOpen="False" IsClosable="True"
-                 Closed="OnPresetBannerClosed"
-                 AutomationProperties.Name="PresetDriftBanner">
-          <InfoBar.ActionButton>
-            <Button Content="Save" Click="OnPresetSave" AutomationProperties.Name="BannerPresetSave"/>
-          </InfoBar.ActionButton>
-          <InfoBar.Content>
-            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-              <Button Content="Discard" Click="OnPresetApply"
+        <!-- One line, shown only while the desk differs from the preset in use,
+             on any page. An InfoBar put its content on a second row, which
+             made a notice taller than the page header it sat over. The count
+             is the button that lists the changes. Closed by hand, it stays
+             away until the desk moves again. -->
+        <Border x:Name="PresetDriftBanner" Grid.Row="0" Visibility="Collapsed"
+                Margin="12,6,12,2" Padding="12,4,4,4" CornerRadius="6"
+                Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                AutomationProperties.Name="PresetDriftBanner">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <FontIcon Glyph="&#xE7BA;" FontSize="14" VerticalAlignment="Center"
+                      Foreground="{ThemeResource SystemFillColorCautionBrush}"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+              <TextBlock x:Name="PresetDriftText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                         Style="{StaticResource BodyTextBlockStyle}"/>
+              <Button x:Name="PresetDriftCount" Padding="4,2" VerticalAlignment="Center"
+                      Background="Transparent" BorderThickness="0"
+                      Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                      ToolTipService.ToolTip="See what has changed"
+                      AutomationProperties.Name="BannerPresetChanges">
+                <Button.Flyout>
+                  <Flyout Placement="Bottom">
+                    <views:PresetChangesList/>
+                  </Flyout>
+                </Button.Flyout>
+              </Button>
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <Button Content="Discard" Click="OnPresetApply" Padding="10,3"
                       ToolTipService.ToolTip="Put the displays back to this preset"
                       AutomationProperties.Name="BannerPresetDiscard"/>
-              <views:PresetChanges/>
+              <Button Content="Save" Click="OnPresetSave" Padding="10,3" Style="{StaticResource AccentButtonStyle}"
+                      ToolTipService.ToolTip="Update this preset to match the displays"
+                      AutomationProperties.Name="BannerPresetSave"/>
+              <Button Click="OnPresetBannerClose" Padding="8,6" Background="Transparent" BorderThickness="0"
+                      ToolTipService.ToolTip="Hide until the displays change again"
+                      AutomationProperties.Name="BannerPresetClose">
+                <FontIcon Glyph="&#xE711;" FontSize="11"/>
+              </Button>
             </StackPanel>
-          </InfoBar.Content>
-        </InfoBar>
+          </Grid>
+        </Border>
 
         <Frame x:Name="ContentFrame" Grid.Row="1"/>
 
