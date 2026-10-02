@@ -53,6 +53,30 @@ complete-report paste instead. The command does not open a browser, change the
 clipboard or submit anything. The Help page offers a preview, Copy report and
 Open GitHub issue; submission always happens in the browser.
 
+## Finding your way
+
+`dispctrl help` lists the topics, each with the commands it covers:
+
+| Topic | Covers |
+| --- | --- |
+| `displays` | list, inspect and set each display; arrangement and topology |
+| `controls` | contrast, input, picture modes and any code, over DDC/CI |
+| `brightness` | unison, calibrated ranges, the light sensor, software dimming |
+| `nightlight` | warmth, its schedule, per-display strength, dark mode |
+| `care` | focus mode, OLED care, keep awake, turning the displays off, the way back |
+| `windows` | pin on top, gather, move and span, put back, new windows |
+| `taskbar` | hiding, glass looks, reveal timing; the tray icon and quick panel |
+| `presets` | save the whole desk, apply it, launch with it, apply when a desk connects |
+| `automation` | hotkeys, named step lists, and running them when something happens |
+| `devices` | every monitor seen, naming its codes, sharing them |
+| `system` | the settings file, start at sign-in, updates, company laptop switches |
+| `scripting` | ordered documents, watching for changes, raw requests |
+
+`dispctrl help TOPIC` prints one; `dispctrl help COMMAND` or
+`dispctrl COMMAND --help` finds the topic a command belongs to;
+`dispctrl help all` prints them all. `controlcheck` fails when a command is
+missing from the help.
+
 ## Implemented surface
 
 | Area | Operations |
@@ -61,6 +85,7 @@ Open GitHub issue; submission always happens in the browser.
 | Windows displays | `topology get/set`; `display set` resolution, refresh, orientation, primary, x/y, scale, HDR, wallpaper |
 | Monitor hardware | brightness, contrast, volume, sharpness, red/green/blue gain, colour preset, input, power, explicit `--vcp-code`/`--vcp-value`; capabilities gate writes |
 | Shared policies | `focus`, `oled`, `awake`, `nightlight`, `taskbar`, `tray`, `pin`, `placement` each support `get/set/reset` |
+| Keep awake | `awake set --mode off\|indefinite\|timed\|expiration` (`on` means indefinite) with `--interval-hours`, `--interval-minutes` or `--expiration-utc`; `awake displays-off --enabled on` |
 | Unison | `unison get/set`: enabled, level, calibrated, follow-windows; per display `--include on\|off`, `--floor`, `--ceiling` |
 | Windows on top | `pin list`, `pin on\|off\|toggle --window W` (a handle from `pin list`, an app's name or part of a title; the window in front without it), `pin off --all`; border and dimming options through `pin set` |
 | Moving windows | `placement gather --to N\|active [--from N]`, `placement move [--window W] --to N\|next\|previous\|active`, `placement span [--window W] [--displays all\|1,2]` (the window in front when none is named); putting windows back and new-window placement through `placement set` |
@@ -94,6 +119,7 @@ dispctrl preset list
 dispctrl preset save Evening            # the desk now, windows included
 dispctrl preset apply Evening
 dispctrl preset desk Evening on         # apply by itself when exactly its displays connect
+dispctrl preset diff Evening            # what differs between the desk and the preset
 dispctrl preset delete Evening
 dispctrl preset launch Gaming steam.exe --wait-for game.exe   # apply, run, put the desk back
 ```

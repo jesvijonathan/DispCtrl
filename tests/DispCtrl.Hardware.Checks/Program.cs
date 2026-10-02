@@ -70,8 +70,11 @@ Console.WriteLine("a preset holds everything, so everything is compared");
 
 // The scope object is gone. What replaced it is the rule that a preset carries
 // the whole desk, so these assert that nothing is quietly skipped any more.
+// A wallpaper counts only while its file exists (one that has gone cannot be put back).
+string wallpaper = Path.Combine(Path.GetTempPath(), "dispctrl-check-wallpaper.jpg");
+File.WriteAllBytes(wallpaper, [0]);
 var saved = new Preset { Name = "S" };
-saved.Monitors["t"] = new PresetMonitor { Label = "M", Brightness = 50, WallpaperPath = "a.jpg", Width = 1920, Height = 1080 };
+saved.Monitors["t"] = new PresetMonitor { Label = "M", Brightness = 50, WallpaperPath = wallpaper, Width = 1920, Height = 1080 };
 
 var live = new Preset { Name = "S" };
 live.Monitors["t"] = new PresetMonitor { Label = "M", Brightness = 50, WallpaperPath = "b.jpg", Width = 1920, Height = 1080 };
@@ -83,6 +86,7 @@ Check("so is software dimming", PresetDiff.Describe(saved, live).Count == 2);
 
 live.Monitors["t"].HideTaskbar = true;
 Check("so is taskbar hiding", PresetDiff.Describe(saved, live).Count == 3);
+File.Delete(wallpaper);
 
 // The taskbar block is absent on a preset saved before it was captured, and
 // absent must not read as "wants the defaults".

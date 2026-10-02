@@ -44,9 +44,15 @@ public static class PresetDiff
     {
         var diffs = new List<PresetChange>();
 
+        // Only what applying could put right counts. A layout needs all of the
+        // preset's displays: with one unplugged, topology, positions and the
+        // main display cannot be the preset's, and Discard left a notice up
+        // that no press could clear.
+        bool layout = saved.IncludeLayout && saved.Monitors.Keys.All(live.Monitors.ContainsKey);
+
         if (saved.IncludeGlobal)
         {
-        if (saved.IncludeLayout && saved.Global.Topology != live.Global.Topology)
+        if (layout && saved.Global.Topology != live.Global.Topology)
             diffs.Add(new("", "Topology", live.Global.Topology, saved.Global.Topology));
 
         CompareNightLight(saved, live, diffs);
@@ -72,7 +78,7 @@ public static class PresetDiff
             // reported where the preset is applied.
             if (!live.Monitors.TryGetValue(token, out PresetMonitor? have)) continue;
 
-            CompareMonitor(want.Label ?? token, want, have, diffs, saved.IncludeLayout, saved.Version >= 3);
+            CompareMonitor(want.Label ?? token, want, have, diffs, layout, saved.Version >= 3);
         }
 
         return diffs;
@@ -203,11 +209,16 @@ public static class PresetDiff
             diffs.Add(new(name, "Brightness baseline", Level(have.BrightnessBaseline), Level(want.BrightnessBaseline)));
         if (want.NightLightFloor != have.NightLightFloor || want.NightLightCeiling != have.NightLightCeiling)
             diffs.Add(new(name, "Warmth range", Range(have.NightLightFloor, have.NightLightCeiling), Range(want.NightLightFloor, want.NightLightCeiling)));
-        if (want.WallpaperPath is not null && !string.Equals(want.WallpaperPath, have.WallpaperPath, StringComparison.OrdinalIgnoreCase))
+        // A wallpaper whose file is gone - a rotator replaced it, or the preset
+        // came from another machine - cannot be put back, so it is not drift.
+        if (want.WallpaperPath is not null && !string.Equals(want.WallpaperPath, have.WallpaperPath, StringComparison.OrdinalIgnoreCase)
+            && File.Exists(want.WallpaperPath))
             diffs.Add(new(name, "Wallpaper", FileName(have.WallpaperPath), FileName(want.WallpaperPath)));
 
-        if (modern && want.CustomLabel != have.CustomLabel)
-            diffs.Add(new(name, "Custom name", have.CustomLabel ?? "default", want.CustomLabel ?? "default"));
+        // The display's name is not compared: the app writes the monitor's own
+        // name into it on every refresh, so a preset captured before that (from
+        // the command line, on a display the app had not yet seen) differed for
+        // good, and Discard wrote the old name back only for the app to replace it.
         if (want.HideTaskbar != have.HideTaskbar)
             diffs.Add(new(name, "Hide the taskbar", OnOff(have.HideTaskbar), OnOff(want.HideTaskbar)));
 

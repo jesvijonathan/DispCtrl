@@ -34,7 +34,7 @@ public sealed partial class ControlService
         "update.get", "update.check", "update.set", "update.skip", "update.reset",
         "machine.get", "machine.set", "machine.undo",
         "triggers.list", "triggers.get", "triggers.add", "triggers.set", "triggers.remove",
-        "preset.list", "preset.save", "preset.apply", "preset.delete", "preset.desk"];
+        "preset.list", "preset.diff", "preset.save", "preset.apply", "preset.delete", "preset.desk"];
 
     public JsonObject Execute(JsonObject request)
     {
@@ -407,6 +407,10 @@ public sealed partial class ControlService
                 // wheel's choices are words: off is a choice, not a switch.
                 if (group == "tray" && name == "trayWheel" && value is JsonValue wheel && wheel.TryGetValue(out bool on))
                     value = JsonValue.Create(on ? "All" : "Off");
+                // Keep awake's modes are words too: off lets the computer sleep
+                // (the power plan's own timers), on keeps it awake until told.
+                if (group == "awake" && name == "mode" && value?.ToString().ToLowerInvariant() is "off" or "false" or "on" or "true")
+                    value = JsonValue.Create(value.ToString().ToLowerInvariant() is "on" or "true" ? "Indefinite" : "PowerPlan");
                 // The page's one choice over the two switches it stands for.
                 if (group == "focus" && token is null && name == "keepClear")
                 {

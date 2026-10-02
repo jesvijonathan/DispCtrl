@@ -1234,7 +1234,7 @@ fetch(repo + '/releases?per_page=5').then(r => r.ok ? r.json() : null).then(list
   document.querySelectorAll('.vernotes').forEach(e => e.href = rel.html_url);
   $('verdate').textContent = ' · ' + new Date(rel.published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
   const asset = re => (rel.assets || []).find(a => re.test(a.name));
-  const setup = asset(/setup\.exe$/i), zip = asset(/desktop\.zip$/i);
+  const setup = asset(/setup\.exe$/i), zip = asset(/(portable|desktop)\.zip$/i);
   if (setup) $('dlSetup').href = setup.browser_download_url;
   if (zip) $('dlZip').href = zip.browser_download_url;
 }).catch(() => {});

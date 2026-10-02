@@ -82,6 +82,20 @@ calls it. The Devices page already works that way - it sends the same
 | Resets | `taskbar reset` |
 | Windows taskbar settings | `windows open --page taskbar` |
 
+## Presets (beta)
+
+| In the app | Command |
+| --- | --- |
+| The title bar's switcher: choose, Apply, Save, create | `preset list`, `preset apply NAME`, `preset save NAME` |
+| The drift banner and its list of changes; Discard, Save | `preset diff NAME`; `preset apply NAME`, `preset save NAME` |
+| Capture a setup | `preset save NAME` |
+| Apply when this desk is connected | `preset desk NAME on` |
+| Delete | `preset delete NAME` |
+| Import, export, view or edit JSON | the files in `%LOCALAPPDATA%\DispCtrl\presets`, one per preset |
+| App rules | `settings set --path /appRules --value '[{"process":"game.exe","preset":"Gaming","enabled":true}]'` |
+| The quick panel's Presets section | `preset apply NAME`, `preset diff NAME` |
+| Launch a program with a preset | `preset launch NAME PROGRAM --wait-for game.exe` (the command line only) |
+
 ## Quick panel
 
 | In the app | Command |
@@ -110,6 +124,8 @@ calls it. The Devices page already works that way - it sends the same
 | Change one | `hotkeys set --index 2 --enabled off` |
 | Remove | `hotkeys remove --index 2` |
 | Restore the defaults | `hotkeys reset` |
+| Features tab: list, new, save, delete, run, test | `features list`, `features add --name N --steps "..."`, `features set`, `features remove`, `features run N`, `features run N --dry-run` |
+| Triggers tab | `triggers list`, `triggers add --event app-in-front --match vlc.exe --feature N`, `triggers set --index N --enabled off`, `triggers remove --index N` |
 
 ## Devices
 
@@ -147,6 +163,5 @@ calls it. The Devices page already works that way - it sends the same
 
 ## Not on the command line, and why
 
-- **Presets.** Disabled in this build in the app and the CLI alike.
 - **Other Help and About links.** Links to the repository; nothing to control.
 - **The arrangement drag itself.** The CLI takes the position it would end at.

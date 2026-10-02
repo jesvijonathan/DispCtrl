@@ -19,126 +19,12 @@ public static class ControlTerminal
         catch (ArgumentException) { return true; }   // an old verb asked wrongly: RunAsync says how
     }
 
-    /// <summary>Every command, with the preset ones only in a build that has presets.</summary>
-    public static string Help => (FeatureFlags.Presets ? Commands
-        : string.Join('\n', Commands.Split('\n').Where(line => !line.TrimStart().StartsWith("preset", StringComparison.Ordinal))))
-        + "\n\n" + LegacyCommands.Help;
+    /// <summary>Every command, every topic: the whole manual (<c>dispctrl help all</c>).</summary>
+    public static string Help => CommandHelp.All(FeatureFlags.Presets);
 
-    private const string Commands = """
-    DispCtrl control API v1
-      displays list                         Connected monitors and stable identities
-      display get [--hardware]              Current state; hardware reads are opt-in
-      display modes|capabilities            Supported modes and every DDC code the monitor lists
-      display controls --monitor ID [--all] The monitor's own controls, by key, with their values
-      display control --monitor ID --name KEY [--value V]
-                                            Read or set one: --name picture-mode --value games
-                                            V may be next, previous, +5 or -5 (cycle a choice, step a range)
-      display control --monitor ID --name 0xE9 [--value 3] --raw
-                                            Any code, mapped or not (Advanced: ddc set --raw-writes on)
-      display set --monitor ID [options]    Mode, layout, scaling, HDR, brightness, wallpaper,
-                                            --controls "contrast=70,input-source=hdmi-1"
-      display identify                      Show each display's number on it
-      display factory-reset --monitor ID --confirm
-      display reset --monitor ID [--factory --confirm]  DispCtrl's settings for it (and the monitor's own)
-      gamma get|set --unlocked on|off       Windows' gamma clamp (night light and dimming range)
-      preset list|save|apply|delete NAME    Presets and desk profiles (Beta): the whole desk, windows included
-      preset desk NAME on|off               Apply by itself when exactly its displays connect
-      preset launch NAME PROGRAM [ARGS] [--wait-for game.exe] [--keep]   Apply, run, put the desk back after
-      machine get                           Sign-in and lock screen switches, and whether an organisation manages them
-      machine set SWITCH on|off|MINUTES|PICTURE   no-ctrl-alt-del, lock-screen-picture, no-lock-screen, sharp-sign-in,
-                                            lock-after, dynamic-lock, quiet-lock-screen (machine-wide ones ask for admin)
-      machine undo SWITCH                   Put back what Windows had before DispCtrl changed it
-      triggers list                         When this happens, run that feature
-      triggers add --event EVENT --feature NAME [--match vlc.exe|2|20:00] [--minutes 10]
-                                            display-connected, display-disconnected, app-in-front, app-left, idle, back,
-                                            locked, unlocked, on-battery, on-power, resumed, at-time
-      triggers set --index N [--enabled off] [...]   triggers remove --index N
-
-    Device library (docs/DEVICE-LIBRARY.md)
-      devices list                          Every monitor model seen here, and what is known of it
-      devices show --monitor ID|--model KEY Every code: standard, mapped, or not yet named
-      devices scan [--monitor ID]           Read controls, list new codes and save them for Contribute
-      devices forget --monitor ID|--model KEY   Remove a model from the list until the next scan
-      devices probe --monitor ID [--codes unknown|all|0xE2,0xF0] [--seconds 120]
-                                            Watch codes while you change the monitor's own menu
-      devices map --monitor ID --code 0xE2 --name "Preset mode" [--values "0x0B=ComfortView"]
-                                            --scope model|brand|all; --transport lg-input for LG alternate input
-                                            LG input: --code 0x60 --source-address 0x50 --write-code 0xF4
-                  [--kind range|choice|action|information] [--writable] [--scope model|brand|all]
-      devices unmap|link|definitions        Remove, cross-link (--to DEL-A233), inspect layers
-      devices similar --monitor ID          Known models whose names would name this one's codes; use one with link
-      devices panel --monitor ID --technology OLED [--notes TEXT]   What the panel is (none clears); built-in panels too
-      devices contribute --monitor ID [--open]  Record and mappings as one prefilled issue
-      devices contribute --all [--open]         Every recorded model in one issue (share is the old name)
-      devices validate FILE                 Check a definition before sharing it
-      settings get|schema                   Full settings tree or generated JSON schema
-      settings set --path /global/... --value JSON
-      settings set --monitor ID --path alias --value office
-      settings reset --path /global/focus
-      settings export [--output FILE]       Complete saved settings (includes identities)
-      settings validate|import FILE         Validate or replace saved settings
-      focus|oled|awake|nightlight|taskbar|tray get|set|reset
-      focus set --keep-clear focused|pointer|both   Which windows focus mode keeps clear
-      oled set --per-display-activity on --excluded-apps "vlc.exe"   Rest each display when it is unused
-      windows get|set                       Taskbar preferences, VRR, dark mode, --wallpaper-fit fill,
-                                            --remember-window-locations, --minimize-on-disconnect
-      windows open --page display|nightlight|colors|taskbar|startup|power|hdr|cast|colormanagement
-      hotkeys list|add|set|remove|reset     --keys "Ctrl+Alt+PageUp" --action unison-up --step 5 --display 2
-                                           --action display-mode --mode extend|duplicate|internal|external
-                                           --action run-command --command "topology set duplicate"
-                                           --action set-control --control picture-mode --value fps --display 2
-                                           --action next-control-value|previous-control-value --control input-source
-                                           --action control-up|control-down --control 0xF9 --step 2
-                                           --action run-feature --feature Gaming
-      features list|add|set|remove|run      Custom features: named steps run in order (docs/CUSTOM-CONTROLS.md)
-      features add --name Gaming --steps "set 2 picture-mode fps; wait 500; dispctrl nightlight set --enabled off"
-      features run Gaming [--dry-run]       Steps: set MONITOR CONTROL VALUE, dispctrl ARGS, run TARGET,
-                                            script PATH, wait MS; set --rename/--description to edit
-      unison get|set --level 50             Shared brightness and Windows-slider following
-      unison set --monitor ID --floor 20 --ceiling 80   A display's calibrated range
-      unison set --monitor ID --include off   Leave a display out of unison (its own brightness)
-      ambient get                           Unison following the room's light, and what the sensor reads now
-      ambient set --enabled on --dark-level 20 --bright-level 100 --dark-lux 5 --bright-lux 800
-      ambient capture --as dark|bright      Calibrate: the sensor's reading now becomes that end
-      ambient forget|reset                  Drop learned levels, or every ambient setting
-      startup get|set                       --engine, --preload-panel, --open-window, --start-menu, --desktop
-      tray show                            Open the taskbar toolkit
-      topology get|set --mode extend|duplicate|internal|external
-      oled preview --percent 50             Two-second preview (engine + care enabled)
-      oled rest --monitor ID --minutes 5    Manual screen rest policy
-      pin list                              Open windows, with the handle each is pinned by
-      pin on|off|toggle [--window W]        Keep a window on top (W: 0x1A2B, an app's name, or part
-                                            of a title; the window in front without it); off --all
-      pin get|set|reset                     --border on --border-colour "#FF8800" --border-thickness 3
-                                            --clear-in-focus on --clear-in-oled-care off --excluded-apps x.exe
-      placement gather [--to N|active] [--from N]   Bring every window onto one display
-      placement move --window W --to N|active       Move one window onto a display
-      placement get|set|reset               --return-windows on --new-windows-on-active on --active pointer
-      ddc get|set --guard on|off            The guard against a capabilities read crashing Windows
-      ddc set --raw-writes on|off           Advanced, off by default: display control --raw on any code
-      ddc allow --monitor ID|--model KEY    Talk to a monitor the guard blocked again
-      ddc probe --monitor ID [--save|--clear]   Read-only: which known codes a monitor answers
-      update check                          Ask GitHub for the newest release (only when asked; never downloads)
-      update get|set --check-automatically on|off   The opt-in daily check; update skip hides the one found
-      restore now|undo|get                  Put every display back (as Ctrl+Alt+Backspace), or undo that
-      engine start|stop|status              Manage the resident engine
-      maintenance repair|clear-cache        Fix the sign-in task and shortcuts; clear logs and cached data
-      apply FILE [--dry-run]                Ordered display + settings operations
-      watch [--events displays,settings,engine] [--interval 500]
-      watch --script PATH.ps1               Run an explicit script on changed state
-      scripts list|run FILE                 Inspect or run local external scripts
-      request FILE|-                       Send a versioned JSON API request
-      commands|status|diagnostics           Discover commands and inspect local state
-      report [--what TEXT] [--steps TEXT]   Review a scrubbed bug report and its issue link
-
-    Common: --json --text --local --dry-run --monitor ID --timeout 30000
-    Settings options use kebab-case names from 'get': --dim-percent 50, --enabled on.
-    Output: tables and plain text in a terminal; the JSON envelope when piped or
-    redirected, or with --json (one line); --text keeps tables when piped.
-    Diagnostics go to stderr.
-    Exit codes: 0 success, 1 failed/partial, 2 invalid request, 4 timeout, 130 cancelled.
-    Use DISPCTRL_DATA_DIR for an isolated absolute configuration directory.
-    """;
+    /// <summary>What <c>dispctrl help</c> prints, or one topic's page; null for a topic that does not exist.</summary>
+    public static string? HelpFor(string? topic) =>
+        string.IsNullOrWhiteSpace(topic) ? CommandHelp.Overview(FeatureFlags.Presets) : CommandHelp.For(topic, FeatureFlags.Presets);
 
     public static async Task<int> RunAsync(string[] words)
     {
@@ -159,7 +45,8 @@ public static class ControlTerminal
             options.Remove("timeout");
             if (timeout is < 100 or > 600000) throw new ArgumentException("Timeout must be 100..600000 milliseconds.");
             if (positional.Count == 0) throw new ArgumentException("A command is required.");
-            if (options.Remove("help")) { Console.WriteLine(Help); return 0; }
+            // dispctrl oled --help: that command's topic, not the whole manual.
+            if (options.Remove("help")) { Console.WriteLine(HelpFor(positional[0]) ?? HelpFor(null)); return 0; }
             string root = positional[0], action = positional.Count > 1 ? positional[1] : "get";
             int maximum = root switch
             {
@@ -171,7 +58,7 @@ public static class ControlTerminal
                 "machine" when action == "set" => 4,
                 "machine" when action == "undo" => 3,
                 "preset" when action == "desk" => 4,
-                "preset" when action is "save" or "apply" or "delete" => 3,
+                "preset" when action is "save" or "apply" or "delete" or "diff" => 3,
                 _ => 2,
             };
             if (positional.Count > maximum) throw new ArgumentException("Unexpected positional argument: " + positional[maximum]);

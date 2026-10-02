@@ -7,8 +7,11 @@ using DispCtrl.Control;
 // the engine's broker use.
 if (args.Length == 0 || args[0] is "help" or "--help" or "-h" or "/?")
 {
-    Console.WriteLine(ControlTerminal.Help);
-    return 0;
+    string? topic = args.Length > 1 ? args[1] : null;
+    if (ControlTerminal.HelpFor(topic) is { } page) { Console.WriteLine(page); return 0; }
+    Console.Error.WriteLine($"No help topic called {topic}.");
+    Console.WriteLine(ControlTerminal.HelpFor(null));
+    return 2;
 }
 
 if (args[0] is "displays" && args.Length == 1) args = ["displays", "list"];

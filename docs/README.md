@@ -4,6 +4,8 @@
 
 | Guide | Contents |
 |---|---|
+| [Features](FEATURES.md) | Every page, option and shortcut, in the order the app shows them |
+| [Settings reference](SETTINGS.md) | Every stored setting, its default, its values and what it does |
 | [Command line](CLI.md) | Every command, its options, JSON output and exit codes; the short forms |
 | [Command coverage](CLI-COVERAGE.md) | Every control in the app, page by page, and the command behind it |
 | [Presets and desk profiles](PRESETS.md) | Capturing a whole desk and applying it, by hand or when its displays connect |

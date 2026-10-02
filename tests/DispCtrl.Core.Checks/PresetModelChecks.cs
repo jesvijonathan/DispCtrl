@@ -191,12 +191,26 @@ internal static class PresetModelChecks
             "a live value that could not be read is not drift");
         check(Count(p => Dell(p).MonitorControls.Remove("0x12")) == 0 && Count(p => Dell(p).MonitorControls["0x12"] = 76) == 1,
             "a monitor control that stopped answering is not drift; one at another value is");
-        check(Count(p => Dell(p).CustomLabel = null, s => s.Version = 2) == 0 && Count(p => Dell(p).CustomLabel = null) == 1,
-            "a custom name counts only for presets new enough to have recorded one");
+        check(Count(p => Dell(p).CustomLabel = null, s => s.Version = 2) == 0 && Count(p => Dell(p).CustomLabel = null) == 0
+                && Count(p => Dell(p).CustomLabel = "Internal 2880x1800") == 0,
+            "a display's name is never drift: the app rewrites it from the monitor, so Discard could not clear it");
         check(Count(p => Dell(p).IsOled = true, s => { s.Version = 2; Dell(s).IsOled = null; }) == 0,
             "an older preset that never said whether a panel is OLED does not disagree with it");
-        check(Count(p => Dell(p).WallpaperPath = @"d:\PICTURES\A B\LEFT.JPG") == 0 && Count(p => Dell(p).WallpaperPath = null, s => Dell(s).WallpaperPath = null) == 0,
-            "wallpaper paths compare as Windows compares them, and none recorded is none wanted");
+        string picture = Path.Combine(Path.GetTempPath(), "dispctrl-check-wallpaper-" + Guid.NewGuid().ToString("N") + ".jpg");
+        File.WriteAllText(picture, "x");
+        try
+        {
+            check(Count(p => Dell(p).WallpaperPath = picture.ToUpperInvariant(), s => Dell(s).WallpaperPath = picture) == 0
+                && Count(p => Dell(p).WallpaperPath = null, s => Dell(s).WallpaperPath = picture) == 1
+                && Count(p => Dell(p).WallpaperPath = null, s => Dell(s).WallpaperPath = null) == 0,
+                "wallpaper paths compare as Windows compares them, and none recorded is none wanted");
+        }
+        finally { File.Delete(picture); }
+        check(Count(p => Dell(p).WallpaperPath = null, s => Dell(s).WallpaperPath = @"Z:\gone
+otated.jpg") == 0,
+            "a wallpaper whose file is gone is not drift: applying could not put it back");
+        check(Count(p => { p.Monitors.Remove("SDC-4154-Y"); p.Global.Topology = "ExternalOnly"; Dell(p).X = 0; Dell(p).Primary = true; }) == 0,
+            "with one of the preset's displays unplugged, its layout is not drift: no apply could make it the preset's");
         string line = PresetDiff.Lines(saved, PresetChangeOf(saved)).Single();
         check(line.Contains("DELL U2424H") && line.Contains("Brightness") && line.Contains("50%") && line.Contains("0%"),
             "a drift line names the display, the setting, the value now and the value saved");

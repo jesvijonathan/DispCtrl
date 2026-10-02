@@ -120,8 +120,10 @@ try {
         $manifest = [ordered]@{ product='DispCtrl'; version=$Version; channel=$Channel; architecture='x64'; commit=$commit; modifiedSources=$modified; builtUtc=[DateTimeOffset]::UtcNow.ToString('O'); nativeAot=$false; readyToRun=$true }
         $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $folder 'build-info.json') -Encoding utf8
     }
-    foreach ($kind in @('cli','desktop')) {
-        Compress-Archive -Path (Join-Path $artifactRoot "$kind/*") -DestinationPath (Join-Path $artifactRoot "DispCtrl-$Version-$Channel-win-x64-$kind.zip") -CompressionLevel Optimal
+    # The app's folder is "desktop" inside the build; its zip is named for
+    # what people do with it - unzip anywhere and run, nothing installed.
+    foreach ($kind in @(@{ Folder = 'cli'; Zip = 'cli' }, @{ Folder = 'desktop'; Zip = 'portable' })) {
+        Compress-Archive -Path (Join-Path $artifactRoot "$($kind.Folder)/*") -DestinationPath (Join-Path $artifactRoot "DispCtrl-$Version-$Channel-win-x64-$($kind.Zip).zip") -CompressionLevel Optimal
     }
     Get-ChildItem -LiteralPath $artifactRoot -Filter '*.zip' | Get-FileHash -Algorithm SHA256 |
         ForEach-Object { "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))" } |

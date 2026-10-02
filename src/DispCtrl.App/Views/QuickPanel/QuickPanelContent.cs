@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using DispCtrl.App.ViewModels;
 using DispCtrl.Core.Color;
 using DispCtrl.Core.Settings;
@@ -482,38 +483,60 @@ internal sealed partial class QuickPanelContent
             return;
         }
 
-        var buttons = new List<FrameworkElement>();
-        foreach (string name in _vm.Presets.Names)
+        // A picker and Apply, as the title bar's switcher does it: a grid of
+        // buttons, one per preset, grew with every preset saved and applied the
+        // moment one was touched. Choosing only chooses what the desk is
+        // compared with; Apply puts the desk back to it.
+        PresetsViewModel presets = _vm.Presets;
+        var names = new ObservableCollection<string>();
+        void Names()
         {
-            if (name == PresetsViewModel.NewEntry) continue;
-            string captured = name;
-
-            var button = new Button
-            {
-                Content = Labelled("\uE768", captured),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Padding = new Thickness(8, 5, 8, 5),
-            };
-
-            ToolTipService.SetToolTip(button, $"Apply {captured}");
-            AutomationProperties.SetName(button, $"QuickPreset {captured}");
-            button.Click += (_, _) =>
-            {
-                // Selecting is what loads it; applying without that would apply
-                // whatever the Presets page happened to be showing.
-                _vm.Presets.Selected = captured;
-                _dismiss();
-                _ = _vm.Presets.ApplyAsync();
-            };
-
-            buttons.Add(button);
+            names.Clear();
+            foreach (string n in presets.Names) if (n != PresetsViewModel.NewEntry) names.Add(n);
         }
+        Names();
+        Watch(presets.Names, Names);
 
-        if (buttons.Count == 0) return;
+        var apply = new Button { Content = "Apply", MinWidth = 72 };
+        AutomationProperties.SetName(apply, "QuickPresetApply");
+        ToolTipService.SetToolTip(apply, "Put the displays back to this preset");
+        apply.Click += (_, _) =>
+        {
+            if (presets.SelectedPreset is null) return;
+            _dismiss();
+            _ = presets.ApplyAsync();
+        };
+        void Enable() => apply.IsEnabled = presets.SelectedPreset is not null && !presets.IsBusy;
+        Enable();
+        Watch(presets, nameof(PresetsViewModel.Selected), Enable);
+        Watch(presets, nameof(PresetsViewModel.CanEdit), Enable);
+
+        FrameworkElement picker = ComboRow("Preset", names, () => presets.SelectedPreset?.Name,
+            chosen => presets.Selected = chosen, presets, nameof(PresetsViewModel.Selected), "QuickPresetPicker");
+        var row = new Grid { ColumnSpacing = 6 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(picker);
+        apply.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(apply, 1);
+        row.Children.Add(apply);
+
+        var status = new TextBlock
+        {
+            FontSize = 12,
+            Margin = new Thickness(RowInset, 0, 0, 2),
+            Foreground = Res("TextFillColorSecondaryBrush"),
+            TextWrapping = TextWrapping.Wrap,
+        };
+        void Status() => status.Text = presets.SelectedPreset is null ? "Choose a preset to compare the displays with."
+            : presets.IsDirty ? presets.DriftTooltip.Replace(" Click to see them.", "").Replace(" Click to see it.", "") : "The displays match it.";
+        Status();
+        Watch(presets, nameof(PresetsViewModel.DriftTooltip), Status);
+        Watch(presets, nameof(PresetsViewModel.Selected), Status);
 
         StackPanel body = Foldable("presets", SectionHeader("Presets"));
-        body.Children.Add(Columns(buttons, 2, 4));
+        body.Children.Add(row);
+        body.Children.Add(status);
     }
 
     /// <summary>

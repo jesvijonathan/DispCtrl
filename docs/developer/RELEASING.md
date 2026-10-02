@@ -5,7 +5,7 @@
 | Artifact | Built by | For |
 |---|---|---|
 | `DispCtrl-<v>-<channel>-win-x64-setup.exe` | `build/Installer.ps1` (Inno Setup) | most people; also what winget installs |
-| `DispCtrl-<v>-<channel>-win-x64-desktop.zip` | `build/Publish.ps1` | portable use |
+| `DispCtrl-<v>-<channel>-win-x64-portable.zip` | `build/Publish.ps1` | portable use |
 | `DispCtrl-<v>-<channel>-win-x64-cli.zip` | `build/Publish.ps1` | `dispctrl.exe` and the engine, no window |
 | `DispCtrl-<v>.0-x64.msix` | `build/Package.ps1` (MakeAppx) | the Microsoft Store |
 | `SHA256SUMS.txt`, `SETUP-SHA256SUMS.txt`, `MSIX-SHA256SUMS.txt` | each script | checking a download; separate names so release assets do not collide |
@@ -18,7 +18,7 @@ its copy of the desktop folder in temp and deletes it when packed.
 Every package is self-contained .NET 10, ReadyToRun, x64 only. Managed rather
 than Native AOT: the WMI adapters have not been verified under AOT (see
 TRAPS.md, Build). Two things are left out on purpose, and are the reason a
-desktop zip is ~74 MB rather than ~104:
+portable zip is ~74 MB rather than ~104:
 
 - The Windows App SDK's machine learning (onnxruntime, DirectML), AI, Search
   and Widgets components, excluded in `DispCtrl.App.csproj`. Their versions

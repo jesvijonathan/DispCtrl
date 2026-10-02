@@ -475,6 +475,15 @@ Every one of these was a real bug. Do not reintroduce them.
 - **App rules and triggers take a pasted path.** `AppRule.ProgramName` strips
   quotes, the folder and `.exe`; a rule written as `"C:\Games\game.exe"` never
   matched.
+- **Drift is only what Discard can put right.** A layout needing a display
+  that is unplugged, a wallpaper whose file has gone, and the display's name
+  (`MonitorSettings.Label`, which the app rewrites from the monitor on every
+  refresh) all kept the banner up after Discard. `PresetDiff` leaves them out.
+- **An apply's settings reach the app through its file watcher.** The preset's
+  values are merged and saved to disk, not into the app's copy, and the drift
+  check run straight after compared the old values. `SyncExternalSettings`
+  re-checks drift after every reload. Verified through UIA on a scratch copy:
+  the banner up before Discard, gone after.
 - `PresetModelChecks` (core) and `PresetStoreChecks` (control) hold all of this;
   each lists every failure in one run rather than stopping at the first.
 - Identity fields (model, serial, connector, physical size, DPI, colour profile)

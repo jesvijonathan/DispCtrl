@@ -88,6 +88,19 @@ covered at all.
   link names the page the feature lives on). New tiles go in
   `QuickPanelCatalog`, hidden by default. The owner's rule, after OLED care's
   third stage and the taskbar looks went missing from the panel.
+  It also reaches the docs: `docs/FEATURES.md` (by page), `docs/SETTINGS.md`
+  for a new stored setting (`controlcheck` fails when one is missing), the
+  `CommandHelp` topic (`controlcheck` fails on an undocumented command) and
+  the CHANGELOG's Unreleased section.
+- **Keep the repository root and the README lean** - the owner's rule. The
+  root holds only what tools require there (build entry points, solution,
+  `Directory.*`, `global.json`, `LICENSE`, `README.md`, dot-files); everything
+  else goes in a folder. The README is the front page: pitch, install,
+  getting started, a short tour, links. Full references live under `docs/`
+  (user guides at its top level, `docs/developer/` for contributors,
+  `docs/design/` for reasoning) and are indexed in `docs/README.md`; never
+  paste a reference, a settings table or a feature list into the README.
+  Scratch files, session exports and probes go to `.notes/` or the scratchpad.
 - **Commit messages are prose paragraphs** explaining what changed and why,
   including bugs found and how the change was verified. Not bullet lists.
 

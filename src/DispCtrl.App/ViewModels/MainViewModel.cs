@@ -148,6 +148,10 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             RefreshBlockedMonitors();
             RefreshOledMonitors();
             QuickPanelChanged?.Invoke();
+            // Applying a preset saves its settings to disk, not into this copy,
+            // and the drift check it ran at once compared the old values: Discard
+            // left the banner up until something else moved.
+            if (PresetsEnabled) Presets.RefreshDrift();
         }
         catch (Exception ex) { ShowFooterStatus("Settings sync: " + ex.Message); }
     }

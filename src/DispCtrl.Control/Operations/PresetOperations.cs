@@ -76,12 +76,27 @@ public sealed partial class ControlService
                 PresetStore.Save(existing);
                 return new JsonObject { ["state"] = "applied", ["name"] = name, ["applyWhenConnected"] = on, ["displays"] = existing.Monitors.Count };
             }
+            case "diff":
+            {
+                // What applying would change: the desk now against the preset,
+                // as the app's drift sign counts it.
+                DispCtrlSettings settings = SettingsStore.Load();
+                Preset wanted = DeskProfiles.WithCurrentTokens(existing!, settings);
+                List<DisplayInfo> attached = Resolve(null);
+                Preset live = PresetService.Capture("Now", attached, settings, useCache: true);
+                var changes = new JsonArray();
+                foreach (PresetChange c in PresetDiff.Describe(wanted, live))
+                    changes.Add((JsonNode)new JsonObject { ["where"] = c.Where, ["what"] = c.What, ["now"] = c.Now, ["preset"] = c.Saved });
+                var missing = new JsonArray(wanted.Monitors.Where(p => !attached.Any(d => d.Token == p.Key))
+                    .Select(p => (JsonNode?)JsonValue.Create(p.Value.Label ?? p.Key)).ToArray());
+                return new JsonObject { ["name"] = name, ["matches"] = changes.Count == 0, ["changes"] = changes, ["notAttached"] = missing };
+            }
             case "delete":
                 if (dryRun) return new JsonObject { ["state"] = "validated", ["name"] = name };
                 PresetStore.Delete(name);
                 return new JsonObject { ["state"] = "deleted", ["name"] = name };
             default:
-                throw new ArgumentException("Preset action: list, save, apply, delete, desk; launch from the command line.");
+                throw new ArgumentException("Preset action: list, diff, save, apply, delete, desk; launch from the command line.");
         }
     }
 }

@@ -973,6 +973,29 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
     }
     finally { File.WriteAllText(SettingsStore.Path_, intactSettings); }
 
+    // The help covers every command, so a new one cannot land undocumented.
+    string manual = ControlTerminal.Help;
+    string[] undocumented = ControlService.Commands
+        .Where(c => c is not ("commands" or "status" or "diagnostics" or "report" or "apply"))
+        .Where(c => (DispCtrl.Core.FeatureFlags.Presets || !c.StartsWith("preset.", StringComparison.Ordinal)) && !Documented(c))
+        .ToArray();
+    bool Documented(string command)
+    {
+        string[] parts = command.Split('.');
+        string root = parts[0];
+        string action = parts.Length > 1 ? parts[1] : "";
+        // "focus get|set|reset", "display set", "pin on|off|toggle": the root, then the action somewhere on its line.
+        return manual.Split('\n').Any(line => line.TrimStart().StartsWith(root + " ", StringComparison.Ordinal)
+            && (action.Length == 0 || System.Text.RegularExpressions.Regex.IsMatch(line, $@"(^|[\s|]){System.Text.RegularExpressions.Regex.Escape(action)}([\s|]|$)")));
+    }
+    Check(undocumented.Length == 0, "every command is in dispctrl's help" + (undocumented.Length > 0 ? ": missing " + string.Join(", ", undocumented) : ""));
+    Check(CommandHelp.Topics.All(t => ControlTerminal.HelpFor(t.Name) is { Length: > 0 }) && ControlTerminal.HelpFor("oled")!.Contains("third-stage")
+        && ControlTerminal.HelpFor("no-such-topic") is null && ControlTerminal.HelpFor(null)!.Contains("dispctrl help TOPIC"),
+        "help is found by topic or by a command's name; an unknown topic is nothing");
+    var sleepMode = service.Execute(Request("awake.set", new() { ["mode"] = "off", ["dryRun"] = true }));
+    var awakeMode = service.Execute(Request("awake.set", new() { ["mode"] = "on", ["dryRun"] = true }));
+    Check(sleepMode["ok"]!.GetValue<bool>() && awakeMode["ok"]!.GetValue<bool>(), "keep awake's mode takes off and on as well as its names");
+
     // The first command line's verbs are words for control commands now, not a second implementation.
     string Words(params string[] old) => string.Join(' ', LegacyCommands.Translate(old) ?? ["(none)"]);
     Check(Words("brightness", "-10", "--all") == "display set --monitor all --brightness-by -10"
@@ -1006,6 +1029,31 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
                 service.Execute(Request("preset." + verb, verb == "list" ? null : new() { ["name"] = "Disabled feature check" }))["exitCode"]!.GetValue<int>() == 1)
             && !ControlTerminal.Help.Contains("preset", StringComparison.OrdinalIgnoreCase),
             "a build without presets refuses every preset command and leaves them out of the help");
+    // docs/SETTINGS.md is generated, then edited by hand; a setting added since must not go unlisted.
+    string? repo = AppContext.BaseDirectory;
+    while (repo is not null && !File.Exists(Path.Combine(repo, "DispCtrl.slnx"))) repo = Path.GetDirectoryName(repo);
+    if (repo is not null && File.Exists(Path.Combine(repo, "docs", "SETTINGS.md")))
+    {
+        string reference = File.ReadAllText(Path.Combine(repo, "docs", "SETTINGS.md"));
+        var paths = new List<string>();
+        void Walk(JsonNode? node, string path)
+        {
+            if (node is not JsonObject schema) return;
+            if (schema["properties"] is JsonObject props)
+                foreach (var (key, child) in props)
+                {
+                    string p = path + "/" + key;
+                    if (child?["properties"] is not null) Walk(child, p);
+                    else if (child?["additionalProperties"] is JsonObject each) { paths.Add(p); Walk(each, p + "/{monitor}"); }
+                    else if (child?["items"]?["properties"] is not null) { paths.Add(p); Walk(child["items"], p + "[]"); }
+                    else paths.Add(p);
+                }
+        }
+        Walk(SettingsDocument.Schema(), "");
+        string[] unlisted = paths.Where(p => !reference.Contains("`" + p + "`", StringComparison.Ordinal)).ToArray();
+        Check(paths.Count > 200 && unlisted.Length == 0,
+            "docs/SETTINGS.md lists every setting" + (unlisted.Length > 0 ? ": missing " + string.Join(", ", unlisted.Take(10)) : ""));
+    }
     Console.WriteLine($"{checks} control checks passed.");
 }
 finally
