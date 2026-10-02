@@ -36,7 +36,7 @@ public sealed partial class ControlService
         void Did(string what) => done.Add((JsonNode?)JsonValue.Create(what));
         void Note(string what) => notes.Add((JsonNode?)JsonValue.Create(what));
 
-        string engine = Path.Combine(AppContext.BaseDirectory, "DispCtrl.Engine.exe");
+        string engine = ControlTerminal.FindEngine() ?? Path.Combine(AppContext.BaseDirectory, "DispCtrl.Engine.exe");
         string app = Path.Combine(AppContext.BaseDirectory, "DispCtrl.App.exe");
 
         // The sign-in task: re-pointed only when the engine it starts is gone,

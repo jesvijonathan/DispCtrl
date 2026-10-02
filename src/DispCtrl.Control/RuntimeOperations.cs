@@ -27,7 +27,7 @@ public sealed partial class ControlService
             Action run = pair.Key switch
             {
                 "engine" => () => StartupIntegration.SetEngineStartupAsync(enabled,
-                    Path.Combine(AppContext.BaseDirectory, "DispCtrl.Engine.exe")).GetAwaiter().GetResult(),
+                    ControlTerminal.FindEngine() ?? Path.Combine(AppContext.BaseDirectory, "DispCtrl.Engine.exe")).GetAwaiter().GetResult(),
                 "startMenu" when !StartupIntegration.IsPackaged => () => StartupIntegration.SetStartMenuShortcut(enabled),
                 "desktop" when !StartupIntegration.IsPackaged => () => StartupIntegration.SetDesktopShortcut(enabled),
                 "startMenu" or "desktop" => throw new ArgumentException("Windows manages packaged app shortcuts. Pin DispCtrl from Start."),

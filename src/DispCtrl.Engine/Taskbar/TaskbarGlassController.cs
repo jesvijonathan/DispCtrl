@@ -39,6 +39,14 @@ internal sealed class TaskbarGlassController : IDisposable
     private long _nextCheckAt;
     private Protection.OverlayNative.Rect _primaryRect;
 
+    // Attach can succeed while the surface never arrives: Explorer allows one
+    // visual-tree subscription, and a helper from another build that it still
+    // holds keeps it (the helper logs AdviseVisualTreeChange 0x8000FFFF). Seen
+    // after replacing the Store build with a development one; the status said
+    // "waiting" forever and the Taskbar page never offered the restart.
+    private const long SurfaceWaitMs = 30000;
+    private long _waitingSince;
+
     public void Update(GlobalSettings settings)
     {
         if (!settings.TaskbarGlassEnabled)
@@ -86,6 +94,7 @@ internal sealed class TaskbarGlassController : IDisposable
                 return;
             }
             _explorerPid = pid;
+            _waitingSince = 0;
             Log.Write($"taskbar glass: attached to Explorer {pid}");
             WriteStatus("Connected to Explorer; waiting for the taskbar surface");
         }
@@ -108,9 +117,13 @@ internal sealed class TaskbarGlassController : IDisposable
         _lastResult = result;
         _lastConfig = result > 0 ? config : 0;
         _nextCheckAt = _quietChecks >= QuietChecksBeforeBackoff ? now + BackoffMs : 0;
-        WriteStatus(result == 0
-            ? "Connected to Explorer; waiting for the taskbar surface"
-            : $"Applied to {result} taskbar surface(s) · blur {radius}px · tint {tint}%");
+        if (result > 0) _waitingSince = 0;
+        else if (_waitingSince == 0) _waitingSince = now;
+        WriteStatus(result > 0
+            ? $"Applied to {result} taskbar surface(s) · blur {radius}px · tint {tint}%"
+            : now - _waitingSince < SurfaceWaitMs
+                ? "Connected to Explorer; waiting for the taskbar surface"
+                : "Explorer never gave this build the taskbar surface; another DispCtrl build's glass helper still holds it. Restart Windows Explorer to load this one.");
     }
 
     /// <summary><c>HRESULT_FROM_WIN32(ERROR_REVISION_MISMATCH)</c>: Explorer holds another build's helper.</summary>

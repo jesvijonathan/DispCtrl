@@ -349,7 +349,9 @@ public static class ControlTerminal
         return 0;
     }
 
-    private static string? FindEngine()
+    /// <summary>The engine beside this executable, or, in a source tree, the Release build's.</summary>
+    /// <remarks>Shared by <c>engine start</c>, <c>startup set --engine</c> and repair, so a development build's switches find the same engine.</remarks>
+    internal static string? FindEngine()
     {
         string beside = Path.Combine(AppContext.BaseDirectory, "DispCtrl.Engine.exe");
         if (File.Exists(beside)) return beside;
@@ -357,7 +359,7 @@ public static class ControlTerminal
         for (int i = 0; i < 9 && dir is not null; i++, dir = dir.Parent)
         {
             string build = Path.Combine(dir.FullName, "src/DispCtrl.Engine/bin/Release/net10.0-windows10.0.26100.0/win-x64/DispCtrl.Engine.exe");
-            if (File.Exists(build)) return build;
+            if (File.Exists(build)) return Path.GetFullPath(build);
         }
         return null;
     }
