@@ -1,6 +1,7 @@
 <Window x:Class="DispCtrl.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:DispCtrl.App.Views.Controls"
         xmlns:muxc="using:Microsoft.UI.Xaml.Controls">
 
   <!-- Mica is what makes a window read as part of Windows 11 rather than as an
@@ -14,11 +15,73 @@
 
     <!-- Navigation occupies the next row, so the title needs only the normal
          window-edge padding. -->
-    <Grid x:Name="TitleBar" Grid.Row="0" Height="44" ColumnDefinitions="Auto,*">
+    <Grid x:Name="TitleBar" Grid.Row="0" Height="44" ColumnDefinitions="Auto,Auto,*">
       <TextBlock x:Name="AppTitle" Text="DispCtrl" Margin="16,0,0,0"
                  AutomationProperties.AutomationId="ApplicationTitle"
                  VerticalAlignment="Center"
                  Style="{StaticResource CaptionTextBlockStyle}"/>
+
+      <!-- The preset in use, on every page, the way a browser shows its
+           profile: which one the desk is compared against, a dot when the
+           desk has moved from it, and everything else one press away. The
+           title bar is a drag region, so this button's rectangle is handed
+           back to the window as pass-through (UpdateTitleBarPassthrough). -->
+      <Button x:Name="PresetSwitcher" Grid.Column="1" Margin="16,0,0,0" Padding="10,3,8,4"
+              VerticalAlignment="Center" MinHeight="28"
+              Background="Transparent" BorderThickness="0"
+              SizeChanged="OnPresetSwitcherSizeChanged"
+              AutomationProperties.Name="PresetSwitcher"
+              ToolTipService.ToolTip="{x:Bind ViewModel.Presets.DriftTooltip, Mode=OneWay}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <FontIcon Glyph="&#xE768;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          <TextBlock Text="{x:Bind ViewModel.Presets.SwitcherText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                     VerticalAlignment="Center"/>
+          <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                   Fill="{ThemeResource SystemFillColorCautionBrush}"
+                   Visibility="{x:Bind ViewModel.Presets.DirtyVisibility, Mode=OneWay}"/>
+          <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+        <Button.Flyout>
+          <Flyout Placement="BottomEdgeAlignedLeft" Opening="OnPresetFlyoutOpening">
+            <StackPanel Spacing="10" Width="320">
+              <TextBlock Text="Preset" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+              <TextBlock Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                         Text="The desk is compared with the preset chosen here. Choosing one changes nothing; Apply puts the desk back to it."/>
+              <!-- The list's last entry starts a new preset, so creating one is
+                   reachable from the same control that switches between them. -->
+              <ComboBox ItemsSource="{x:Bind ViewModel.Presets.Names}"
+                        SelectedItem="{x:Bind ViewModel.Presets.Selected, Mode=TwoWay}"
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="SwitcherPresetPicker"/>
+              <TextBox Text="{x:Bind ViewModel.Presets.NewName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                       PlaceholderText="Name"
+                       Visibility="{x:Bind ViewModel.Presets.CreatingVisibility, Mode=OneWay}"
+                       AutomationProperties.Name="SwitcherPresetName"/>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <views:PresetChanges VerticalAlignment="Center"/>
+                <TextBlock Text="{x:Bind ViewModel.Presets.ShortStatus, Mode=OneWay}" VerticalAlignment="Center"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Apply" Click="OnPresetApply"
+                        ToolTipService.ToolTip="Put the displays back to this preset"
+                        Visibility="{x:Bind ViewModel.Presets.ActionVisibility, Mode=OneWay}"
+                        AutomationProperties.Name="SwitcherPresetApply"/>
+                <Button Content="Save" Click="OnPresetSave" Style="{StaticResource AccentButtonStyle}"
+                        ToolTipService.ToolTip="Update this preset to match the displays"
+                        Visibility="{x:Bind ViewModel.Presets.ActionVisibility, Mode=OneWay}"
+                        AutomationProperties.Name="SwitcherPresetSave"/>
+                <Button Content="Create" Click="OnPresetSave" Style="{StaticResource AccentButtonStyle}"
+                        Visibility="{x:Bind ViewModel.Presets.CreatingVisibility, Mode=OneWay}"
+                        AutomationProperties.Name="SwitcherPresetCreate"/>
+              </StackPanel>
+              <HyperlinkButton Content="All presets and app rules" Click="OnManagePresets" Padding="0"/>
+            </StackPanel>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
     </Grid>
 
     <muxc:NavigationView x:Name="Nav"
@@ -118,10 +181,30 @@
 
       <!-- Page content owns the status bar, so the navigation pane continues
            all the way to the bottom instead of being cut off by it. -->
-      <Grid RowDefinitions="*,Auto">
-        <Frame x:Name="ContentFrame"/>
+      <Grid RowDefinitions="Auto,*,Auto">
+        <!-- Shown only when the desk has moved from the preset in use, on any
+             page, and gone again once that is settled. Closing it hides it
+             until the desk moves again. -->
+        <InfoBar x:Name="PresetDriftBanner" Grid.Row="0" Margin="12,4,12,4"
+                 Severity="Warning" IsOpen="False" IsClosable="True"
+                 Closed="OnPresetBannerClosed"
+                 AutomationProperties.Name="PresetDriftBanner">
+          <InfoBar.ActionButton>
+            <Button Content="Save" Click="OnPresetSave" AutomationProperties.Name="BannerPresetSave"/>
+          </InfoBar.ActionButton>
+          <InfoBar.Content>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+              <Button Content="Discard" Click="OnPresetApply"
+                      ToolTipService.ToolTip="Put the displays back to this preset"
+                      AutomationProperties.Name="BannerPresetDiscard"/>
+              <views:PresetChanges/>
+            </StackPanel>
+          </InfoBar.Content>
+        </InfoBar>
 
-        <Border Grid.Row="1" Padding="16,8"
+        <Frame x:Name="ContentFrame" Grid.Row="1"/>
+
+        <Border Grid.Row="2" Padding="16,8"
                 BorderThickness="0,1,0,0"
                 BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
           <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">

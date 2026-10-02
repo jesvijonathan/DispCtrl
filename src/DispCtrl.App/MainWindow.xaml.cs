@@ -1,4 +1,5 @@
 using DispCtrl.App.Views.Pages;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -32,6 +33,10 @@ public sealed partial class MainWindow : Window
         Title = AppTitle.Text = DispCtrl.Core.BuildInfo.AppTitle;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
+        // A build without presets has no switcher; the flag is compiled in.
+        PresetSwitcher.Visibility = ViewModel.PresetsEnabled ? Visibility.Visible : Visibility.Collapsed;
+        TitleBar.SizeChanged += (_, _) => UpdateTitleBarPassthrough();
+        WatchPresetDrift();
 
         OpenAtSize(1020, 800);
         if (AppWindow.Presenter is OverlappedPresenter presenter)
@@ -152,6 +157,90 @@ public sealed partial class MainWindow : Window
     private void UpdateStatusPolling()
     {
         if (CanPollStatus) _statusTimer.Start(); else _statusTimer.Stop();
+    }
+
+    // ------------------------------------------------------------ presets --
+
+    private string? _bannerDismissedFor;
+
+    /// <summary>
+    /// The switcher sits in the title bar, which is all drag region; its
+    /// rectangle is handed back to the window so a press reaches the button.
+    /// </summary>
+    private void OnPresetSwitcherSizeChanged(object sender, SizeChangedEventArgs e) => UpdateTitleBarPassthrough();
+
+    private void UpdateTitleBarPassthrough()
+    {
+        if (PresetSwitcher is not { Visibility: Visibility.Visible } button || button.XamlRoot is null) return;
+        double scale = button.XamlRoot.RasterizationScale;
+        var bounds = button.TransformToVisual(null).TransformBounds(new Windows.Foundation.Rect(0, 0, button.ActualWidth, button.ActualHeight));
+        var rect = new RectInt32((int)Math.Round(bounds.X * scale), (int)Math.Round(bounds.Y * scale),
+            (int)Math.Round(bounds.Width * scale), (int)Math.Round(bounds.Height * scale));
+        InputNonClientPointerSource.GetForWindowId(AppWindow.Id).SetRegionRects(NonClientRegionKind.Passthrough, [rect]);
+    }
+
+    /// <summary>Compared afresh as it opens, so it never shows a stale count.</summary>
+    private void OnPresetFlyoutOpening(object? sender, object e) => ViewModel.Presets.RefreshDrift();
+
+    /// <summary>Apply and Discard are one operation: put the desk back to the preset.</summary>
+    private async void OnPresetApply(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+        // Applying can mean a topology change, which blocks for seconds.
+        button.IsEnabled = false;
+        try { await ViewModel.Presets.ApplyAsync(); }
+        finally { button.IsEnabled = true; }
+    }
+
+    private async void OnPresetSave(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+        button.IsEnabled = false;
+        try { await ViewModel.Presets.SaveOrCreateAsync(); }
+        finally { button.IsEnabled = true; }
+    }
+
+    private void OnManagePresets(object sender, RoutedEventArgs e)
+    {
+        PresetSwitcher?.Flyout?.Hide();
+        App.ShowMainWindow("presets");
+    }
+
+    /// <summary>
+    /// The banner appears when the desk moves from the preset in use and goes
+    /// once that is settled. Closed by hand, it stays away until the desk
+    /// moves again - a different set of changes - rather than nagging about
+    /// the same ones.
+    /// </summary>
+    private void WatchPresetDrift()
+    {
+        if (!ViewModel.PresetsEnabled) return;
+        ViewModel.Presets.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ViewModels.PresetsViewModel.DriftTooltip) or nameof(ViewModels.PresetsViewModel.Selected))
+                DispatcherQueue.TryEnqueue(UpdatePresetBanner);
+        };
+        UpdatePresetBanner();
+    }
+
+    private string DriftSignature => $"{ViewModel.Presets.Selected}|{string.Join(";", ViewModel.Presets.Changes.Select(c => c.Setting + "=" + c.Now))}";
+
+    private void UpdatePresetBanner()
+    {
+        var presets = ViewModel.Presets;
+        bool show = presets.IsDirty && !presets.Creating && DriftSignature != _bannerDismissedFor;
+        if (show)
+        {
+            PresetDriftBanner.Title = $"The displays have changed from {presets.Selected}";
+            PresetDriftBanner.Message = presets.Changes.Count == 1 ? "1 setting differs." : $"{presets.Changes.Count} settings differ.";
+        }
+        PresetDriftBanner.IsOpen = show;
+    }
+
+    private void OnPresetBannerClosed(InfoBar sender, InfoBarClosedEventArgs args)
+    {
+        // Only a person's close is remembered; the banner closing itself is not.
+        if (args.Reason == InfoBarCloseReason.CloseButton) _bannerDismissedFor = DriftSignature;
     }
 
     private void OnEngineToggled(object sender, RoutedEventArgs e)

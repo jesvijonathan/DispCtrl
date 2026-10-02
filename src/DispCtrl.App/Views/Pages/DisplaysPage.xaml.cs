@@ -150,46 +150,6 @@ public sealed partial class DisplaysPage : Page
             display.RequestOledRest();
     }
 
-    private async void OnPresetApply(object sender, RoutedEventArgs e) => await RunPreset(sender);
-
-    private async void OnPresetDiscard(object sender, RoutedEventArgs e) => await RunPreset(sender);
-
-    /// <remarks>
-    /// Apply and Discard are the same operation — Discard means "put the desk
-    /// back to the preset", which is exactly what applying it does. Two buttons
-    /// because the two intentions read differently when something has drifted.
-    /// </remarks>
-    private static async Task RunPreset(object sender)
-    {
-        if (sender is not Button button) return;
-
-        // Applying can mean a topology change, which blocks for seconds.
-        button.IsEnabled = false;
-        try
-        {
-            await App.ViewModel.Presets.ApplyAsync();
-        }
-        finally
-        {
-            button.IsEnabled = true;
-        }
-    }
-
-    private async void OnPresetSave(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button) return;
-
-        button.IsEnabled = false;
-        try
-        {
-            await ViewModel.Presets.SaveOrCreateAsync();
-        }
-        finally
-        {
-            button.IsEnabled = true;
-        }
-    }
-
     /// <summary>
     /// Feeds the arrangement surface the current display geometry.
     /// </summary>

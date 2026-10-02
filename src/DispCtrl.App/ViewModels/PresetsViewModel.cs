@@ -285,6 +285,9 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     public Visibility EmptyVisibility => HasPresets ? Visibility.Collapsed : Visibility.Visible;
 
+    /// <summary>The title bar switcher's words: the preset in use, or what to do without one.</summary>
+    public string SwitcherText => Creating ? "New preset" : Current?.Name ?? (HasPresets ? "Choose a preset" : "No presets");
+
     /// <summary>
     /// Always shown. With no presets saved, the bar is how the first one gets
     /// made — hiding it until one exists would hide the only way to start.
@@ -301,6 +304,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             Raise();
             RefreshDrift();
             Raise(nameof(Details));
+            Raise(nameof(SwitcherText));
             Raise(nameof(Creating));
             Raise(nameof(CreatingVisibility));
             Raise(nameof(ExistingVisibility));
