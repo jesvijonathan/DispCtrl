@@ -32,23 +32,23 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DispCtrl.Control\DispCtrl.Control.csproj" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
     <!-- The metapackage carries machine learning (onnxruntime, DirectML), the
          AI APIs, Widgets and Search: ~45 MB of every release, none of it used.
          The toolkit below depends on the metapackage, so it cannot be swapped
          for components; these override its transitive assets instead. Versions
          are the metapackage's own: bump them with it. -->
-    <PackageReference Include="Microsoft.WindowsAppSDK.AI" Version="2.4.4" ExcludeAssets="all" />
-    <PackageReference Include="Microsoft.WindowsAppSDK.ML" Version="2.1.74" ExcludeAssets="all" />
-    <PackageReference Include="Microsoft.Windows.AI.MachineLearning" Version="2.1.74" ExcludeAssets="all" />
-    <PackageReference Include="Microsoft.WindowsAppSDK.Search" Version="2.4.4" ExcludeAssets="all" />
-    <PackageReference Include="Microsoft.WindowsAppSDK.Widgets" Version="2.0.5" ExcludeAssets="all" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.AI" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.ML" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.Windows.AI.MachineLearning" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Search" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Widgets" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
 
     <!-- SettingsCard / SettingsExpander: the same controls Windows 11 Settings
          and PowerToys use. Worth the dependency — hand-rolling them is how an
          app ends up looking almost-but-not-quite native. -->
-    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
   </ItemGroup>
 
   <ItemGroup>

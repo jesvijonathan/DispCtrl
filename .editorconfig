@@ -1,0 +1,83 @@
+# The conventions this codebase already follows, written down so an editor
+# applies them. Style rules are suggestions, not build errors: the build treats
+# warnings as errors (Directory.Build.props) and a formatting nit should never
+# fail it. docs/developer/CONTRIBUTING-CODE.md has the reasons behind them.
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{xaml,csproj,props,targets,slnx,xml,manifest,appxmanifest,resw}]
+indent_size = 2
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.{ps1,psm1,cmd}]
+indent_size = 4
+
+[*.sh]
+indent_size = 4
+end_of_line = lf
+
+[*.md]
+# Two trailing spaces are a line break in Markdown.
+trim_trailing_whitespace = false
+
+[*.{cpp,h}]
+indent_size = 4
+
+[*.cs]
+# Layout
+csharp_style_namespace_declarations = file_scoped:suggestion
+csharp_using_directive_placement = outside_namespace:suggestion
+dotnet_sort_system_directives_first = true
+csharp_new_line_before_open_brace = all
+csharp_prefer_braces = when_multiline:suggestion
+csharp_preserve_single_line_statements = true
+csharp_preserve_single_line_blocks = true
+
+# Types and expressions
+csharp_style_var_for_built_in_types = false:none
+csharp_style_var_when_type_is_apparent = true:none
+csharp_style_var_elsewhere = false:none
+csharp_style_expression_bodied_methods = when_on_single_line:none
+csharp_style_expression_bodied_properties = true:none
+csharp_style_prefer_primary_constructors = false:none
+dotnet_style_prefer_collection_expression = when_types_loosely_match:suggestion
+csharp_style_prefer_switch_expression = true:suggestion
+csharp_style_pattern_matching_over_is_with_cast_check = true:suggestion
+
+# Naming: PascalCase for types and members, _camelCase for private fields,
+# PascalCase for constants and static readonly fields.
+dotnet_naming_rule.private_fields_underscored.symbols = private_fields
+dotnet_naming_rule.private_fields_underscored.style = underscored_camel
+dotnet_naming_rule.private_fields_underscored.severity = suggestion
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_symbols.private_fields.required_modifiers =
+dotnet_naming_style.underscored_camel.required_prefix = _
+dotnet_naming_style.underscored_camel.capitalization = camel_case
+
+dotnet_naming_rule.constants_pascal.symbols = constants
+dotnet_naming_rule.constants_pascal.style = pascal
+dotnet_naming_rule.constants_pascal.severity = suggestion
+dotnet_naming_symbols.constants.applicable_kinds = field
+dotnet_naming_symbols.constants.required_modifiers = const
+dotnet_naming_style.pascal.capitalization = pascal_case
+
+dotnet_naming_rule.static_readonly_pascal.symbols = static_readonly
+dotnet_naming_rule.static_readonly_pascal.style = pascal
+dotnet_naming_rule.static_readonly_pascal.severity = suggestion
+dotnet_naming_symbols.static_readonly.applicable_kinds = field
+dotnet_naming_symbols.static_readonly.required_modifiers = static, readonly
+
+# The rule that folders and namespaces agree (IDE0130) is followed: each
+# folder under a project is a namespace below the project's.
+dotnet_style_namespace_match_folder = true:suggestion

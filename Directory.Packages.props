@@ -1,0 +1,29 @@
+<Project>
+
+  <!-- Every package version in one place, so all projects agree and an upgrade
+       is one line. Projects name a package; its version comes from here. Exact
+       versions on purpose: restores are deterministic without lock files (see
+       docs/developer/BUILDING.md, "No NuGet lock files"). -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup Label="Windows">
+    <PackageVersion Include="Microsoft.Windows.CsWin32" Version="0.3.333" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+    <PackageVersion Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="App (WinUI)">
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <!-- Components the metapackage pulls in and the app never uses; excluded in
+         DispCtrl.App.csproj. Bump these with the metapackage. -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK.AI" Version="2.4.4" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.ML" Version="2.1.74" />
+    <PackageVersion Include="Microsoft.Windows.AI.MachineLearning" Version="2.1.74" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Search" Version="2.4.4" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Widgets" Version="2.0.5" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
+  </ItemGroup>
+
+</Project>

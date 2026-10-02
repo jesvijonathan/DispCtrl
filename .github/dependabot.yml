@@ -15,9 +15,8 @@ updates:
       actions:
         patterns: ['*']
   - package-ecosystem: nuget
-    directories:
-      - /src/*
-      - /tools/*
+    # Versions are central (Directory.Packages.props), read from the root.
+    directory: /
     schedule:
       interval: monthly
     cooldown:
