@@ -33,7 +33,7 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
 
-        AppWindow.Resize(new SizeInt32(1020, 800));
+        OpenAtSize(1020, 800);
         if (AppWindow.Presenter is OverlappedPresenter presenter)
             presenter.PreferredMinimumWidth = 640;
 
@@ -74,6 +74,26 @@ public sealed partial class MainWindow : Window
 
         ContentFrame.Navigate(typeof(DisplaysPage), null, new EntranceNavigationTransitionInfo());
     }
+
+    /// <summary>Opens at a size in DIPs, scaled for the display it opens on and kept inside it.</summary>
+    /// <remarks>
+    /// <c>AppWindow.Resize</c> takes physical pixels. 1020 x 800 was right on
+    /// the Dell at 100%, which was primary; with the laptop alone (200%) it
+    /// opened at half that, a 510 x 400 window. Resized only, never moved:
+    /// a move across displays at different scales rescales after a resize.
+    /// </remarks>
+    private void OpenAtSize(int width, int height)
+    {
+        double scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;
+        if (scale <= 0) scale = 1;
+        RectInt32 area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        AppWindow.Resize(new SizeInt32(
+            Math.Min((int)Math.Round(width * scale), area.Width),
+            Math.Min((int)Math.Round(height * scale), area.Height)));
+    }
+
+    [System.Runtime.InteropServices.LibraryImport("user32.dll")]
+    private static partial uint GetDpiForWindow(nint hwnd);
 
     private bool CanPollStatus => AppWindow.IsVisible
         && AppWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Minimized };
