@@ -28,12 +28,27 @@ internal sealed class AppRuleService : IDisposable
     {
         _settings = settings;
         _persist = persist;
-        _timer = new Timer(_ => Tick(), null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
+        _timer = new Timer(_ => Tick());
+        Arm(settings);
     }
 
     public void Update(DispCtrlSettings settings)
     {
         lock (_gate) _settings = settings;
+        Arm(settings);
+    }
+
+    /// <summary>Looks at the foreground twice a second only while a rule could fire or one is in force.</summary>
+    /// <remarks>
+    /// It ran from the engine's start, two wake-ups a second, on a desk with no
+    /// rules at all - which is most desks. Settings arrive through
+    /// <see cref="Update"/>, so adding a rule starts it.
+    /// </remarks>
+    private void Arm(DispCtrlSettings settings)
+    {
+        bool needed = _activeIdentity is not null || settings.AppRules.Exists(rule => rule.IsComplete);
+        try { _timer.Change(needed ? 500 : Timeout.Infinite, needed ? 500 : Timeout.Infinite); }
+        catch (ObjectDisposedException) { }
     }
 
     private void Tick()
@@ -120,6 +135,7 @@ internal sealed class AppRuleService : IDisposable
         _activeIdentity = null;
         _previous = null;
         _revertTo = null;
+        Arm(settings);
         return true;
     }
 

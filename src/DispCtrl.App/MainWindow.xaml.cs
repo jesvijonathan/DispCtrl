@@ -215,12 +215,18 @@ public sealed partial class MainWindow : Window
     private void WatchPresetDrift()
     {
         if (!ViewModel.PresetsEnabled) return;
-        ViewModel.Presets.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(ViewModels.PresetsViewModel.DriftTooltip) or nameof(ViewModels.PresetsViewModel.Selected))
-                DispatcherQueue.TryEnqueue(UpdatePresetBanner);
-        };
+        // The view model outlives this window - the process stays for the
+        // quick panel and builds a new window each time - so the handler goes
+        // with the window, or every closed window would stay alive and updated.
+        ViewModel.Presets.PropertyChanged += OnPresetsChanged;
+        Closed += (_, _) => ViewModel.Presets.PropertyChanged -= OnPresetsChanged;
         UpdatePresetBanner();
+    }
+
+    private void OnPresetsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ViewModels.PresetsViewModel.DriftTooltip) or nameof(ViewModels.PresetsViewModel.Selected))
+            DispatcherQueue.TryEnqueue(UpdatePresetBanner);
     }
 
     private string DriftSignature => $"{ViewModel.Presets.Selected}|{string.Join(";", ViewModel.Presets.Changes.Select(c => c.Setting + "=" + c.Now))}";

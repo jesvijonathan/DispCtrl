@@ -762,6 +762,19 @@ unrecallable.
     second stage or a pointer moved by software. It polled at 100 ms, all night.
     One key press ends displays off in well under 150 ms, measured.
   - Engine idle: ~282 ms/min before, ~16 ms/min after.
+  - New-window placement listened with a WinEvent hook on objects shown and
+    uncloaked: every caret blink, tooltip and menu in every process woke the
+    placement thread, 5.4 times a second with an editor open, to be thrown
+    away. It hears the shell's window-created notice now
+    (`RegisterShellHookWindow`, top-level unowned windows only), which needs a
+    hidden top-level window - message-only windows are not sent it.
+  - The app-rule service's 500 ms timer ran from start on every desk, rules
+    or none, once presets were switched on: armed only while a rule exists or
+    one is in force (`AppRuleService.Arm`).
+  - Name a thread (`Thread.Name`) when it waits: Windows shows .NET's name as
+    the thread description, which is how a wake-up per thread is pinned on a
+    service without any tool installed (`GetThreadDescription` beside the
+    `\Thread(DispCtrl.Engine*)\Context Switches/sec` counter).
 - **Slider saves are coalesced** (`PersistSoon`); a synchronous save per drag
   step also made the engine reload each time. `Persist()` flushes a pending one.
 - **The hidden quick panel trims itself** 10 s after hiding: 190 MB working set

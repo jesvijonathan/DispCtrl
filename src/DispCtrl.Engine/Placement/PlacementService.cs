@@ -66,6 +66,8 @@ internal sealed unsafe partial class PlacementService : IDisposable
     private bool _disposed;
     private readonly List<nint> _hooks = [];
     private (bool Return, bool NewWindows)? _hookState;
+    private uint _shellMessage;
+    private bool _shellHooked;
 
     /// <summary>Where every window was, the last time the layout was settled.</summary>
     private Dictionary<nint, WindowSpot> _snapshot = [];
@@ -114,7 +116,11 @@ internal sealed unsafe partial class PlacementService : IDisposable
                 var cls = new WindowClass { Size = (uint)sizeof(WindowClass), Proc = &WindowProc, Instance = module, Name = name };
                 RegisterClassEx(ref cls);
             }
-            _control = CreateWindowEx(0, ControlClass, "DispCtrl window placement", 0, 0, 0, 0, 0, -3, 0, module, 0);
+            // A hidden tool window rather than a message-only one: the shell's
+            // window-created notice (RegisterShellHookWindow) is not delivered
+            // to message-only windows. Never shown, no taskbar button.
+            _control = CreateWindowEx(0x80, ControlClass, "DispCtrl window placement", 0x80000000, 0, 0, 0, 0, 0, 0, module, 0);
+            _shellMessage = RegisterWindowMessage("SHELLHOOK");
             _ready.Set();
             if (_control == 0) { Log.Write("placement: no control window"); return; }
             _settledSignature = DisplayRegistry.CheapSignature();
@@ -152,6 +158,13 @@ internal sealed unsafe partial class PlacementService : IDisposable
                         self.Timer(wparam);
                         return 0;
                 }
+                // HSHELL_WINDOWCREATED: a top-level, unowned window - what the
+                // taskbar shows a button for, and nothing else.
+                if (message == self._shellMessage && self._shellMessage != 0 && (wparam & 0x7FFF) == 1)
+                {
+                    self.Shown(lparam);
+                    return 0;
+                }
             }
         }
         catch (Exception ex) { Log.Write($"placement: {ex.Message}"); }
@@ -166,7 +179,6 @@ internal sealed unsafe partial class PlacementService : IDisposable
             if (_instance is not { } self || obj != 0 || child != 0) return;
             switch (evt)
             {
-                case 0x8002: case 0x8018: self.Shown(window); break; // shown, uncloaked
                 default: SetTimer(self._control, SnapshotTimer, SnapshotDelayMs, 0); break; // foreground, move/size end, minimize
             }
         }
@@ -217,15 +229,17 @@ internal sealed unsafe partial class PlacementService : IDisposable
             GCHandle box = GCHandle.Alloc(_seen);
             try { EnumWindows(&CollectAll, GCHandle.ToIntPtr(box)); }
             finally { box.Free(); }
-            // Shown and uncloaked only. Destroyed was here to keep the seen set
-            // tidy, and it fires for every object in every process - menus,
-            // tooltips, controls - each one a wake-up here; dead handles are
-            // pruned from the set instead.
-            AddHook(0x8002, 0x8002); // shown
-            AddHook(0x8018, 0x8018); // uncloaked: Store apps appear this way
+            // The shell's own notice of a new top-level window, not a WinEvent
+            // hook on objects shown: that heard every caret blink, tooltip and
+            // menu in every process - 5.4 wake-ups a second on an idle desk
+            // with an editor open, each filtered out only after waking.
+            _shellHooked = RegisterShellHookWindow(_control) != 0;
+            if (!_shellHooked) Log.Write("placement: could not hear new windows from the shell");
         }
         else
         {
+            if (_shellHooked) DeregisterShellHookWindow(_control);
+            _shellHooked = false;
             _seen.Clear();
             _newWindows.Clear();
         }
@@ -248,6 +262,8 @@ internal sealed unsafe partial class PlacementService : IDisposable
 
     private void ClearHooks()
     {
+        if (_shellHooked && _control != 0) DeregisterShellHookWindow(_control);
+        _shellHooked = false;
         foreach (nint hook in _hooks) UnhookWinEvent(hook);
         _hooks.Clear();
         _hookState = null;
@@ -437,6 +453,10 @@ internal sealed unsafe partial class PlacementService : IDisposable
     }
 
     [LibraryImport("user32.dll")] private static partial int SetForegroundWindow(nint hwnd);
+    [LibraryImport("user32.dll")] private static partial int RegisterShellHookWindow(nint hwnd);
+    [LibraryImport("user32.dll")] private static partial int DeregisterShellHookWindow(nint hwnd);
+    [LibraryImport("user32.dll", EntryPoint = "RegisterWindowMessageW", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial uint RegisterWindowMessage(string name);
 
     public void Dispose()
     {
