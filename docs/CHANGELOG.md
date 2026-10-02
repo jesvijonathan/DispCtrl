@@ -25,6 +25,7 @@ using DispCtrl, not for people reading the diff.
 - The tray icon's right-click menu no longer offers Quick panel, which a left click already opens, or Close the app; Exit DispCtrl remains.
 
 ### Fixed
+- The DispCtrl window, left on a monitor that was then unplugged, flickered into view and vanished when opened again or clicked on the taskbar. It now comes back onto a display that is attached.
 - A display's night light slider no longer turns into a setting of its own as the page draws it: a display following the common warmth kept following it only until its card was first opened.
 - Hotkey action fields now update when the action changes. Slow shortcut actions are serialized off the keyboard pump; volume, mute, contrast and input commands read only the requested control.
 - LG mappings require device schema 2 so older builds cannot interpret their wire values as standard DDC. Stale input controls reject writes after their transport mapping changes.

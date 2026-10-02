@@ -53,7 +53,15 @@ public sealed partial class MainWindow : Window
         _statusTimer.Start();
 
         // Nothing on screen means nothing worth polling for.
-        AppWindow.Changed += (_, _) => UpdateStatusPolling();
+        AppWindow.Changed += (_, args) =>
+        {
+            UpdateStatusPolling();
+            // Restored from the taskbar goes straight back to where it was,
+            // which may be a display that has since gone. That restore is a
+            // move (from -32000), not a presenter change. A drag never trips
+            // this: the title bar stays under the pointer, on a display.
+            if (args.DidPositionChange || args.DidPresenterChange || args.DidVisibilityChange) KeepOnScreen();
+        };
 
         // The settings file is shared with the engine's CLI, so anything shown
         // here can be stale by the time the window is looked at again.
@@ -73,6 +81,49 @@ public sealed partial class MainWindow : Window
         };
 
         ContentFrame.Navigate(typeof(DisplaysPage), null, new EntranceNavigationTransitionInfo());
+
+        // A display unplugged while the window was on it: bring the window
+        // over now, not at the next time someone tries to open it.
+        App.ViewModel.DisplaysRebuilt += KeepOnScreen;
+        Closed += (_, _) => App.ViewModel.DisplaysRebuilt -= KeepOnScreen;
+    }
+
+    /// <summary>Moves the window onto a display that is attached, when it is no longer on one.</summary>
+    /// <remarks>
+    /// Opened while a monitor was connected and left there, the window kept
+    /// that monitor's coordinates after it was unplugged. Opening the app
+    /// again, or clicking it on the taskbar, showed it for a frame and then
+    /// drew it where no display is - it looked like it opened and vanished.
+    /// Enough of the title bar to grab (120 x 32) must be on a work area;
+    /// otherwise the window is centred on the main display, no larger than it.
+    /// A maximized window is restored first, moved, and maximized there.
+    /// </remarks>
+    public void KeepOnScreen()
+    {
+        // Minimized, a window's position is -32000: nowhere, and not a problem.
+        if (!AppWindow.IsVisible || AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized }) return;
+        PointInt32 at = AppWindow.Position;
+        SizeInt32 size = AppWindow.Size;
+        var grip = new RectInt32(at.X + Math.Max(0, size.Width / 2 - 60), at.Y, Math.Min(120, size.Width), 32);
+        DisplayArea? area = DisplayArea.GetFromRect(grip, DisplayAreaFallback.None);
+        if (area is not null && Overlap(grip, area.WorkArea) >= grip.Width * grip.Height / 2) return;
+
+        bool maximized = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized } p && Restore(p);
+        RectInt32 work = DisplayArea.Primary.WorkArea;
+        size = AppWindow.Size;
+        int width = Math.Min(size.Width, work.Width), height = Math.Min(size.Height, work.Height);
+        // Moved, then sized: a move across scales rescales after a combined one.
+        AppWindow.Move(new PointInt32(work.X + (work.Width - width) / 2, work.Y + (work.Height - height) / 2));
+        AppWindow.Resize(new SizeInt32(width, height));
+        if (maximized && AppWindow.Presenter is OverlappedPresenter again) again.Maximize();
+
+        static bool Restore(OverlappedPresenter presenter) { presenter.Restore(); return true; }
+        static long Overlap(RectInt32 a, RectInt32 b)
+        {
+            long w = Math.Min(a.X + a.Width, b.X + b.Width) - Math.Max(a.X, b.X);
+            long h = Math.Min(a.Y + a.Height, b.Y + b.Height) - Math.Max(a.Y, b.Y);
+            return w > 0 && h > 0 ? w * h : 0;
+        }
     }
 
     /// <summary>Opens at a size in DIPs, scaled for the display it opens on and kept inside it.</summary>

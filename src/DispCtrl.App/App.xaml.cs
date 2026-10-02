@@ -163,6 +163,7 @@ public partial class App : Application
         // as the second launch having done nothing.
         if (window.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter { State: Microsoft.UI.Windowing.OverlappedPresenterState.Minimized } presenter)
             presenter.Restore();
+        window.KeepOnScreen();
         window.Activate();
     }
 
