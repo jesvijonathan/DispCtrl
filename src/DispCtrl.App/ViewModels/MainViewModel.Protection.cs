@@ -80,7 +80,7 @@ public sealed partial class MainViewModel
             for (int attempt = 0; attempt < 20; attempt++)
             {
                 if (version != _oledPreviewVersion || !Care.Enabled) return;
-                if (DispCtrl.Display.OledPreview.TryShow(percent)) return;
+                if (DispCtrl.Display.Light.OledPreview.TryShow(percent)) return;
                 await Task.Delay(100);
             }
         }

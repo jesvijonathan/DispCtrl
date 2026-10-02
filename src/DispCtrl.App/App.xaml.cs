@@ -1,9 +1,9 @@
-using Microsoft.UI.Dispatching;
-using Microsoft.UI.Xaml;
 using DispCtrl.App.Services;
 using DispCtrl.App.ViewModels;
-using DispCtrl.App.Views;
+using DispCtrl.App.Views.QuickPanel;
 using DispCtrl.Core.Settings;
+using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
 
 namespace DispCtrl.App;
 

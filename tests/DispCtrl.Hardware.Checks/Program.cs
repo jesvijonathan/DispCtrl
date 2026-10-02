@@ -1,8 +1,13 @@
-using DispCtrl.Core.Displays;
-using DispCtrl.Display.Devices;
-using DispCtrl.Core.Presets;
-using DispCtrl.Core.Settings;
 using DispCtrl.Core;
+using DispCtrl.Core.Arrangement;
+using DispCtrl.Core.Color;
+using DispCtrl.Core.Displays;
+using DispCtrl.Core.Presets;
+using DispCtrl.Core.Protection;
+using DispCtrl.Core.Settings;
+using DispCtrl.Core.Shell;
+using DispCtrl.Display.Devices;
+using DispCtrl.Display.Light;
 
 // Exercises the preset store's edge cases directly, in a scratch folder, so the
 // awkward name cases can be checked without a real desk in the way.
@@ -1007,8 +1012,8 @@ static string Shorten(string s) => s.Length <= 24 ? s : s[..24] + "...";
     Console.WriteLine("Wallpaper previews: a picture for every display");
     foreach (DisplayInfo d in DisplayRegistry.Enumerate())
     {
-        string? reported = DispCtrl.Display.Wallpaper.Read(d);
-        List<string> sources = DispCtrl.Display.Wallpaper.PreviewSources(d);
+        string? reported = DispCtrl.Display.Shell.Wallpaper.Read(d);
+        List<string> sources = DispCtrl.Display.Shell.Wallpaper.PreviewSources(d);
         string first = sources.Count > 0 ? Path.GetFileName(sources[0]) : "none";
         bool reportedMissing = reported is not null && !File.Exists(reported);
         Check($"{d.Label}: {sources.Count} source(s), first {first}{(reportedMissing ? " (the reported file is gone)" : "")}",

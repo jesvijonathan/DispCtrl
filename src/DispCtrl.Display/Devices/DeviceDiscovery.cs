@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DispCtrl.Core.Devices;
 using DispCtrl.Core.Displays;
+using DispCtrl.Display.Ddc;
 
 namespace DispCtrl.Display.Devices;
 

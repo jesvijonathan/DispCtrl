@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DispCtrl.Core.Color;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Light;
+using DispCtrl.Display.Topology;
 
 namespace DispCtrl.Control;
 

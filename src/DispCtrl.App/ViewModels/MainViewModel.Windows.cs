@@ -1,7 +1,8 @@
 using System.Collections.ObjectModel;
 using DispCtrl.Core.Displays;
+using DispCtrl.Core.Placement;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Ddc;
 using DispCtrl.Display.Placement;
 using Microsoft.UI.Xaml;
 

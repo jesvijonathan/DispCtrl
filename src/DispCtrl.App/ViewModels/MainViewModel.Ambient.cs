@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 using DispCtrl.Control;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Light;
 using Microsoft.UI.Xaml;
 
 namespace DispCtrl.App.ViewModels;

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
+using DispCtrl.Core.Shell;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Gdi;

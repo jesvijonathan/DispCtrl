@@ -1,8 +1,12 @@
+using DispCtrl.Core.Color;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Presets;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Ddc;
+using DispCtrl.Display.Light;
 using DispCtrl.Display.Presets;
+using DispCtrl.Display.Shell;
+using DispCtrl.Display.Topology;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.Input.KeyboardAndMouse;

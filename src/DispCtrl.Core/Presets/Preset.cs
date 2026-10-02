@@ -81,7 +81,7 @@ public sealed class PresetWindow
 {
     public string Process { get; set; } = "";
     public string Title { get; set; } = "";
-    public Displays.WindowSpot Spot { get; set; } = new("", 0, 0, 0, 0, 0, 0, 96, Displays.WindowShow.Normal);
+    public Placement.WindowSpot Spot { get; set; } = new("", 0, 0, 0, 0, 0, 0, 96, Placement.WindowShow.Normal);
 }
 
 /// <summary>Which open window is which saved one.</summary>

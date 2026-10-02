@@ -1,5 +1,5 @@
 using DispCtrl.Core.Displays;
-using DispCtrl.Display;
+using DispCtrl.Display.Light;
 
 namespace DispCtrl.Engine.Power;
 

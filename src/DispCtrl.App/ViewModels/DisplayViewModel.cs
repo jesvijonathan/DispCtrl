@@ -1,17 +1,22 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using DispCtrl.Core.Color;
+using DispCtrl.Core.Devices;
+using DispCtrl.Core.Displays;
+using DispCtrl.Core.Settings;
+using DispCtrl.Display.Ddc;
+using DispCtrl.Display.Light;
+using DispCtrl.Display.Reports;
+using DispCtrl.Display.Shell;
+using DispCtrl.Display.Topology;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
-using DispCtrl.Core.Devices;
-using DispCtrl.Core.Displays;
-using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using WinRT.Interop;
 using Windows.Storage;
 using Windows.Storage.Pickers;
-using WinRT.Interop;
 
 namespace DispCtrl.App.ViewModels;
 

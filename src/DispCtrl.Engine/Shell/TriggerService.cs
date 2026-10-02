@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using DispCtrl.Core.Displays;
+using DispCtrl.Core.Protection;
 using DispCtrl.Core.Settings;
 using Windows.Win32;
 using Windows.Win32.Foundation;

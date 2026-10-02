@@ -9,7 +9,7 @@ namespace DispCtrl.Core.Settings;
 /// guards the same read. Every DispCtrl process marks the read on disk before it
 /// starts and clears the mark after; a mark found from an earlier boot means that
 /// read never finished because Windows went down, and the monitor is blocked
-/// here. See <c>DispCtrl.Display.DdcGuard</c>.
+/// here. See <c>DispCtrl.Display.Ddc.DdcGuard</c>.
 /// </remarks>
 public sealed class DdcGuardSettings
 {

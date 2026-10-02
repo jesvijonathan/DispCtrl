@@ -1,6 +1,10 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using DispCtrl.Core.Displays;
+using DispCtrl.Display.Ddc;
+using DispCtrl.Display.Light;
+using DispCtrl.Display.Reports;
+using DispCtrl.Display.Topology;
 
 namespace DispCtrl.Display.Devices;
 

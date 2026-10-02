@@ -1,0 +1,321 @@
+<Page x:Class="DispCtrl.App.Views.Pages.BrightnessPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:tk="using:CommunityToolkit.WinUI.Controls"
+      xmlns:vm="using:DispCtrl.App.ViewModels"
+      xmlns:views="using:DispCtrl.App.Views.Controls"
+      Loaded="OnLoaded">
+
+  <ScrollViewer Padding="0,0,0,32">
+    <StackPanel Padding="36,12,36,0" Spacing="4" HorizontalAlignment="Stretch">
+
+      <StackPanel Spacing="4" Margin="0,0,0,16">
+        <TextBlock Text="Brightness and colour" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Text="One brightness for every display, following the room's light if you like, then night light and dark mode. Each display's own level is on its card under Displays." TextWrapping="Wrap"
+                   Style="{StaticResource BodyTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      </StackPanel>
+
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Unison brightness"
+                           Description="{x:Bind ViewModel.UnisonDescription, Mode=OneWay}"
+                           Margin="0,4,0,0">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE706;"/>
+        </tk:SettingsExpander.HeaderIcon>
+
+        <!-- The slider sits on the header row, not only inside the expander.
+             It is the control that gets reached for daily; making it cost an
+             expand every time is the difference between a feature you use and
+             one you remember exists. -->
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Slider Value="{x:Bind ViewModel.UnisonLevel, Mode=TwoWay}"
+                  Minimum="{x:Bind ViewModel.UnisonMinimum, Mode=OneWay}"
+                  Maximum="100" StepFrequency="1"
+                  IsEnabled="{x:Bind ViewModel.UnisonSliderEnabled, Mode=OneWay}"
+                  Width="200" VerticalAlignment="Center"
+                  Visibility="{x:Bind ViewModel.UnisonVisibility, Mode=OneWay}"
+                  AutomationProperties.Name="UnisonLevelSliderInline"/>
+          <TextBlock Text="{x:Bind ViewModel.UnisonPercentText, Mode=OneWay}"
+                     VerticalAlignment="Center" MinWidth="40"
+                     Visibility="{x:Bind ViewModel.UnisonVisibility, Mode=OneWay}"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          <ToggleSwitch IsOn="{x:Bind ViewModel.UnisonBrightness, Mode=TwoWay}"
+                        AutomationProperties.Name="UnisonBrightnessToggle"/>
+        </StackPanel>
+
+        <tk:SettingsExpander.Items>
+          <!-- First, because it changes what unison is: from a slider in this
+               app to the brightness control every Windows user already reaches
+               for. The engine does the following, so it works with the app shut. -->
+          <tk:SettingsCard Header="Replace Windows brightness"
+                           Description="{x:Bind ViewModel.UnisonFollowsWindowsDescription, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE793;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.UnisonFollowsWindows, Mode=TwoWay}"
+                          IsEnabled="{x:Bind ViewModel.UnisonFollowsWindowsAvailable, Mode=OneWay}"
+                          AutomationProperties.Name="UnisonFollowsWindows"/>
+          </tk:SettingsCard>
+
+          <!-- Calibration is a walkthrough rather than two number boxes: the
+               limits are a judgement made by looking at the panels side by
+               side, which no amount of typing reproduces. -->
+          <tk:SettingsCard Header="Use captured limits"
+                           Description="Choose how dim and bright each display should go, then run the slider between those limits.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE9E9;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.UnisonCalibrated, Mode=TwoWay}"
+                          AutomationProperties.Name="UnisonCalibratedToggle"/>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="{x:Bind ViewModel.CalibrationHeader, Mode=OneWay}"
+                           Description="{x:Bind ViewModel.CalibrationPrompt, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.CalibrationStepVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="{x:Bind ViewModel.CalibrationButtonText, Mode=OneWay}"
+                      Style="{StaticResource AccentButtonStyle}"
+                      Click="OnCaptureLimits"
+                      AutomationProperties.Name="CaptureLimitButton"/>
+              <Button Content="Cancel" Click="OnCancelCalibration"/>
+            </StackPanel>
+          </tk:SettingsCard>
+
+          <tk:SettingsCard Header="Captured limits"
+                           Description="{x:Bind ViewModel.CalibrationSummary, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.RecalibrateVisibility, Mode=OneWay}">
+            <Button Content="Calibrate again" Click="OnRecalibrate"
+                    AutomationProperties.Name="RecalibrateButton"/>
+          </tk:SettingsCard>
+
+          <!-- The slider is a multiplier, so its own number says nothing about
+               where any given panel ended up. This does. -->
+          <tk:SettingsCard Header="Each display now"
+                           Description="{x:Bind ViewModel.BrightnessSummary, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7F4;"/>
+            </tk:SettingsCard.HeaderIcon>
+          </tk:SettingsCard>
+
+          <!-- Following the room's light: last, after a small gap, because it
+               is a way of driving unison rather than part of setting it up.
+               The options fold under the switch with a chevron that shows or
+               hides the cards after it, not a nested expander: a
+               SettingsExpander inside Items takes the process down, and cards
+               with bound Visibility are the pattern the calibration step
+               already uses. Calibration is capture, not a lux slider: cover the
+               sensor for dark, shine a light at it for bright. A two-way slider
+               would also write its own maximum over a captured value above it. -->
+          <tk:SettingsCard Header="Follow the room's light"
+                           Description="{x:Bind ViewModel.AmbientStatus, Mode=OneWay}"
+                           Margin="0,8,0,0">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE706;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.AmbientEnabled, Mode=TwoWay}"
+                            IsEnabled="{x:Bind ViewModel.AmbientToggleEnabled, Mode=OneWay}"
+                            AutomationProperties.Name="AmbientEnabled"/>
+              <ToggleButton IsChecked="{x:Bind ViewModel.AmbientOptionsOpen, Mode=TwoWay}"
+                            ToolTipService.ToolTip="Light sensor options"
+                            AutomationProperties.Name="AmbientOptions">
+                <FontIcon Glyph="{x:Bind ViewModel.AmbientOptionsGlyph, Mode=OneWay}" FontSize="12"/>
+              </ToggleButton>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Light sensor" Description="Which sensor's reading to follow."
+                           IsEnabled="{x:Bind ViewModel.AmbientAvailable, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <ComboBox ItemsSource="{x:Bind ViewModel.AmbientSensorNames}" SelectedIndex="{x:Bind ViewModel.AmbientSensorIndex, Mode=TwoWay}"
+                      MinWidth="240" AutomationProperties.Name="AmbientSensor"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="In the dark" Description="Unison level in a dark room."
+                           IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.AmbientDark, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="200" AutomationProperties.Name="AmbientDark"/>
+              <TextBlock Text="{x:Bind ViewModel.AmbientDark, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="In bright light" Description="Unison level once the room is as bright as the bright end below."
+                           IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.AmbientBright, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="200" AutomationProperties.Name="AmbientBright"/>
+              <TextBlock Text="{x:Bind ViewModel.AmbientBright, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Calibrate the sensor"
+                           Description="{x:Bind ViewModel.AmbientCalibrationSummary, Mode=OneWay}"
+                           IsEnabled="{x:Bind ViewModel.AmbientAvailable, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="This is dark" Click="OnAmbientCaptureDark"
+                      ToolTipService.ToolTip="Cover the sensor, or turn the room down to its darkest, then press."
+                      AutomationProperties.Name="AmbientCaptureDark"/>
+              <Button Content="This is bright" Click="OnAmbientCaptureBright"
+                      ToolTipService.ToolTip="Light the room as bright as it gets, or shine a light at the sensor, then press."
+                      AutomationProperties.Name="AmbientCaptureBright"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Learn from my adjustments"
+                           Description="When you move unison while following, remember that level for that light."
+                           IsEnabled="{x:Bind ViewModel.AmbientEnabled, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.AmbientOptionsVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Forget" Click="OnAmbientForget" AutomationProperties.Name="AmbientForget"/>
+              <ToggleSwitch IsOn="{x:Bind ViewModel.AmbientLearn, Mode=TwoWay}" AutomationProperties.Name="AmbientLearn"/>
+            </StackPanel>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Night light"
+                           Description="Warmer colours on every display at once, to cut blue light in the evening."
+                           Margin="0,4,0,0">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE706;"/>
+        </tk:SettingsExpander.HeaderIcon>
+
+        <!-- Just the switch out here, unlike unison above. Night light is set
+             once and left; the strength belongs inside with the rest of its
+             settings rather than taking a second copy of itself onto the
+             header row. -->
+        <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightEnabled, Mode=TwoWay}"
+                      AutomationProperties.Name="NightLightToggle"/>
+
+        <tk:SettingsExpander.Items>
+          <!-- Windows has a night light of its own, and two switches for one
+               screen is a worse answer than one switch that both pages show.
+               With this on, Windows does the warming: a display has one gamma
+               ramp, and both warming it at once is twice as orange as either
+               asked for. -->
+          <tk:SettingsCard Header="Use Windows' night light"
+                           Description="Makes this and Windows' own night light the same switch, in both directions. Windows then does the warming, reaching 1200K but only for the whole desk at once.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE771;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <!-- The button stays regardless of the switch: Windows' page holds
+                 the parts deliberately not mirrored here, its own schedule and
+                 the sunset-to-sunrise option, which are worth reaching whether
+                 or not the two toggles are linked. -->
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <Button Click="OnOpenWindowsNightLight"
+                      ToolTipService.ToolTip="Opens Windows' own night light page in Settings"
+                      AutomationProperties.Name="OpenWindowsNightLight">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <FontIcon Glyph="&#xE8A7;" FontSize="14"/>
+                  <TextBlock Text="Open in Windows"/>
+                </StackPanel>
+              </Button>
+              <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightFollowsWindows, Mode=TwoWay}"
+                            AutomationProperties.Name="NightLightFollowWindowsToggle"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Strength"
+                           Description="{x:Bind ViewModel.NightLightStrengthDetail, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.NightLightSharedVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <Slider Value="{x:Bind ViewModel.NightLightStrength, Mode=TwoWay}"
+                      Minimum="5" Maximum="100" StepFrequency="1"
+                      Width="240" VerticalAlignment="Center"
+                      AutomationProperties.Name="NightLightStrengthSlider"/>
+              <TextBlock Text="{x:Bind ViewModel.NightLightStrengthText, Mode=OneWay}"
+                         VerticalAlignment="Center" MinWidth="96"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Schedule"
+                           Description="Leave off to keep the warmth on until you switch it off."
+                           Visibility="{x:Bind ViewModel.NightLightVisibility, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE823;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightScheduled, Mode=TwoWay}"
+                          AutomationProperties.Name="NightLightScheduleToggle"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Hours"
+                           Description="A window that runs past midnight is normal and handled."
+                           Visibility="{x:Bind ViewModel.NightLightScheduleVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+              <TimePicker Time="{x:Bind ViewModel.NightLightFrom, Mode=TwoWay}"
+                          ClockIdentifier="24HourClock"
+                          AutomationProperties.Name="NightLightFrom"/>
+              <TextBlock Text="to" VerticalAlignment="Center"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <TimePicker Time="{x:Bind ViewModel.NightLightTo, Mode=TwoWay}"
+                          ClockIdentifier="24HourClock"
+                          AutomationProperties.Name="NightLightTo"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Right now"
+                           Description="{x:Bind ViewModel.NightLightStatus, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE9E9;"/>
+            </tk:SettingsCard.HeaderIcon>
+          </tk:SettingsCard>
+          <!-- The rest of this section, folded until asked for: see Fold. -->
+          <tk:SettingsCard Header="{x:Bind ViewModel.NightLightFold.Label, Mode=OneWay}"
+                           Description="The schedule changing the theme too, and the gamma range.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE713;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleButton IsChecked="{x:Bind ViewModel.NightLightFold.Open, Mode=TwoWay}" AutomationProperties.Name="NightLightAdvanced"
+                          ToolTipService.ToolTip="Show or hide the less-used settings">
+              <FontIcon Glyph="{x:Bind ViewModel.NightLightFold.Glyph, Mode=OneWay}" FontSize="12"/>
+            </ToggleButton>
+          </tk:SettingsCard>
+          <!-- PowerToys' Light Switch, on the hours night light already has.
+               Enabled only with the schedule on: it has no hours of its own. -->
+          <tk:SettingsCard Header="Dark mode on the schedule"
+                           Description="{x:Bind ViewModel.NightLightThemeDescription, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.NightLightThemeVisibility, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE708;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.NightLightDarkModeOnSchedule, Mode=TwoWay}"
+                          IsEnabled="{x:Bind ViewModel.NightLightScheduled, Mode=OneWay}"
+                          AutomationProperties.Name="NightLightDarkModeOnSchedule"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Gamma range"
+                           Description="{x:Bind ViewModel.GammaRangeDetail, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.NightLightFold.Visibility, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7B3;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <Button Content="{x:Bind ViewModel.GammaRangeButtonText, Mode=OneWay}"
+                    Click="OnToggleGammaRange"
+                    AutomationProperties.Name="ToggleGammaRange"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <!-- Dark mode, focus and OLED rest sit with unison brightness and night
+           light because they are the same kind of setting: one switch for the
+           whole desk. They were on the Settings page, which left the page about
+           DispCtrl itself holding most of what DispCtrl does to the displays. -->
+      <tk:SettingsCard Header="Dark mode"
+                       Description="Windows&#39; own setting, for apps and the taskbar together. DispCtrl follows it like any other app."
+                       Margin="0,4,0,0">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE708;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Click="OnOpenWindowsColours"
+                  ToolTipService.ToolTip="Opens Windows&#39; own colours page in Settings"
+                  AutomationProperties.Name="OpenWindowsColours">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <FontIcon Glyph="&#xE8A7;" FontSize="14"/>
+              <TextBlock Text="Open in Windows"/>
+            </StackPanel>
+          </Button>
+          <ToggleSwitch IsOn="{x:Bind ViewModel.DarkMode, Mode=TwoWay}"
+                        AutomationProperties.Name="DarkModeToggle"/>
+        </StackPanel>
+      </tk:SettingsCard>
+
+    </StackPanel>
+  </ScrollViewer>
+</Page>

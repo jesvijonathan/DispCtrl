@@ -176,7 +176,7 @@ public sealed class OledCareSettings
     /// <remarks>
     /// Off, typing on one screen keeps every screen awake. On, a display rests
     /// once neither the pointer nor the window being typed into has been on it
-    /// for <see cref="IdleMinutes"/>; see <see cref="Displays.DisplayActivity"/>.
+    /// for <see cref="IdleMinutes"/>; see <see cref="Protection.DisplayActivity"/>.
     /// </remarks>
     public bool PerDisplayActivity { get; set; }
 

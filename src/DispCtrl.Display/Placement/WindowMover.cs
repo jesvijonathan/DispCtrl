@@ -1,4 +1,6 @@
 using DispCtrl.Core.Displays;
+using DispCtrl.Core.Placement;
+using DispCtrl.Core.Protection;
 using DispCtrl.Core.Settings;
 using static DispCtrl.Display.Placement.WindowNative;
 

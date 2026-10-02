@@ -1,7 +1,11 @@
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Ddc;
+using DispCtrl.Display.Light;
 using DispCtrl.Display.Presets;
+using DispCtrl.Display.Reports;
+using DispCtrl.Display.Shell;
+using DispCtrl.Display.Topology;
 
 namespace DispCtrl.PerfCheck;
 

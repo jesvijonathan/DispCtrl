@@ -119,7 +119,7 @@ Two lines.
    code point, the hover text, and whether a fresh panel shows it. The
    customisation page picks it up from here on its own.
 
-2. **Say what it does** in `DeskTile` (`DispCtrl.App/Views/QuickPanelContent.Registry.cs`):
+2. **Say what it does** in `DeskTile` (`DispCtrl.App/Views/QuickPanel/QuickPanelContent.Registry.cs`):
 
    ```csharp
    "hdrAll" => Tile(e, () => _vm.HdrEverywhere, v => _vm.HdrEverywhere = v,

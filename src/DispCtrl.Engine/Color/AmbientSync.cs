@@ -1,6 +1,7 @@
+using DispCtrl.Core.Color;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Light;
 using Windows.Devices.Sensors;
 
 namespace DispCtrl.Engine.Color;

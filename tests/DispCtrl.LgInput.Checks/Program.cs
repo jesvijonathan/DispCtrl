@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 using DispCtrl.Control;
 using DispCtrl.Core.Devices;
 using DispCtrl.Core.Displays;
-using DispCtrl.Display;
+using DispCtrl.Display.Ddc;
 using DispCtrl.Display.Devices;
 
 // Pure protocol/mapping tests. Never send DDC commands or change a live display.

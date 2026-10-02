@@ -437,14 +437,14 @@ public static class ControlTerminal
         int seconds = args["seconds"]?.GetValue<int>() ?? 120, interval = args["interval"]?.GetValue<int>() ?? 500;
         if (seconds is < 1 or > 3600 || interval is < 0 or > 60000) throw new ArgumentException("--seconds 1..3600, --interval 0..60000 ms.");
 
-        var capabilities = DispCtrl.Display.MonitorCapabilities.Read(display, readValues: false, includeMappings: false);
+        var capabilities = DispCtrl.Display.Ddc.MonitorCapabilities.Read(display, readValues: false, includeMappings: false);
         if (!capabilities.Supported) throw new InvalidOperationException($"{display.Label} does not answer DDC/CI.");
         var known = DispCtrl.Core.Devices.DeviceLibrary.Resolve(display.Key.Model);
         string codes = args["codes"]?.ToString() ?? "unknown";
         var wanted = capabilities.Controls.Where(c => codes switch
         {
             "all" => true,
-            "unknown" => !DispCtrl.Display.MonitorCapabilities.IsNamed(c.Code) && !known.ContainsKey(c.Code),
+            "unknown" => !DispCtrl.Display.Ddc.MonitorCapabilities.IsNamed(c.Code) && !known.ContainsKey(c.Code),
             _ => codes.Split(',').Select(t => DispCtrl.Core.Devices.DeviceDefinitions.ParseCode(t)).Contains(c.Code),
         }).ToList();
         if (wanted.Count == 0) throw new ArgumentException("No codes to watch: try --codes all.");
@@ -455,7 +455,7 @@ public static class ControlTerminal
         bool first = true;
         while (clock.Elapsed.TotalSeconds < seconds && !ct.IsCancellationRequested)
         {
-            await Task.Run(() => DispCtrl.Display.MonitorCapabilities.ObserveValues(display, capabilities, wanted), ct);
+            await Task.Run(() => DispCtrl.Display.Ddc.MonitorCapabilities.ObserveValues(display, capabilities, wanted), ct);
             foreach (var c in wanted)
             {
                 if (c.Current < 0) continue;

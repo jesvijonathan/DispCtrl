@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using DispCtrl.Core.Displays;
+using DispCtrl.Core.Placement;
 using static DispCtrl.Display.Placement.WindowNative;
 
 namespace DispCtrl.Display.Placement;

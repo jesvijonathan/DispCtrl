@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DispCtrl.Core.Devices;
 using DispCtrl.Core.Displays;
+using DispCtrl.Display.Ddc;
 
 namespace DispCtrl.Display.Devices;
 

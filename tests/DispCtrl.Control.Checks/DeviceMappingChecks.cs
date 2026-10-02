@@ -3,7 +3,7 @@ using DispCtrl.Control;
 using DispCtrl.Core.Devices;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Ddc;
 using DispCtrl.Display.Devices;
 
 internal static class DeviceMappingChecks

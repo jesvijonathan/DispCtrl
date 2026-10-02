@@ -1,8 +1,8 @@
+using DispCtrl.App.Views.Pages;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
-using DispCtrl.App.Views;
 using Windows.Graphics;
 
 namespace DispCtrl.App;

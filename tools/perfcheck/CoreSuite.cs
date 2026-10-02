@@ -4,6 +4,7 @@ using DispCtrl.Control;
 using DispCtrl.Core.Devices;
 using DispCtrl.Core.Presets;
 using DispCtrl.Core.Settings;
+using DispCtrl.Display.Light;
 
 namespace DispCtrl.PerfCheck;
 

@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Ddc;
 
 namespace DispCtrl.Engine.Power;
 

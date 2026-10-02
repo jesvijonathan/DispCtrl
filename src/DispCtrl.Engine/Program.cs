@@ -1,11 +1,13 @@
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
 using DispCtrl.Display.Cli;
+using DispCtrl.Display.Ddc;
+using DispCtrl.Display.Light;
+using DispCtrl.Display.Reports;
 using DispCtrl.Engine.Color;
 using DispCtrl.Engine.Input;
-using DispCtrl.Engine.Presets;
 using DispCtrl.Engine.Power;
+using DispCtrl.Engine.Presets;
 using DispCtrl.Engine.Taskbar;
 using Windows.Win32;
 using Windows.Win32.UI.HiDpi;
@@ -62,7 +64,7 @@ internal static class Program
             "status" => Status(),
             // No arguments at all is the packaged startup task, which cannot pass any.
             "run" => Run(ParseDuration(args), HasFlag(args, "--trace"),
-                args.Length == 0 || HasFlag(args, DispCtrl.Display.StartupIntegration.SignInArgument)),
+                args.Length == 0 || HasFlag(args, DispCtrl.Display.Shell.StartupIntegration.SignInArgument)),
             "stop" => Stop(),
             "help" or "--help" or "-h" or "/?" => Usage(0),
 
@@ -404,7 +406,7 @@ internal static class Program
     {
         try
         {
-            if (Environment.ProcessPath is { } self && DispCtrl.Display.StartupIntegration.MigrateToTask(self))
+            if (Environment.ProcessPath is { } self && DispCtrl.Display.Shell.StartupIntegration.MigrateToTask(self))
                 Log.Write("startup: moved from the Startup folder to the DispCtrl.Engine scheduled task");
         }
         catch (Exception ex) { Log.Write($"startup: could not register the task ({ex.Message})"); }

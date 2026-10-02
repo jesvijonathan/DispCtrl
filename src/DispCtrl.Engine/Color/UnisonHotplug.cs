@@ -1,6 +1,6 @@
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Light;
 
 namespace DispCtrl.Engine.Color;
 

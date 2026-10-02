@@ -1,8 +1,9 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using DispCtrl.Core.Color;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Light;
 
 namespace DispCtrl.Engine.Shell;
 

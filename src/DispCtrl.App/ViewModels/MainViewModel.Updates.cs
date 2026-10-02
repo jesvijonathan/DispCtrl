@@ -1,7 +1,7 @@
 using DispCtrl.Control;
 using DispCtrl.Core;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Shell;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 

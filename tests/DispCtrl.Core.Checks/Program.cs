@@ -1,5 +1,6 @@
 using DispCtrl.Core.Presets;
 using DispCtrl.Core.Settings;
+using DispCtrl.Display.Light;
 
 // No hardware writes, user presets or settings. Exercise files through the in-memory parser.
 int passed = 0;
@@ -44,7 +45,7 @@ Check(completeRoundTrip.Settings.Global.TaskbarOpacity == 37
 Check(new FocusSettings().PrioritizeNewWindows, "new and activated windows are followed by default");
 var careCheck = new OledCareSettings { Enabled = true, IdleMinutes = 1, DimPercent = 50,
     SecondStageEnabled = true, SecondStageMinutes = 2, SecondStageDimPercent = 95 };
-Check(DispCtrl.Core.Displays.FocusGeometry.RestingWhenIdle(careCheck.Enabled, true, 60_000, 1, false, false),
+Check(DispCtrl.Core.Protection.FocusGeometry.RestingWhenIdle(careCheck.Enabled, true, 60_000, 1, false, false),
     "OLED idle activation has no focus-mode dependency");
 Check(careCheck.DimAtIdle(60_000) == 50 && careCheck.DimAtIdle(179_999) == 50
     && careCheck.DimAtIdle(180_000) == 95, "OLED stages use their selected levels and additional delay");
@@ -68,7 +69,7 @@ resetOwn.ResetToDefaults();
 Check(resetOwn.FocusDimPercent == -1 && resetOwn.OledCare is null && resetOwn.NightLightStrength == -1,
     "resetting a display puts every setting of its own back to the common one");
 // A person's last input at 10 s; Stay active nudges at 65 s and 120 s.
-var personIdle = new DispCtrl.Core.Displays.PersonIdle();
+var personIdle = new DispCtrl.Core.Protection.PersonIdle();
 personIdle.Update(10_000, 0, 0);
 Check(personIdle.Update(64_000, 54_000, 0) == 54_000, "idle counts from a person's input before any nudge");
 Check(personIdle.Update(66_000, 1_000, 65_000) == 56_000, "Stay active's nudge does not reset OLED idle time");
@@ -76,7 +77,7 @@ Check(personIdle.Update(190_000, 70_000, 120_000) == 180_000
     && careCheck.DimAtIdle(180_000) == 95, "second OLED stage arrives under repeated nudges");
 Check(personIdle.Update(191_000, 0, 120_000) == 0, "a person's input after a nudge still resets idle time");
 var oledBounds = new DispCtrl.Core.Displays.DisplayRect(0, 0, 1920, 1080);
-var panelIdleState = new DispCtrl.Core.Displays.OledIdleState();
+var panelIdleState = new DispCtrl.Core.Protection.OledIdleState();
 uint PanelAge(long now, uint idle, int x, int y, bool enabled = true, bool sticky = true, bool pointer = true) =>
     panelIdleState.Update(enabled, sticky, now, true, idle, 1, pointer, x, y, oledBounds);
 Check(PanelAge(60_000, 60_000, 2000, 100) == 60_000, "pointer-return mode enters rest after normal idle threshold");
@@ -99,11 +100,11 @@ Check(System.Text.Json.JsonSerializer.Deserialize(wakeJson, PresetJsonContext.De
     .Settings.Monitors["test-panel"].OledWakeOnPointerReturn, "per-monitor wake preference survives JSON export");
 wakeSettings.ResetToDefaults();
 Check(!wakeSettings.OledWakeOnPointerReturn, "monitor reset restores the default wake behavior");
-Check(!DispCtrl.Core.Displays.FocusGeometry.IsContentFullscreen(oledBounds, oledBounds, true, true),
+Check(!DispCtrl.Core.Protection.FocusGeometry.IsContentFullscreen(oledBounds, oledBounds, true, true),
     "maximized ordinary window over reclaimed taskbar space does not pause OLED protection");
-Check(DispCtrl.Core.Displays.FocusGeometry.IsContentFullscreen(oledBounds, oledBounds, true, false),
+Check(DispCtrl.Core.Protection.FocusGeometry.IsContentFullscreen(oledBounds, oledBounds, true, false),
     "borderless fullscreen still pauses protection even with maximized window state");
-Check(!DispCtrl.Core.Displays.FocusGeometry.IsContentFullscreen(oledBounds,
+Check(!DispCtrl.Core.Protection.FocusGeometry.IsContentFullscreen(oledBounds,
     new(1920, 0, 3840, 1080), false, false), "fullscreen content on another monitor does not pause this OLED");
 var sampleRecord = new DispCtrl.Display.Devices.DeviceSubmission
 {
@@ -178,10 +179,10 @@ WindowChecks.Run(Check);
 DeskChecks.Run(Check);
 var screen = new DispCtrl.Core.Displays.DisplayRect(0, 0, 1920, 1080);
 var active = new DispCtrl.Core.Displays.DisplayRect(500, 100, 1400, 900);
-var cut = DispCtrl.Core.Displays.FocusGeometry.Intersect(screen, active);
-Check(cut == active && DispCtrl.Core.Displays.FocusGeometry.Covers(screen, screen), "focus geometry clips and covers monitor bounds");
-Check(DispCtrl.Core.Displays.FocusGeometry.Alpha(50) is >= 127 and <= 128, "focus dim percent maps to overlay alpha");
-Check(Math.Abs(DispCtrl.Core.Displays.FocusGeometry.Fade(0, 100, 50, 100) - 50) < 0.1, "focus fade reaches midpoint smoothly");
+var cut = DispCtrl.Core.Protection.FocusGeometry.Intersect(screen, active);
+Check(cut == active && DispCtrl.Core.Protection.FocusGeometry.Covers(screen, screen), "focus geometry clips and covers monitor bounds");
+Check(DispCtrl.Core.Protection.FocusGeometry.Alpha(50) is >= 127 and <= 128, "focus dim percent maps to overlay alpha");
+Check(Math.Abs(DispCtrl.Core.Protection.FocusGeometry.Fade(0, 100, 50, 100) - 50) < 0.1, "focus fade reaches midpoint smoothly");
 if (!DispCtrl.Core.FeatureFlags.Presets)
 {
     var before = System.Text.Json.JsonSerializer.Serialize(settings, SettingsJsonContext.Default.DispCtrlSettings);
@@ -192,7 +193,7 @@ if (!DispCtrl.Core.FeatureFlags.Presets)
     foreach (string verb in new[] { "list", "apply", "save", "delete" })
         Check(DispCtrl.Display.Cli.CommandLine.Run("preset", [verb, "Disabled feature check"]) == 1,
             $"stable CLI refuses preset {verb}");
-    Check(DispCtrl.Display.DisplayReport.Presets().Length == 0, "stable reports omit saved presets");
+    Check(DispCtrl.Display.Reports.DisplayReport.Presets().Length == 0, "stable reports omit saved presets");
     using var help = new StringWriter();
     TextWriter previousOutput = Console.Out;
     try

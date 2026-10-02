@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using DispCtrl.Core.Displays;
+using DispCtrl.Core.Placement;
+using DispCtrl.Core.Protection;
 using DispCtrl.Core.Settings;
 using static DispCtrl.Engine.Protection.OverlayNative;
 
@@ -146,7 +148,7 @@ internal sealed unsafe partial class FocusService : IDisposable
         // An app playing a video keeps the display showing it awake, as an app
         // on the exception list does; the same once-a-second look finds both.
         HashSet<string> keepAwake = _busyAppSet;
-        if (care.PauseVideo && DispCtrl.Display.MediaPlayback.VideoApps() is { Count: > 0 } playing)
+        if (care.PauseVideo && DispCtrl.Display.Shell.MediaPlayback.VideoApps() is { Count: > 0 } playing)
             keepAwake = new HashSet<string>(_busyAppSet.Concat(playing), StringComparer.OrdinalIgnoreCase);
         if (keepAwake.Count == 0) return _busy = NoneBusy;
         var bounds = new List<DisplayRect>(_masks.Count);
@@ -449,7 +451,7 @@ internal sealed unsafe partial class FocusService : IDisposable
                     return 0;
                 }
                 if (message == PinsMessage) { self.Schedule(16); return 0; }
-                if (message == DispCtrl.Display.OledPreview.MessageId)
+                if (message == DispCtrl.Display.Light.OledPreview.MessageId)
                 {
                     self._previewPercent = (int)Math.Min(wparam, 100);
                     self._previewUntil = Environment.TickCount64 + 2000;

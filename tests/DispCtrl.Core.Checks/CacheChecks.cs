@@ -1,5 +1,6 @@
 using DispCtrl.Core.Caching;
 using DispCtrl.Core.Presets;
+using DispCtrl.Display.Light;
 
 internal static class CacheChecks
 {

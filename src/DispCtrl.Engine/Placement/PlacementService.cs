@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using DispCtrl.Core.Displays;
+using DispCtrl.Core.Placement;
 using DispCtrl.Core.Settings;
 using DispCtrl.Display.Placement;
 using static DispCtrl.Engine.Placement.PinNative;

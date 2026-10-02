@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Windows.Automation;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Light;
 
 namespace DispCtrl.PerfCheck;
 

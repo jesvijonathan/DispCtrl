@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using DispCtrl.Control;
 using DispCtrl.Core.Displays;
-using DispCtrl.Display;
+using DispCtrl.Display.Light;
 
 namespace DispCtrl.PerfCheck;
 

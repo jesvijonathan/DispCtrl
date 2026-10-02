@@ -1,7 +1,7 @@
 using System.Text.Json;
 using DispCtrl.Core;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display;
+using DispCtrl.Display.Shell;
 
 namespace DispCtrl.Control;
 

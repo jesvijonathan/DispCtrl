@@ -1,14 +1,17 @@
-using System.Text;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text;
+using DispCtrl.App.Services;
+using DispCtrl.Core.Color;
+using DispCtrl.Core.Displays;
+using DispCtrl.Core.Settings;
+using DispCtrl.Display.Ddc;
+using DispCtrl.Display.Devices;
+using DispCtrl.Display.Shell;
+using DispCtrl.Display.Topology;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
-using DispCtrl.Display;
-using DispCtrl.App.Services;
-using DispCtrl.Core.Displays;
-using DispCtrl.Display.Devices;
-using DispCtrl.Core.Settings;
 
 namespace DispCtrl.App.ViewModels;
 

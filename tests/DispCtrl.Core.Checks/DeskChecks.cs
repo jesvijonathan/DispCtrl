@@ -1,7 +1,9 @@
+using DispCtrl.Core.Arrangement;
 using DispCtrl.Core.Displays;
+using DispCtrl.Core.Placement;
 using DispCtrl.Core.Presets;
 using DispCtrl.Core.Settings;
-using Panel = DispCtrl.Core.Displays.ArrangementSolver.Panel;
+using Panel = DispCtrl.Core.Arrangement.ArrangementSolver.Panel;
 
 /// <summary>
 /// Desks of three and more displays, and a display keeping its settings when

@@ -1,0 +1,235 @@
+<Page x:Class="DispCtrl.App.Views.Pages.WindowsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:tk="using:CommunityToolkit.WinUI.Controls"
+      xmlns:vm="using:DispCtrl.App.ViewModels"
+      xmlns:views="using:DispCtrl.App.Views.Controls"
+      Loaded="OnLoaded">
+
+  <ScrollViewer Padding="0,0,0,32">
+    <StackPanel Padding="36,12,36,0" Spacing="4" HorizontalAlignment="Stretch">
+
+      <StackPanel Spacing="4" Margin="0,0,0,16">
+        <TextBlock Text="Windows" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Text="Keep a window above the others, gather windows onto one display, and put them back where they were when a display returns." TextWrapping="Wrap"
+                   Style="{StaticResource BodyTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      </StackPanel>
+
+      <!-- Always on top. What is pinned is each window's own state, so the list
+           is read from the windows, not the settings: it is refreshed whenever
+           this window comes back to the front. The switch in the header takes
+           every pin back when turned off. -->
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Pin windows on top"
+                           Description="Keep a window above every other, marked with a border. Pinned windows stay clear when focus mode dims the rest."
+                           Margin="0,4,0,0">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE718;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.PinEnabled, Mode=TwoWay}" AutomationProperties.Name="PinEnabled"/>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Pinned now" Description="{x:Bind ViewModel.PinShortcut, Mode=OneWay}"
+                           ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE840;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <StackPanel Spacing="6" Margin="0,4,0,8">
+              <TextBlock Text="Nothing is pinned."
+                         Visibility="{x:Bind ViewModel.NoPinnedWindowsVisibility, Mode=OneWay}"
+                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <ItemsControl ItemsSource="{x:Bind ViewModel.PinnedWindows}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="2"/>
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:WindowItem">
+                    <Grid ColumnSpacing="12">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                      </Grid.ColumnDefinitions>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                      </StackPanel>
+                      <Button Grid.Column="1" Content="Unpin" Click="OnUnpin" Tag="{x:Bind}"
+                              AutomationProperties.Name="{x:Bind AutomationName}"/>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Look again" Click="OnRefreshPins" AutomationProperties.Name="RefreshPinnedWindows"/>
+                <Button Content="Unpin all" Click="OnUnpinAll" AutomationProperties.Name="UnpinAllWindows"/>
+              </StackPanel>
+            </StackPanel>
+          </tk:SettingsCard>
+          <!-- The rest of this section, folded until asked for: see Fold. -->
+          <tk:SettingsCard Header="{x:Bind ViewModel.PinFold.Label, Mode=OneWay}"
+                           Description="The border, focus and OLED interplay, fullscreen, and apps never pinned.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE713;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleButton IsChecked="{x:Bind ViewModel.PinFold.Open, Mode=TwoWay}" AutomationProperties.Name="PinAdvanced"
+                          ToolTipService.ToolTip="Show or hide the less-used settings">
+              <FontIcon Glyph="{x:Bind ViewModel.PinFold.Glyph, Mode=OneWay}" FontSize="12"/>
+            </ToggleButton>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Border" Description="A coloured frame around each pinned window, so it is plain which ones stay on top."
+                           Visibility="{x:Bind ViewModel.PinFold.Visibility, Mode=OneWay}">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinBorder, Mode=TwoWay}" AutomationProperties.Name="PinBorder"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Border colour" IsEnabled="{x:Bind ViewModel.PinBorder, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.PinFold.Visibility, Mode=OneWay}">
+            <ComboBox ItemsSource="{x:Bind ViewModel.PinBorderColours, Mode=OneWay}"
+                      SelectedIndex="{x:Bind ViewModel.PinBorderColourIndex, Mode=TwoWay}"
+                      MinWidth="200" AutomationProperties.Name="PinBorderColour"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Border width" Description="In the display's own scale, so it looks the same on every display."
+                           IsEnabled="{x:Bind ViewModel.PinBorder, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.PinFold.Visibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.PinBorderThickness, Mode=TwoWay}" Minimum="1" Maximum="16" StepFrequency="1"
+                      Width="200" AutomationProperties.Name="PinBorderThickness"/>
+              <TextBlock Text="{x:Bind ViewModel.PinBorderThickness, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Border opacity" IsEnabled="{x:Bind ViewModel.PinBorder, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.PinFold.Visibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.PinBorderOpacity, Mode=TwoWay}" Minimum="20" Maximum="100" StepFrequency="5"
+                      Width="200" AutomationProperties.Name="PinBorderOpacity"/>
+              <TextBlock Text="{x:Bind ViewModel.PinBorderOpacity, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep pinned windows clear of focus mode"
+                           Description="A video or a chat pinned beside the work stays lit while focus mode dims everything else."
+                           Visibility="{x:Bind ViewModel.PinFold.Visibility, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE890;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinClearInFocus, Mode=TwoWay}" AutomationProperties.Name="PinClearInFocus"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep them clear of OLED idle dimming too"
+                           Description="Off by default: idle dimming rests a screen nobody is looking at, and a window that sits in one place for hours is what burns in."
+                           Visibility="{x:Bind ViewModel.PinFold.Visibility, Mode=OneWay}">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7F4;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinClearInOledCare, Mode=TwoWay}" AutomationProperties.Name="PinClearInOledCare"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Never pin a fullscreen window"
+                           Description="A game or a film filling its display is left as it is."
+                           Visibility="{x:Bind ViewModel.PinFold.Visibility, Mode=OneWay}">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinSkipFullscreen, Mode=TwoWay}" AutomationProperties.Name="PinSkipFullscreen"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Step aside for fullscreen"
+                           Description="A film or game going fullscreen in front goes over the pinned windows on its display, and they come back on top when it leaves. Off, pinned windows stay over it."
+                           Visibility="{x:Bind ViewModel.PinFold.Visibility, Mode=OneWay}">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PinStepAsideForFullscreen, Mode=TwoWay}" AutomationProperties.Name="PinStepAsideForFullscreen"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Never pin these apps"
+                           Description="Executable names, separated by commas, for example game.exe, obs64.exe."
+                           ContentAlignment="Vertical"
+                           Visibility="{x:Bind ViewModel.PinFold.Visibility, Mode=OneWay}">
+            <TextBox Text="{x:Bind ViewModel.PinExcludedApps, Mode=TwoWay}" PlaceholderText="App executable names"
+                     AutomationProperties.Name="PinExcludedApps"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <!-- Moving windows between displays: on demand (gather), and on the two
+           occasions a display arrives - one coming back, and a new window
+           opening on the wrong one. Windows' own two switches sit beside
+           DispCtrl's, because returning windows takes one of them over. -->
+      <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Move windows between displays"
+                           Description="Gather every window onto one display, put them back when a display returns, and open new windows where you are working."
+                           Margin="0,4,0,0">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE7C2;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard Header="Gather every window" Description="{x:Bind ViewModel.GatherShortcut, Mode=OneWay}"
+                           ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7C2;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ItemsControl ItemsSource="{x:Bind ViewModel.Displays, Mode=OneWay}" Margin="0,4,0,8">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="8"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DisplayViewModel">
+                  <Button Content="{x:Bind GatherLabel}" Click="OnGather" Tag="{x:Bind}"
+                          AutomationProperties.Name="{x:Bind GatherAutomationName}"/>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Put windows back when a display returns"
+                           Description="Its windows go back where they were, as long as nobody has moved them since. The same monitor on another port still counts.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7A7;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.ReturnWindows, Mode=TwoWay}" AutomationProperties.Name="ReturnWindows"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Open new windows on the display in use"
+                           Description="A window that opens on another display is moved to the one you are working on. Dialogs and fullscreen games are left alone.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE8A7;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleSwitch IsOn="{x:Bind ViewModel.NewWindowsOnActive, Mode=TwoWay}" AutomationProperties.Name="NewWindowsOnActive"/>
+          </tk:SettingsCard>
+          <!-- The rest of this section, folded until asked for: see Fold. -->
+          <tk:SettingsCard Header="{x:Bind ViewModel.PlacementFold.Label, Mode=OneWay}"
+                           Description="Windows' own window memory, which display is in use, sizes, and apps never moved.">
+            <tk:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE713;"/>
+            </tk:SettingsCard.HeaderIcon>
+            <ToggleButton IsChecked="{x:Bind ViewModel.PlacementFold.Open, Mode=TwoWay}" AutomationProperties.Name="PlacementAdvanced"
+                          ToolTipService.ToolTip="Show or hide the less-used settings">
+              <FontIcon Glyph="{x:Bind ViewModel.PlacementFold.Glyph, Mode=OneWay}" FontSize="12"/>
+            </ToggleButton>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Windows: remember window locations"
+                           Description="Windows' own setting in Settings &gt; System &gt; Display &gt; Multiple displays; a change may not take effect until you next sign in. It works alongside DispCtrl's: a window Windows has already put back is left alone."
+                           Visibility="{x:Bind ViewModel.PlacementFold.Visibility, Mode=OneWay}">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.WindowsRemembersLocations, Mode=TwoWay}"
+                          AutomationProperties.Name="WindowsRemembersLocations"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Windows: minimize windows when a monitor is disconnected"
+                           Description="Windows' own setting: a departing display's windows are minimized rather than moved onto another display."
+                           Visibility="{x:Bind ViewModel.PlacementFold.Visibility, Mode=OneWay}">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.WindowsMinimizesOnDisconnect, Mode=TwoWay}"
+                          AutomationProperties.Name="WindowsMinimizesOnDisconnect"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="The display in use" Description="Where new windows go, and what the gather shortcut gathers onto."
+                           Visibility="{x:Bind ViewModel.PlacementFold.Visibility, Mode=OneWay}">
+            <ComboBox ItemsSource="{x:Bind ViewModel.ActiveDisplayChoices}"
+                      SelectedIndex="{x:Bind ViewModel.ActiveDisplayIndex, Mode=TwoWay}"
+                      MinWidth="260" AutomationProperties.Name="ActiveDisplay"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep a window's size to the eye"
+                           Description="A window moved from a 100% display to a 200% one is doubled in pixels, so it looks the same size. Off keeps its pixels."
+                           Visibility="{x:Bind ViewModel.PlacementFold.Visibility, Mode=OneWay}">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.PlacementKeepSize, Mode=TwoWay}" AutomationProperties.Name="PlacementKeepSize"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Never move these apps"
+                           Description="Executable names, separated by commas. Gathering, putting back and new windows all leave them where they are."
+                           ContentAlignment="Vertical"
+                           Visibility="{x:Bind ViewModel.PlacementFold.Visibility, Mode=OneWay}">
+            <TextBox Text="{x:Bind ViewModel.PlacementExcludedApps, Mode=TwoWay}" PlaceholderText="App executable names"
+                     AutomationProperties.Name="PlacementExcludedApps"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+    </StackPanel>
+  </ScrollViewer>
+</Page>

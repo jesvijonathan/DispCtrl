@@ -81,3 +81,8 @@ dotnet_naming_symbols.static_readonly.required_modifiers = static, readonly
 # The rule that folders and namespaces agree (IDE0130) is followed: each
 # folder under a project is a namespace below the project's.
 dotnet_style_namespace_match_folder = true:suggestion
+
+# The command handlers are partials of ControlService, one file per area, so
+# they share its namespace from their own folder.
+[src/DispCtrl.Control/Operations/*.cs]
+dotnet_style_namespace_match_folder = false

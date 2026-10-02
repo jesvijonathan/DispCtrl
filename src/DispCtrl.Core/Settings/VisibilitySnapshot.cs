@@ -1,3 +1,4 @@
+using DispCtrl.Core.Color;
 namespace DispCtrl.Core.Settings;
 
 /// <summary>

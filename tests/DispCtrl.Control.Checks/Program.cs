@@ -1,7 +1,9 @@
 using System.Text.Json.Nodes;
 using DispCtrl.Control;
+using DispCtrl.Core.Color;
 using DispCtrl.Core.Settings;
 using DispCtrl.Display.Devices;
+using DispCtrl.Display.Reports;
 
 if (args.FirstOrDefault() == "--echo-arguments")
 {
@@ -737,11 +739,11 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
         ["token"] = fakeMonitor.Token, ["model"] = "FAK-0001", ["label"] = "Fake", ["sinceUtc"] = DateTimeOffset.UtcNow.ToString("O"), ["reason"] = "test",
     });
     service.Execute(Request("settings.import", new() { ["document"] = guardDocument }));
-    DispCtrl.Display.DdcGuard.Invalidate();
-    Check(DispCtrl.Display.DdcGuard.IsBlocked(fakeMonitor), "a blocked monitor is refused from the first conversation, not a second later");
+    DispCtrl.Display.Ddc.DdcGuard.Invalidate();
+    Check(DispCtrl.Display.Ddc.DdcGuard.IsBlocked(fakeMonitor), "a blocked monitor is refused from the first conversation, not a second later");
     var allowed = service.Execute(Request("ddc.allow", new() { ["model"] = "FAK-0001" }));
     Check(allowed["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.DdcGuard.Blocked.Count == 0, "a blocked monitor is allowed again by its model");
-    Check(!DispCtrl.Display.DdcGuard.IsBlocked(fakeMonitor), "once allowed, the monitor is talked to again at once");
+    Check(!DispCtrl.Display.Ddc.DdcGuard.IsBlocked(fakeMonitor), "once allowed, the monitor is talked to again at once");
     var ddcGet = service.Execute(Request("ddc.get"));
     Check(ddcGet["ok"]!.GetValue<bool>() && ddcGet["data"]!["guard"]!.GetValue<bool>(), "ddc get reports the guard");
     Check(Exit(service.Execute(Request("ddc.probe", new() { ["monitor"] = "1", ["save"] = true, ["clear"] = true }))) == 2,
@@ -821,7 +823,7 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
     Check(removed["ok"]!.GetValue<bool>() && SettingsStore.Load().Features.Count == 1, "features remove drops one feature");
     Check(CustomFeature.SplitSteps("run \"C:\\Tools\\a;b.exe\"; wait 0").SequenceEqual(new[] { "run \"C:\\Tools\\a;b.exe\"", "wait 0" }),
         "feature separators preserve semicolons inside quoted arguments");
-    var wideControl = new DispCtrl.Display.VcpControl(0xE2, "Custom choice", DispCtrl.Display.VcpKind.Discrete,
+    var wideControl = new DispCtrl.Display.Ddc.VcpControl(0xE2, "Custom choice", DispCtrl.Display.Ddc.VcpKind.Discrete,
         [new(0x01, "One"), new(0x101, "Wide"), new(0x102, "Next")]) { MappedWritable = true, Current = 0x101 };
     Check(wideControl.CurrentOption?.Name == "Wide"
         && DispCtrl.Core.Devices.ControlValues.Cycle([0x01, 0x101, 0x102], 0x101, true) == 0x102,

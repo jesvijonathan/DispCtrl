@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DispCtrl.Core.Color;
 
 namespace DispCtrl.Core.Settings;
 
@@ -454,7 +455,7 @@ public sealed class GlobalSettings
 /// and <see cref="BrightLevel"/> at <see cref="BrightLux"/> and above, each
 /// display inside its own calibrated range as unison always is, bent through
 /// whatever the person has taught it (<see cref="Points"/>). See
-/// <see cref="Displays.AmbientCurve"/>.
+/// <see cref="Color.AmbientCurve"/>.
 /// </remarks>
 public sealed class AmbientSettings
 {
@@ -484,7 +485,7 @@ public sealed class AmbientSettings
     /// </remarks>
     public bool LearnCorrections { get; set; } = true;
 
-    /// <summary>Levels chosen by hand in a given light, newest winning; see <see cref="Displays.AmbientCurve.Learn"/>.</summary>
+    /// <summary>Levels chosen by hand in a given light, newest winning; see <see cref="Color.AmbientCurve.Learn"/>.</summary>
     public List<AmbientPoint> Points { get; set; } = [];
 }
 

@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
+using DispCtrl.Display.Reports;
 
 namespace DispCtrl.Display.Devices;
 

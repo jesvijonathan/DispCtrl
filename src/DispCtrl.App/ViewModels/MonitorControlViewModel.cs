@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using Microsoft.UI.Xaml;
 using DispCtrl.Core.Displays;
-using DispCtrl.Display;
+using DispCtrl.Display.Ddc;
+using Microsoft.UI.Xaml;
 
 namespace DispCtrl.App.ViewModels;
 

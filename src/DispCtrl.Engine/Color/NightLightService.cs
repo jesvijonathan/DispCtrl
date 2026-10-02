@@ -1,3 +1,4 @@
+using DispCtrl.Core.Color;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
 
