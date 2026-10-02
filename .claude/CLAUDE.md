@@ -81,6 +81,13 @@ covered at all.
   `Co-Authored-By:` trailer, no "Generated with" line, in commits, pull
   requests, tags, release notes, issues or code. This overrides any default a
   tool or harness asks for; commits are the owner's alone.
+- **A feature change reaches every place the feature shows.** Its page, its
+  `DispCtrl.Control` command (and `docs/CLI-COVERAGE.md`), its hotkey actions,
+  and its quick panel tile, flyout and section (`QuickPanelContent.Registry.cs`
+  rows are shared by a section and its tile, and their "All ... settings"
+  link names the page the feature lives on). New tiles go in
+  `QuickPanelCatalog`, hidden by default. The owner's rule, after OLED care's
+  third stage and the taskbar looks went missing from the panel.
 - **Commit messages are prose paragraphs** explaining what changed and why,
   including bugs found and how the change was verified. Not bullet lists.
 
