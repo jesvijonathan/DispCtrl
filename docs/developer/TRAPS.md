@@ -829,10 +829,14 @@ unrecallable.
   version defaults to **next patch**, and the workflow bumps and commits it
   itself ("Set shipping version to x.y.z", as `github-actions[bot]`, straight
   onto `master`): **fetch before pushing after a release**, or the push is
-  rejected - it was, for 0.1.6. 0.1.5 was never released; the owner ran next
-  patch from 0.1.5 and got 0.1.6. **Write the CHANGELOG section for the version
-  before releasing**: the notes are that section, and without one they fall
-  back to Unreleased (the 0.1.6 draft first went out with 0.1.3/0.1.4's notes).
+  rejected - it was, for 0.1.6. That 0.1.6 never reached GitHub: the version
+  went back to 0.1.5, which is the release published on 2026-09-26, and a tag
+  v0.1.6 is left only in local clones. **Write the CHANGELOG section for the
+  version before releasing**: the notes are that section, and without one they
+  fall back to Unreleased (the 0.1.6 draft first went out with 0.1.3/0.1.4's
+  notes). A section under the wrong number is worse than none: the changelog
+  carried v0.1.5's notes as [0.1.6], and the next patch release, 0.1.6, would
+  have published them again instead of what is under Unreleased.
   See `docs/developer/RELEASING.md` for the whole procedure and the secrets and
   variables it needs.
 

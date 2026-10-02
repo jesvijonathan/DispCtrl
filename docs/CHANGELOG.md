@@ -29,15 +29,20 @@ using DispCtrl, not for people reading the diff.
 - Naming a monitor's own controls is much simpler. The Devices page shows one monitor at a time and offers the quickest ways first: Learn a setting (change it with the monitor's buttons and DispCtrl finds the code), borrowing the names a sibling model already has in the library (`dispctrl devices similar`), or naming a code by hand. Its codes are filtered to the ones left to name and grouped into the standard and the manufacturer's own range. A laptop's built-in panel can be marked as OLED or not.
 - The Hotkeys page shows shortcuts, features, triggers and Windows' own keys on tabs of their own; choosing what a shortcut does is a group, then the action, and its display is chosen by name.
 - The quick panel keeps up with the features it switches: OLED care's section and tile include the third stage and pausing for video, the taskbar tile includes the glass looks, colour and border, and there are new tiles for following the room's light and for the way back (Ctrl+Alt+Backspace). The section that was "Simple brightness" is "Brightness", and the Quick panel page leads with what the panel shows.
+- The preset in use is shown in the title bar on every page, with a dot when the displays have moved from it; clicking it switches, applies, saves or starts a preset. When the displays differ from it, one line across the top of the window says so, with Save, Discard and the list of changes. The bar that sat above the engine status on the Displays page is gone.
+- The command line has one implementation: the first version's short commands (`brightness -10 --all`, `input "HDMI 1" --display 2`, `nightlight 60 --from 20:00 --to 07:00` and the rest) still work, and now answer like every other command. Presets are commands of their own, `dispctrl preset list|save|apply|delete|desk|launch`.
+- Settings that were grouped or named misleadingly say what they hold: the quick panel's options are the icon, size, opening and position, and the mouse wheel; the taskbar glass's "corner rounding" is its blur, and its tint is the colour's strength in every look.
 - The tray icon's right-click menu no longer offers Quick panel, which a left click already opens, or Close the app; Exit DispCtrl remains.
 
 ### Fixed
+- Presets: applying one no longer undoes changes made elsewhere while it applies; a monitor whose brightness range is not 0 to 100 can be saved in a preset; very long names and names like CON save; a desk profile no longer applies with no display attached, and is not missed when the displays change while another preset applies; an app rule written as a program's full path matches it.
+- The engine wakes about half as often when idle: opening new windows on the display in use now listens only for real windows, and app rules are checked only when there are some.
 - The DispCtrl window, left on a monitor that was then unplugged, flickered into view and vanished when opened again or clicked on the taskbar. It now comes back onto a display that is attached.
 - A display's night light slider no longer turns into a setting of its own as the page draws it: a display following the common warmth kept following it only until its card was first opened.
 - Hotkey action fields now update when the action changes. Slow shortcut actions are serialized off the keyboard pump; volume, mute, contrast and input commands read only the requested control.
 - LG mappings require device schema 2 so older builds cannot interpret their wire values as standard DDC. Stale input controls reject writes after their transport mapping changes.
 
-## [0.1.6] - 2026-09-26
+## [0.1.5] - 2026-09-26
 
 ### Added
 - Pin any window on top - Ctrl+Alt+P, the quick panel or `dispctrl pin`. A coloured border marks it, focus mode leaves it clear, and it steps aside while a film or game is fullscreen in front of it.
@@ -170,8 +175,8 @@ The first public release.
 - A per-user installer, portable and CLI zips, and an MSIX for the Microsoft
   Store.
 
-[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.6...HEAD
-[0.1.6]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.4...v0.1.6
+[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.2...v0.1.4
 [0.1.2]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.0...v0.1.1
