@@ -112,6 +112,12 @@ the display in use. Add, as hotkey actions and panel tiles, not new pages:
 Not taken: title-bar buttons (injecting into other apps' frames), a second
 taskbar implementation, FancyZones (PowerToys does it).
 
+Window layout per desk: **done** (5280d7e). The doubled size first seen in its
+test did not come back in two later runs that sampled the window every 50 ms
+through the apply (placed at 1000 x 700 and held for 15 s): the first run
+moved Notepad within seconds of its start, while it was still restoring its
+own remembered size, which then landed after the preset's.
+
 ## 6. Triggers run features
 
 **Done**: `Trigger` (Core), `TriggerService` (engine), `triggers` commands and
