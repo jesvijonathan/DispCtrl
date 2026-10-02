@@ -321,13 +321,14 @@ event carries no data; the control broker separately handles structured requests
   empty mouse input, which makes the panel's process the last to receive input,
   and calls `SetForegroundWindow` - PowerToys' workaround (#1282) - on summons
   only, and again once uncloaked.
-- **The icon's right-click menu**: Quick panel, Open DispCtrl, Simple view
+- **The icon's right-click menu**: Open DispCtrl, Simple view
   (`QuickPanel.Simple`, the title bar's dot), Keep on the taskbar, Hide this
-  icon, Stop the engine, Exit DispCtrl, Close the app. Stop sets
+  icon, Stop the engine, Exit DispCtrl. No "Quick panel" (a left click is
+  that) and no "Close the app" (the owner's call, 2026-10-02). Stop sets
   `Local\DispCtrl.Engine.Stop`, never ends the process - the engine must
-  unwind to put taskbars back. Close sets `Local\DispCtrl.App.Quit`
+  unwind to put taskbars back. Exit sets `Local\DispCtrl.App.Quit`
   (`QuickPanelSignal.RequestQuit`), which the app's listener turns into a
-  flushed save and `Exit()`; Exit does that, then stops the engine.
+  flushed save and `Exit()`, then stops the engine.
 - The tray icon **toggles**. Clicking it while the panel is open takes focus
   first, closing the panel, and then asks for it again - so a summons within
   500 ms of a focus-loss close is treated as the same click.

@@ -16,6 +16,9 @@ using DispCtrl, not for people reading the diff.
 - Shortcuts that run something you wrote: a `dispctrl` command, or any program, file or link, the way a custom quick-panel tile does.
 - Experimental LG alternate input switching through NVIDIA, AMD and Intel GPU APIs, enabled only by a model-specific device mapping. Mapping contributions retain the transport metadata; hardware confirmation is still required.
 
+### Changed
+- The tray icon's right-click menu no longer offers Quick panel, which a left click already opens, or Close the app; Exit DispCtrl remains.
+
 ### Fixed
 - Hotkey action fields now update when the action changes. Slow shortcut actions are serialized off the keyboard pump; volume, mute, contrast and input commands read only the requested control.
 - LG mappings require device schema 2 so older builds cannot interpret their wire values as standard DDC. Stale input controls reject writes after their transport mapping changes.

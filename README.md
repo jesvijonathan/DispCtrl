@@ -262,7 +262,7 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
   - Hide chosen displays from the panel
   - Reset the quick panel
 - **Tray icon**: drawn like Windows' own icons, white or black to match the taskbar, redrawn when the theme changes; kept on the taskbar the first time
-- **Right-click menu**: Quick panel, Open DispCtrl, Simple view, Keep on the taskbar, Hide this icon, Stop the engine, Close the app, Exit DispCtrl
+- **Right-click menu**: Open DispCtrl, Simple view, Keep on the taskbar, Hide this icon, Stop the engine, Exit DispCtrl
 
 </details>
 

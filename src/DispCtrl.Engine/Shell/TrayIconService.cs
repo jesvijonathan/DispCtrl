@@ -28,8 +28,10 @@ internal sealed class TrayIconService : IDisposable
     private const uint TrayCallback = PInvoke.WM_APP + 0x20;
 
     /// <summary>Menu command ids. Any value; they only travel within this window.</summary>
-    private const int CmdPanel = 1, CmdOpen = 2, CmdHide = 3, CmdPromote = 4,
-        CmdSimple = 5, CmdClose = 6, CmdStopEngine = 7, CmdExit = 8;
+    // A click opens the quick panel, so the menu does not offer it again; and
+    // closing the app alone is Exit's first half, so it is not offered either.
+    private const int CmdOpen = 2, CmdHide = 3, CmdPromote = 4,
+        CmdSimple = 5, CmdStopEngine = 7, CmdExit = 8;
 
     private const string ClassName = "DispCtrl.Tray";
 
@@ -515,7 +517,6 @@ internal sealed class TrayIconService : IDisposable
         {
             bool simple;
             lock (_gate) simple = _settings.Global.QuickPanel.Simple;
-            Item(menu, CmdPanel, "Quick panel");
             Item(menu, CmdOpen, "Open DispCtrl");
             Item(menu, CmdSimple, "Simple view", simple ? MENU_ITEM_FLAGS.MF_CHECKED : 0);
             _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_SEPARATOR, 0, default);
@@ -530,9 +531,6 @@ internal sealed class TrayIconService : IDisposable
             _ = PInvoke.AppendMenu(menu, MENU_ITEM_FLAGS.MF_SEPARATOR, 0, default);
             Item(menu, CmdStopEngine, "Stop the engine");
             Item(menu, CmdExit, "Exit DispCtrl");
-            // The window and the panel only: the engine, and with it this icon,
-            // the hotkeys and the hidden taskbars, carries on.
-            Item(menu, CmdClose, "Close the app");
 
             if (!PInvoke.GetCursorPos(out System.Drawing.Point point)) return;
 
@@ -567,10 +565,6 @@ internal sealed class TrayIconService : IDisposable
     {
         switch (id)
         {
-            case CmdPanel:
-                Summon();
-                break;
-
             case CmdOpen:
                 OpenApp();
                 break;
@@ -589,10 +583,6 @@ internal sealed class TrayIconService : IDisposable
                     _settings.Global.QuickPanel.Simple = !_settings.Global.QuickPanel.Simple;
                     _persist(_settings);
                 }
-                break;
-
-            case CmdClose:
-                if (!QuickPanelSignal.RequestQuit()) Log.Write("tray: no app running to close");
                 break;
 
             case CmdStopEngine:
