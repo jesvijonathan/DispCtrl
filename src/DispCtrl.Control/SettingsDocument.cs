@@ -107,6 +107,7 @@ public static class SettingsDocument
                         "softwareBrightness" => (10, 100),
                         "nightLightStrength" => (-1, 100),
                         "idleMinutes" or "secondStageMinutes" => (1, 120),
+                        "thirdStageMinutes" => (1, 240),
                         "oledRestMinutes" => (1, 30),
                         "monitorSleepMinutes" => (1, 240),
                         "fadeMs" => (0, 2000),

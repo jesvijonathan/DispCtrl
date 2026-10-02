@@ -17,10 +17,12 @@ public sealed class OledMonitorItem : INotifyPropertyChanged
     private readonly MonitorSettings settings;
     private readonly DisplayViewModel? display;
     private readonly Action persist;
+    private readonly Func<OledCareSettings> common;
 
-    public OledMonitorItem(string token, MonitorSettings settings, DisplayViewModel? display, Action persist)
+    public OledMonitorItem(string token, MonitorSettings settings, DisplayViewModel? display, Action persist, Func<OledCareSettings> common)
     {
         Token = token;
+        this.common = common;
         this.settings = settings;
         this.display = display;
         this.persist = persist;
@@ -73,6 +75,71 @@ public sealed class OledMonitorItem : INotifyPropertyChanged
         }
     }
 
+    // ---- this display's own stages, or the same as every display's ----
+
+    /// <summary>Whether this display rests on the same timing as every other.</summary>
+    /// <remarks>
+    /// Unticked, it starts from the common values, so nothing changes until a
+    /// value is changed; ticked again, its own values are dropped. Written only
+    /// on a real change: the box writes its value back as it is realised.
+    /// </remarks>
+    public bool SameAsAll
+    {
+        get => settings.OledCare is null || settings.OledCare.IsEmpty;
+        set
+        {
+            if (SameAsAll == value) return;
+            OledCareSettings c = common();
+            settings.OledCare = value ? null : new OledCareOverride
+            {
+                IdleMinutes = c.IdleMinutes, DimPercent = c.DimPercent,
+                ThirdStageEnabled = c.ThirdStageEnabled, ThirdStageMinutes = c.ThirdStageMinutes,
+            };
+            persist();
+            RaiseOwn();
+        }
+    }
+
+    public Visibility OwnVisibility => SameAsAll ? Visibility.Collapsed : Visibility.Visible;
+    private OledCareSettings Effective => common().For(settings.OledCare);
+    private OledCareOverride Own => settings.OledCare ??= new OledCareOverride();
+
+    public double OwnIdleMinutes
+    {
+        get => Effective.IdleMinutes;
+        set { int v = Clamp(value, 1, 120); if (Effective.IdleMinutes == v) return; Own.IdleMinutes = v; persist(); RaiseOwn(); }
+    }
+
+    public double OwnDimPercent
+    {
+        get => Effective.DimPercent;
+        set { int v = Clamp(value, 0, 100); if (Effective.DimPercent == v) return; Own.DimPercent = v; persist(); RaiseOwn(); }
+    }
+
+    public bool OwnThirdStage
+    {
+        get => Effective.ThirdStageEnabled;
+        set { if (Effective.ThirdStageEnabled == value) return; Own.ThirdStageEnabled = value; persist(); RaiseOwn(); }
+    }
+
+    public double OwnThirdStageMinutes
+    {
+        get => Effective.ThirdStageMinutes;
+        set { int v = Clamp(value, 1, 240); if (Effective.ThirdStageMinutes == v) return; Own.ThirdStageMinutes = v; persist(); RaiseOwn(); }
+    }
+
+    public string OwnSummary => SameAsAll ? "Same timing as all displays" : "Its own timing";
+    public string SameAutomationName => $"OledSameAsAll {Name}";
+
+    /// <summary>The common settings moved: what this row shows follows them where it has nothing of its own.</summary>
+    public void RaiseOwn()
+    {
+        foreach (string name in new[] { nameof(SameAsAll), nameof(OwnVisibility), nameof(OwnIdleMinutes), nameof(OwnDimPercent),
+                     nameof(OwnThirdStage), nameof(OwnThirdStageMinutes), nameof(OwnSummary) }) Raise(name);
+    }
+
+    private static int Clamp(double value, int min, int max) => double.IsFinite(value) ? Math.Clamp((int)Math.Round(value), min, max) : min;
+
     public string OledAutomationName => $"OledMonitor {Name}";
     public string ProtectAutomationName => $"OledProtect {Name}";
 
@@ -100,12 +167,12 @@ public sealed partial class MainViewModel
         foreach (OledMonitorItem old in OledMonitors) old.Detach();
         OledMonitors.Clear();
         foreach (DisplayViewModel d in Displays)
-            OledMonitors.Add(new OledMonitorItem(d.Token, _settings.For(d.Token), d, Persist));
+            OledMonitors.Add(new OledMonitorItem(d.Token, _settings.For(d.Token), d, Persist, () => Care));
         var connected = Displays.Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
         foreach (var (token, monitor) in _settings.Monitors
                      .Where(p => !connected.Contains(p.Key))
                      .OrderByDescending(p => p.Value.LastSeenUtc ?? DateTimeOffset.MinValue))
-            OledMonitors.Add(new OledMonitorItem(token, monitor, null, Persist));
+            OledMonitors.Add(new OledMonitorItem(token, monitor, null, Persist, () => Care));
         Raise(nameof(OledCoverage));
     }
 

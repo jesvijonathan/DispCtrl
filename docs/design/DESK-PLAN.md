@@ -72,6 +72,10 @@ global strength and per-display ranges, focus dimming a per-display opt-out.
 
 ## 4. OLED care: a third stage
 
+**Done** with the first piece of section 3: `MonitorSettings.OledCare`
+(`OledCareOverride`, null values follow the common settings) resolved by
+`OledCareSettings.For` in the engine and the app.
+
 Stages today: dim at N minutes, dim further at M. Add stage 3 at K minutes:
 
 - **Turn the display off** - the Displays-off machinery (overlay at

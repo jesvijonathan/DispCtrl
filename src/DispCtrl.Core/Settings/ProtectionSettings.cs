@@ -137,6 +137,28 @@ public sealed class OledCareSettings
     public int FadeMs { get; set; } = 2000;
     public bool PauseFullscreen { get; set; } = true;
 
+    /// <summary>A third stage after the second: the display goes black, as if off.</summary>
+    /// <remarks>
+    /// Counted from the second stage, as the second is from the first. Black,
+    /// and with <see cref="ThirdStageBacklight"/> the real backlight down too -
+    /// the same backlight Displays off lowers - so a panel left for the night
+    /// is neither lit nor burning in.
+    /// </remarks>
+    public bool ThirdStageEnabled { get; set; }
+    public int ThirdStageMinutes { get; set; } = 20;
+
+    /// <summary>At the third stage, also turn the display's own brightness to its lowest.</summary>
+    public bool ThirdStageBacklight { get; set; } = true;
+
+    /// <summary>At the third stage, keep holding the computer awake as Keep awake and Stay active ask.</summary>
+    /// <remarks>
+    /// Off, a display at its third stage means nobody is there: DispCtrl stops
+    /// asking Windows to stay awake and stops Stay active's nudge, so Windows'
+    /// own sleep and lock timers can act. Common to every display - it is about
+    /// the computer, not a panel.
+    /// </remarks>
+    public bool ThirdStageKeepActive { get; set; } = true;
+
     /// <summary>Rest each display when it goes unused, rather than when the whole computer does.</summary>
     /// <remarks>
     /// Off, typing on one screen keeps every screen awake. On, a display rests
@@ -158,6 +180,7 @@ public sealed class OledCareSettings
     /// <summary>The configured idle-rest level at a given system idle age.</summary>
     public int DimAtIdle(uint idleMilliseconds)
     {
+        if (AtThirdStage(idleMilliseconds)) return 100;
         int first = Math.Clamp(DimPercent, 0, 100);
         if (!SecondStageEnabled || first is 0 or 100) return first;
 
@@ -167,4 +190,53 @@ public sealed class OledCareSettings
             ? Math.Clamp(SecondStageDimPercent, first, 100)
             : first;
     }
+
+    /// <summary>Whether an idle age has reached the third stage.</summary>
+    /// <remarks>After the second when that is on, otherwise straight after the first.</remarks>
+    public bool AtThirdStage(uint idleMilliseconds)
+    {
+        if (!ThirdStageEnabled) return false;
+        long minutes = Math.Clamp(IdleMinutes, 1, 120) + Math.Clamp(ThirdStageMinutes, 1, 240)
+            + (SecondStageEnabled ? Math.Clamp(SecondStageMinutes, 1, 120) : 0);
+        return idleMilliseconds >= minutes * 60_000L;
+    }
+
+    /// <summary>These settings with one display's own values in place of the common ones.</summary>
+    /// <remarks>
+    /// The one resolver the engine and the app share. Only the stages and their
+    /// levels can differ per display; whether OLED care is on, fullscreen,
+    /// per-display activity, the exception list and keeping the computer awake
+    /// stay common.
+    /// </remarks>
+    public OledCareSettings For(OledCareOverride? own)
+    {
+        if (own is null || own.IsEmpty) return this;
+        var copy = (OledCareSettings)MemberwiseClone();
+        copy.IdleMinutes = own.IdleMinutes ?? IdleMinutes;
+        copy.DimPercent = own.DimPercent ?? DimPercent;
+        copy.SecondStageEnabled = own.SecondStageEnabled ?? SecondStageEnabled;
+        copy.SecondStageMinutes = own.SecondStageMinutes ?? SecondStageMinutes;
+        copy.SecondStageDimPercent = own.SecondStageDimPercent ?? SecondStageDimPercent;
+        copy.ThirdStageEnabled = own.ThirdStageEnabled ?? ThirdStageEnabled;
+        copy.ThirdStageMinutes = own.ThirdStageMinutes ?? ThirdStageMinutes;
+        copy.ThirdStageBacklight = own.ThirdStageBacklight ?? ThirdStageBacklight;
+        return copy;
+    }
+}
+
+/// <summary>One display's own OLED care stages; a null value is the same as every display's.</summary>
+public sealed class OledCareOverride
+{
+    public int? IdleMinutes { get; set; }
+    public int? DimPercent { get; set; }
+    public bool? SecondStageEnabled { get; set; }
+    public int? SecondStageMinutes { get; set; }
+    public int? SecondStageDimPercent { get; set; }
+    public bool? ThirdStageEnabled { get; set; }
+    public int? ThirdStageMinutes { get; set; }
+    public bool? ThirdStageBacklight { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsEmpty => IdleMinutes is null && DimPercent is null && SecondStageEnabled is null && SecondStageMinutes is null
+        && SecondStageDimPercent is null && ThirdStageEnabled is null && ThirdStageMinutes is null && ThirdStageBacklight is null;
 }

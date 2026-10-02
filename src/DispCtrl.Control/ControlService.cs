@@ -339,7 +339,7 @@ public sealed partial class ControlService
                 {
                     "taskbar" when token is not null => ["hideTaskbar", "reclaimWorkArea"],
                     "taskbar" => TaskbarKeys,
-                    "oled" => ["oledProtection", "oledWakeOnPointerReturn", "oledRestMinutes", "oledRestUntilUtc"],
+                    "oled" => ["oledProtection", "oledWakeOnPointerReturn", "oledRestMinutes", "oledRestUntilUtc", "oledCare"],
                     "focus" => ["focusDimming"],
                     "nightlight" => ["nightLightStrength", "nightLightFloor", "nightLightCeiling"],
                     _ => throw new ArgumentException("This group has no per-monitor reset."),
@@ -365,6 +365,16 @@ public sealed partial class ControlService
                 name = group == "taskbar" ? name switch { "opacity" => "taskbarOpacity", "glass" => "taskbarGlassEnabled", "blur" => "taskbarGlassRadius",
                     "tint" => "taskbarGlassTint", "hide" => "hideTaskbar", "reclaimSpace" => "reclaimWorkArea", _ => name } : name;
                 if (group == "oled" && token is not null && name == "enabled") name = "oledProtection";
+                // One display's own stages: written into its oledCare block, and
+                // "common" puts a stage back to what every display has.
+                if (group == "oled" && token is not null && OledStageKeys.Contains(name))
+                {
+                    JsonObject monitor = SettingsDocument.Get(document, path)!.AsObject();
+                    if (monitor["oledCare"] is not JsonObject own) monitor["oledCare"] = own = new JsonObject();
+                    own[name] = value is JsonValue v && v.TryGetValue(out string? word) && word == "common" ? null : value?.DeepClone();
+                    count++;
+                    continue;
+                }
                 // The terminal reads "off" as false before it gets here, and the
                 // wheel's choices are words: off is a choice, not a switch.
                 if (group == "tray" && name == "trayWheel" && value is JsonValue wheel && wheel.TryGetValue(out bool on))
@@ -405,6 +415,10 @@ public sealed partial class ControlService
             if (count == 0) throw new ArgumentException("Provide at least one setting; use get to inspect available fields.");
         }, Flag(args, "dryRun"), Text(args, "revision"));
     }
+
+    /// <summary>The OLED care settings a display may have its own value for; see <see cref="OledCareOverride"/>.</summary>
+    private static readonly string[] OledStageKeys = ["idleMinutes", "dimPercent", "secondStageEnabled", "secondStageMinutes",
+        "secondStageDimPercent", "thirdStageEnabled", "thirdStageMinutes", "thirdStageBacklight"];
 
     private static readonly string[] TaskbarKeys = ["taskbarOpacity", "taskbarGlassEnabled", "taskbarGlassRadius", "taskbarGlassTint",
         "hideDelayMs", "animMs", "revealPx", "armDistancePx", "idlePollMs", "farPollMs", "armedPollMs", "shownPollMs"];

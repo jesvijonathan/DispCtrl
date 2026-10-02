@@ -598,6 +598,16 @@ Every pair was walked through; these are the ones that needed code.
   laptop at 58% while the Dell stayed lit, the pointer on the laptop woke it,
   and `pwsh` on the exception list with a window on the laptop kept it lit
   (control run without it: rested).
+- **OLED care's third stage and a display's own timing.** Stage 3 is black
+  (`DimAtIdle` 100) with the backlight down through `DisplaysOffBacklight`,
+  put back when the rest ends unless Displays off holds the same display.
+  "Keep the computer active" off sets `PowerService.OledRestAllowsSleep`, which
+  drops the execution-state hold and Stay active's nudge while a display is at
+  that stage; the focus thread writes it every tick and a change wakes the
+  power loop. A display's own stages are `MonitorSettings.OledCare`, resolved by
+  `OledCareSettings.For` - only the stages and levels; on/off, fullscreen,
+  per-display activity, exceptions and keep-active stay common. Not exercised
+  live: it needs minutes of no input on a desk that is in use.
 - **Idle cost, measured in cycles** (scratch desk with OLED care, Stay active
   and taskbar hiding on): all window features off ~200 Mcycles/min, all on
   ~250. The exception list was the whole of a +130 first: it described every

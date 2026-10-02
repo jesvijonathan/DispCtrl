@@ -200,6 +200,9 @@ internal sealed unsafe partial class FocusService : IDisposable
 
         /// <summary>Chosen by "Turn off displays" when they went off, and whether it has since been woken.</summary>
         public bool DimChosen, DimWoken;
+
+        /// <summary>At OLED care's third stage, and whether its backlight was taken down for it.</summary>
+        public bool ThirdStage;
         public OledIdleState IdleState { get; } = new();
 
         /// <summary>How long this display has gone unused, when each rests on its own.</summary>
@@ -741,7 +744,7 @@ internal sealed unsafe partial class FocusService : IDisposable
                 Power.PowerService.LastNudgeTick);
         }
         bool preview = care.Enabled && now < _previewUntil && !_suspended;
-        bool animating = false, anyRest = false, anyRestPending = false;
+        bool animating = false, anyRest = false, anyRestPending = false, sleepAllowed = false;
 
         // "Turn off displays". Which screens it covers is decided once, when
         // the delay runs out, so "except the one with the pointer" means where
@@ -875,6 +878,8 @@ internal sealed unsafe partial class FocusService : IDisposable
         foreach (Mask mask in _masks)
         {
             _settings.Monitors.TryGetValue(mask.Display.Token, out MonitorSettings? monitor);
+            // This display's stages: its own where it has them, the common ones otherwise.
+            OledCareSettings here = care.For(monitor?.OledCare);
             bool oled = monitor?.IsOled ?? (monitor?.OledDetected == true || mask.LibraryOled);
             if (mask.DimChosen && !mask.DimWoken
                 && (dimEndedByInput || (awake.DisplaysOffWakeOnPointer && dimPointerMoved && Inside(mask.Display.Bounds, cursor))))
@@ -901,18 +906,18 @@ internal sealed unsafe partial class FocusService : IDisposable
                 panelIdle = inputKnown ? mask.Activity.Update(now, used) : 0;
                 // Kept empty meanwhile: a rest it began before this mode came on
                 // would otherwise date from then, and switching back rest at once.
-                mask.IdleState.Update(false, false, now, inputKnown, idleMs, care.IdleMinutes,
+                mask.IdleState.Update(false, false, now, inputKnown, idleMs, here.IdleMinutes,
                     pointerKnown, cursor.X, cursor.Y, mask.Display.Bounds);
             }
             else
             {
                 mask.Activity.Reset(now);
                 panelIdle = mask.IdleState.Update(careHere && !busyHere,
-                    monitor?.OledWakeOnPointerReturn == true, now, inputKnown, idleMs, care.IdleMinutes,
+                    monitor?.OledWakeOnPointerReturn == true, now, inputKnown, idleMs, here.IdleMinutes,
                     pointerKnown, cursor.X, cursor.Y, mask.Display.Bounds);
             }
             bool resting = FocusGeometry.RestingWhenIdle(care.Enabled, inputKnown, panelIdle,
-                care.IdleMinutes, _suspended, care.PauseFullscreen && panelFullscreen);
+                here.IdleMinutes, _suspended, care.PauseFullscreen && panelFullscreen);
 
             // Tracked per mask so a fresh request restarts the grace period
             // rather than inheriting the age of the one before it.
@@ -923,6 +928,19 @@ internal sealed unsafe partial class FocusService : IDisposable
             bool manualRest = FocusGeometry.RestingByHand(restRequested, now - mask.RestSince, idleMs, inputKnown);
             bool rest = ((preview || manualRest || resting) && oled && monitor?.OledProtection == true) || dimNow;
             anyRest |= rest;
+
+            // The third stage: black, and the backlight down with it, the way
+            // Displays off takes it down. Put back when the rest ends, unless
+            // Displays off has the same display and will put it back itself.
+            bool third = rest && resting && !manualRest && !preview && here.AtThirdStage(panelIdle);
+            if (third != mask.ThirdStage)
+            {
+                mask.ThirdStage = third;
+                if (third && here.ThirdStageBacklight) Power.DisplaysOffBacklight.Lower([mask.Display]);
+                else if (!third && !dimNow) Power.DisplaysOffBacklight.Restore(mask.Display.Token);
+                Log.Write(third ? $"oled care: {mask.Display.Label} at the third stage" : $"oled care: {mask.Display.Label} awake again");
+            }
+            sleepAllowed |= third && !care.ThirdStageKeepActive;
             anyRestPending |= restRequested;
             DisplayRect intersection = FocusGeometry.Intersect(active, mask.Display.Bounds);
             bool onActiveMonitor = intersection.Width > 0 && intersection.Height > 0;
@@ -982,8 +1000,8 @@ internal sealed unsafe partial class FocusService : IDisposable
                 ? FocusGeometry.ScaledDim(focus.DimPercent, PanelLevel(monitor))
                 : focus.DimPercent;
             int restDim = preview ? _previewPercent : manualRest ? 100
-                : dimNow ? Math.Max(Math.Clamp(awake.DisplaysOffPercent, 0, 100), resting ? care.DimAtIdle(panelIdle) : 0)
-                : care.DimAtIdle(panelIdle);
+                : dimNow ? Math.Max(Math.Clamp(awake.DisplaysOffPercent, 0, 100), resting ? here.DimAtIdle(panelIdle) : 0)
+                : here.DimAtIdle(panelIdle);
             double target = rest ? FocusGeometry.Alpha(restDim) : dim ? FocusGeometry.Alpha(wanted) : 0;
             DisplayRect area = !rest && focus.KeepTaskbarVisible ? mask.Display.WorkArea : mask.Display.Bounds;
             // The hole has to outlive the dim it is cut from. Dropping it the
@@ -1104,6 +1122,7 @@ internal sealed unsafe partial class FocusService : IDisposable
         }
 
         WatchInput(anyRest);
+        Power.PowerService.OledRestAllowsSleep = sleepAllowed;
 
         bool interlude = shell || _menuOpen;
         _dimming = (focusAllowed && settled) || (interlude && _dimming);
@@ -1451,6 +1470,7 @@ internal sealed unsafe partial class FocusService : IDisposable
         Placement.PinService.Changed -= PinsChanged;
         if (_control != 0) PostMessage(_control, 0x10, 0, 0);
         _thread.Join();
+        Power.PowerService.OledRestAllowsSleep = false;
         Power.DisplaysOffBacklight.Restore(wait: true);
         _ready.Dispose();
     }

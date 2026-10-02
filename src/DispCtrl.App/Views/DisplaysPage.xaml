@@ -559,6 +559,7 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:OledMonitorItem">
+                  <StackPanel Spacing="4">
                   <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*"/>
@@ -576,6 +577,21 @@
                               IsEnabled="{x:Bind IsOled, Mode=OneWay}"
                               AutomationProperties.Name="{x:Bind ProtectAutomationName}"/>
                   </Grid>
+                  <!-- Common or its own: the display follows the timing below
+                       until it is given its own, which starts as a copy. -->
+                  <CheckBox Content="Same timing as all displays" IsChecked="{x:Bind SameAsAll, Mode=TwoWay}" MinWidth="0"
+                            IsEnabled="{x:Bind Protected, Mode=OneWay}" Margin="12,0,0,0"
+                            AutomationProperties.Name="{x:Bind SameAutomationName}"/>
+                  <StackPanel Orientation="Horizontal" Spacing="12" Margin="40,0,0,4" Visibility="{x:Bind OwnVisibility, Mode=OneWay}">
+                    <NumberBox Header="Rest after (min)" Value="{x:Bind OwnIdleMinutes, Mode=TwoWay}" Minimum="1" Maximum="120"
+                               SpinButtonPlacementMode="Compact" Width="130"/>
+                    <NumberBox Header="Dim (%)" Value="{x:Bind OwnDimPercent, Mode=TwoWay}" Minimum="0" Maximum="100"
+                               SmallChange="5" SpinButtonPlacementMode="Compact" Width="110"/>
+                    <CheckBox Content="Turn off" IsChecked="{x:Bind OwnThirdStage, Mode=TwoWay}" VerticalAlignment="Bottom" MinWidth="0"/>
+                    <NumberBox Header="Off after (min)" Value="{x:Bind OwnThirdStageMinutes, Mode=TwoWay}" Minimum="1" Maximum="240"
+                               IsEnabled="{x:Bind OwnThirdStage, Mode=OneWay}" SpinButtonPlacementMode="Compact" Width="130"/>
+                  </StackPanel>
+                  </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -628,6 +644,26 @@
               <TextBlock Text="{x:Bind ViewModel.OledSecondStageDim, Mode=OneWay}" VerticalAlignment="Center"/>
               <TextBlock Text="%" VerticalAlignment="Center"/>
             </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Third stage: turn the display off"
+                           Description="After the stages above, black the display out as if it were off. Any input brings it back.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.OledThirdStageEnabled, Mode=TwoWay}" AutomationProperties.Name="OledThirdStageEnabled"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Turn off after"
+                           Description="Additional minutes after the previous stage.">
+            <NumberBox Value="{x:Bind ViewModel.OledThirdStageMinutes, Mode=TwoWay}" Minimum="1" Maximum="240" SmallChange="5" Width="135"
+                       IsEnabled="{x:Bind ViewModel.OledThirdStageEnabled, Mode=OneWay}"
+                       SpinButtonPlacementMode="Compact" AutomationProperties.Name="OledThirdStageMinutes"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Backlight off too"
+                           Description="Turn the display's own brightness to its lowest while it is off, as Turn off displays does, and back when it wakes.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.OledThirdStageBacklight, Mode=TwoWay}"
+                          IsEnabled="{x:Bind ViewModel.OledThirdStageEnabled, Mode=OneWay}" AutomationProperties.Name="OledThirdStageBacklight"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Keep the computer active"
+                           Description="On, Keep awake and Stay active carry on while a display is off. Off, a display reaching this stage means nobody is there: DispCtrl stops holding the computer awake, and Windows may lock or sleep on its own timers.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.OledThirdStageKeepActive, Mode=TwoWay}"
+                          IsEnabled="{x:Bind ViewModel.OledThirdStageEnabled, Mode=OneWay}" AutomationProperties.Name="OledThirdStageKeepActive"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Idle fade duration" Description="Milliseconds to reach the idle dimming level.">
             <NumberBox Value="{x:Bind ViewModel.OledIdleFade, Mode=TwoWay}" Minimum="0" Maximum="2000" SmallChange="100" Width="135" SpinButtonPlacementMode="Compact" AutomationProperties.Name="OledIdleFade"/>

@@ -837,6 +837,10 @@ public sealed class MonitorSettings
     /// <remarks>Bookkeeping: a reset of the display leaves it.</remarks>
     public DateTimeOffset? LastSeenUtc { get; set; }
 
+    /// <summary>This display's own OLED care stages; null, or a null value, follows the common settings.</summary>
+    /// <remarks>Resolved by <see cref="OledCareSettings.For"/>, in the engine and the app alike.</remarks>
+    public OledCareOverride? OledCare { get; set; }
+
     /// <summary>Tokens this monitor's settings were saved under before, newest last.</summary>
     /// <remarks>
     /// Written by <see cref="MonitorAdoption"/>. Kept so anything else that

@@ -481,6 +481,21 @@ try
         client.ExecuteAsync(Request("focus.set", new() { ["dimPercent"] = 47 })));
     Check(writes.All(r => r["ok"]!.GetValue<bool>()) && SettingsStore.Load().Global.Focus.DimPercent == 47
         && SettingsStore.Load().Global.OledCare.DimPercent == 55, "concurrent broker writes preserve both groups");
+    Check(service.Execute(Request("oled.set", new() { ["thirdStageEnabled"] = true, ["thirdStageMinutes"] = 30, ["thirdStageKeepActive"] = false }))["ok"]!.GetValue<bool>()
+        && SettingsStore.Load().Global.OledCare is { ThirdStageEnabled: true, ThirdStageMinutes: 30, ThirdStageKeepActive: false }
+        && service.Execute(Request("oled.set", new() { ["thirdStageMinutes"] = 500 }))["exitCode"]!.GetValue<int>() == 2,
+        "OLED care's third stage is set through the API, within its range");
+    if (DispCtrl.Core.Displays.DisplayRegistry.Enumerate().FirstOrDefault() is { } ownDisplay)
+    {
+        var own = service.Execute(Request("oled.set", new() { ["monitor"] = "1", ["idleMinutes"] = 7, ["thirdStageBacklight"] = false }));
+        string ownToken = DispCtrl.Display.Cli.CommandLine.Sorted()[0].Token;
+        var stored = SettingsStore.Load().For(ownToken).OledCare;
+        var common = service.Execute(Request("oled.set", new() { ["monitor"] = "1", ["idleMinutes"] = "common" }));
+        Check(own["ok"]!.GetValue<bool>() && stored is { IdleMinutes: 7, ThirdStageBacklight: false }
+            && common["ok"]!.GetValue<bool>() && SettingsStore.Load().For(ownToken).OledCare is { IdleMinutes: null, ThirdStageBacklight: false }
+            && SettingsStore.Load().Global.OledCare.IdleMinutes != 7,
+            "one display gets its own OLED stages, and 'common' puts one back to every display's");
+    }
     var offOn = service.Execute(Request("awake.displays-off", new() { ["enabled"] = true }));
     DateTimeOffset? offAsked = SettingsStore.Load().Global.Awake.DisplaysOffUtc;
     var offOff = service.Execute(Request("awake.displays-off", new() { ["enabled"] = false }));

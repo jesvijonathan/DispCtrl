@@ -48,6 +48,17 @@ Check(DispCtrl.Core.Displays.FocusGeometry.RestingWhenIdle(careCheck.Enabled, tr
     "OLED idle activation has no focus-mode dependency");
 Check(careCheck.DimAtIdle(60_000) == 50 && careCheck.DimAtIdle(179_999) == 50
     && careCheck.DimAtIdle(180_000) == 95, "OLED stages use their selected levels and additional delay");
+careCheck.ThirdStageEnabled = true; careCheck.ThirdStageMinutes = 3;
+Check(!careCheck.AtThirdStage(359_999) && careCheck.AtThirdStage(360_000) && careCheck.DimAtIdle(360_000) == 100,
+    "the third stage comes after the second, counted from it, and is black");
+careCheck.SecondStageEnabled = false;
+Check(careCheck.AtThirdStage(240_000) && !careCheck.AtThirdStage(239_999),
+    "without a second stage the third follows the first");
+careCheck.SecondStageEnabled = true;
+var ownCare = careCheck.For(new OledCareOverride { IdleMinutes = 10, ThirdStageEnabled = false });
+Check(ownCare.IdleMinutes == 10 && !ownCare.ThirdStageEnabled && ownCare.DimPercent == 50 && careCheck.IdleMinutes == 1
+    && ReferenceEquals(careCheck.For(new OledCareOverride()), careCheck) && ReferenceEquals(careCheck.For(null), careCheck),
+    "a display's own stages replace only what it set, and leave the common settings alone");
 // A person's last input at 10 s; Stay active nudges at 65 s and 120 s.
 var personIdle = new DispCtrl.Core.Displays.PersonIdle();
 personIdle.Update(10_000, 0, 0);

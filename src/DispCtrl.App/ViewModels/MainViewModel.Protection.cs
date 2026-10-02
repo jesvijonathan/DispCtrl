@@ -47,11 +47,22 @@ public sealed partial class MainViewModel
     public bool FocusKeepTaskbar { get => Focus.KeepTaskbarVisible; set { if (Focus.KeepTaskbarVisible == value) return; Focus.KeepTaskbarVisible = value; SaveProtection(); } }
     public string FocusExcludedApps { get => Focus.ExcludedApps; set { if (Focus.ExcludedApps == value) return; Focus.ExcludedApps = value; SaveProtection(); } }
     public bool OledIdleEnabled { get => Care.Enabled; set { if (Care.Enabled == value) return; Care.Enabled = value; SaveProtection(); } }
-    public double OledIdleMinutes { get => Care.IdleMinutes; set { int v = Number(value, 1, 120); if (Care.IdleMinutes == v) return; Care.IdleMinutes = v; SaveProtection(); } }
-    public double OledIdleDim { get => Care.DimPercent; set { int v = Number(value, 0, 100); if (Care.DimPercent == v) return; Care.DimPercent = v; SaveProtectionSlider(); PreviewOled(v); Raise(nameof(OledSecondStageVisibility)); Raise(nameof(OledSecondStageDim)); } }
+    public double OledIdleMinutes { get => Care.IdleMinutes; set { int v = Number(value, 1, 120); if (Care.IdleMinutes == v) return; Care.IdleMinutes = v; SaveProtection(); RaiseOledRows(); } }
+    public double OledIdleDim { get => Care.DimPercent; set { int v = Number(value, 0, 100); if (Care.DimPercent == v) return; Care.DimPercent = v; SaveProtectionSlider(); PreviewOled(v); Raise(nameof(OledSecondStageVisibility)); Raise(nameof(OledSecondStageDim)); RaiseOledRows(); } }
     public Visibility OledSecondStageVisibility => Care.DimPercent is > 0 and < 100 ? Visibility.Visible : Visibility.Collapsed;
     public bool OledSecondStageEnabled { get => Care.SecondStageEnabled; set { if (Care.SecondStageEnabled == value) return; Care.SecondStageEnabled = value; SaveProtection(); } }
     public double OledSecondStageMinutes { get => Care.SecondStageMinutes; set { int v = Number(value, 1, 120); if (Care.SecondStageMinutes == v) return; Care.SecondStageMinutes = v; SaveProtection(); } }
+    public bool OledThirdStageEnabled { get => Care.ThirdStageEnabled; set { if (Care.ThirdStageEnabled == value) return; Care.ThirdStageEnabled = value; SaveProtection(); RaiseOledRows(); } }
+    public double OledThirdStageMinutes { get => Care.ThirdStageMinutes; set { int v = Number(value, 1, 240); if (Care.ThirdStageMinutes == v) return; Care.ThirdStageMinutes = v; SaveProtection(); RaiseOledRows(); } }
+    public bool OledThirdStageBacklight { get => Care.ThirdStageBacklight; set { if (Care.ThirdStageBacklight == value) return; Care.ThirdStageBacklight = value; SaveProtection(); } }
+    public bool OledThirdStageKeepActive { get => Care.ThirdStageKeepActive; set { if (Care.ThirdStageKeepActive == value) return; Care.ThirdStageKeepActive = value; SaveProtection(); } }
+
+    /// <summary>Rows following the common timing show it; rows with their own keep theirs.</summary>
+    private void RaiseOledRows()
+    {
+        foreach (OledMonitorItem item in OledMonitors) item.RaiseOwn();
+    }
+
     public double OledSecondStageDim { get => Math.Clamp(Care.SecondStageDimPercent, Care.DimPercent, 100); set { int v = Number(value, Care.DimPercent, 100); if (Care.SecondStageDimPercent == v) return; Care.SecondStageDimPercent = v; SaveProtectionSlider(); PreviewOled(v); } }
 
     private int _oledPreviewVersion;
@@ -314,6 +325,7 @@ public sealed partial class MainViewModel
             nameof(FocusOledOnly), nameof(WindowTransition), nameof(FocusPerMonitor), nameof(FocusScaleWithBrightness), nameof(FocusPrioritizeNewWindows), nameof(FocusOtherMonitors), nameof(FocusPauseFullscreen), nameof(FocusKeepTaskbar),
             nameof(FocusExcludedApps), nameof(OledIdleEnabled), nameof(OledIdleMinutes), nameof(OledIdleDim), nameof(OledSecondStageVisibility),
             nameof(OledSecondStageEnabled), nameof(OledSecondStageMinutes), nameof(OledSecondStageDim), nameof(OledIdleFade),
+            nameof(OledThirdStageEnabled), nameof(OledThirdStageMinutes), nameof(OledThirdStageBacklight), nameof(OledThirdStageKeepActive),
             nameof(OledPauseFullscreen), nameof(TaskbarOpacity), nameof(WindowsTransparency),
             nameof(SmallTaskbarButtons), nameof(TaskbarAlignment), nameof(TaskbarCombineButtons), nameof(OtherTaskbarCombineButtons),
             nameof(TaskbarShowTaskView), nameof(TaskbarShowWidgets), nameof(TaskbarShowBadges), nameof(TaskbarAllowFlashing),

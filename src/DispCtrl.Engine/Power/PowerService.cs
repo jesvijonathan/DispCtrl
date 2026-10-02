@@ -49,6 +49,27 @@ internal sealed partial class PowerService : IDisposable
     public static long LastNudgeTick => Volatile.Read(ref _lastNudgeTick);
     private static long _lastNudgeTick;
 
+    /// <summary>
+    /// Set while a display is at OLED care's third stage and "Keep active" is
+    /// off: nobody is there, so the computer is no longer held awake.
+    /// </summary>
+    /// <remarks>
+    /// Written by the focus thread on every tick; a change wakes this loop so
+    /// the hold is let go at once rather than at its next scheduled look.
+    /// </remarks>
+    public static bool OledRestAllowsSleep
+    {
+        get => Volatile.Read(ref _oledRestAllowsSleep);
+        set
+        {
+            if (Interlocked.Exchange(ref _oledRestAllowsSleep, value) == value) return;
+            Log.Write(value ? "oled care: third stage reached with Keep active off; the computer may sleep" : "oled care: holding the computer awake again");
+            _current?._wake.Set();
+        }
+    }
+    private static bool _oledRestAllowsSleep;
+    private static PowerService? _current;
+
     private readonly Thread _thread;
     private readonly AutoResetEvent _wake = new(false);
     private readonly HashSet<string> _sleeping = new(StringComparer.OrdinalIgnoreCase);
@@ -64,6 +85,7 @@ internal sealed partial class PowerService : IDisposable
     public PowerService(DispCtrlSettings settings)
     {
         _settings = settings;
+        _current = this;
         _thread = new Thread(Run) { IsBackground = true, Name = "Display power" };
         _thread.Start();
         Color.DisplayChanges.Settled += OnDisplaysSettled;
@@ -192,6 +214,8 @@ internal sealed partial class PowerService : IDisposable
         // Stay active holds the screen on too: an attended-looking session
         // behind a blank display is no use to anyone.
         if (awake.StayActive) wanted |= SystemRequired | DisplayRequired;
+        // Nobody is there: OLED care's third stage, with Keep active off.
+        if (OledRestAllowsSleep && _settings.Global.OledCare.Enabled) wanted = Continuous;
 
         if (wanted == _executionState) return;
         SetThreadExecutionState(wanted);
@@ -220,6 +244,7 @@ internal sealed partial class PowerService : IDisposable
             Log.Write(wanted ? "stay active: on" : "stay active: off");
         }
         if (!wanted) return;
+        if (OledRestAllowsSleep && _settings.Global.OledCare.Enabled) return;
 
         if (idleMs < NudgeAfterIdleMs) return;
 
