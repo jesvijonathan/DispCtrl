@@ -9,6 +9,7 @@ using DispCtrl, not for people reading the diff.
 ## [Unreleased]
 
 ### Added
+- Company laptop switches, under Settings and `dispctrl machine`: sign in without Ctrl+Alt+Del, your own lock screen picture, skip the lock screen, no blur behind the sign-in box, lock after inactivity, dynamic lock, and no tips on the lock screen. Each reads back what Windows has, asks for administrator permission only when a machine-wide one is changed, says when an organisation manages the computer, and can be put back as it was.
 - OLED care's third stage: after the dim stages a display goes black as if off, with its backlight down too, and "Keep the computer active" off lets Windows sleep and lock on its own timers once nobody is there. Each display can follow the common timing or have its own (rest after, dim level, when it turns off), from the OLED care list or `dispctrl oled set --monitor 2 --idle-minutes 10`; `common` puts a value back.
 - A Simple brightness section for the full quick panel: simple mode's sliders - all displays, then each one - as a section, to show in place of Unison brightness and Displays. Hidden until switched on from the Quick panel page.
 - A guided mapper for all monitor brands: scans list new codes, watching saves observations for contributions, and mapped choices, sliders and buttons appear on Displays. Mapping values have individual name fields and model/brand/all scopes.

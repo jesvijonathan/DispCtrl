@@ -115,6 +115,12 @@ migrates to it.
 
 ## 7. Company laptop (Misc)
 
+**Done**: `MachinePolicies` (Core), `machine get|set|undo`, and Settings >
+Company laptop switches. Ctrl+Alt+Del is read and written in both
+locations Windows honours (`Policies\System` first, then `Winlogon`), since
+regedit guides use either - this desk had it in Winlogon. The lock screen
+picture uses PersonalizationCSP.
+
 Machine-wide policies, each a switch that asks for elevation when changed,
 reads the current value back, and says when Group Policy owns it (a domain
 policy reapplies over a local write; DispCtrl says so rather than pretending):

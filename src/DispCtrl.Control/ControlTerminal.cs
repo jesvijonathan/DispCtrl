@@ -8,7 +8,7 @@ namespace DispCtrl.Control;
 
 public static class ControlTerminal
 {
-    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient", "pin", "placement", "ddc", "update", "features"];
+    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient", "pin", "placement", "ddc", "update", "features", "machine"];
     public static bool Handles(string[] args) => args.Length > 0 && (Roots.Contains(args[0])
         || args[0] == "nightlight" && args.Length > 1 && args[1] is "get" or "set" or "reset"
         || args[0] == "topology" && args.Length > 1 && args[1] is "get" or "set");
@@ -30,6 +30,10 @@ public static class ControlTerminal
       display factory-reset --monitor ID --confirm
       display reset --monitor ID [--factory --confirm]  DispCtrl's settings for it (and the monitor's own)
       gamma get|set --unlocked on|off       Windows' gamma clamp (night light and dimming range)
+      machine get                           Sign-in and lock screen switches, and whether an organisation manages them
+      machine set SWITCH on|off|MINUTES|PICTURE   no-ctrl-alt-del, lock-screen-picture, no-lock-screen, sharp-sign-in,
+                                            lock-after, dynamic-lock, quiet-lock-screen (machine-wide ones ask for admin)
+      machine undo SWITCH                   Put back what Windows had before DispCtrl changed it
 
     Device library (docs/DEVICE-LIBRARY.md)
       devices list                          Every monitor model seen here, and what is known of it
@@ -143,6 +147,8 @@ public static class ControlTerminal
                 "scripts" when action == "run" => 3,
                 "devices" when action == "validate" => 3,
                 "features" when action is "run" or "remove" or "add" or "set" => 3,
+                "machine" when action == "set" => 4,
+                "machine" when action == "undo" => 3,
                 _ => 2,
             };
             if (positional.Count > maximum) throw new ArgumentException("Unexpected positional argument: " + positional[maximum]);
@@ -150,6 +156,11 @@ public static class ControlTerminal
             {
                 if (options.ContainsKey("name")) throw new ArgumentException("Name the feature once: features run Gaming, or --name Gaming.");
                 options["name"] = positional[2];
+            }
+            if (root == "machine" && positional.Count > 2)
+            {
+                options["switch"] = positional[2];
+                if (positional.Count > 3) options["value"] = positional[3];
             }
             if (root == "watch") return await Watch(options, cancel.Token);
             if (root == "devices" && action == "probe") return await Probe(options, cancel.Token);

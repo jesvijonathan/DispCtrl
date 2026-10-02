@@ -350,6 +350,13 @@ public sealed class GlobalSettings
     /// </remarks>
     public string? LastDesk { get; set; }
 
+    /// <summary>Registry values as Windows had them before DispCtrl's sign-in switches first changed them.</summary>
+    /// <remarks>
+    /// Keyed <c>HKLM\key\name</c>; <c>dword:N</c>, <c>sz:text</c>, or null for
+    /// "was not there". What <c>machine undo</c> writes back.
+    /// </remarks>
+    public Dictionary<string, string?> MachineBefore { get; set; } = [];
+
     /// <summary>Whether the Store package's sign-in task has been switched on once, by default.</summary>
     /// <remarks>
     /// Once only, like the tray promotion: after that, starting at sign-in is

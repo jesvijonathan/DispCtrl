@@ -29,7 +29,8 @@ public sealed partial class ControlService
         "placement.get", "placement.set", "placement.reset", "placement.gather", "placement.move",
         "ddc.get", "ddc.set", "ddc.reset", "ddc.allow", "ddc.probe",
         "features.list", "features.get", "features.add", "features.set", "features.remove", "features.run",
-        "update.get", "update.check", "update.set", "update.skip", "update.reset"];
+        "update.get", "update.check", "update.set", "update.skip", "update.reset",
+        "machine.get", "machine.set", "machine.undo"];
 
     public JsonObject Execute(JsonObject request)
     {
@@ -59,7 +60,7 @@ public sealed partial class ControlService
                 args.Remove("coalesce");
             }
             bool mutation = command.EndsWith(".set", StringComparison.Ordinal) || command.EndsWith(".reset", StringComparison.Ordinal)
-                || command is "settings.import" or "oled.rest" or "restore.now" or "restore.undo" or "awake.displays-off" or "apply" or "display.factory-reset" or "display.reset"
+                || command is "settings.import" or "machine.undo" or "oled.rest" or "restore.now" or "restore.undo" or "awake.displays-off" or "apply" or "display.factory-reset" or "display.reset"
                 or "hotkeys.add" or "hotkeys.remove" or "ambient.capture" or "ambient.forget" or "features.add" or "features.remove"
                 or "devices.map" or "devices.unmap" or "devices.link" or "devices.panel"
                 || command == "display.control" && args.ContainsKey("value");
@@ -117,6 +118,7 @@ public sealed partial class ControlService
         if (command.StartsWith("ddc.", StringComparison.Ordinal)) return DdcCommand(command[4..], args);
         if (command.StartsWith("features.", StringComparison.Ordinal)) return FeaturesCommand(command[9..], args);
         if (command.StartsWith("update.", StringComparison.Ordinal)) return UpdateCommand(command[7..], args);
+        if (command.StartsWith("machine.", StringComparison.Ordinal)) return MachineCommand(command[8..], args);
         if (command == "gamma.get")
         {
             var state = GammaRange.Read();

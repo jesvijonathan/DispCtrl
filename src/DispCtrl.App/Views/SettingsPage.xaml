@@ -91,6 +91,26 @@
         <ToggleSwitch IsOn="{x:Bind ViewModel.Logging, Mode=TwoWay}"/>
       </tk:SettingsCard>
 
+      <TextBlock Text="Sign-in and lock screen"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,8"/>
+
+      <!-- Rows are built in code from machine get: each reads back what
+           Windows has, and the list is one place, MachinePolicies. A card hosts
+           them, since items added to an expander from code are never drawn. -->
+      <tk:SettingsExpander x:Name="MachineExpander" Header="Company laptop switches"
+                           Description="The sign-in and lock screen settings people change with regedit. Machine-wide ones ask for administrator permission when changed."
+                           Expanded="OnMachineExpanded">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE72E;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <StackPanel x:Name="MachineRows" Spacing="12"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
       <TextBlock Text="Updates and maintenance"
                  Style="{StaticResource BodyStrongTextBlockStyle}"
                  Margin="0,28,0,8"/>

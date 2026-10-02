@@ -240,3 +240,19 @@ hardware writes still affect the current desktop. Run `tools/controlcheck` for
 protocol, validation, concurrency and failure-sequencing checks using fake steps.
 Diagnostics/log paths remain local. See [architecture](CONTROL-ARCHITECTURE.md)
 and [release instructions](RELEASING.md) for unfinished migration and delivery work.
+
+## Sign-in and lock screen
+
+```
+dispctrl machine get                                   every switch, as Windows has it now
+dispctrl machine set no-ctrl-alt-del on                sign in without Ctrl+Alt+Del
+dispctrl machine set lock-screen-picture D:\Pictures\desk.jpg
+dispctrl machine set lock-after 15                     lock after 15 minutes without input (0: Windows decides)
+dispctrl machine undo no-ctrl-alt-del                  put back what Windows had before
+```
+
+Machine-wide switches ask for administrator permission when changed, through
+Windows' own `reg.exe`; per-user ones (`dynamic-lock`, `quiet-lock-screen`) do
+not. The first change records the previous values, which `undo` writes back.
+On a computer joined to a domain or Entra ID, or enrolled in device
+management, `machine get` says so: the organisation may set these itself.

@@ -485,6 +485,19 @@ try
         && SettingsStore.Load().Global.OledCare is { ThirdStageEnabled: true, ThirdStageMinutes: 30, ThirdStageKeepActive: false }
         && service.Execute(Request("oled.set", new() { ["thirdStageMinutes"] = 500 }))["exitCode"]!.GetValue<int>() == 2,
         "OLED care's third stage is set through the API, within its range");
+    var machine = service.Execute(Request("machine.get"));
+    Check(machine["ok"]!.GetValue<bool>() && machine["data"]!["switches"]!.AsArray().Count == DispCtrl.Core.Machine.MachinePolicies.All.Count
+        && machine["data"]!["switches"]!.AsArray().All(s => s!["label"] is not null && s["hint"] is not null),
+        "the sign-in switches read back without changing anything");
+    Check(service.Execute(Request("machine.set", new() { ["switch"] = "no-ctrl-alt-del", ["value"] = "on", ["dryRun"] = true }))["data"]!["needsAdmin"]!.GetValue<bool>()
+        && service.Execute(Request("machine.set", new() { ["switch"] = "no-such-switch", ["value"] = "on" }))["exitCode"]!.GetValue<int>() == 2
+        && service.Execute(Request("machine.set", new() { ["switch"] = "lock-after", ["value"] = "99999" }))["exitCode"]!.GetValue<int>() == 2
+        && service.Execute(Request("machine.set", new() { ["switch"] = "lock-screen-picture", ["value"] = @"C:
+o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
+        && service.Execute(Request("machine.set", new() { ["switch"] = "dynamic-lock", ["value"] = "maybe" }))["exitCode"]!.GetValue<int>() == 2,
+        "a switch is validated before anything asks for administrator rights");
+    Check(service.Execute(Request("machine.undo", new() { ["switch"] = "sharp-sign-in" }))["exitCode"]!.GetValue<int>() == 1,
+        "undo refuses a switch DispCtrl never changed");
     if (DispCtrl.Core.Displays.DisplayRegistry.Enumerate().FirstOrDefault() is { } ownDisplay)
     {
         var own = service.Execute(Request("oled.set", new() { ["monitor"] = "1", ["idleMinutes"] = 7, ["thirdStageBacklight"] = false }));
