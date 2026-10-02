@@ -563,7 +563,7 @@ public static class CommandLine
 
             case "save":
             {
-                Preset fresh = PresetService.Capture(name, displays, settings);
+                Preset fresh = PresetService.Capture(name, displays, settings, windows: true);
 
                 // Keep the scope a preset already had; overwriting it with the
                 // defaults would quietly widen what an existing preset controls.
@@ -636,7 +636,7 @@ public static class CommandLine
         if (words.Count == 0) return Usage("preset launch needs a preset and a program");
         string program = words[0];
 
-        Preset before = PresetValidation.RetainScope(PresetService.Capture("Before " + name, displays, settings), preset, settings);
+        Preset before = PresetValidation.RetainScope(PresetService.Capture("Before " + name, displays, settings, windows: true), preset, settings);
         PresetResult applied = PresetService.Apply(preset, displays, settings);
         SettingsStore.Save(PresetSettings.Merge(preset, settings, SettingsStore.Load()));
         foreach (string note in applied.Notes) Console.Error.WriteLine(note);

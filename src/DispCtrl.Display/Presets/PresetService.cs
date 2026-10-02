@@ -2,6 +2,7 @@ using DispCtrl.Core.Displays;
 using DispCtrl.Core.Caching;
 using DispCtrl.Core.Presets;
 using DispCtrl.Core.Settings;
+using DispCtrl.Display.Placement;
 
 namespace DispCtrl.Display.Presets;
 
@@ -49,7 +50,13 @@ public static class PresetService
     /// Blocks on DDC/CI, so not from the UI thread.
     /// </para>
     /// </remarks>
-    public static Preset Capture(string name, IReadOnlyList<DisplayInfo> displays, DispCtrlSettings settings, bool useCache = false)
+    /// <param name="windows">
+    /// Also record where every app window is. Only when the capture is kept -
+    /// saving a preset, the way back from a launch or an app rule - not for the
+    /// verification and drift reads, which run often and never use it.
+    /// </param>
+    public static Preset Capture(string name, IReadOnlyList<DisplayInfo> displays, DispCtrlSettings settings, bool useCache = false,
+        bool windows = false)
     {
         NightLightSettings night = settings.Global.NightLight;
 
@@ -115,6 +122,7 @@ public static class PresetService
             preset.Monitors[d.Token] = state;
         }
 
+        if (windows && preset.IncludeLayout) preset.Windows = CaptureWindows(displays);
         return preset;
     }
 
@@ -321,6 +329,8 @@ public static class PresetService
             ApplyTaskbar(preset, [pair], settings);
             Step(pair.Display.Label + " input and power", () => ApplyMonitorControls([pair], notes, disruptive: true));
         }
+        if (preset.IncludeLayout && preset.Windows is { Count: > 0 } saved)
+            Step("Windows", () => ApplyWindows(saved, settings, notes));
         if (preset.IncludeGlobal) ApplyTaskbarBehaviour(preset, settings);
         Step("Verification", () =>
         {
@@ -355,6 +365,47 @@ public static class PresetService
             && matched.All(pair => pair.State.Primary == pair.Display.IsPrimary)) return;
         if (!DisplayArrangement.SetPositions(positions, displays, out string? why))
             notes.Add($"Arrangement not applied — {why}.");
+    }
+
+    /// <summary>Every app window's place, relative to the display it is mostly on.</summary>
+    public static List<PresetWindow> CaptureWindows(IReadOnlyList<DisplayInfo> displays)
+    {
+        var result = new List<PresetWindow>();
+        foreach (AppWindow w in AppWindows.List())
+        {
+            if (AppWindows.DisplayOf(w.Handle, displays) is not { } on) continue;
+            // A maximized or minimized window is recorded at the place it goes back to.
+            DisplayRect frame = w.Show == WindowShow.Normal ? w.Frame : AppWindows.RestoreRect(w.Handle, displays);
+            result.Add(new PresetWindow
+            {
+                Process = w.Process, Title = w.Title,
+                Spot = WindowGeometry.Spot(on.Token, frame, on.WorkArea, (uint)on.Dpi, w.Show),
+            });
+        }
+        return result;
+    }
+
+    /// <summary>Puts each saved window's app back where it was, on displays attached now.</summary>
+    /// <remarks>
+    /// Apps on the never-move list are left alone, as gathering leaves them. A
+    /// window Windows will not move - an elevated app's - is counted, not retried.
+    /// </remarks>
+    private static void ApplyWindows(List<PresetWindow> saved, DispCtrlSettings settings, List<string> notes)
+    {
+        IReadOnlyList<DisplayInfo> displays = DisplayRegistry.Enumerate();
+        HashSet<string> never = settings.Global.Placement.Exclusions();
+        List<AppWindow> live = [.. AppWindows.List().Where(w => !never.Contains(w.Process))];
+        int placed = 0, refused = 0;
+        foreach (var (window, index) in WindowLayout.Match(saved, [.. live.Select(w => (w.Process, w.Title))]))
+        {
+            string token = DeskProfiles.Current(window.Spot.Token, settings);
+            if (displays.FirstOrDefault(d => d.Token == token) is not { } on) continue;
+            DisplayRect target = WindowGeometry.Place(window.Spot, on.WorkArea, (uint)on.Dpi);
+            if (WindowMover.Place(live[index].Handle, target, window.Spot.Show, on)) placed++;
+            else refused++;
+        }
+        if (refused > 0) notes.Add($"{refused} window(s) would not move; an app running as administrator cannot be moved by DispCtrl.");
+        if (placed == 0 && refused == 0 && saved.Count > 0) notes.Add("None of the preset's windows are open.");
     }
 
     private static void ApplyModes(List<(DisplayInfo Display, PresetMonitor State)> matched, List<string> notes)

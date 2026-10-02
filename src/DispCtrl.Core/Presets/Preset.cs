@@ -33,6 +33,7 @@ public sealed class Preset
         copy.Global = Global.Copy();
         copy.CaptureNotes = [.. CaptureNotes];
         copy.Monitors = Monitors.ToDictionary(pair => pair.Key, pair => pair.Value.Copy());
+        copy.Windows = Windows is null ? null : [.. Windows];
         return copy;
     }
 
@@ -64,6 +65,64 @@ public sealed class Preset
 
     /// <summary>Per-monitor state, keyed on <c>DisplayKey.ToToken()</c>.</summary>
     public Dictionary<string, PresetMonitor> Monitors { get; set; } = [];
+
+    /// <summary>Where each app's windows were, for a desk profile; null when not recorded.</summary>
+    /// <remarks>
+    /// DisplayFusion's window position profiles, as part of the desk rather
+    /// than a second kind of profile. Put back with the layout, matched by app
+    /// and then title (<see cref="WindowLayout.Match"/>); never counted as drift,
+    /// since windows move all day.
+    /// </remarks>
+    public List<PresetWindow>? Windows { get; set; }
+}
+
+/// <summary>One window's place in a preset: which app, which title, and where on which display.</summary>
+public sealed class PresetWindow
+{
+    public string Process { get; set; } = "";
+    public string Title { get; set; } = "";
+    public Displays.WindowSpot Spot { get; set; } = new("", 0, 0, 0, 0, 0, 0, 96, Displays.WindowShow.Normal);
+}
+
+/// <summary>Which open window is which saved one.</summary>
+/// <remarks>
+/// A window handle does not survive closing the app, so a window is known by
+/// its app and its title. The same title first (a second Explorer window, the
+/// right spreadsheet), then the app's other windows in z-order. Each open
+/// window is used once; a saved window with no match is left out.
+/// </remarks>
+public static class WindowLayout
+{
+    public static List<(PresetWindow Saved, int Live)> Match(IReadOnlyList<PresetWindow> saved, IReadOnlyList<(string Process, string Title)> live)
+    {
+        var used = new bool[live.Count];
+        var pairs = new List<(PresetWindow, int)>();
+        var unmatched = new List<PresetWindow>();
+        foreach (PresetWindow s in saved)
+        {
+            int at = Find(s, live, used, sameTitle: true);
+            if (at < 0) { unmatched.Add(s); continue; }
+            used[at] = true;
+            pairs.Add((s, at));
+        }
+        foreach (PresetWindow s in unmatched)
+        {
+            int at = Find(s, live, used, sameTitle: false);
+            if (at < 0) continue;
+            used[at] = true;
+            pairs.Add((s, at));
+        }
+        return pairs;
+    }
+
+    private static int Find(PresetWindow s, IReadOnlyList<(string Process, string Title)> live, bool[] used, bool sameTitle)
+    {
+        for (int i = 0; i < live.Count; i++)
+            if (!used[i] && live[i].Process.Equals(s.Process, StringComparison.OrdinalIgnoreCase)
+                && (!sameTitle || live[i].Title.Equals(s.Title, StringComparison.Ordinal)))
+                return i;
+        return -1;
+    }
 }
 
 /// <summary>Everything that belongs to the desk rather than to one monitor.</summary>

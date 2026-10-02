@@ -154,6 +154,21 @@ internal static class DeskChecks
         check(kept.ApplyWhenConnected && kept.Monitors.Count == 2 && kept.Monitors["SDC-4154-NEW"].Label == "fresh",
             "updating a desk profile keeps it one, and updates the display under its new token");
         check(PresetStore.Parse(PresetStore.ToJson(home)).ApplyWhenConnected, "the desk switch survives the file");
+
+        PresetWindow W(string process, string title) => new() { Process = process, Title = title,
+            Spot = new WindowSpot("SDC-4154-NEW", 10, 20, 800, 600, 1440, 900, 192, WindowShow.Maximized) };
+        List<PresetWindow> saved = [W("code", "notes.md"), W("code", "plan.md"), W("excel", "Budget"), W("gone", "x")];
+        (string, string)[] open = [("Code", "plan.md"), ("excel", "Other book"), ("code", "notes.md - edited"), ("chrome", "News")];
+        var pairs = WindowLayout.Match(saved, open);
+        check(pairs.Single(p => p.Saved.Title == "plan.md").Live == 0 && pairs.Single(p => p.Saved.Title == "notes.md").Live == 2
+            && pairs.Single(p => p.Saved.Process == "excel").Live == 1 && !pairs.Any(p => p.Saved.Process == "gone")
+            && pairs.Select(p => p.Live).Distinct().Count() == pairs.Count,
+            "windows are matched by app and title first, then by app, each open window once, and a closed app is left out");
+        home.Windows = saved;
+        var back = PresetStore.Parse(PresetStore.ToJson(home));
+        check(back.Windows is { Count: 4 } w && w[0].Spot == saved[0].Spot && PresetDiff.Describe(home, back).Count == 0
+            && PresetValidation.RetainScope(Desk("Home", false, docked), home, settings).Windows?.Count == 4,
+            "window places survive the file, never count as drift, and a recapture without windows keeps them");
     }
 
     private static void Triggers(Action<bool, string> check)

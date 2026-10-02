@@ -58,6 +58,8 @@ public static class PresetValidation
         fresh.IncludeGlobal = saved.IncludeGlobal;
         fresh.IncludeLayout = saved.IncludeLayout;
         fresh.ApplyWhenConnected = saved.ApplyWhenConnected;
+        // A recapture that did not look at windows keeps the ones saved.
+        fresh.Windows ??= saved.Windows;
         fresh.Description = saved.Description;
         if (!saved.IncludeGlobal) fresh.Global = saved.Global;
         var savedMonitors = settings is null ? saved.Monitors

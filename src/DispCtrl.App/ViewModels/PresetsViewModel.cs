@@ -548,7 +548,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             SettingsJsonContext.Default.DispCtrlSettings)!;
         IReadOnlyList<DisplayInfo> displays = _displays();
 
-        return Task.Run(() => PresetService.Capture(name, displays, settings));
+        return Task.Run(() => PresetService.Capture(name, displays, settings, windows: true));
     }
 
     /// <summary>Captures the desk under a new name.</summary>
