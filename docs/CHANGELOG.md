@@ -9,6 +9,7 @@ using DispCtrl, not for people reading the diff.
 ## [Unreleased]
 
 ### Added
+- OLED care can pause while a video plays on a display - in a browser or a player, fullscreen or in a window - as Windows' media sessions report it; music playing alone still lets the displays rest. On by default, beside "Pause during fullscreen content".
 - Each display's night light warmth and focus dimming level can follow the common setting or be its own, with "Same as all displays" on the display's card and `common` on the command line (`dispctrl focus set --monitor 2 --dim-percent common`). Resetting a display puts all of its own values back.
 - Triggers: when something happens, run a custom feature - a display connected or disconnected, an app coming to the front or leaving it, being away and coming back, the computer locking or unlocking, unplugging or plugging in, waking, or a time of day. On the Hotkeys page and `dispctrl triggers`; the engine runs them, looking only as often as the triggers in use need.
 - Move the window in front to the next, previous or a chosen display, keeping its place and size in proportion across displays at different scales, and stretch it across every display: shortcuts (offered switched off on Ctrl+Alt+], [ and S) and `dispctrl placement move --to next` / `placement span`.

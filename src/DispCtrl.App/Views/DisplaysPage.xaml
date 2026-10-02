@@ -671,6 +671,10 @@
           <tk:SettingsCard Header="Pause during fullscreen content">
             <ToggleSwitch IsOn="{x:Bind ViewModel.OledPauseFullscreen, Mode=TwoWay}" AutomationProperties.Name="OledPauseFullscreen"/>
           </tk:SettingsCard>
+          <tk:SettingsCard Header="Pause while a video plays on that display"
+                           Description="A display showing a playing video - in a browser or a player, fullscreen or in a window - does not rest. Music playing alone does not count.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.OledPauseVideo, Mode=TwoWay}" AutomationProperties.Name="OledPauseVideo"/>
+          </tk:SettingsCard>
           <tk:SettingsCard Header="Reset OLED idle protection"
                            Description="Puts the settings above back to their defaults. Which panels are OLED is set on each display.">
             <tk:SettingsCard.HeaderIcon>

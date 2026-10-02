@@ -139,14 +139,20 @@ internal sealed unsafe partial class FocusService : IDisposable
     private HashSet<string> BusyDisplays(long now, OledCareSettings care)
     {
         string apps = care.ExcludedApps ?? "";
-        if (apps.Trim().Length == 0) return NoneBusy;
+        if (apps.Trim().Length == 0 && !care.PauseVideo) return NoneBusy;
         if (apps != _busyApps) { _busyApps = apps; _busyAppSet = care.Exclusions(); _busyAt = long.MinValue; }
         if (_busyAt != long.MinValue && now - _busyAt < 1000) return _busy;
         _busyAt = now;
+        // An app playing a video keeps the display showing it awake, as an app
+        // on the exception list does; the same once-a-second look finds both.
+        HashSet<string> keepAwake = _busyAppSet;
+        if (care.PauseVideo && DispCtrl.Display.MediaPlayback.VideoApps() is { Count: > 0 } playing)
+            keepAwake = new HashSet<string>(_busyAppSet.Concat(playing), StringComparer.OrdinalIgnoreCase);
+        if (keepAwake.Count == 0) return _busy = NoneBusy;
         var bounds = new List<DisplayRect>(_masks.Count);
         foreach (Mask m in _masks) bounds.Add(m.Display.Bounds);
         var next = new HashSet<string>(StringComparer.Ordinal);
-        foreach (DisplayRect frame in DispCtrl.Display.Placement.AppWindows.ShowingFrames(_busyAppSet))
+        foreach (DisplayRect frame in DispCtrl.Display.Placement.AppWindows.ShowingFrames(keepAwake))
         {
             int on = WindowGeometry.MostlyOn(frame, bounds);
             if (on >= 0) next.Add(_masks[on].Display.Token);

@@ -52,6 +52,7 @@ public sealed partial class MainViewModel
     public Visibility OledSecondStageVisibility => Care.DimPercent is > 0 and < 100 ? Visibility.Visible : Visibility.Collapsed;
     public bool OledSecondStageEnabled { get => Care.SecondStageEnabled; set { if (Care.SecondStageEnabled == value) return; Care.SecondStageEnabled = value; SaveProtection(); } }
     public double OledSecondStageMinutes { get => Care.SecondStageMinutes; set { int v = Number(value, 1, 120); if (Care.SecondStageMinutes == v) return; Care.SecondStageMinutes = v; SaveProtection(); } }
+    public bool OledPauseVideo { get => Care.PauseVideo; set { if (Care.PauseVideo == value) return; Care.PauseVideo = value; SaveProtection(); } }
     public bool OledThirdStageEnabled { get => Care.ThirdStageEnabled; set { if (Care.ThirdStageEnabled == value) return; Care.ThirdStageEnabled = value; SaveProtection(); RaiseOledRows(); } }
     public double OledThirdStageMinutes { get => Care.ThirdStageMinutes; set { int v = Number(value, 1, 240); if (Care.ThirdStageMinutes == v) return; Care.ThirdStageMinutes = v; SaveProtection(); RaiseOledRows(); } }
     public bool OledThirdStageBacklight { get => Care.ThirdStageBacklight; set { if (Care.ThirdStageBacklight == value) return; Care.ThirdStageBacklight = value; SaveProtection(); } }
@@ -325,7 +326,7 @@ public sealed partial class MainViewModel
             nameof(FocusOledOnly), nameof(WindowTransition), nameof(FocusPerMonitor), nameof(FocusScaleWithBrightness), nameof(FocusPrioritizeNewWindows), nameof(FocusOtherMonitors), nameof(FocusPauseFullscreen), nameof(FocusKeepTaskbar),
             nameof(FocusExcludedApps), nameof(OledIdleEnabled), nameof(OledIdleMinutes), nameof(OledIdleDim), nameof(OledSecondStageVisibility),
             nameof(OledSecondStageEnabled), nameof(OledSecondStageMinutes), nameof(OledSecondStageDim), nameof(OledIdleFade),
-            nameof(OledThirdStageEnabled), nameof(OledThirdStageMinutes), nameof(OledThirdStageBacklight), nameof(OledThirdStageKeepActive),
+            nameof(OledPauseVideo), nameof(OledThirdStageEnabled), nameof(OledThirdStageMinutes), nameof(OledThirdStageBacklight), nameof(OledThirdStageKeepActive),
             nameof(OledPauseFullscreen), nameof(TaskbarOpacity), nameof(WindowsTransparency),
             nameof(SmallTaskbarButtons), nameof(TaskbarAlignment), nameof(TaskbarCombineButtons), nameof(OtherTaskbarCombineButtons),
             nameof(TaskbarShowTaskView), nameof(TaskbarShowWidgets), nameof(TaskbarShowBadges), nameof(TaskbarAllowFlashing),

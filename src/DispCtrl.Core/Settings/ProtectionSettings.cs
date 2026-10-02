@@ -141,6 +141,15 @@ public sealed class OledCareSettings
     public int FadeMs { get; set; } = 2000;
     public bool PauseFullscreen { get; set; } = true;
 
+    /// <summary>Keep a display awake while it shows an app playing a video, fullscreen or not.</summary>
+    /// <remarks>
+    /// What Windows' media sessions say is playing (see <c>MediaPlayback</c>),
+    /// on the display showing that app's window; music alone does not count. A
+    /// film in a window is watched without touching anything, which is idle to
+    /// everything but this.
+    /// </remarks>
+    public bool PauseVideo { get; set; } = true;
+
     /// <summary>A third stage after the second: the display goes black, as if off.</summary>
     /// <remarks>
     /// Counted from the second stage, as the second is from the first. Black,

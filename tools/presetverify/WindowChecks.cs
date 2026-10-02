@@ -172,6 +172,12 @@ internal static class WindowChecks
             && DispCtrl.Display.Placement.WindowMover.Neighbour(row, row[2], true).Key == row[0].Key
             && DispCtrl.Display.Placement.WindowMover.Neighbour(row, row[0], false).Key == row[2].Key,
             "next and previous display wrap round the row");
+
+        check(DispCtrl.Display.MediaPlayback.ProcessFor("chrome.exe") == "chrome" && DispCtrl.Display.MediaPlayback.ProcessFor("MSEdge") == "msedge"
+            && DispCtrl.Display.MediaPlayback.ProcessFor("308046B0AF4A39CB") == "firefox"
+            && DispCtrl.Display.MediaPlayback.ProcessFor("Microsoft.ZuneVideo_8wekyb3d8bbwe!Microsoft.ZuneVideo") == "ZuneVideo"
+            && DispCtrl.Display.MediaPlayback.ProcessFor(@"C:\Program Files\VideoLAN\VLC\vlc.exe") == "vlc",
+            "a media session's app ID becomes the process its windows are found by");
     }
 
     private static void Panel(Action<bool, string> check)
