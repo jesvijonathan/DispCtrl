@@ -91,6 +91,7 @@ internal sealed partial class QuickPanelContent
             switch (section)
             {
                 case "unison": Unison(); break;
+                case "simpleBrightness": SimpleBrightness(); break;
                 case "tiles": Tiles(Foldable("tiles", SectionHeader("Quick toggles"))); break;
                 case "nightLight": NightLight(); break;
                 case "displayMode": DisplayMode(); break;
@@ -232,32 +233,57 @@ internal sealed partial class QuickPanelContent
         _host.Spacing = 10;
         _m = _m with { SliderLabels = false }; // the name is already above each slider
 
-        // "All displays" over one display is the same slider twice.
-        if (_vm.SeveralDisplays) SimpleUnison();
-        SimpleDisplays();
+        SimpleRows(_host, "Quick");
     }
 
-    private void SimpleUnison()
+    /// <summary>
+    /// Simple mode's layout as one section of the full panel, so it can stand
+    /// in for the unison and display sections without the rest going.
+    /// </summary>
+    /// <remarks>
+    /// The same rows simple mode draws, under a foldable header. Automation
+    /// names carry their own prefix: the unison section may be shown as well,
+    /// and two controls of one name are a UIA search that finds the wrong one.
+    /// </remarks>
+    private void SimpleBrightness()
+    {
+        StackPanel target = Foldable("simpleBrightness", SectionHeader("Simple brightness"));
+        target.Spacing = 10;
+        Metrics full = _m;
+        _m = _m with { SliderLabels = false };
+        try { SimpleRows(target, "QuickSimple"); }
+        finally { _m = full; }
+        if (target.Children.Count == 0) target.Children.Add(Note("Waiting for the displays to answer."));
+    }
+
+    private void SimpleRows(Panel target, string names)
+    {
+        // "All displays" over one display is the same slider twice.
+        if (_vm.SeveralDisplays) SimpleUnison(target, names);
+        SimpleDisplays(target, names);
+    }
+
+    private void SimpleUnison(Panel target, string names)
     {
         var all = SimpleSlider("All displays", _vm.UnisonLevel, _vm.UnisonMinimum,
-            v => _vm.UnisonLevel = v, _vm, nameof(MainViewModel.UnisonLevel), () => _vm.UnisonLevel, "QuickUnisonLevel",
+            v => _vm.UnisonLevel = v, _vm, nameof(MainViewModel.UnisonLevel), () => _vm.UnisonLevel, names + "UnisonLevel",
             HeaderSwitch(() => _vm.UnisonBrightness, v => _vm.UnisonBrightness = v,
-                nameof(MainViewModel.UnisonBrightness), "QuickUnisonSwitch",
+                nameof(MainViewModel.UnisonBrightness), names + "UnisonSwitch",
                 "Unison brightness: one slider for every display."), out Slider unison);
         void RefreshEnabled() => unison.IsEnabled = _vm.UnisonBrightness && !_vm.Calibrating;
         RefreshEnabled();
         Watch(_vm, nameof(MainViewModel.UnisonBrightness), RefreshEnabled);
         Watch(_vm, nameof(MainViewModel.Calibrating), RefreshEnabled);
-        _host.Children.Add(all);
+        target.Children.Add(all);
     }
 
-    private void SimpleDisplays()
+    private void SimpleDisplays(Panel target, string names)
     {
         bool any = false;
         foreach (DisplayViewModel display in _vm.Displays)
         {
             if (!_panel.Shows(display.Token)) continue;
-            if (!any) { if (_host.Children.Count > 0) _host.Children.Add(Divider()); any = true; }
+            if (!any) { if (target.Children.Count > 0) target.Children.Add(Divider()); any = true; }
 
             if (!display.BrightnessSupported)
             {
@@ -266,10 +292,10 @@ internal sealed partial class QuickPanelContent
                 continue;
             }
 
-            _host.Children.Add(SimpleSlider(display.Name, display.BrightnessPercent, 0,
+            target.Children.Add(SimpleSlider(display.Name, display.BrightnessPercent, 0,
                 v => display.BrightnessPercent = (int)Math.Round(v),
                 display, nameof(DisplayViewModel.BrightnessPercent), () => display.BrightnessPercent,
-                $"Brightness {display.Number}", null, out _));
+                names == "Quick" ? $"Brightness {display.Number}" : $"{names}Brightness {display.Number}", null, out _));
         }
     }
 

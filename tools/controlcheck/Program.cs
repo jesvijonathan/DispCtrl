@@ -286,6 +286,12 @@ try
     Check(!folding.IsCollapsed("oledCare") && folding.IsCollapsed("unison")
         && folding.Expanded.SequenceEqual(["oledCare"]) && folding.Collapsed.SequenceEqual(["unison"]),
         "a fold is remembered only where it departs from the default");
+    var olderSections = QuickPanelCatalog.Normalise(QuickPanelGroup.Sections,
+        [new("unison", true), new("displays", false), new("tiles", true)]);
+    Check(olderSections.Take(3).Select(i => i.Id).SequenceEqual(["unison", "displays", "tiles"])
+        && olderSections.Single(i => i.Id == "simpleBrightness") is { Visible: false }
+        && !QuickPanelCatalog.Defaults(QuickPanelGroup.Sections).Single(i => i.Id == "simpleBrightness").Visible,
+        "the Simple brightness section reaches an existing panel hidden, keeping its order");
     folding.SetCollapsed("oledCare", true);
     Check(folding.IsCollapsed("oledCare") && folding.Expanded.Count == 0, "folding a default-folded section again leaves nothing stored");
     var fresh = new DispCtrlSettings();

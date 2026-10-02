@@ -32,7 +32,7 @@ event and `settings.json`.
 
 | Field | What it is |
 |---|---|
-| `sections` | The blocks, top to bottom: `unison`, `tiles`, `nightLight`, `displays`, `taskbar`, `focus`, `oledCare`, `presets`, `displayMode`, `windows` |
+| `sections` | The blocks, top to bottom: `unison`, `simpleBrightness`, `tiles`, `nightLight`, `displays`, `taskbar`, `focus`, `oledCare`, `presets`, `displayMode`, `windows` |
 | `tiles` | The quick toggles, in order |
 | `displayRows` | The rows under each display |
 | `displayTiles` | The small switches in each display's strip |
@@ -55,6 +55,14 @@ displays" slider with the unison switch beside its name, then one slider per
 shown display. It is a mode rather than a preset of the lists, so the sections,
 tiles and rows are untouched and switching it off brings the full panel back
 exactly. The customisation page greys only what simple mode ignores.
+
+The same layout is also a section of the full panel, **Simple brightness**
+(`simpleBrightness`, hidden until switched on): somebody who wants the plain
+sliders but keeps the tiles, night light or taskbar can show it and hide
+Unison brightness and Displays. It is drawn by the same code as simple mode,
+under a foldable header, with automation names of its own
+(`QuickSimpleUnisonLevel`, `QuickSimpleBrightness <n>`) so a UIA search never
+lands on the unison section's slider instead.
 
 ## Sections
 

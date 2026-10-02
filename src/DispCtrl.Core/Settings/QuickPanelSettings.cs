@@ -156,6 +156,8 @@ public static class QuickPanelCatalog
     [
         new("unison", "Unison brightness", "\uE793",
             "One slider that moves every display together. The symbol beside it switches unison on and off.", true),
+        new("simpleBrightness", "Simple brightness", "\uE706",
+            "Simple mode's brightness inside the full panel: all displays together, then one slider per display. Use it in place of Unison brightness and Displays.", false),
         new("tiles", "Quick toggles", "\uE8A9",
             "A grid of small switches and actions, like Windows' quick settings.", true),
         new("displays", "Displays", "\uE7F4",
