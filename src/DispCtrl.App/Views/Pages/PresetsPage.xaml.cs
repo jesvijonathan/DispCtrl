@@ -51,12 +51,80 @@ public sealed partial class PresetsPage : Page
 
     private async void OnSave(object sender, RoutedEventArgs e) => Say(await ViewModel.SaveAsync(), ViewModel.LastOperationOk);
 
-    private async void OnSaveAs(object sender, RoutedEventArgs e)
-    {
-        string message = await ViewModel.SaveAsAsync(NewName.Text);
-        Say(message, message.StartsWith("Saved", StringComparison.Ordinal));
+    private static PresetRow? Row(object sender) => (sender as FrameworkElement)?.Tag as PresetRow;
 
-        if (message.StartsWith("Saved", StringComparison.Ordinal)) NewName.Text = "";
+    /// <summary>Applying a preset makes it the one in use, so it is selected first.</summary>
+    private async void OnApplyRow(object sender, RoutedEventArgs e)
+    {
+        if (Row(sender) is not { } row || sender is not Button button) return;
+        ViewModel.Selected = row.Name;
+        button.IsEnabled = false;
+        try { Say(await ViewModel.ApplyAsync(), ViewModel.LastOperationOk); }
+        finally { button.IsEnabled = true; }
+    }
+
+    private async void OnSaveRow(object sender, RoutedEventArgs e)
+    {
+        if (Row(sender) is not { } row) return;
+        ViewModel.Selected = row.Name;
+        Say(await ViewModel.SaveAsync(), ViewModel.LastOperationOk);
+    }
+
+    private void OnDeskProfileRow(object sender, RoutedEventArgs e)
+    {
+        if (Row(sender) is not { } row || sender is not ToggleMenuFlyoutItem item) return;
+        Say(ViewModel.SetDeskProfile(row.Name, item.IsChecked));
+    }
+
+    /// <remarks>
+    /// A dialog, so the page is the list and nothing else: a name box and a
+    /// scope choice sat on it permanently for something done now and then.
+    /// </remarks>
+    private async void OnNewPreset(object sender, RoutedEventArgs e)
+    {
+        var name = new TextBox { Header = "Name", PlaceholderText = "Work, evening, gaming…" };
+        AutomationProperties.SetName(name, "NewPresetName");
+        var scope = new ComboBox
+        {
+            Header = "What it holds", ItemsSource = ViewModel.CaptureScopes, DisplayMemberPath = "Label",
+            SelectedItem = ViewModel.CaptureScope, HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(scope, "PresetCaptureScope");
+        var error = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"] };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "New preset",
+            Content = new StackPanel
+            {
+                Spacing = 12, MinWidth = 380,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "Saves the displays as they are now. The whole desk includes the layout, night light, unison and the taskbar; one display keeps to that display's own settings.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    name, scope, error,
+                },
+            },
+            PrimaryButtonText = "Save",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        dialog.PrimaryButtonClick += async (_, args) =>
+        {
+            var wait = args.GetDeferral();
+            try
+            {
+                ViewModel.CaptureScope = scope.SelectedItem as PresetScopeChoice ?? ViewModel.CaptureScope;
+                string message = await ViewModel.SaveAsAsync(name.Text);
+                if (message.StartsWith("Saved", StringComparison.Ordinal)) Say(message);
+                else { error.Text = message; args.Cancel = true; }
+            }
+            finally { wait.Complete(); }
+        };
+        await dialog.ShowAsync();
     }
 
     private async void OnDiscard(object sender, RoutedEventArgs e) => Say(await ViewModel.DiscardAsync());
@@ -68,7 +136,7 @@ public sealed partial class PresetsPage : Page
     /// </remarks>
     private async void OnRename(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.Selected is not { } current || current == PresetsViewModel.NewEntry) return;
+        if (Row(sender)?.Name is not { } current) return;
 
         var field = new TextBox
         {
@@ -103,7 +171,7 @@ public sealed partial class PresetsPage : Page
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
 
-        string message = ViewModel.Rename(field.Text);
+        string message = ViewModel.On(current, () => ViewModel.Rename(field.Text));
         Say(message, message.StartsWith("Renamed", StringComparison.Ordinal));
     }
 
@@ -114,7 +182,7 @@ public sealed partial class PresetsPage : Page
     /// </remarks>
     private async void OnDelete(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.Selected is not { } current || current == PresetsViewModel.NewEntry) return;
+        if (Row(sender)?.Name is not { } current) return;
 
         var confirm = new ContentDialog
         {
@@ -126,12 +194,13 @@ public sealed partial class PresetsPage : Page
             DefaultButton = ContentDialogButton.Close,
         };
 
-        if (await confirm.ShowAsync() == ContentDialogResult.Primary) Say(ViewModel.Delete());
+        if (await confirm.ShowAsync() == ContentDialogResult.Primary) Say(ViewModel.On(current, ViewModel.Delete));
     }
 
     private async void OnExport(object sender, RoutedEventArgs e)
     {
-        var picker = new FileSavePicker { SuggestedFileName = ViewModel.Selected ?? "preset" };
+        if (Row(sender)?.Name is not { } current) return;
+        var picker = new FileSavePicker { SuggestedFileName = current };
         picker.FileTypeChoices.Add("DispCtrl preset", [".json"]);
 
         // WinUI 3 has no ambient parent window, so a picker must be told which
@@ -141,7 +210,7 @@ public sealed partial class PresetsPage : Page
         StorageFile? file = await picker.PickSaveFileAsync();
         if (file is null) return;
 
-        Say(ViewModel.Export(file.Path));
+        Say(ViewModel.On(current, () => ViewModel.Export(file.Path)));
     }
 
     private async void OnImport(object sender, RoutedEventArgs e)
@@ -170,10 +239,10 @@ public sealed partial class PresetsPage : Page
 
     private async void OnEditJson(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.SelectedPreset is null) return;
+        if (Row(sender)?.Name is not { } current) return;
         var editor = new TextBox
         {
-            Text = ViewModel.SelectedJson, AcceptsReturn = true,
+            Text = ViewModel.JsonOf(current), AcceptsReturn = true,
             TextWrapping = TextWrapping.NoWrap, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
             MinWidth = 460, Height = 420,
         };
@@ -182,7 +251,7 @@ public sealed partial class PresetsPage : Page
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap };
         var dialog = new ContentDialog
         {
-            XamlRoot = XamlRoot, Title = "View / edit preset values",
+            XamlRoot = XamlRoot, Title = $"\u201c{current}\u201d as JSON",
             Content = new StackPanel { Spacing = 8, Children = { new TextBlock
             {
                 Text = "Changes update the saved file. Apply restores them to your displays. Use includeGlobal and includeLayout to control shared settings and layout.",
@@ -192,7 +261,7 @@ public sealed partial class PresetsPage : Page
         };
         dialog.PrimaryButtonClick += (_, args) =>
         {
-            try { Say(ViewModel.SaveJson(editor.Text)); }
+            try { Say(ViewModel.On(current, () => ViewModel.SaveJson(editor.Text))); }
             catch (Exception ex) { error.Text = ex.Message; args.Cancel = true; }
         };
         await dialog.ShowAsync();
@@ -200,7 +269,7 @@ public sealed partial class PresetsPage : Page
 
     private async void OnMapDisplays(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.SelectedPreset is not { } preset) return;
+        if (Row(sender)?.Name is not { } current || ViewModel.Find(current) is not { } preset) return;
         var fields = new Dictionary<string, ComboBox>();
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(new TextBlock { Text = "Choose the local display for each saved monitor. Values stay unchanged; unsupported settings are reported when applied.", TextWrapping = TextWrapping.Wrap });
@@ -219,7 +288,7 @@ public sealed partial class PresetsPage : Page
             PrimaryButtonText = "Save mapping", CloseButtonText = "Cancel" };
         dialog.PrimaryButtonClick += (_, args) =>
         {
-            try { Say(ViewModel.MapDisplays(fields.ToDictionary(pair => pair.Key, pair => ((PresetScopeChoice)pair.Value.SelectedItem).Token!))); }
+            try { Say(ViewModel.On(current, () => ViewModel.MapDisplays(fields.ToDictionary(pair => pair.Key, pair => ((PresetScopeChoice)pair.Value.SelectedItem).Token!)))); }
             catch (Exception ex) { error.Text = ex.Message; args.Cancel = true; }
         };
         await dialog.ShowAsync();

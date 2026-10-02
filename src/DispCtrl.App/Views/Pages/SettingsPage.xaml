@@ -16,7 +16,7 @@
                   HorizontalAlignment="Stretch">
 
       <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}"/>
-      <TextBlock Text="DispCtrl itself: the engine, starting with Windows, sign-in switches, updates and maintenance. Display, brightness, screen care, window and taskbar settings each have their own page."
+      <TextBlock Text="DispCtrl itself: the engine, starting with Windows, updates and maintenance. Display, brightness, screen care, window and taskbar settings each have their own page; the sign-in and lock screen switches are under Miscellaneous."
                  Style="{StaticResource BodyTextBlockStyle}"
                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                  Margin="0,4,0,28"/>
@@ -24,26 +24,6 @@
       <views:EngineSettings/>
 
       <views:StartupSettings/>
-
-      <TextBlock Text="Sign-in and lock screen"
-                 Style="{StaticResource BodyStrongTextBlockStyle}"
-                 Margin="0,28,0,8"/>
-
-      <!-- Rows are built in code from machine get: each reads back what
-           Windows has, and the list is one place, MachinePolicies. A card hosts
-           them, since items added to an expander from code are never drawn. -->
-      <tk:SettingsExpander x:Name="MachineExpander" Header="Company laptop switches"
-                           Description="The sign-in and lock screen settings people change with regedit. Machine-wide ones ask for administrator permission when changed."
-                           Expanded="OnMachineExpanded">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE72E;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <tk:SettingsExpander.Items>
-          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
-            <StackPanel x:Name="MachineRows" Spacing="12"/>
-          </tk:SettingsCard>
-        </tk:SettingsExpander.Items>
-      </tk:SettingsExpander>
 
       <TextBlock Text="Updates and maintenance"
                  Style="{StaticResource BodyStrongTextBlockStyle}"
@@ -73,7 +53,7 @@
 
       <tk:SettingsCard Header="Check for updates automatically"
                        Visibility="{x:Bind ViewModel.UpdateSwitchVisibility}"
-                       Description="Once a day, DispCtrl asks GitHub for the newest release's version number and tells you when there is one. Nothing about you or your desk is sent, and nothing downloads or installs by itself. Off until you switch it on.">
+                       Description="Once a day, DispCtrl asks GitHub for the newest release's version number and tells you when there is one. Nothing about you or your desk is sent, and nothing downloads or installs by itself.">
         <tk:SettingsCard.HeaderIcon>
           <FontIcon Glyph="&#xE895;"/>
         </tk:SettingsCard.HeaderIcon>

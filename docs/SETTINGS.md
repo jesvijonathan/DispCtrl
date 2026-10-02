@@ -86,7 +86,7 @@ Generated from the settings themselves; `DispCtrl.Control.Checks` fails when a s
 | `/global/ddcGuard/blocked[]/sinceUtc` | none | text | When the guard stopped talking to it. |
 | `/global/ddcGuard/blocked[]/reason` | none | text | Why, in a sentence. |
 | `/global/ddcGuard/allowRawWrites` | off | on or off | Advanced, off by default: lets display control --raw and the app read and write any VCP code, including manufacturer codes nobody has mapped. |
-| `/global/updates/checkAutomatically` | off | on or off | Look for a new release at most once a day. Off until switched on. |
+| `/global/updates/checkAutomatically` | on | on or off | Look for a new release at most once a day. On unless switched off. |
 | `/global/updates/checkedUtc` | none | text | When a check last got an answer; bookkeeping. |
 | `/global/updates/latestVersion` | "" | text | The newest release that check found, as 0.1.6; empty before any. |
 | `/global/updates/latestUrl` | "" | text | Its release page. |
@@ -154,6 +154,11 @@ Generated from the settings themselves; `DispCtrl.Control.Checks` fails when a s
 | `/global/lastDesk` | none | text | The set of displays the engine last saw settle, as DeskProfiles.Fingerprint. |
 | `/global/machineBefore` | group | group | Registry values as Windows had them before DispCtrl's sign-in switches first changed them. |
 | `/global/engineStartupOffered` | off | on or off | Whether the Store package's sign-in task has been switched on once, by default. |
+| `/global/support/firstSeenUtc` | none | text | When the window first opened. |
+| `/global/support/windowOpens` | 0 | number | How many times the window has opened. It asks from the fifth, three days after the first. |
+| `/global/support/declined` | 0 | number | How many times the request was closed without a star or a donation. |
+| `/global/support/declinedUtc` | none | text | When it was last closed that way; it asks once more ninety days later. |
+| `/global/support/done` | off | on or off | Never ask again: somebody starred or donated, or closed it twice. |
 | `/global/beforeRestore/takenUtc` | none | text | When Ctrl+Alt+Backspace recorded it. |
 | `/global/beforeRestore/focus` | none | on or off | Whether focus mode was on |
 | `/global/beforeRestore/oledCare` | none | on or off | Whether OLED care was on |

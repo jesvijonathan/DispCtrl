@@ -26,7 +26,7 @@ public sealed partial class ControlService
         "awake.get", "awake.set", "awake.reset", "nightlight.get", "nightlight.set", "nightlight.reset",
         "ambient.get", "ambient.set", "ambient.reset", "ambient.capture", "ambient.forget",
         "taskbar.get", "taskbar.set", "taskbar.reset", "tray.get", "tray.set", "tray.reset", "windows.get", "windows.set",
-        "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "maintenance.repair", "maintenance.clear-cache", "tray.show", "apply", "commands", "diagnostics", "report",
+        "topology.get", "topology.set", "startup.get", "startup.set", "unison.get", "unison.set", "maintenance.repair", "maintenance.clear-cache", "maintenance.restart-explorer", "tray.show", "apply", "commands", "diagnostics", "report",
         "pin.get", "pin.set", "pin.reset", "pin.list", "pin.on", "pin.off", "pin.toggle",
         "placement.get", "placement.set", "placement.reset", "placement.gather", "placement.move", "placement.span",
         "ddc.get", "ddc.set", "ddc.reset", "ddc.allow", "ddc.probe",

@@ -103,7 +103,7 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 
 - Stops talking to a monitor whose capabilities read crashed Windows
 - Settings that survive moving to a newer or an older version
-- An opt-in check for new releases; the Microsoft Store updates itself
+- A daily check for new releases, one switch to turn off; the Microsoft Store updates itself
 
 </td>
 </tr>
@@ -286,7 +286,7 @@ dispctrl maintenance repair                                   # fix the sign-in 
 
 ## Privacy
 
-DispCtrl's display controls run locally: **no telemetry, no automatic update checks, no account required**. Sharing a monitor record or problem report removes serial numbers, device paths and your account name, then opens a prefilled GitHub issue in your browser for you to review and submit.
+DispCtrl's display controls run locally: **no telemetry, no account required**. The one request it makes by itself is a daily check for a new release (the version number only, nothing about you), which Settings switches off. Sharing a monitor record or problem report removes serial numbers, device paths and your account name, then opens a prefilled GitHub issue in your browser for you to review and submit.
 
 Configuration exports and raw logs can contain identifying details; review them before sharing. See the [contribution guide](.github/CONTRIBUTING.md#reporting-a-bug) for report and log guidance.
 

@@ -1,4 +1,5 @@
 using DispCtrl.App.ViewModels;
+using DispCtrl.App.Views.Dialogs;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -28,6 +29,12 @@ public sealed partial class TaskbarPage : Page
     private void OnResetTaskbarSurface(object sender, RoutedEventArgs e) => ViewModel.ResetTaskbarSurface();
 
     private async void OnRestartExplorer(object sender, RoutedEventArgs e) => await ViewModel.RestartExplorerAsync();
+
+    /// <remarks>Asks first: open File Explorer windows close with it.</remarks>
+    private async void OnRefreshTaskbar(object sender, RoutedEventArgs e)
+    {
+        if (await ExplorerRestart.ConfirmAsync(XamlRoot)) await ViewModel.RestartExplorerAsync();
+    }
 
     private void OnResetTaskbarFeatures(object sender, RoutedEventArgs e) => ViewModel.ResetTaskbarFeatures();
 

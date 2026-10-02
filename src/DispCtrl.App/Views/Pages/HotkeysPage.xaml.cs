@@ -1,4 +1,5 @@
 using DispCtrl.App.ViewModels;
+using DispCtrl.App.Views.Controls;
 using DispCtrl.Core.Settings;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
@@ -168,6 +169,26 @@ public sealed partial class HotkeysPage : Page
     }
 
     private void OnAddFeature(object sender, RoutedEventArgs e) => ViewModel.AddFeature();
+
+    private void OnExpanderExpanded(object? sender, EventArgs e) => ExpanderLayout.RealiseAll(sender);
+
+    private CustomFeatureViewModel? OwnerOf(FeatureStepViewModel step) =>
+        ViewModel.Features.FirstOrDefault(f => f.StepRows.Contains(step));
+
+    private void OnAddStep(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { Tag: CustomFeatureViewModel feature } item)
+            feature.AddStep(Math.Max(0, FeatureStepViewModel.Kinds.ToList().IndexOf(item.Text)));
+    }
+
+    private void OnStepUp(object sender, RoutedEventArgs e) => Step(sender, (f, s) => f.MoveStep(s, -1));
+    private void OnStepDown(object sender, RoutedEventArgs e) => Step(sender, (f, s) => f.MoveStep(s, 1));
+    private void OnStepRemove(object sender, RoutedEventArgs e) => Step(sender, (f, s) => f.RemoveStep(s));
+
+    private void Step(object sender, Action<CustomFeatureViewModel, FeatureStepViewModel> action)
+    {
+        if ((sender as FrameworkElement)?.Tag is FeatureStepViewModel step && OwnerOf(step) is { } feature) action(feature, step);
+    }
 
     private async void OnSaveFeature(object sender, RoutedEventArgs e)
     {

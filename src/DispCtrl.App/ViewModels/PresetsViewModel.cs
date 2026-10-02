@@ -88,6 +88,59 @@ public sealed class AppRuleViewModel(AppRule rule, Action persist, ObservableCol
 /// </remarks>
 public sealed record PresetScopeChoice(string? Token, string Label);
 
+/// <summary>One saved preset, as a row in the Presets page's list.</summary>
+/// <remarks>
+/// Only the row of the preset in use carries a comparison: the drift check is
+/// a hardware read per display, and running it for every preset to fill a
+/// list would read every monitor once per row.
+/// </remarks>
+public sealed class PresetRow(Preset preset) : INotifyPropertyChanged
+{
+    public Preset Preset { get; } = preset;
+    public string Name => Preset.Name;
+    public string ApplyName => "Apply " + Preset.Name;
+    public string MoreName => "More for " + Preset.Name;
+    public string Summary { get; private set; } = "";
+    public string Status { get; private set; } = "";
+    public bool IsCurrent { get; private set; }
+    public Visibility CurrentVisibility => IsCurrent ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility StatusVisibility => Status.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public bool DeskProfile => Preset.ApplyWhenConnected;
+    public bool DeskProfileAvailable => Preset.IncludeLayout;
+    public string DeskProfileText => Preset.IncludeLayout
+        ? "Apply when this desk is connected"
+        : "Apply when this desk is connected (whole-desk presets only)";
+
+    internal void Describe(IReadOnlyCollection<string> attached)
+    {
+        int here = Preset.Monitors.Keys.Count(attached.Contains);
+        int count = Preset.Monitors.Count;
+        string scope = Preset.IncludeGlobal
+            ? count == 1 ? "Whole desk, 1 display" : $"Whole desk, {count} displays"
+            : "One display: " + (Preset.Monitors.Values.FirstOrDefault()?.Label ?? "unknown");
+        var parts = new List<string> { scope };
+        if (here < count) parts.Add(here == 0 ? "none attached now" : $"{here} of {count} attached now");
+        if (Preset.ApplyWhenConnected) parts.Add("applies by itself when these displays connect");
+        parts.Add("saved " + Preset.SavedUtc.ToLocalTime().ToString("d MMM yyyy, HH:mm"));
+        Summary = string.Join(" · ", parts);
+        Raise(nameof(Summary));
+        Raise(nameof(DeskProfile));
+    }
+
+    internal void Mark(bool current, string status)
+    {
+        IsCurrent = current;
+        Status = current ? status : "";
+        Raise(nameof(IsCurrent));
+        Raise(nameof(CurrentVisibility));
+        Raise(nameof(Status));
+        Raise(nameof(StatusVisibility));
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
 public sealed class PresetsViewModel : INotifyPropertyChanged
 {
     /// <summary>
@@ -140,6 +193,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     public const string NewEntry = "New preset\u2026";
 
     public ObservableCollection<string> Names { get; } = [];
+    public ObservableCollection<PresetRow> Rows { get; } = [];
     public ObservableCollection<string> PresetNames { get; } = [];
     public ObservableCollection<PresetScopeChoice> CaptureScopes { get; } = [];
     public PresetScopeChoice? CaptureScope { get; set; }
@@ -200,6 +254,16 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         }
 
         Names.Add(NewEntry);
+
+        Rows.Clear();
+        var attached = _displays().Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
+        foreach (Preset p in _presets)
+        {
+            if (p.Name == NewEntry) continue;
+            var row = new PresetRow(p);
+            row.Describe(attached);
+            Rows.Add(row);
+        }
 
         if (_selected is not null && !Names.Contains(_selected)) _selected = null;
         _selected ??= _presets.Count > 0 ? _presets[0].Name : NewEntry;
@@ -312,8 +376,27 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             Raise(nameof(SaveButtonText));
             Raise(nameof(DeskProfile));
             Raise(nameof(DeskProfileAvailable));
+            Raise(nameof(ComparedWith));
+            MarkRows();
         }
     }
+
+    /// <summary>What the comparison is against, said in so many words.</summary>
+    public string ComparedWith => Current is { } p
+        ? IsDirty ? $"The displays have changed since “{p.Name}” was saved" : $"The displays match “{p.Name}”"
+        : "Choose a preset to compare the displays with";
+
+    private void MarkRows()
+    {
+        string status = IsDirty
+            ? _differences.Count == 1 ? "In use · 1 setting has changed" : $"In use · {_differences.Count} settings have changed"
+            : "In use · the displays match it";
+        foreach (PresetRow row in Rows) row.Mark(row.Name == _selected, status);
+        Raise(nameof(ComparedWith));
+        Raise(nameof(ChangesVisibility));
+    }
+
+    public Visibility ChangesVisibility => Current is not null && IsDirty ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Whether the selected preset applies by itself when its desk is connected.</summary>
     /// <remarks>Written only on a real change: the switch writes its value back as it is realised.</remarks>
@@ -327,11 +410,52 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             PresetStore.Save(preset);
             Raise();
             Raise(nameof(Details));
+            var attached = _displays().Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
+            foreach (PresetRow row in Rows) if (ReferenceEquals(row.Preset, preset)) row.Describe(attached);
         }
     }
 
     /// <summary>Only a preset that restores the layout names a whole desk.</summary>
     public bool DeskProfileAvailable => Current?.IncludeLayout == true;
+
+    /// <summary>
+    /// The preset a row's menu acts on.
+    /// </summary>
+    /// <remarks>
+    /// Renaming, exporting or deleting one preset in the list must not make it
+    /// the one the desk is compared with; only Apply and Update do that.
+    /// </remarks>
+    private Preset? _target;
+    private Preset? Subject => _target ?? Current;
+
+    /// <summary>Runs one of the file actions on the named preset rather than the one in use.</summary>
+    public string On(string name, Func<string> action)
+    {
+        _target = _byName.GetValueOrDefault(name);
+        try { return _target is null ? "That preset is no longer there." : action(); }
+        finally { _target = null; }
+    }
+
+    /// <summary>The named preset's JSON, for the editor.</summary>
+    public string JsonOf(string name) => _byName.TryGetValue(name, out Preset? p) ? PresetStore.ToJson(p) : "";
+
+    /// <summary>The named preset, for the display mapping dialog.</summary>
+    public Preset? Find(string name) => _byName.GetValueOrDefault(name);
+
+    /// <summary>Switches the named preset's desk profile.</summary>
+    public string SetDeskProfile(string name, bool on) => On(name, () =>
+    {
+        if (Subject is not { } preset) return "No preset selected.";
+        if (!preset.IncludeLayout) return "Only a whole-desk preset that restores the layout can apply by itself.";
+        preset.ApplyWhenConnected = on;
+        PresetStore.Save(preset);
+        var attached = _displays().Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
+        foreach (PresetRow row in Rows) if (ReferenceEquals(row.Preset, preset)) row.Describe(attached);
+        Raise(nameof(DeskProfile));
+        Raise(nameof(Details));
+        return on ? $"“{preset.Name}” applies by itself when exactly its displays are connected."
+                  : $"“{preset.Name}” no longer applies by itself.";
+    });
 
     private Preset? Current => _selected is not null && _selected != NewEntry
         && _byName.TryGetValue(_selected, out Preset? preset) ? preset : null;
@@ -467,6 +591,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             while (Changes.Count > _differences.Count) Changes.RemoveAt(Changes.Count - 1);
         }
 
+        MarkRows();
         Raise(nameof(DriftTooltip));
         Raise(nameof(DriftCount));
         Raise(nameof(ActionVisibility));
@@ -597,7 +722,8 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     private string RenameCore(string name)
     {
         if (IsBusy) return "Wait for the preset operation to finish.";
-        if (Current is not Preset preset) return "No preset selected.";
+        if (Subject is not Preset preset) return "No preset selected.";
+        bool wasSelected = ReferenceEquals(preset, Current);
 
         if (string.IsNullOrWhiteSpace(name)) return "Give the preset a name first.";
         name = Path.GetFileNameWithoutExtension(PresetStore.PathFor(name.Trim()));
@@ -622,7 +748,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         }
         _persist();
         Reload();
-        Selected = name;
+        if (wasSelected) Selected = name;
 
         return $"Renamed to “{name}”.";
     }
@@ -632,7 +758,8 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     private string DeleteCore()
     {
         if (IsBusy) return "Wait for the preset operation to finish.";
-        if (Current is not Preset preset) return "No preset selected.";
+        if (Subject is not Preset preset) return "No preset selected.";
+        bool wasSelected = ReferenceEquals(preset, Current);
 
         PresetStore.Delete(preset.Name);
         foreach (AppRule rule in _settings.AppRules)
@@ -641,7 +768,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             if (rule.RevertTo is not null && PresetStore.SameFile(rule.RevertTo, preset.Name)) rule.RevertTo = null;
         }
         _persist();
-        _selected = null;
+        if (wasSelected) _selected = null;
         Reload();
 
         return $"Deleted “{preset.Name}”.";
@@ -651,7 +778,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     private string ExportCore(string destination)
     {
-        if (Current is not Preset preset) return "No preset selected.";
+        if (Subject is not Preset preset) return "No preset selected.";
 
         PresetStore.Export(preset, destination);
         return $"Exported to {destination}.";
@@ -664,8 +791,8 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         string? name = PresetStore.Import(source);
         if (name is null) return "That file is not a preset DispCtrl can read.";
 
+        // Importing adds to the list; it does not change the preset in use.
         Reload();
-        Selected = name;
 
         return $"Imported as “{name}”.";
     }
@@ -680,7 +807,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     public string SaveJson(string json)
     {
-        if (Current is not { } current) return "No preset selected.";
+        if (Subject is not { } current) return "No preset selected.";
         Preset edited = PresetStore.Parse(json);
         // Renaming is a separate operation so app-rule references stay valid.
         edited.Name = current.Name;
@@ -691,7 +818,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     public string MapDisplays(IReadOnlyDictionary<string, string> mapping)
     {
-        if (Current is not { } current) return "No preset selected.";
+        if (Subject is not { } current) return "No preset selected.";
         Preset mapped = PresetStore.Parse(PresetStore.ToJson(current));
         var states = new Dictionary<string, PresetMonitor>();
         foreach (var (token, state) in mapped.Monitors)

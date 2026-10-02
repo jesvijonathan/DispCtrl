@@ -26,5 +26,29 @@ internal static class SettingsChecks
 
         merged = SettingsStore.MergeEdits(Json("""{"l":[1,2]}"""), Json("""{"l":[1,2,3]}"""), Json("""{"l":[9]}"""));
         check(JsonNode.DeepEquals(merged, Json("""{"l":[1,2,3]}""")), "a list is replaced whole, never interleaved");
+
+        // The request for support: never on a first run, ended by a star or a
+        // donation, asked once more after a close, and never after a second.
+        var start = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
+        var ask = new SupportPrompt();
+        for (int i = 0; i < SupportPrompt.OpensBefore; i++) ask.CountOpen(start);
+        check(!ask.Due(start) && !ask.Due(start + SupportPrompt.Settle - TimeSpan.FromMinutes(1)) && ask.Due(start + SupportPrompt.Settle),
+            "support is asked only after five openings over three days");
+        var few = new SupportPrompt();
+        few.CountOpen(start);
+        check(!few.Due(start + TimeSpan.FromDays(30)), "a month with one opening does not ask");
+        DateTimeOffset closed = start + TimeSpan.FromDays(4);
+        ask.Decline(closed);
+        check(!ask.Due(closed + TimeSpan.FromDays(1)) && ask.Due(closed + SupportPrompt.Again), "closed once, it asks again only after ninety days");
+        ask.Decline(closed + SupportPrompt.Again);
+        check(ask.Done && !ask.Due(closed + TimeSpan.FromDays(1000)), "closed twice, it never asks again");
+        var given = new SupportPrompt();
+        for (int i = 0; i < 10; i++) given.CountOpen(start);
+        given.Acted();
+        check(!given.Due(start + TimeSpan.FromDays(400)), "a star or a donation ends it");
+        var reset = new DispCtrlSettings();
+        reset.Global.Support.Acted();
+        reset.Global.ResetToDefaults();
+        check(reset.Global.Support.Done && reset.Global.Updates.CheckAutomatically, "Reset all keeps the support answer and puts the daily update check on");
     }
 }

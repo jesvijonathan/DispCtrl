@@ -2,15 +2,16 @@ namespace DispCtrl.Core.Settings;
 
 /// <summary>Finding out about new versions, for installs the Microsoft Store does not update.</summary>
 /// <remarks>
-/// Opt-in: DispCtrl makes no network request of its own until somebody asks it
-/// to, either by switching <see cref="CheckAutomatically"/> on or by pressing
-/// "Check for updates". A check is one anonymous request for the latest release's
-/// tag; nothing is sent, and nothing is downloaded or installed by itself.
+/// On by default since 0.1.6, the owner's call: a person who never opens
+/// Settings would otherwise never hear of a fix. It can be switched off, and
+/// "Check for updates" always works. A check is one anonymous request for the
+/// latest release's tag; nothing is sent, and nothing is downloaded or
+/// installed by itself.
 /// </remarks>
 public sealed class UpdateSettings
 {
-    /// <summary>Look for a new release at most once a day. Off until switched on.</summary>
-    public bool CheckAutomatically { get; set; }
+    /// <summary>Look for a new release at most once a day. On unless switched off.</summary>
+    public bool CheckAutomatically { get; set; } = true;
 
     /// <summary>When a check last got an answer; bookkeeping.</summary>
     public DateTimeOffset? CheckedUtc { get; set; }

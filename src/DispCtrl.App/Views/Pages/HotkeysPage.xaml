@@ -164,15 +164,17 @@
       </StackPanel>
 
       <StackPanel x:Name="FeaturesSection" Spacing="4" Visibility="Collapsed">
-      <TextBlock Text="A feature is a named list of monitor writes, dispctrl commands, waits and scripts. Run one from here, a hotkey, the command line or a quick-panel command tile."
-                 Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="0,0,0,8"
-                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-      <tk:SettingsExpander Header="Step grammar" Description="Copy these forms into a feature's steps.">
-        <tk:SettingsExpander.HeaderIcon><FontIcon Glyph="&#xE946;"/></tk:SettingsExpander.HeaderIcon>
-        <TextBlock Text="{x:Bind ViewModel.FeatureGrammar}" FontFamily="Consolas" TextWrapping="Wrap"/>
-      </tk:SettingsExpander>
-      <Button Content="New feature" Click="OnAddFeature" HorizontalAlignment="Left" Margin="0,4,0,4"
-              AutomationProperties.Name="NewFeature"/>
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,0,0,8">
+        <TextBlock Text="A feature is a list of steps run in order: set a monitor's controls, run DispCtrl commands, open programs, wait. Run it from here, a shortcut, a trigger, a quick panel tile or the command line."
+                   Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" VerticalAlignment="Center"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        <Button Grid.Column="1" Click="OnAddFeature" Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="NewFeature">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <FontIcon Glyph="&#xE710;" FontSize="14"/>
+            <TextBlock Text="New feature"/>
+          </StackPanel>
+        </Button>
+      </Grid>
       <ItemsControl ItemsSource="{x:Bind ViewModel.Features}" HorizontalContentAlignment="Stretch">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
@@ -181,29 +183,123 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:CustomFeatureViewModel">
-            <tk:SettingsExpander Header="{x:Bind Name, Mode=OneWay}" Description="{x:Bind Status, Mode=OneWay}"
-                                 IsEnabled="{x:Bind IsIdle, Mode=OneWay}">
+            <tk:SettingsExpander Header="{x:Bind Name, Mode=OneWay}" Description="{x:Bind Summary, Mode=OneWay}"
+                                 IsEnabled="{x:Bind IsIdle, Mode=OneWay}" Expanded="OnExpanderExpanded">
               <tk:SettingsExpander.HeaderIcon><FontIcon Glyph="&#xE8F1;"/></tk:SettingsExpander.HeaderIcon>
-              <TextBlock Text="{x:Bind Description, Mode=OneWay}" TextWrapping="Wrap"
-                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Run" Click="OnRunFeature" Tag="{x:Bind}" ToolTipService.ToolTip="Run the steps now, as saved"/>
+              </StackPanel>
               <tk:SettingsExpander.Items>
-                <tk:SettingsCard Header="Name">
-                  <TextBox Text="{x:Bind Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" MinWidth="260"/>
+                <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+                  <Grid ColumnDefinitions="*,2*" ColumnSpacing="12">
+                    <TextBox Header="Name" Text="{x:Bind Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             AutomationProperties.Name="FeatureName"/>
+                    <TextBox Grid.Column="1" Header="What it is for (optional)" PlaceholderText="Gaming on the Dell"
+                             Text="{x:Bind Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             AutomationProperties.Name="FeatureDescription"/>
+                  </Grid>
                 </tk:SettingsCard>
-                <tk:SettingsCard Header="Description">
-                  <TextBox Text="{x:Bind Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" MinWidth="320"/>
+                <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+                  <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Text="Steps" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center"/>
+                      <ToggleButton Grid.Column="1" Content="Edit as text" IsChecked="{x:Bind TextMode, Mode=TwoWay}"
+                                    ToolTipService.ToolTip="Write the steps as lines instead, as the command line and the settings file hold them"/>
+                    </Grid>
+                    <ItemsControl ItemsSource="{x:Bind StepRows}" Visibility="{x:Bind FormVisibility, Mode=OneWay}"
+                                  HorizontalContentAlignment="Stretch">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Spacing="6"/></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FeatureStepViewModel">
+                          <Grid ColumnDefinitions="200,*,Auto" ColumnSpacing="8">
+                            <ComboBox ItemsSource="{x:Bind vm:FeatureStepViewModel.Kinds}" SelectedIndex="{x:Bind Kind, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" VerticalAlignment="Top" AutomationProperties.Name="FeatureStepKind"/>
+                            <Grid Grid.Column="1">
+                              <Grid ColumnDefinitions="90,*,*" ColumnSpacing="8" Visibility="{x:Bind SetVisibility, Mode=OneWay}">
+                                <TextBox Text="{x:Bind Monitor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="1"
+                                         ToolTipService.ToolTip="Which display: its number, an alias, or all"
+                                         AutomationProperties.Name="FeatureStepMonitor"/>
+                                <TextBox Grid.Column="1" Text="{x:Bind Control, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="brightness, picture-mode, 0x10"
+                                         ToolTipService.ToolTip="The control's name as the Devices page shows it, or its code"
+                                         AutomationProperties.Name="FeatureStepControl"/>
+                                <TextBox Grid.Column="2" Text="{x:Bind Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="80, fps, next, +10"
+                                         ToolTipService.ToolTip="A value's name, a number, next, previous, +N or -N"
+                                         AutomationProperties.Name="FeatureStepValue"/>
+                              </Grid>
+                              <TextBox Text="{x:Bind Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind CommandVisibility, Mode=OneWay}"
+                                       PlaceholderText="nightlight set --enabled off" FontFamily="Consolas"
+                                       ToolTipService.ToolTip="What follows dispctrl on the command line; dispctrl help lists every command"
+                                       AutomationProperties.Name="FeatureStepCommand"/>
+                              <Grid ColumnDefinitions="2*,*" ColumnSpacing="8" Visibility="{x:Bind TargetVisibility, Mode=OneWay}">
+                                <TextBox Text="{x:Bind Target, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="{x:Bind TargetPlaceholder, Mode=OneWay}" AutomationProperties.Name="FeatureStepTarget"/>
+                                <TextBox Grid.Column="1" Text="{x:Bind Arguments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="Arguments (optional)" AutomationProperties.Name="FeatureStepArguments"/>
+                              </Grid>
+                              <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind WaitVisibility, Mode=OneWay}">
+                                <NumberBox Value="{x:Bind Milliseconds, Mode=TwoWay}" Minimum="0" Maximum="60000" SmallChange="100" LargeChange="1000"
+                                           SpinButtonPlacementMode="Compact" MinWidth="120" AutomationProperties.Name="FeatureStepWait"/>
+                                <TextBlock Text="milliseconds" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                              </StackPanel>
+                              <TextBox Text="{x:Bind Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind TextVisibility, Mode=OneWay}"
+                                       FontFamily="Consolas" PlaceholderText="# a note"
+                                       ToolTipService.ToolTip="A line kept as written: a comment, or a step written by hand"
+                                       AutomationProperties.Name="FeatureStepText"/>
+                            </Grid>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top">
+                              <Button Click="OnStepUp" Tag="{x:Bind}" Padding="8,7" Background="Transparent" BorderThickness="0"
+                                      ToolTipService.ToolTip="Move up" AutomationProperties.Name="FeatureStepUp">
+                                <FontIcon Glyph="&#xE70E;" FontSize="12"/>
+                              </Button>
+                              <Button Click="OnStepDown" Tag="{x:Bind}" Padding="8,7" Background="Transparent" BorderThickness="0"
+                                      ToolTipService.ToolTip="Move down" AutomationProperties.Name="FeatureStepDown">
+                                <FontIcon Glyph="&#xE70D;" FontSize="12"/>
+                              </Button>
+                              <Button Click="OnStepRemove" Tag="{x:Bind}" Padding="8,7" Background="Transparent" BorderThickness="0"
+                                      ToolTipService.ToolTip="Remove this step" AutomationProperties.Name="FeatureStepRemove">
+                                <FontIcon Glyph="&#xE711;" FontSize="12"/>
+                              </Button>
+                            </StackPanel>
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <DropDownButton Visibility="{x:Bind FormVisibility, Mode=OneWay}" AutomationProperties.Name="FeatureAddStep">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE710;" FontSize="12"/>
+                        <TextBlock Text="Add a step"/>
+                      </StackPanel>
+                      <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                          <MenuFlyoutItem Text="Set a monitor control" Click="OnAddStep" Tag="{x:Bind}"/>
+                          <MenuFlyoutItem Text="Run a DispCtrl command" Click="OnAddStep" Tag="{x:Bind}"/>
+                          <MenuFlyoutItem Text="Open a program, file or link" Click="OnAddStep" Tag="{x:Bind}"/>
+                          <MenuFlyoutItem Text="Run a script and wait" Click="OnAddStep" Tag="{x:Bind}"/>
+                          <MenuFlyoutItem Text="Wait" Click="OnAddStep" Tag="{x:Bind}"/>
+                          <MenuFlyoutItem Text="As written" Click="OnAddStep" Tag="{x:Bind}"/>
+                        </MenuFlyout>
+                      </DropDownButton.Flyout>
+                    </DropDownButton>
+                    <StackPanel Spacing="6" Visibility="{x:Bind TextVisibility, Mode=OneWay}">
+                      <TextBox Text="{x:Bind Steps, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                               AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas"
+                               MinHeight="120" HorizontalAlignment="Stretch" AutomationProperties.Name="FeatureStepsText"/>
+                      <TextBlock Text="{x:Bind vm:HotkeysViewModel.Grammar}" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
+                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                  </StackPanel>
                 </tk:SettingsCard>
-                <tk:SettingsCard Header="Steps" ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
-                  <TextBox Text="{x:Bind Steps, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                           AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas"
-                           MinHeight="120" HorizontalAlignment="Stretch"/>
-                </tk:SettingsCard>
-                <tk:SettingsCard Header="Actions">
+                <tk:SettingsCard>
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Run" Click="OnRunFeature" Tag="{x:Bind}"/>
-                    <Button Content="Test" Click="OnTestFeature" Tag="{x:Bind}"/>
-                    <Button Content="Save" Click="OnSaveFeature" Tag="{x:Bind}" Style="{StaticResource AccentButtonStyle}"/>
-                    <Button Content="Delete" Click="OnDeleteFeature" Tag="{x:Bind}"/>
+                    <Button Content="Delete" Click="OnDeleteFeature" Tag="{x:Bind}" AutomationProperties.Name="FeatureDelete"/>
+                    <Button Content="Test" Click="OnTestFeature" Tag="{x:Bind}"
+                            ToolTipService.ToolTip="Check every step without changing anything" AutomationProperties.Name="FeatureTest"/>
+                    <Button Content="Save" Click="OnSaveFeature" Tag="{x:Bind}" Style="{StaticResource AccentButtonStyle}"
+                            IsEnabled="{x:Bind Dirty, Mode=OneWay}" AutomationProperties.Name="FeatureSave"/>
                   </StackPanel>
                 </tk:SettingsCard>
               </tk:SettingsExpander.Items>

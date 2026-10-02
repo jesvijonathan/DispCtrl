@@ -35,12 +35,20 @@ using DispCtrl, not for people reading the diff.
 - The download you unzip and run without installing is named `...-portable.zip` (it was `...-desktop.zip`).
 - `dispctrl help` is organised by topic - displays, controls, brightness, night light, screen care, windows, taskbar, presets, automation, devices, system, scripting - and `dispctrl help TOPIC`, `dispctrl help COMMAND` or `COMMAND --help` shows one. It now lists every command; several (`ddc reset`, `features get`, `triggers get`, `devices share`) were missing.
 - The quick panel's Presets section is a list of presets with an Apply button, and says whether the displays still match the one chosen.
+- The Presets page is a list: every preset on its own row, with what it holds, how many of its displays are attached and when it was saved, Apply on the row and the rest in its menu. The preset in use is marked, and its changes are shown under a heading that names it. New preset opens a small dialog instead of a form that sat on the page.
+- Features on the Hotkeys page are put together with a form: each step a row - set a monitor control, run a DispCtrl command, open a program, run a script, wait - chosen from a list, moved up and down, removed. Edit as text still writes them as lines, and Save lights only when something has changed.
+- The sign-in and lock screen switches moved from Settings to a new Miscellaneous page, with tools beside them: refresh the taskbar, put every display back, and Windows' display and colour settings.
+- The Taskbar page can refresh the taskbar: Windows Explorer restarts and DispCtrl applies hiding, glass and opacity again (`dispctrl maintenance restart-explorer`). The Look setting says what Acrylic is: the same blur, with the colours behind about 40% more vivid.
+- Checking for updates once a day is on by default; it was off until switched on. It sends the version number and nothing else, never downloads, and is one switch to turn off. A settings file from an earlier version keeps its choice.
+- With only one display attached, its card on the Displays page starts open. The quick panel's Quick toggles list starts open on the Quick panel page, and a quick panel section switched on there arrives unfolded.
+- Now and then, from the fifth time the window is opened, a one-line banner asks for a star on GitHub or a donation. Either ends it; closed, it asks once more after ninety days, then never.
 - The documentation is reorganised: the README is a front page, with every feature page by page in `docs/FEATURES.md` and every stored setting, its default and what it does in `docs/SETTINGS.md`.
 - The tray icon's right-click menu no longer offers Quick panel, which a left click already opens, or Close the app; Exit DispCtrl remains.
 
 ### Fixed
 - Discard on the preset banner now clears it. The app compared the desk with its settings from before the preset was applied, and counted differences no apply can put right: a layout that needs an unplugged display, a wallpaper whose file has gone, and a display's name, which the app itself rewrites.
 - `dispctrl awake set --mode on` and `--mode off` work, as the help said they would.
+- Importing a preset whose name is longer than a file name may be, when that name is taken, numbers it instead of failing as not a preset.
 - Presets: applying one no longer undoes changes made elsewhere while it applies; a monitor whose brightness range is not 0 to 100 can be saved in a preset; very long names and names like CON save; a desk profile no longer applies with no display attached, and is not missed when the displays change while another preset applies; an app rule written as a program's full path matches it.
 - The engine wakes about half as often when idle: opening new windows on the display in use now listens only for real windows, and app rules are checked only when there are some.
 - The DispCtrl window, left on a monitor that was then unplugged, flickered into view and vanished when opened again or clicked on the taskbar. It now comes back onto a display that is attached.

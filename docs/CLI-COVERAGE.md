@@ -21,7 +21,7 @@ calls it. The Devices page already works that way - it sends the same
 | Multiple displays (extend, duplicate, only one) | `topology get`, `topology set --mode extend` |
 | Monitor library | `devices list`, `devices show`, `devices map`, `devices contribute` (docs/DEVICE-LIBRARY.md) |
 | Connect to a wireless display | `windows open --page cast` |
-| Settings: updates - check now, check automatically (opt-in), Not now | `update check`, `update set --check-automatically on`, `update skip`, `update get` |
+| Settings: updates - check now, check automatically (on by default), Not now | `update check`, `update set --check-automatically on`, `update skip`, `update get` |
 | Per display: brightness | `display set --monitor 2 --brightness 60` |
 | Per display: in unison | `unison set --monitor 2 --include off` |
 | Per display: DDC/CI off after a crash, talk to it again | `ddc get`, `ddc allow --monitor 2` |
@@ -81,11 +81,13 @@ calls it. The Devices page already works that way - it sends the same
 | Windows: auto-hide, alignment, combining, badges, flashing, widgets, task view, corner, small buttons, transparency | `windows set --auto-hide on --alignment 1 --combine-buttons 1 --show-widgets off ...` |
 | Resets | `taskbar reset` |
 | Windows taskbar settings | `windows open --page taskbar` |
+| Refresh the taskbar (restart Windows Explorer) | `maintenance restart-explorer` |
 
 ## Presets (beta)
 
 | In the app | Command |
 | --- | --- |
+| The list of presets; the one in use and what has changed since | `preset list`, `preset diff NAME` |
 | The title bar's switcher: choose, Apply, Save, create | `preset list`, `preset apply NAME`, `preset save NAME` |
 | The drift banner and its list of changes; Discard, Save | `preset diff NAME`; `preset apply NAME`, `preset save NAME` |
 | Capture a setup | `preset save NAME` |
@@ -124,7 +126,7 @@ calls it. The Devices page already works that way - it sends the same
 | Change one | `hotkeys set --index 2 --enabled off` |
 | Remove | `hotkeys remove --index 2` |
 | Restore the defaults | `hotkeys reset` |
-| Features tab: list, new, save, delete, run, test | `features list`, `features add --name N --steps "..."`, `features set`, `features remove`, `features run N`, `features run N --dry-run` |
+| Features tab: list, new, save, delete, run, test (the step form writes the same lines) | `features list`, `features add --name N --steps "..."`, `features set`, `features remove`, `features run N`, `features run N --dry-run` |
 | Triggers tab | `triggers list`, `triggers add --event app-in-front --match vlc.exe --feature N`, `triggers set --index N --enabled off`, `triggers remove --index N` |
 
 ## Devices
@@ -154,6 +156,15 @@ calls it. The Devices page already works that way - it sends the same
 | Undo the way back | `restore undo` (and `restore now`, as Ctrl+Alt+Backspace; `restore get` shows the record) |
 | Open the log and the settings folder | `diagnostics` prints both paths |
 | Windows Startup apps | `windows open --page startup` |
+
+## Miscellaneous
+
+| In the app | Command |
+| --- | --- |
+| Sign-in and lock screen switches, Put back | `machine get`, `machine set --switch ID --value on`, `machine undo --switch ID` |
+| Refresh the taskbar | `maintenance restart-explorer` |
+| Put every display back | `restore now` |
+| Windows' display settings, colour management | `windows open --page display`, `windows open --page colormanagement` |
 
 ## Help
 

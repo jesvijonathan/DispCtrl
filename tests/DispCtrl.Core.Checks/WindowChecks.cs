@@ -331,9 +331,10 @@ internal static class WindowChecks
 
         var updates = new UpdateSettings();
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        check(!updates.Due(now), "nothing is checked until somebody switches checking on");
+        check(updates.Due(now), "on by default, the first check is due at once");
+        updates.CheckAutomatically = false;
+        check(!updates.Due(now), "switched off, nothing is checked");
         updates.CheckAutomatically = true;
-        check(updates.Due(now), "switched on, the first check is due at once");
         updates.CheckedUtc = now.AddHours(-3);
         check(!updates.Due(now), "a check three hours ago is recent enough");
         updates.CheckedUtc = now.AddHours(-25);
@@ -342,8 +343,8 @@ internal static class WindowChecks
         check(updates.Due(now), "a check dated in the future (a clock put back) does not stop checking for good");
 
         var global = new GlobalSettings();
-        global.Updates.CheckAutomatically = true;
+        global.Updates.CheckAutomatically = false;
         global.ResetToDefaults();
-        check(!global.Updates.CheckAutomatically, "reset all goes back to no network requests");
+        check(global.Updates.CheckAutomatically, "reset all puts the daily check back on");
     }
 }

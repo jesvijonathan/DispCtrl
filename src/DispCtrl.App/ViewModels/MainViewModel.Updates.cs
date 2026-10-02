@@ -19,7 +19,7 @@ public sealed partial class MainViewModel
 
     public Visibility UpdateSwitchVisibility => UpdatesFromStore ? Visibility.Collapsed : Visibility.Visible;
 
-    /// <summary>The opt-in daily check. Off until somebody switches it on.</summary>
+    /// <summary>The daily check: on by default, off at a switch.</summary>
     public bool CheckUpdatesAutomatically
     {
         get => Updates.CheckAutomatically;

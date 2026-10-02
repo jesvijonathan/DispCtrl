@@ -174,9 +174,14 @@ public static class PresetStore
 
         string name = p.Name;
 
-        // Bounded: a pathological name that always sanitises to the same stem
-        // would otherwise spin here forever.
-        for (int i = 2; Exists(name) && i < 1000; i++) name = $"{p.Name} ({i})";
+        // The suffix goes on the name as it is stored: put on a name longer
+        // than a file stem may be, it was cut off again, every candidate was
+        // the same file, and the import failed as "not a preset".
+        string stored = Path.GetFileNameWithoutExtension(FileName(p.Name));
+        string root = stored.Length > MaxStem - 8 ? stored[..(MaxStem - 8)].TrimEnd() : stored;
+
+        // Bounded, in case some name still always lands on one file.
+        for (int i = 2; Exists(name) && i < 1000; i++) name = $"{root} ({i})";
         if (Exists(name)) return null;
 
         p.Name = name;

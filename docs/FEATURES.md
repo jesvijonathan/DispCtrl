@@ -16,6 +16,7 @@ stored value, including the few with no switch, is in the
 - [Quick panel and tray icon](#quick-panel-and-tray-icon)
 - [Hotkeys, features and triggers](#hotkeys-features-and-triggers)
 - [Devices](#devices)
+- [Miscellaneous](#miscellaneous)
 - [Settings](#settings)
 - [Help and About](#help-and-about)
 - [Command line](#command-line)
@@ -35,6 +36,9 @@ stored value, including the few with no switch, is in the
   count, so an unplugged display or a wallpaper file that no longer exists
   never keeps it up.
 - Only one window runs; opening DispCtrl again brings it forward.
+- Now and then - from the fifth time the window opens, never on a first run -
+  a one-line banner asks for a star on GitHub or a donation. Either ends it;
+  closing it asks once more months later, then never.
 
 ## Displays
 
@@ -50,7 +54,7 @@ The desk as a whole, then one card per display.
 - **Multiple displays**: extend, duplicate, built-in only, external only.
 - **Monitor library**: a link to the Devices page.
 - **Connect to a wireless display**: Windows' Miracast pairing.
-- **Each display** (one card each)
+- **Each display** (one card each; with only one display attached, its card starts open)
   - Wallpaper (**Change**) and how it fits: Fill, Fit, Stretch, Tile, Centre,
     Span.
   - Brightness 0-100, or software brightness where the display has no
@@ -179,19 +183,31 @@ display's card.
   duration, edge sensitivity, **Restore defaults**.
 - **Advanced**: how often the engine looks at the cursor (arm distance and the
   idle, far, armed and shown intervals).
+- **Refresh the taskbar**: restarts Windows Explorer, so DispCtrl applies
+  hiding, glass and opacity again. Asks first: open File Explorer windows
+  close.
+- The glass looks: Blur softens what is behind; Clear shows it sharp; Opaque
+  is a solid colour; Acrylic is the same blur with the colours behind about
+  40% more vivid.
 - **Primary taskbar**: **Use Windows' own auto-hide**, the only way to hide the
   main display's taskbar.
 
 ## Presets (beta)
 
-- **Capture a setup**: everything DispCtrl can set, for the whole desk or one
-  display. **Import JSON**, **Open folder**.
-- **Saved setups**: **Apply**; **Apply when this desk is connected** (a desk
-  profile: applies by itself when exactly its displays connect, windows put
-  back where they were); **Update from displays**; **View / edit JSON**; and
-  under **Manage**: **Map displays**, **Rename**, **Export JSON**, **Delete**.
-- What has changed since a preset was saved, in the title bar's banner and on
-  the page.
+- **New preset**: everything DispCtrl can set, for the whole desk or one
+  display. **Import**, and the presets folder.
+- **Saved presets**: every preset in a list - what it holds, how many of its
+  displays are attached, when it was saved - with **Apply** on each row. The
+  one in use is marked, with how many settings have changed since.
+- Each row's **…** menu: **Update from the displays**; **Apply when this desk
+  is connected** (a desk profile: applies by itself when exactly its displays
+  connect, windows put back where they were); **Rename**; **Map displays**;
+  **View or edit JSON**; **Export**; **Delete**. These act on that preset
+  without making it the one in use.
+- What has changed since the preset in use was saved, named as such, with
+  **Discard** and **Save to the preset**.
+- A name already taken is refused when saving or renaming; an import with a
+  taken name is numbered, never overwrites.
 - **App rules**: apply a preset while an app stays in front, after an
   activation delay; then return to another preset, restore the previous setup,
   or keep it. The first matching enabled rule wins.
@@ -208,7 +224,8 @@ taskbar, and closes when you click elsewhere unless it is set to stay open.
   dot), density, stay open and customise.
 - **Simple mode**: one slider for every display with the unison switch, then
   one per display.
-- **Sections**, each foldable, in your order: Unison brightness, Brightness,
+- **Sections**, each foldable, in your order (Quick toggles starts open, and
+  a section switched on from the Quick panel page arrives open): Unison brightness, Brightness,
   Quick toggles, Displays, Night light, Taskbar, Focus, OLED care, Presets (a
   list of presets with **Apply**, and whether the displays still match),
   Display mode, Windows.
@@ -266,9 +283,13 @@ window closed.
   - Never the arrow keys, which some graphics drivers take for rotation. Each
     shortcut shows whether it is registered or taken, and the page asks before
     the way-back shortcut is switched off. **Restore the defaults**.
-- **Features**: a named list of steps - monitor writes, `dispctrl` commands,
-  waits and scripts - run from a shortcut, a trigger, a tile or
-  `dispctrl features run`. **Run**, **Test**, **Save**, **Delete**.
+- **Features**: a named list of steps, run from a shortcut, a trigger, a tile
+  or `dispctrl features run`. Each step is a row: set a monitor control, run a
+  DispCtrl command, open a program, file or link, run a script and wait, or
+  wait - chosen from a list, with **Add a step**, move up and down, and
+  remove. **Edit as text** writes the same steps as lines. **Run**, **Test**
+  (checks every step, changes nothing), **Save** (lit once something
+  changed), **Delete**.
 - **Triggers**: when a display connects or disconnects, an app comes to the
   front or leaves it, you go idle or come back, the session locks or unlocks,
   the power source changes, the computer resumes, or at a time of day - run a
@@ -303,15 +324,25 @@ DispCtrl itself.
 - **Engine**: start at sign-in, keep the quick panel ready, open DispCtrl at
   sign-in, Start menu and desktop shortcuts; the engine's state, settings file,
   log and executable.
-- **Sign-in and lock screen**: company laptop switches - sign in without
-  Ctrl+Alt+Del, lock screen picture, skip the lock screen, no blur behind the
-  sign-in box, lock after inactivity, lock when your phone leaves, no tips on
-  the lock screen. Machine-wide ones ask for administrator permission.
-- **Updates and maintenance**: **Check for updates**, and automatically (off
-  until you switch it on, never for a Store install); **Repair**; clear logs
+- **Updates and maintenance**: **Check for updates**, and automatically once a
+  day (on unless switched off; never for a Store install, which the Store
+  updates); **Repair**; clear logs
   and cached data; **Undo the way back**; **Reset everything**.
 - **Advanced**: write a log; guard against the DDC/CI crash, and monitors it
   has blocked (**Allow again**); allow raw DDC/CI writes.
+
+## Miscellaneous
+
+Extras that are about Windows rather than the displays.
+
+- **Sign-in and lock screen**: the switches people change with regedit, often
+  on a company laptop - sign in without Ctrl+Alt+Del, lock screen picture,
+  skip the lock screen, no blur behind the sign-in box, lock after inactivity,
+  lock when your phone leaves, no tips on the lock screen. Each shows what
+  Windows has now; machine-wide ones ask for administrator permission, and
+  **Put back** restores what was there before.
+- **Tools**: refresh the taskbar (restart Windows Explorer), put every display
+  back, Windows' display settings, colour management.
 
 ## Help and About
 

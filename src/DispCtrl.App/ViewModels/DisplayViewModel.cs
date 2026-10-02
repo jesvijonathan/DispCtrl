@@ -24,6 +24,9 @@ namespace DispCtrl.App.ViewModels;
 public sealed class DisplayViewModel : INotifyPropertyChanged
 {
     internal void NotifySettingsReloaded() => Raise(string.Empty);
+
+    /// <summary>Whether the card starts open: the only display attached.</summary>
+    public bool StartsOpen { get; set; }
     private readonly DisplayInfo _display;
     private readonly MonitorSettings _settings;
     private readonly DispCtrlSettings _root;

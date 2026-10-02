@@ -6,7 +6,7 @@
   <!-- What has changed since the preset was saved, as a list: behind the
        drift sign, and behind the count in the window's drift banner. -->
   <StackPanel Spacing="10" MaxWidth="540">
-    <TextBlock Text="What has changed since this preset was saved"
+    <TextBlock Text="{x:Bind ViewModel.ComparedWith, Mode=OneWay}" TextWrapping="Wrap"
                Style="{StaticResource BodyStrongTextBlockStyle}"/>
 
     <ScrollViewer MaxHeight="380" HorizontalScrollBarVisibility="Disabled">

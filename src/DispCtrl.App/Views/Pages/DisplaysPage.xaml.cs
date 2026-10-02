@@ -49,6 +49,12 @@ public sealed partial class DisplaysPage : Page
     /// <summary>An opened card realises all its rows: see <see cref="ExpanderLayout"/>.</summary>
     private void OnExpanderExpanded(object? sender, EventArgs e) => ExpanderLayout.RealiseAll(sender);
 
+    /// <remarks>A card that starts open never raises Expanded, so its layout is swapped here.</remarks>
+    private void OnDisplayCardLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is CommunityToolkit.WinUI.Controls.SettingsExpander { IsExpanded: true }) ExpanderLayout.RealiseAll(sender);
+    }
+
     private void OnDisplayOverviewSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (sender is not Grid grid || grid.Children.Count < 2) return;

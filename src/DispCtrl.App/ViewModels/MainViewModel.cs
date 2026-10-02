@@ -243,6 +243,8 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             ms.Label = d.Label;
 
             var display = new DisplayViewModel(d, ms, _settings, i + 1, Persist, PersistSoon, () => PerDisplayWarmth, ScheduleDriftCheck);
+            // With one display there is nothing to choose between, so its card opens.
+            display.StartsOpen = found.Count == 1;
             display.UnisonMembershipChanged += () => Raise(nameof(BrightnessSummary));
             Displays.Add(display);
         }

@@ -37,6 +37,7 @@ public sealed partial class MainWindow : Window
         PresetSwitcher.Visibility = ViewModel.PresetsEnabled ? Visibility.Visible : Visibility.Collapsed;
         TitleBar.SizeChanged += (_, _) => UpdateTitleBarPassthrough();
         WatchPresetDrift();
+        if (ViewModel.CountWindowOpen()) SupportBanner.Visibility = Visibility.Visible;
 
         OpenAtSize(1020, 800);
         if (AppWindow.Presenter is OverlappedPresenter presenter)
@@ -243,6 +244,37 @@ public sealed partial class MainWindow : Window
         PresetDriftBanner.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void OnSupportStar(object sender, RoutedEventArgs e) => SupportGiven(DispCtrl.App.Services.ProjectLinks.Repository);
+
+    private void OnSupportSponsor(object sender, RoutedEventArgs e) => SupportGiven(DispCtrl.App.Services.ProjectLinks.SupportPage);
+
+    private void SupportGiven(string link)
+    {
+        DispCtrl.App.Services.ProjectLinks.Open(link);
+        ViewModel.SupportGiven();
+        SupportActions.Visibility = Visibility.Collapsed;
+        SupportText.Text = "Thank you - that helps more than you would think.";
+        HideSupportSoon();
+    }
+
+    /// <summary>Closed without either: said so, gently, and gone.</summary>
+    private void OnSupportClose(object sender, RoutedEventArgs e)
+    {
+        ViewModel.SupportDeclined();
+        SupportActions.Visibility = Visibility.Collapsed;
+        SupportText.Text = "Ok… maybe another time. Thanks for using DispCtrl.";
+        HideSupportSoon();
+    }
+
+    private void HideSupportSoon()
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromSeconds(4);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) => SupportBanner.Visibility = Visibility.Collapsed;
+        timer.Start();
+    }
+
     private void OnPresetBannerClose(object sender, RoutedEventArgs e)
     {
         _bannerDismissedFor = DriftSignature;
@@ -277,6 +309,7 @@ public sealed partial class MainWindow : Window
                 "quickpanel" => typeof(QuickPanelPage),
                 "hotkeys" => typeof(HotkeysPage),
                 "devices" => typeof(DevicesPage),
+                "misc" => typeof(MiscellaneousPage),
                 "help" => typeof(HelpPage),
                 "about" => typeof(AboutPage),
                 _ => typeof(DisplaysPage),

@@ -154,29 +154,17 @@ public sealed partial class MainViewModel
 
     public async Task RestartExplorerAsync()
     {
-        ShowFooterStatus("Restarting Windows Explorer; the glass applies once the taskbar is back.", busy: true);
-        foreach (System.Diagnostics.Process explorer in System.Diagnostics.Process.GetProcessesByName("explorer"))
+        ShowFooterStatus("Restarting Windows Explorer; DispCtrl applies the taskbar again once it is back.", busy: true);
+        try
         {
-            using (explorer)
+            var result = await Task.Run(() => new DispCtrl.Control.ControlService().Execute(new System.Text.Json.Nodes.JsonObject
             {
-                try { explorer.Kill(); explorer.WaitForExit(5000); }
-                catch (Exception) { }
-            }
+                ["version"] = 1, ["command"] = "maintenance.restart-explorer", ["args"] = new System.Text.Json.Nodes.JsonObject(),
+            }));
+            ShowFooterStatus(result["ok"]?.GetValue<bool>() == true ? "Windows Explorer restarted."
+                : "Windows Explorer did not restart: " + result["error"]?["message"]);
         }
-        // Windows brings the shell back by itself. Started again while it is
-        // already back, explorer.exe opens a folder window instead.
-        for (int i = 0; i < 20; i++)
-        {
-            await Task.Delay(250);
-            if (System.Diagnostics.Process.GetProcessesByName("explorer").Length > 0)
-            {
-                ShowFooterStatus("Windows Explorer restarted.");
-                return;
-            }
-        }
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe") { UseShellExecute = true }); }
-        catch (Exception ex) { ShowFooterStatus("Windows Explorer did not restart: " + ex.Message); return; }
-        ShowFooterStatus("Windows Explorer restarted.");
+        catch (Exception ex) { ShowFooterStatus("Windows Explorer did not restart: " + ex.Message); }
     }
 
     public void ResetTaskbarSurface()

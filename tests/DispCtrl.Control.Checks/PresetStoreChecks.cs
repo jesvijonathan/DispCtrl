@@ -99,6 +99,15 @@ internal static class PresetStoreChecks
             string? first = PresetStore.Import(theirs), second = PresetStore.Import(theirs);
             check(first == "Shared (2)" && second == "Shared (3)" && PresetStore.Exists("Shared"),
                 "importing a preset with a name already used keeps both, numbering the newcomer");
+            string longName = new('L', 150);
+            PresetStore.Save(Named(longName));
+            string longFile = Path.Combine(outside, "long.json");
+            PresetStore.Export(Named(longName), longFile);
+            string? longFirst = PresetStore.Import(longFile), longSecond = PresetStore.Import(longFile);
+            check(longFirst is not null && longSecond is not null && longFirst != longSecond
+                    && PresetStore.Exists(longFirst) && PresetStore.Exists(longSecond) && PresetStore.Exists(longName),
+                "a name longer than a file may be is still numbered on import, never refused or overwritten");
+            foreach (string? n in new[] { longName, longFirst, longSecond }) if (n is not null) PresetStore.Delete(n);
             string bad = Path.Combine(outside, "Bad.json");
             File.WriteAllText(bad, "{\"monitors\":{},\"version\":9}");
             check(PresetStore.Import(bad) is null && !PresetStore.Exists("Bad"), "an invalid file is not imported");

@@ -7,7 +7,7 @@ namespace DispCtrl.Control;
 
 public sealed partial class ControlService
 {
-    /// <summary>update get|check|set|skip|reset: the opt-in check for a new release.</summary>
+    /// <summary>update get|check|set|skip|reset: the daily check for a new release.</summary>
     /// <remarks>
     /// Only <c>check</c> reaches the network, and only because it was asked to.
     /// The command line prints the link; it never opens a browser.

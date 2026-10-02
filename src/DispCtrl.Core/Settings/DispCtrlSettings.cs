@@ -225,7 +225,7 @@ public sealed class GlobalSettings
     /// <summary>The guard against a capabilities read crashing Windows.</summary>
     public DdcGuardSettings DdcGuard { get; set; } = new();
 
-    /// <summary>Finding out about new versions; opt-in, and not for Store installs.</summary>
+    /// <summary>Finding out about new versions; on by default, and not for Store installs.</summary>
     public UpdateSettings Updates { get; set; } = new();
 
     /// <summary>The tray icon and what its panel shows.</summary>
@@ -381,6 +381,9 @@ public sealed class GlobalSettings
     /// </remarks>
     public bool EngineStartupOffered { get; set; }
 
+    /// <summary>The occasional request for a star or a donation; bookkeeping, kept by Reset all.</summary>
+    public SupportPrompt Support { get; set; } = new();
+
     /// <summary>What Ctrl+Alt+Backspace last switched off; null when there is nothing to put back.</summary>
     public VisibilitySnapshot? BeforeRestore { get; set; }
 
@@ -411,7 +414,7 @@ public sealed class GlobalSettings
         // Which monitors took Windows down is a fact about this desk, like
         // hidden displays; a reset of preferences does not forget it.
         DdcGuard = new() { Blocked = DdcGuard.Blocked };
-        // Off again: a reset goes back to no network requests at all.
+        // Back to the default: the daily check on.
         Updates = new();
         TaskbarOpacity = fresh.TaskbarOpacity;
         TaskbarGlassEnabled = fresh.TaskbarGlassEnabled;

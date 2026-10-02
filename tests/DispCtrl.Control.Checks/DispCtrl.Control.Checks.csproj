@@ -3,4 +3,5 @@
   <ItemGroup><ProjectReference Include="../../src/DispCtrl.Control/DispCtrl.Control.csproj" /></ItemGroup>
   <ItemGroup><Compile Include="../../src/DispCtrl.Engine/Input/HotkeyWorkQueue.cs" Link="HotkeyWorkQueue.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../../src/DispCtrl.App/ViewModels/HotkeysViewModel.cs" Link="HotkeysViewModel.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../../src/DispCtrl.App/ViewModels/FeatureStepViewModel.cs" Link="FeatureStepViewModel.cs" /></ItemGroup>
 </Project>

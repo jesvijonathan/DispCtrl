@@ -278,6 +278,9 @@ public sealed partial class MainViewModel
         QuickPanelItem? item = QuickPanel.List(group).Find(i => i.Id == id);
         if (item is null || item.Visible == visible) return;
         item.Visible = visible;
+        // A section somebody has just asked for arrives open: shown folded,
+        // switching it on looked like it had done nothing.
+        if (visible && group == QuickPanelGroup.Sections) QuickPanel.SetCollapsed(id, false);
         SaveQuickPanel();
     }
 

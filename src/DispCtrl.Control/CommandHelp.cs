@@ -167,7 +167,8 @@ public static class CommandHelp
               startup get|set                       --engine on --preload-panel on --open-window off --start-menu on --desktop off
               engine start|stop|status              The resident engine
               maintenance repair|clear-cache        Fix the sign-in task and shortcuts; clear logs and cached data
-              update check|get|set|skip|reset       The opt-in update check (never downloads)
+              maintenance restart-explorer          Refresh the taskbar: Explorer restarts and DispCtrl applies again
+              update check|get|set|skip|reset       The daily update check, on by default (never downloads)
               machine get|set|undo                  Sign-in and lock screen switches: no-ctrl-alt-del, lock-screen-picture,
                                                     no-lock-screen, sharp-sign-in, lock-after, dynamic-lock, quiet-lock-screen
               windows open --page display|nightlight|colors|taskbar|startup|power|hdr|cast|colormanagement

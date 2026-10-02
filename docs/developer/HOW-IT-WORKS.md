@@ -513,12 +513,19 @@ Every pair was walked through; these are the ones that needed code.
 
 ## Updates
 
+- **The request for support** (`SupportPrompt`, `Global.Support`) is a
+  one-line banner under the title bar, never on a first run: from the fifth
+  opening of the window, three days after the first. Star on GitHub or
+  Sponsor ends it for good; closing it says "Ok… maybe another time" and asks
+  once more after ninety days, and a second close ends it. Reset all keeps the
+  answer. Checked in `SettingsChecks`.
 - **Store installs are updated by the Store**; nothing in DispCtrl checks for
   them (`StartupIntegration.IsPackaged`), and "Check for updates" opens the
   Store's updates page.
-- **Installer and zip installs: opt-in** (the owner's rule: no network request
-  DispCtrl was not asked to make). `Global.Updates.CheckAutomatically` is off by
-  default and off again after Reset all; the button is an explicit ask. A check
+- **Installer and zip installs: a daily check, on by default** (the owner's
+  call for 0.1.6; it was opt-in before, and a settings file written then keeps
+  its "off"). `Global.Updates.CheckAutomatically` is on by default and after
+  Reset all, and can be switched off; the button always works. A check
   (`Control/UpdateCheck`) is one anonymous GET of the latest release - the
   version in the User-Agent, nothing else sent - and never downloads: a newer
   release is announced (Settings page notice, one footer line per run) with a

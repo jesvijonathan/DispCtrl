@@ -14,65 +14,112 @@
       <InfoBar x:Name="Toast" IsOpen="False" IsClosable="True"/>
       <ContentControl IsEnabled="{x:Bind ViewModel.CanEdit, Mode=OneWay}" HorizontalContentAlignment="Stretch">
       <StackPanel Spacing="16">
-        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="16">
-          <StackPanel Spacing="12">
-            <TextBlock Text="Capture a setup" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <TextBlock Text="Capture every supported setting for the whole desk or one display. Monitor-only presets leave shared settings and layout alone."
-                       TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-            <Grid ColumnSpacing="12" ColumnDefinitions="*,*">
-              <TextBox x:Name="NewName" Header="Name" PlaceholderText="Work, evening, gaming…"
-                       AutomationProperties.Name="NewPresetName"/>
-              <ComboBox Grid.Column="1" Header="Capture" HorizontalAlignment="Stretch"
-                        ItemsSource="{x:Bind ViewModel.CaptureScopes}"
-                        SelectedItem="{x:Bind ViewModel.CaptureScope, Mode=TwoWay}"
-                        DisplayMemberPath="Label" AutomationProperties.Name="PresetCaptureScope"/>
-            </Grid>
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Button Content="Capture new preset" Style="{StaticResource AccentButtonStyle}" Click="OnSaveAs"/>
-              <Button Content="Import JSON…" Click="OnImport"/>
-              <Button Content="Open folder" Click="OnOpenFolder"/>
-            </StackPanel>
-          </StackPanel>
-        </Border>
-        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="16">
-          <StackPanel Spacing="12">
-            <TextBlock Text="Saved setups" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-              <ComboBox ItemsSource="{x:Bind ViewModel.Names}" HorizontalAlignment="Stretch"
-                        SelectedItem="{x:Bind ViewModel.Selected, Mode=TwoWay}" AutomationProperties.Name="PresetPicker"/>
-              <Button Grid.Column="1" Content="Apply" Style="{StaticResource AccentButtonStyle}"
-                      Visibility="{x:Bind ViewModel.ExistingVisibility, Mode=OneWay}" Click="OnApply"/>
-            </Grid>
-            <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" TextWrapping="Wrap"/>
-            <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.ExistingVisibility, Mode=OneWay}">
-              <TextBlock Text="{x:Bind ViewModel.Details, Mode=OneWay}" TextWrapping="Wrap"
-                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-              <ToggleSwitch Header="Apply when this desk is connected"
-                            OnContent="When exactly these displays are connected, this preset applies by itself"
-                            OffContent="Off"
-                            IsOn="{x:Bind ViewModel.DeskProfile, Mode=TwoWay}"
-                            IsEnabled="{x:Bind ViewModel.DeskProfileAvailable, Mode=OneWay}"
-                            AutomationProperties.Name="PresetDeskProfile"
-                            ToolTipService.ToolTip="A desk profile: plug in this set of displays - a dock, another desk - and the preset applies. Only a whole-desk preset that restores the layout can be one."/>
+        <!-- One row per preset, its actions on the row. The page used to hold
+             one preset at a time behind a picker, with its buttons spread over
+             two cards, so seeing what was saved meant opening the list. -->
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+          <TextBlock Text="Saved presets" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center"/>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Click="OnNewPreset" Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="PresetNew"
+                    ToolTipService.ToolTip="Save the desk as it is now as a new preset">
               <StackPanel Orientation="Horizontal" Spacing="8">
-                <views:PresetChanges/>
-                <Button Content="Update from displays" Click="OnSave"/>
-                <Button Content="View / edit JSON…" Click="OnEditJson"/>
-                <DropDownButton Content="Manage">
-                  <DropDownButton.Flyout>
-                    <MenuFlyout>
-                      <MenuFlyoutItem Text="Map displays…" Click="OnMapDisplays"/>
-                      <MenuFlyoutItem Text="Rename…" Click="OnRename"/>
-                      <MenuFlyoutItem Text="Export JSON…" Click="OnExport"/>
-                      <MenuFlyoutSeparator/>
-                      <MenuFlyoutItem Text="Delete…" Click="OnDelete"/>
-                    </MenuFlyout>
-                  </DropDownButton.Flyout>
-                </DropDownButton>
+                <FontIcon Glyph="&#xE710;" FontSize="14"/>
+                <TextBlock Text="New preset"/>
               </StackPanel>
+            </Button>
+            <Button Content="Import…" Click="OnImport" AutomationProperties.Name="PresetImport"
+                    ToolTipService.ToolTip="Add a preset from a JSON file. A name already in use gets a number; nothing is overwritten."/>
+            <Button Click="OnOpenFolder" AutomationProperties.Name="PresetOpenFolder" ToolTipService.ToolTip="Open the presets folder">
+              <FontIcon Glyph="&#xE838;" FontSize="14"/>
+            </Button>
+          </StackPanel>
+        </Grid>
+
+        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="16"
+                Visibility="{x:Bind ViewModel.EmptyVisibility, Mode=OneWay}">
+          <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                     Text="No presets yet. Set the displays up the way you like them, then New preset saves the whole desk: layout, brightness, night light, the taskbar and where the windows are."/>
+        </Border>
+
+        <ItemsControl ItemsSource="{x:Bind ViewModel.Rows}" HorizontalContentAlignment="Stretch">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="4"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:PresetRow">
+              <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="16,12"
+                      BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                  <FontIcon Glyph="&#xE7F4;" FontSize="18" VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                  <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"/>
+                      <Border Visibility="{x:Bind CurrentVisibility, Mode=OneWay}" CornerRadius="4" Padding="6,1"
+                              VerticalAlignment="Center" Background="{ThemeResource AccentFillColorDefaultBrush}">
+                        <TextBlock Text="In use" FontSize="11" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                      </Border>
+                    </StackPanel>
+                    <TextBlock Text="{x:Bind Summary, Mode=OneWay}" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock Text="{x:Bind Status, Mode=OneWay}" Visibility="{x:Bind StatusVisibility, Mode=OneWay}"
+                               Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                  </StackPanel>
+                  <Button Grid.Column="2" Content="Apply" Click="OnApplyRow" Tag="{x:Bind}" VerticalAlignment="Center"
+                          ToolTipService.ToolTip="Put the displays back to this preset; it becomes the one in use"
+                          AutomationProperties.Name="{x:Bind ApplyName}"/>
+                  <Button Grid.Column="3" VerticalAlignment="Center" Padding="8,6"
+                          ToolTipService.ToolTip="More for this preset" AutomationProperties.Name="{x:Bind MoreName}">
+                    <FontIcon Glyph="&#xE712;" FontSize="14"/>
+                    <Button.Flyout>
+                      <MenuFlyout Placement="BottomEdgeAlignedRight">
+                        <MenuFlyoutItem Text="Update from the displays" Click="OnSaveRow" Tag="{x:Bind}"
+                                        ToolTipService.ToolTip="Save the desk as it is now over this preset">
+                          <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;"/></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <ToggleMenuFlyoutItem Text="{x:Bind DeskProfileText}" IsChecked="{x:Bind DeskProfile, Mode=OneWay}"
+                                              IsEnabled="{x:Bind DeskProfileAvailable}" Click="OnDeskProfileRow" Tag="{x:Bind}"
+                                              ToolTipService.ToolTip="Plug in exactly this set of displays - a dock, another desk - and the preset applies by itself"/>
+                        <MenuFlyoutSeparator/>
+                        <MenuFlyoutItem Text="Rename…" Click="OnRename" Tag="{x:Bind}">
+                          <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AC;"/></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Map displays…" Click="OnMapDisplays" Tag="{x:Bind}"
+                                        ToolTipService.ToolTip="Use this preset on other monitors: choose which display takes each saved one's settings">
+                          <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7F4;"/></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="View or edit JSON…" Click="OnEditJson" Tag="{x:Bind}">
+                          <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;"/></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Export…" Click="OnExport" Tag="{x:Bind}">
+                          <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;"/></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator/>
+                        <MenuFlyoutItem Text="Delete…" Click="OnDelete" Tag="{x:Bind}">
+                          <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;"/></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                      </MenuFlyout>
+                    </Button.Flyout>
+                  </Button>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- The comparison names its preset: "3 settings differ" said nothing
+             about from what. -->
+        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="16"
+                Visibility="{x:Bind ViewModel.ChangesVisibility, Mode=OneWay}">
+          <StackPanel Spacing="12">
+            <views:PresetChangesList/>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Discard" Click="OnApply" ToolTipService.ToolTip="Put the displays back to the preset"
+                      AutomationProperties.Name="PresetPageDiscard"/>
+              <Button Content="Save to the preset" Click="OnSave" Style="{StaticResource AccentButtonStyle}"
+                      ToolTipService.ToolTip="Update the preset to match the displays" AutomationProperties.Name="PresetPageSave"/>
             </StackPanel>
           </StackPanel>
         </Border>
+
         <StackPanel Spacing="6">
           <TextBlock Text="App rules" Style="{StaticResource SubtitleTextBlockStyle}"/>
           <TextBlock Text="Apply a saved setup when an app stays in the foreground. Rules run in the background engine; the first matching enabled rule wins."

@@ -529,9 +529,15 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
-public sealed class CustomFeatureViewModel(CustomFeature feature) : INotifyPropertyChanged
+public sealed class CustomFeatureViewModel : INotifyPropertyChanged
 {
-    public CustomFeature Feature { get; } = feature;
+    public CustomFeatureViewModel(CustomFeature feature)
+    {
+        Feature = feature;
+        RebuildRows();
+    }
+
+    public CustomFeature Feature { get; }
     public string? SavedName { get; set; }
     private bool _busy;
     public bool IsIdle => !_busy;
@@ -541,18 +547,33 @@ public sealed class CustomFeatureViewModel(CustomFeature feature) : INotifyPrope
         set { _busy = value; Raise(nameof(IsIdle)); }
     }
 
+    /// <summary>The steps as a form, one row each.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<FeatureStepViewModel> StepRows { get; } = [];
+
+    /// <summary>Whether something has changed since the last save.</summary>
+    public bool Dirty
+    {
+        get => _dirty;
+        private set { if (_dirty == value) return; _dirty = value; Raise(); Raise(nameof(Summary)); }
+    }
+    private bool _dirty;
+
+    /// <summary>For a feature not yet saved, or one with changes.</summary>
+    public void MarkSaved() { Dirty = false; Raise(nameof(Summary)); }
+
     public string Name
     {
         get => Feature.Name;
-        set { if (Feature.Name == value) return; Feature.Name = value; Raise(); }
+        set { if (Feature.Name == value) return; Feature.Name = value; Raise(); Dirty = true; }
     }
 
     public string Description
     {
         get => Feature.Description;
-        set { if (Feature.Description == value) return; Feature.Description = value; Raise(); }
+        set { if (Feature.Description == value) return; Feature.Description = value; Raise(); Dirty = true; }
     }
 
+    /// <summary>The steps as text, for the "Edit as text" view and the command line's form.</summary>
     public string Steps
     {
         get => string.Join(Environment.NewLine, Feature.Steps);
@@ -561,16 +582,82 @@ public sealed class CustomFeatureViewModel(CustomFeature feature) : INotifyPrope
             List<string> steps = CustomFeature.SplitSteps(value);
             if (Feature.Steps.SequenceEqual(steps)) return;
             Feature.Steps = steps;
+            RebuildRows();
             Raise();
+            Dirty = true;
+        }
+    }
+
+    /// <summary>Writing steps as text instead of with the form.</summary>
+    public bool TextMode
+    {
+        get => _textMode;
+        set
+        {
+            if (_textMode == value) return;
+            _textMode = value;
+            Raise();
+            Raise(nameof(FormVisibility));
+            Raise(nameof(TextVisibility));
+            Raise(nameof(Steps));
+        }
+    }
+    private bool _textMode;
+    public Visibility FormVisibility => _textMode ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility TextVisibility => _textMode ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>What the expander's header says under the name.</summary>
+    public string Summary
+    {
+        get
+        {
+            if (_status.Length > 0) return _status;
+            string count = Feature.Steps.Count switch { 0 => "No steps yet", 1 => "1 step", int n => $"{n} steps" };
+            string what = Feature.Description.Trim() is { Length: > 0 } d ? d + " · " + count : count;
+            return Dirty ? what + " · not saved" : what;
         }
     }
 
     public string Status
     {
         get => _status;
-        set { if (_status == value) return; _status = value; Raise(); }
+        set { if (_status == value) return; _status = value; Raise(); Raise(nameof(Summary)); }
     }
     private string _status = "";
+
+    public void AddStep(int kind)
+    {
+        StepRows.Add(new FeatureStepViewModel(kind, StepsChanged));
+        StepsChanged();
+    }
+
+    public void RemoveStep(FeatureStepViewModel step)
+    {
+        StepRows.Remove(step);
+        StepsChanged();
+    }
+
+    public void MoveStep(FeatureStepViewModel step, int by)
+    {
+        int from = StepRows.IndexOf(step), to = from + by;
+        if (from < 0 || to < 0 || to >= StepRows.Count) return;
+        StepRows.Move(from, to);
+        StepsChanged();
+    }
+
+    private void RebuildRows()
+    {
+        StepRows.Clear();
+        foreach (string line in Feature.Steps) StepRows.Add(new FeatureStepViewModel(line, StepsChanged));
+    }
+
+    private void StepsChanged()
+    {
+        Feature.Steps = StepRows.Select(r => r.Line).Where(l => l.Length > 0).ToList();
+        _status = "";
+        Dirty = true;
+        Raise(nameof(Summary));
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void Raise([CallerMemberName] string? name = null) =>
@@ -603,6 +690,7 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
     public ObservableCollection<HotkeyViewModel> Items { get; } = [];
     public ObservableCollection<CustomFeatureViewModel> Features { get; } = [];
     public string FeatureGrammar => CustomFeature.Grammar;
+    public static string Grammar => CustomFeature.Grammar;
 
     public void Reload()
     {
@@ -707,6 +795,7 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
     public CustomFeatureViewModel AddFeature()
     {
         var feature = new CustomFeatureViewModel(new CustomFeature { Name = "New feature" });
+        feature.AddStep(0);
         Features.Add(feature);
         return feature;
     }
@@ -729,6 +818,7 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
             {
                 SyncFeaturesFromDisk();
                 feature.SavedName = requestedName;
+                feature.MarkSaved();
                 feature.Status = $"Saved “{requestedName}”.";
             }
             else feature.Status = result["error"]?["message"]?.GetValue<string>() ?? "Not saved.";

@@ -28,7 +28,7 @@
             <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=TwoWay}" OnContent="On" OffContent="Off" AutomationProperties.Name="TaskbarGlassEnabled"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Look"
-                           Description="Blur softens what is behind; Clear shows it sharp; Opaque is a solid colour; Acrylic is blur with richer colour, like Windows' own material."
+                           Description="Blur softens what is behind; Clear shows it sharp; Opaque is a solid colour. Acrylic is the same blur with the colours behind made about 40% more vivid, as Windows' own acrylic material does."
                            Visibility="{x:Bind ViewModel.TaskbarGlassOptionsVisibility, Mode=OneWay}">
             <ComboBox SelectedIndex="{x:Bind ViewModel.TaskbarGlassLookIndex, Mode=TwoWay}" MinWidth="160"
                       IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassLook">
@@ -346,6 +346,16 @@
           </tk:SettingsCard>
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
+
+      <TextBlock Text="When the taskbar looks wrong"
+                 Style="{StaticResource BodyStrongTextBlockStyle}"
+                 Margin="0,28,0,8"/>
+
+      <tk:SettingsCard Header="Refresh the taskbar"
+                       Description="Restarts Windows Explorer, which draws the taskbar, and DispCtrl applies hiding, glass and opacity again. For a bar left in the wrong place or a look that did not take. The taskbar disappears for a moment and open File Explorer windows close.">
+        <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE72C;"/></tk:SettingsCard.HeaderIcon>
+        <Button Content="Refresh" Click="OnRefreshTaskbar" AutomationProperties.Name="RefreshTaskbar"/>
+      </tk:SettingsCard>
 
     </StackPanel>
   </ScrollViewer>

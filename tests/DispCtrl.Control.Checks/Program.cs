@@ -631,10 +631,12 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
         File.WriteAllText(SettingsStore.Path_, after.ToJsonString());
     }
 
-    // ---- updates: opt-in, never automatic by default, and no network here ----
+    // ---- updates: daily by default, a switch away, and no network here ----
     {
         int Code(JsonObject reply) => reply["exitCode"]!.GetValue<int>();
-        Check(!SettingsStore.Load().Global.Updates.CheckAutomatically, "update checking starts off: no network request until asked");
+        Check(SettingsStore.Load().Global.Updates.CheckAutomatically, "the daily update check starts on");
+        var off = service.Execute(Request("update.set", new() { ["checkAutomatically"] = false }));
+        Check(off["ok"]!.GetValue<bool>() && !SettingsStore.Load().Global.Updates.CheckAutomatically, "update set switches the daily check off");
         var on = service.Execute(Request("update.set", new() { ["checkAutomatically"] = true }));
         Check(on["ok"]!.GetValue<bool>() && SettingsStore.Load().Global.Updates.CheckAutomatically, "update set switches the daily check on");
         Check(Code(service.Execute(Request("update.set", new() { ["latestVersion"] = "9.9.9" }))) == 2
@@ -656,8 +658,8 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
             "update check validates without a request when dry");
         var updateReset = service.Execute(Request("update.reset"));
         var updatesAfter = SettingsStore.Load().Global.Updates;
-        Check(updateReset["ok"]!.GetValue<bool>() && !updatesAfter.CheckAutomatically && updatesAfter.LatestVersion.Length == 0,
-            "update reset switches checking off and forgets what was found");
+        Check(updateReset["ok"]!.GetValue<bool>() && updatesAfter.CheckAutomatically && updatesAfter.LatestVersion.Length == 0,
+            "update reset puts the daily check back on and forgets what was found");
     }
 
     // ---- pinning, placement, the DDC/CI guard, unison exclusion, tray wheel, theme schedule ----
@@ -1029,6 +1031,19 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
                 service.Execute(Request("preset." + verb, verb == "list" ? null : new() { ["name"] = "Disabled feature check" }))["exitCode"]!.GetValue<int>() == 1)
             && !ControlTerminal.Help.Contains("preset", StringComparison.OrdinalIgnoreCase),
             "a build without presets refuses every preset command and leaves them out of the help");
+    // The Features tab's form must write back exactly what it read, or opening a
+    // feature and saving it would change its steps.
+    string Again(string line) => new DispCtrl.App.ViewModels.FeatureStepViewModel(line, () => { }).Line;
+    string[] lines = ["set 2 picture-mode fps", "set all contrast +10", "set 1 0xE2 3 raw", "dispctrl nightlight set --enabled off",
+        @"run ""C:\Program Files\Game\launcher.exe"" --fast", @"script C:\Scripts\evening.ps1", "wait 500", "# a note", "bogus words"];
+    string[] changed = lines.Where(l => Again(l) != l).ToArray();
+    Check(changed.Length == 0, "every kind of feature step survives the Features tab's form" + (changed.Length > 0 ? ": " + string.Join(" | ", changed) : ""));
+    var typed = new DispCtrl.App.ViewModels.FeatureStepViewModel(1, () => { }) { Text = "dispctrl topology set --mode extend" };
+    var waited = new DispCtrl.App.ViewModels.FeatureStepViewModel(4, () => { }) { Milliseconds = 90000 };
+    Check(typed.Line == "dispctrl topology set --mode extend" && waited.Line == "wait 60000"
+        && lines.Take(8).All(l => DispCtrl.Core.Settings.FeatureStep.Parse(Again(l)) is not null || l.StartsWith('#')),
+        "a command pasted with dispctrl in front is not doubled, a wait is capped at a minute, and what the form writes parses");
+
     // docs/SETTINGS.md is generated, then edited by hand; a setting added since must not go unlisted.
     string? repo = AppContext.BaseDirectory;
     while (repo is not null && !File.Exists(Path.Combine(repo, "DispCtrl.slnx"))) repo = Path.GetDirectoryName(repo);

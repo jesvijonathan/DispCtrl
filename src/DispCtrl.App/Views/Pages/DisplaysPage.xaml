@@ -162,7 +162,8 @@
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:DisplayViewModel">
 
-            <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="{x:Bind Name}" Description="{x:Bind Details}">
+            <tk:SettingsExpander Expanded="OnExpanderExpanded" Loaded="OnDisplayCardLoaded" IsExpanded="{x:Bind StartsOpen}"
+                                 Header="{x:Bind Name}" Description="{x:Bind Details}">
               <tk:SettingsExpander.HeaderIcon>
                 <FontIcon Glyph="&#xE7F4;"/>
               </tk:SettingsExpander.HeaderIcon>

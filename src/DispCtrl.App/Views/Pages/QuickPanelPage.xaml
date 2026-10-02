@@ -69,7 +69,7 @@
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
-      <tk:SettingsExpander Header="Quick toggles" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+      <tk:SettingsExpander Header="Quick toggles" IsExpanded="True" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
                            Description="The grid of small switches and actions, your own tiles among them. Each shows its name when you hover over it, and the ones with an arrow have options on a right-click.">
         <tk:SettingsExpander.HeaderIcon>
           <FontIcon Glyph="&#xE8A9;"/>

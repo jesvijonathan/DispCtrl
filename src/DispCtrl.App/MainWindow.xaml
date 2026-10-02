@@ -152,6 +152,12 @@
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
 
+        <muxc:NavigationViewItem Content="Miscellaneous" Tag="misc">
+          <muxc:NavigationViewItem.Icon>
+            <FontIcon Glyph="&#xE712;"/>
+          </muxc:NavigationViewItem.Icon>
+        </muxc:NavigationViewItem>
+
       </muxc:NavigationView.MenuItems>
 
       <muxc:NavigationView.FooterMenuItems>
@@ -182,12 +188,13 @@
       <!-- Page content owns the status bar, so the navigation pane continues
            all the way to the bottom instead of being cut off by it. -->
       <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Row="0">
         <!-- One line, shown only while the desk differs from the preset in use,
              on any page. An InfoBar put its content on a second row, which
              made a notice taller than the page header it sat over. The count
              is the button that lists the changes. Closed by hand, it stays
              away until the desk moves again. -->
-        <Border x:Name="PresetDriftBanner" Grid.Row="0" Visibility="Collapsed"
+        <Border x:Name="PresetDriftBanner" Visibility="Collapsed"
                 Margin="12,6,12,2" Padding="12,4,4,4" CornerRadius="6"
                 Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
@@ -225,6 +232,36 @@
             </StackPanel>
           </Grid>
         </Border>
+
+        <!-- The occasional request for support (SupportPrompt): one line, like
+             the preset banner above it, never on a first run. -->
+        <Border x:Name="SupportBanner" Visibility="Collapsed"
+                Margin="12,6,12,2" Padding="12,4,4,4" CornerRadius="6"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                AutomationProperties.Name="SupportBanner">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <FontIcon Glyph="&#xEB52;" FontSize="14" VerticalAlignment="Center" Foreground="#DB61A2"/>
+            <TextBlock x:Name="SupportText" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                       Text="Finding DispCtrl useful? It is free and made in spare time. A star helps others find it; a donation pays for monitors to test on."
+                       ToolTipService.ToolTip="Finding DispCtrl useful? It is free and made in spare time. A star helps others find it; a donation pays for monitors to test on."/>
+            <StackPanel x:Name="SupportActions" Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <Button Click="OnSupportStar" Padding="10,3" AutomationProperties.Name="SupportStar">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <FontIcon Glyph="&#xE734;" FontSize="12"/>
+                  <TextBlock Text="Star on GitHub"/>
+                </StackPanel>
+              </Button>
+              <Button Content="Sponsor" Click="OnSupportSponsor" Padding="10,3" Style="{StaticResource AccentButtonStyle}"
+                      ToolTipService.ToolTip="GitHub Sponsors, PayPal or UPI" AutomationProperties.Name="SupportSponsor"/>
+              <Button Click="OnSupportClose" Padding="8,6" Background="Transparent" BorderThickness="0"
+                      ToolTipService.ToolTip="Not now" AutomationProperties.Name="SupportClose">
+                <FontIcon Glyph="&#xE711;" FontSize="11"/>
+              </Button>
+            </StackPanel>
+          </Grid>
+        </Border>
+        </StackPanel>
 
         <Frame x:Name="ContentFrame" Grid.Row="1"/>
 

@@ -25,8 +25,37 @@ public sealed partial class ControlService
         {
             "repair" => Repair(dryRun),
             "clear-cache" => ClearCache(dryRun),
-            _ => throw new ArgumentException("maintenance actions: repair, clear-cache."),
+            "restart-explorer" => RestartExplorer(dryRun),
+            _ => throw new ArgumentException("maintenance actions: repair, clear-cache, restart-explorer."),
         };
+    }
+
+    /// <summary>Ends Windows Explorer and waits for Windows to bring the shell back.</summary>
+    /// <remarks>
+    /// The way to refresh the taskbar: Explorer rebuilds its bars, the engine
+    /// hears TaskbarCreated and applies hiding, glass and opacity again. Started
+    /// again while Windows has already brought it back, explorer.exe would open
+    /// a folder window instead, so it is started only if it has not returned.
+    /// </remarks>
+    private static JsonObject RestartExplorer(bool dryRun)
+    {
+        if (dryRun) return new JsonObject { ["state"] = "validated" };
+        foreach (System.Diagnostics.Process explorer in System.Diagnostics.Process.GetProcessesByName("explorer"))
+        {
+            using (explorer)
+            {
+                try { explorer.Kill(); explorer.WaitForExit(5000); }
+                catch (Exception) { }
+            }
+        }
+        for (int i = 0; i < 20; i++)
+        {
+            Thread.Sleep(250);
+            if (System.Diagnostics.Process.GetProcessesByName("explorer").Length > 0)
+                return new JsonObject { ["state"] = "restarted" };
+        }
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe") { UseShellExecute = true })?.Dispose();
+        return new JsonObject { ["state"] = "started" };
     }
 
     private static JsonObject Repair(bool dryRun)
