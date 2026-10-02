@@ -276,8 +276,8 @@ missing capabilities string), Z1 and Z4 (`Placement/PlacementService`), Z2
 and Light Switch's scheduled theme on night light's hours
 (`NightLightSettings.DarkModeOnSchedule`). Open: P2, P5, P6, Z3. Z1 was exercised
 by unplugging the Dell twice: it works beside Windows' own window memory,
-which it no longer tries to switch off (see CLAUDE.md).
-Since then: the cross-feature pass (CLAUDE.md, "Where the window features
+which it no longer tries to switch off (see ../developer/HOW-IT-WORKS.md).
+Since then: the cross-feature pass (HOW-IT-WORKS.md, "Where the window features
 meet the others") - pins step aside for fullscreen, gathering maximized and
 borderless windows, focus mode's pointer options as one choice, and OLED care
 per display with an exception list.

@@ -38,10 +38,12 @@ the outputs that are scrubbed for you.
 
 ## Changing code
 
-1. Read [CLAUDE.md](../.claude/CLAUDE.md). It is the handover document: the architecture,
-   the build commands, and a long list of traps that have already cost a crash
-   or a corrupted setting. Most bugs worth fixing here were caused by one of them.
-2. Set up and build. [docs/DEVELOPING.md](../docs/DEVELOPING.md) has the details:
+1. Read [ARCHITECTURE.md](../docs/developer/ARCHITECTURE.md) for how the
+   projects fit together, then the parts of [TRAPS.md](../docs/developer/TRAPS.md)
+   and [HOW-IT-WORKS.md](../docs/developer/HOW-IT-WORKS.md) for the area you are
+   changing: a long list of mistakes that have already cost a crash or a
+   corrupted setting. Most bugs worth fixing here were caused by one of them.
+2. Set up and build. [docs/developer/DEVELOPING.md](../docs/developer/DEVELOPING.md) has the details:
    ```powershell
    .\build.cmd setup -Install
    .\build.cmd build

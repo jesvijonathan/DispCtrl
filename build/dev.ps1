@@ -9,7 +9,7 @@
     ./build/dev.ps1 setup -Install      # fetch the missing tools (asks winget for system ones)
     ./build/dev.ps1 build               # stops the engine gracefully, builds, restarts it (-Rebuild: from clean)
     ./build/dev.ps1 test -Hardware      # hardware-free checks, plus the ones that read monitors
-    ./build/dev.ps1 perf                # performance suite; perf --all adds ui, writes, restart (docs/PERFORMANCE.md)
+    ./build/dev.ps1 perf                # performance suite; perf --all adds ui, writes, restart (docs/developer/PERFORMANCE.md)
     ./build/dev.ps1 run engine          # or: app, panel, cli <arguments>
     ./build/dev.ps1 release             # zips, installer, MSIX and notes in artifacts/
     ./build/dev.ps1 options -Configuration Debug -Channel stable -NoNative

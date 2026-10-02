@@ -29,7 +29,7 @@ matter:
   for publication. Any way for a serial number, a device path or instance id, a
   file path, or the account name to survive the scrub into that text is a
   vulnerability, and treated as one. See the "Publishing device records" section
-  of [CLAUDE.md](../.claude/CLAUDE.md).
+  of [TRAPS.md](../docs/developer/TRAPS.md).
 - **Settings and device-definition parsing.** `settings.json`, presets and
   device definitions are read from disk, and some come from other people.
 - **The elevated gamma-range write**, the only operation that asks for

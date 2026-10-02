@@ -269,8 +269,8 @@ For isolated development, set `DISPCTRL_DATA_DIR` to an absolute directory befor
 starting the CLI/engine. This isolates settings, not the physical displays:
 hardware writes still affect the current desktop. Run `tests/DispCtrl.Control.Checks` for
 protocol, validation, concurrency and failure-sequencing checks using fake steps.
-Diagnostics/log paths remain local. See [architecture](CONTROL-ARCHITECTURE.md)
-and [release instructions](RELEASING.md) for unfinished migration and delivery work.
+Diagnostics/log paths remain local. See [architecture](developer/CONTROL-ARCHITECTURE.md)
+and [release instructions](developer/RELEASING.md) for unfinished migration and delivery work.
 
 ## Sign-in and lock screen
 

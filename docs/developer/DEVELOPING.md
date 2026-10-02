@@ -180,9 +180,10 @@ been verified.
 
 ## Editors
 
-- **Visual Studio / Rider:** open any `src/*/*.csproj`. There is no solution
-  file, by choice: build the projects that changed, in dependency order.
-  [CLAUDE.md](../.claude/CLAUDE.md) has the order and the traps.
+- **Visual Studio / Rider:** open `DispCtrl.slnx` at the root: src, tests and
+  tools in one tree. Stop the engine before building the whole solution (it
+  holds its own output); [RUNNING.md](RUNNING.md) has the order and
+  [TRAPS.md](TRAPS.md) the traps.
 
 ## Before a pull request
 
@@ -193,4 +194,4 @@ been verified.
 ```
 
 Leave the desk as you found it: any brightness, night light or monitor setting
-a manual test changed must be put back. See [CONTRIBUTING.md](../.github/CONTRIBUTING.md).
+a manual test changed must be put back. See [CONTRIBUTING.md](../../.github/CONTRIBUTING.md).

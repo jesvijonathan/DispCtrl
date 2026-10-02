@@ -1,4 +1,4 @@
-// perfcheck: DispCtrl's performance suite. docs/PERFORMANCE.md has the guide.
+// perfcheck: DispCtrl's performance suite. docs/developer/PERFORMANCE.md has the guide.
 //
 //   dotnet run --project tools/perfcheck -c Release                  core, displays, engine, cli
 //   dotnet run --project tools/perfcheck -c Release -- --all         and ui, restart, writes

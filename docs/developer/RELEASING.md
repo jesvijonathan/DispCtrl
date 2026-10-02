@@ -17,7 +17,7 @@ its copy of the desktop folder in temp and deletes it when packed.
 
 Every package is self-contained .NET 10, ReadyToRun, x64 only. Managed rather
 than Native AOT: the WMI adapters have not been verified under AOT (see
-CLAUDE.md, Build). Two things are left out on purpose, and are the reason a
+TRAPS.md, Build). Two things are left out on purpose, and are the reason a
 desktop zip is ~74 MB rather than ~104:
 
 - The Windows App SDK's machine learning (onnxruntime, DirectML), AI, Search

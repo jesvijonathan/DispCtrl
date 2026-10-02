@@ -1,7 +1,7 @@
 # The conventions this codebase already follows, written down so an editor
 # applies them. Style rules are suggestions, not build errors: the build treats
 # warnings as errors (Directory.Build.props) and a formatting nit should never
-# fail it. docs/developer/CONTRIBUTING-CODE.md has the reasons behind them.
+# fail it. docs/developer/ARCHITECTURE.md, "Conventions", has the reasons.
 root = true
 
 [*]

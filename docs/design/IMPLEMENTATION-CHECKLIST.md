@@ -88,7 +88,7 @@ verification named beside them.
   and MSIX (MSIX only when the certificate subject equals the Publisher),
   winget update and gated Store submission on publish. `ReleaseNotes.ps1` ran
   locally; every workflow passes actionlint. Nothing has run on GitHub, and the
-  winget and Store jobs need their accounts first (docs/RELEASING.md).
+  winget and Store jobs need their accounts first (docs/developer/RELEASING.md).
 - [x] Device library laid out for thousands of models: devices/BRAND/PRODUCT/
   {record.md,definition.json}, BRAND/brand.json, common.json (DeviceLayout).
   The app reads per target and caches; only definitions ship. devicecheck

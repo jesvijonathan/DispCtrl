@@ -43,7 +43,7 @@ row (`displays not restored after the slider test`, budget 0).
   process reads 0 or 78 ms at random, and that once blamed a change for noise.
 - **Wake-ups are context switches.** Idle cost is how often a process wakes,
   not how much it does when it does (see "Idle cost is wake-ups" in
-  `.claude/CLAUDE.md`).
+  [TRAPS.md](TRAPS.md)).
 - **Measure warm.** The first run of anything freshly built is slow because
   the antivirus scans new DLLs; a one-off probe once read 64 ms where the real
   cost was 8.

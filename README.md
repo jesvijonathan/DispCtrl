@@ -716,10 +716,9 @@ Configuration exports and raw logs can contain identifying details; review them 
 | [Project website](https://jesvijonathan.github.io/DispCtrl/) | Features, screenshots, downloads and ways to support DispCtrl |
 | [Command line](docs/CLI.md) | Commands, options, JSON output and exit codes |
 | [Example scripts](docs/examples) | Display events, layouts and configuration files |
-| [Quick panel](docs/QUICK-PANEL.md) | Sections, tiles and customisation |
+| [Presets](docs/PRESETS.md) and [custom controls](docs/CUSTOM-CONTROLS.md) | Desk profiles, mapped monitor controls and features |
 | [Device library](docs/DEVICE-LIBRARY.md) | Monitor definitions, control mappings and contributions |
-| [Development](docs/DEVELOPING.md) | Setup, builds, checks and platform requirements |
-| [Releasing](docs/RELEASING.md) | Packaging and the release process |
+| [For developers](docs/README.md#for-developers) | Architecture, building, testing, the traps already paid for, releasing |
 | [Changelog](docs/CHANGELOG.md) | Changes and release history |
 
 ## Build from source
@@ -733,12 +732,13 @@ cd DispCtrl
 .\build.cmd run app          # or: engine, panel, cli <arguments>
 ```
 
-Double-click `build.cmd` for a menu. On Linux, macOS or WSL, `./build.sh` builds the non-UI projects and runs the checks that do not need Windows APIs; the application itself runs on Windows. [Development](docs/DEVELOPING.md) covers the options and prerequisites.
+Double-click `build.cmd` for a menu. On Linux, macOS or WSL, `./build.sh` builds the non-UI projects and runs the checks that do not need Windows APIs; the application itself runs on Windows. [Development](docs/developer/DEVELOPING.md) covers the options and prerequisites.
 
 <details>
 <summary><strong>Repository layout</strong></summary>
 
 ```
+DispCtrl.slnx          the whole repository in one solution
 src/
   DispCtrl.App/        WinUI 3 window and quick panel
   DispCtrl.Engine/     resident process: tray, hotkeys, taskbar, night light
@@ -747,10 +747,11 @@ src/
   DispCtrl.Display/    everything that changes hardware: DDC/CI, CCD, gamma
   DispCtrl.Core/       settings, EDID, geometry; no hardware writes
   native/              taskbar-glass helper (C++)
+tests/                 the check suites (tests/README.md)
+tools/                 devicecheck (device library), perfcheck, scripts
 devices/               the shared monitor library, a folder per model
-tools/                 checks: DispCtrl.Control.Checks, DispCtrl.Hardware.Checks, devicecheck, ...
 build/                 build, publish, installer and MSIX scripts
-docs/                  CLI, developing, releasing, device library, changelog
+docs/                  user guides; developer/ for contributors; design/ notes
 site/                  the website (GitHub Pages) and every image the README uses
 ```
 

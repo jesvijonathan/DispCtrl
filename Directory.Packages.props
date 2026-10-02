@@ -3,7 +3,7 @@
   <!-- Every package version in one place, so all projects agree and an upgrade
        is one line. Projects name a package; its version comes from here. Exact
        versions on purpose: restores are deterministic without lock files (see
-       docs/developer/BUILDING.md, "No NuGet lock files"). -->
+       docs/developer/TRAPS.md, "No NuGet lock files"). -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
