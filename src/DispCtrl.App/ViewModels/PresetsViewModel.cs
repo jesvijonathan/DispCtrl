@@ -120,6 +120,8 @@ public sealed class PresetRow(Preset preset) : INotifyPropertyChanged
             : "One display: " + (Preset.Monitors.Values.FirstOrDefault()?.Label ?? "unknown");
         var parts = new List<string> { scope };
         if (here < count) parts.Add(here == 0 ? "none attached now" : $"{here} of {count} attached now");
+        if (Preset.Skip.Count > 0)
+            parts.Add("leaves " + string.Join(", ", Preset.Skip.Order().Select(PresetParts.Label)) + " alone");
         if (Preset.ApplyWhenConnected) parts.Add("applies by itself when these displays connect");
         parts.Add("saved " + Preset.SavedUtc.ToLocalTime().ToString("d MMM yyyy, HH:mm"));
         Summary = string.Join(" · ", parts);
@@ -442,6 +444,22 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
     /// <summary>The named preset, for the display mapping dialog.</summary>
     public Preset? Find(string name) => _byName.GetValueOrDefault(name);
 
+    /// <summary>Parts a new preset leaves alone, chosen in the New preset dialog.</summary>
+    public List<PresetPart> NewSkip { get; set; } = [];
+
+    /// <summary>Sets which parts the named preset leaves alone.</summary>
+    public string SetSkip(string name, IEnumerable<PresetPart> skip) => On(name, () =>
+    {
+        if (Subject is not { } preset) return "No preset selected.";
+        preset.Skip = skip.Distinct().Order().ToList();
+        PresetStore.Save(preset);
+        var attached = _displays().Select(d => d.Token).ToHashSet(StringComparer.Ordinal);
+        foreach (PresetRow row in Rows) if (ReferenceEquals(row.Preset, preset)) row.Describe(attached);
+        if (ReferenceEquals(preset, Current)) RefreshDrift();
+        return preset.Skip.Count == 0 ? $"“{preset.Name}” restores everything."
+            : $"“{preset.Name}” leaves {string.Join(", ", preset.Skip.Select(PresetParts.Label))} alone.";
+    });
+
     /// <summary>Switches the named preset's desk profile.</summary>
     public string SetDeskProfile(string name, bool on) => On(name, () =>
     {
@@ -535,7 +553,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             // worse than reporting nothing.
             if (!ReferenceEquals(Current, saved)) return;
 
-            _differences = PresetDiff.Describe(saved, live);
+            _differences = PresetDiff.Describe(saved, live, settings.Global.BrightnessIsAutomatic);
         }
         catch (Exception ex)
         {
@@ -569,6 +587,24 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
     public Visibility DirtyVisibility => IsDirty ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>Whether the window says so when the displays change (Global.PresetChangeNotice).</summary>
+    public bool Notices
+    {
+        get => _settings.Global.PresetChangeNotice;
+        set
+        {
+            if (_settings.Global.PresetChangeNotice == value) return;
+            _settings.Global.PresetChangeNotice = value;
+            _persist();
+            Raise();
+            Raise(nameof(NoticeVisibility));
+            Raise(nameof(DriftTooltip));
+        }
+    }
+
+    /// <summary>The title bar's dot: changed, and the notice is wanted.</summary>
+    public Visibility NoticeVisibility => IsDirty && Notices ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>What the drift icon says when pointed at.</summary>
     public string DriftTooltip => _differences.Count switch
     {
@@ -598,6 +634,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
         Raise(nameof(Status));
         Raise(nameof(ShortStatus));
         Raise(nameof(IsDirty));
+        Raise(nameof(NoticeVisibility));
         Raise(nameof(DirtyVisibility));
     }
 
@@ -707,6 +744,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
                 fresh.Monitors.Remove(token);
             if (fresh.Monitors.Count == 0) return "The selected display is no longer attached.";
         }
+        fresh.Skip = [.. NewSkip.Distinct().Order()];
         PresetStore.Save(fresh);
         Reload();
         Selected = name;

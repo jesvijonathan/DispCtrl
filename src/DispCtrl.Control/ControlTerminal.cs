@@ -58,7 +58,7 @@ public static class ControlTerminal
                 "machine" when action == "set" => 4,
                 "machine" when action == "undo" => 3,
                 "preset" when action == "desk" => 4,
-                "preset" when action is "save" or "apply" or "delete" or "diff" => 3,
+                "preset" when action is "save" or "set" or "apply" or "delete" or "diff" => 3,
                 _ => 2,
             };
             if (positional.Count > maximum) throw new ArgumentException("Unexpected positional argument: " + positional[maximum]);

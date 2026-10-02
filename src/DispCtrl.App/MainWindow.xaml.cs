@@ -235,7 +235,7 @@ public sealed partial class MainWindow : Window
     private void UpdatePresetBanner()
     {
         var presets = ViewModel.Presets;
-        bool show = presets.IsDirty && !presets.Creating && DriftSignature != _bannerDismissedFor;
+        bool show = presets.IsDirty && presets.Notices && !presets.Creating && DriftSignature != _bannerDismissedFor;
         if (show)
         {
             PresetDriftText.Text = $"The displays have changed from {presets.Selected}:";

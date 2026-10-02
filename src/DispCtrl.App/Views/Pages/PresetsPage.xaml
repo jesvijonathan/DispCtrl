@@ -35,6 +35,10 @@
           </StackPanel>
         </Grid>
 
+        <ToggleSwitch IsOn="{x:Bind ViewModel.Notices, Mode=TwoWay}" AutomationProperties.Name="PresetChangeNotice"
+                      Header="Say when the displays change from the preset in use"
+                      ToolTipService.ToolTip="The banner across the top of the window and the dot by the preset's name. Off, the changes are still listed here."/>
+
         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="16"
                 Visibility="{x:Bind ViewModel.EmptyVisibility, Mode=OneWay}">
           <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -74,6 +78,10 @@
                         <MenuFlyoutItem Text="Update from the displays" Click="OnSaveRow" Tag="{x:Bind}"
                                         ToolTipService.ToolTip="Save the desk as it is now over this preset">
                           <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;"/></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="What it restores…" Click="OnPartsRow" Tag="{x:Bind}"
+                                        ToolTipService.ToolTip="Choose the parts of the desk this preset puts back, and leave the rest - brightness, say - alone">
+                          <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D5;"/></MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
                         <ToggleMenuFlyoutItem Text="{x:Bind DeskProfileText}" IsChecked="{x:Bind DeskProfile, Mode=OneWay}"
                                               IsEnabled="{x:Bind DeskProfileAvailable}" Click="OnDeskProfileRow" Tag="{x:Bind}"

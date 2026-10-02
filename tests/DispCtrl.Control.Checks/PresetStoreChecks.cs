@@ -151,6 +151,17 @@ internal static class PresetStoreChecks
             && Exit(Do("preset.desk", new() { ["name"] = "Living room", ["enabled"] = false })) == 0
             && !PresetStore.Read(PresetStore.PathFor("Living room"))!.ApplyWhenConnected,
             "a whole-desk preset is marked as its desk's profile, and unmarked");
+        Preset Living() => PresetStore.Read(PresetStore.PathFor("Living room"))!;
+        check(Exit(Do("preset.set", new() { ["name"] = "Living room", ["skip"] = "brightness, night-light" })) == 0
+            && Living().Skip.SequenceEqual([PresetPart.Brightness, PresetPart.NightLight])
+            && Do("preset.list")["data"]!["presets"]!.AsArray().Any(p => p!["name"]!.GetValue<string>() == "Living room"
+                && p["skips"]!.AsArray().Select(w => w!.GetValue<string>()).SequenceEqual(["brightness", "nightlight"]))
+            && Exit(Do("preset.set", new() { ["name"] = "Living room", ["skip"] = "sound" })) == 2
+            && Exit(Do("preset.set", new() { ["name"] = "Living room" })) == 2
+            && Exit(Do("preset.apply", new() { ["name"] = "Living room", ["skip"] = "layout" })) == 2,
+            "preset set --skip names the parts a preset leaves alone, the list shows them, and a word that is not a part is refused");
+        check(Exit(Do("preset.set", new() { ["name"] = "Living room", ["skip"] = "none" })) == 0 && Living().Skip.Count == 0,
+            "--skip none restores everything again");
         check(Exit(Do("preset.apply", new() { ["name"] = "Living room", ["dryRun"] = true })) == 0
             && Exit(Do("preset.save", new() { ["name"] = "Brand new", ["dryRun"] = true })) == 0 && !PresetStore.Exists("Brand new"),
             "dry runs of applying and saving read nothing and write nothing");

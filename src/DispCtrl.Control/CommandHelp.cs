@@ -109,7 +109,9 @@ public static class CommandHelp
         new("presets", "Presets and desk profiles (Beta)", "save the whole desk, apply it, launch with it, apply when a desk connects",
             ["preset", "presets"], """
               preset list                           Every preset, its displays, and whether it holds a layout
-              preset save NAME                      The desk now, windows included (keeps an existing preset's scope)
+              preset save NAME [--skip PARTS]       The desk now, windows included (keeps an existing preset's scope)
+              preset set NAME --skip PARTS|none     Parts it leaves alone: layout, brightness, nightlight, wallpaper,
+                                                    controls, taskbar, windows. Not restored, never counted as changed
               preset apply NAME                     Put the desk back to it
               preset diff NAME                      What differs from the desk now, and its displays not attached
               preset delete NAME

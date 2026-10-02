@@ -154,6 +154,7 @@ Generated from the settings themselves; `DispCtrl.Control.Checks` fails when a s
 | `/global/lastDesk` | none | text | The set of displays the engine last saw settle, as DeskProfiles.Fingerprint. |
 | `/global/machineBefore` | group | group | Registry values as Windows had them before DispCtrl's sign-in switches first changed them. |
 | `/global/engineStartupOffered` | off | on or off | Whether the Store package's sign-in task has been switched on once, by default. |
+| `/global/presetChangeNotice` | on | on or off | Say, across the top of the window, when the displays have changed from the preset in use. Off, the Presets page still lists the changes. |
 | `/global/support/firstSeenUtc` | none | text | When the window first opened. |
 | `/global/support/windowOpens` | 0 | number | How many times the window has opened. It asks from the fifth, three days after the first. |
 | `/global/support/declined` | 0 | number | How many times the request was closed without a star or a donation. |

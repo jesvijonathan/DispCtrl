@@ -38,7 +38,7 @@
                      VerticalAlignment="Center"/>
           <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                    Fill="{ThemeResource SystemFillColorCautionBrush}"
-                   Visibility="{x:Bind ViewModel.Presets.DirtyVisibility, Mode=OneWay}"/>
+                   Visibility="{x:Bind ViewModel.Presets.NoticeVisibility, Mode=OneWay}"/>
           <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
         </StackPanel>
         <Button.Flyout>

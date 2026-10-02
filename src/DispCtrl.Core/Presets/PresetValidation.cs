@@ -62,6 +62,7 @@ public static class PresetValidation
         fresh.IncludeGlobal = saved.IncludeGlobal;
         fresh.IncludeLayout = saved.IncludeLayout;
         fresh.ApplyWhenConnected = saved.ApplyWhenConnected;
+        fresh.Skip = [.. saved.Skip];
         // A recapture that did not look at windows keeps the ones saved.
         fresh.Windows ??= saved.Windows;
         fresh.Description = saved.Description;

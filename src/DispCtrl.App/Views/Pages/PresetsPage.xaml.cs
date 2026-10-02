@@ -53,6 +53,57 @@ public sealed partial class PresetsPage : Page
 
     private static PresetRow? Row(object sender) => (sender as FrameworkElement)?.Tag as PresetRow;
 
+    private static readonly Dictionary<PresetPart, string> PartHints = new()
+    {
+        [PresetPart.Layout] = "Arrangement, main display, resolution, refresh rate, scale, orientation, HDR",
+        [PresetPart.Brightness] = "Each display's brightness, software dimming, unison and its limits",
+        [PresetPart.NightLight] = "Night light, its schedule, each display's warmth",
+        [PresetPart.Wallpaper] = "Each display's wallpaper and how it fits",
+        [PresetPart.Controls] = "The monitor's own controls: contrast, input, picture mode",
+        [PresetPart.Taskbar] = "Which taskbars hide, the work area, reveal timing",
+        [PresetPart.Windows] = "Where the open windows were",
+    };
+
+    /// <summary>A tick per part, ticked where the preset restores it; and a way to read the answer back.</summary>
+    private static (StackPanel Panel, Func<List<PresetPart>> Skipped) PartBoxes(IReadOnlyCollection<PresetPart> skipped)
+    {
+        var panel = new StackPanel { Spacing = 2 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "What it restores. Anything unticked is left as it is when the preset applies, and is never counted as a change.",
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 4),
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+        });
+        var boxes = new Dictionary<PresetPart, CheckBox>();
+        foreach (PresetPart part in PresetParts.All)
+        {
+            string label = PresetParts.Label(part);
+            var box = new CheckBox { Content = char.ToUpperInvariant(label[0]) + label[1..], IsChecked = !skipped.Contains(part) };
+            ToolTipService.SetToolTip(box, PartHints[part]);
+            AutomationProperties.SetName(box, "PresetPart " + part);
+            boxes[part] = box;
+            panel.Children.Add(box);
+        }
+        return (panel, () => boxes.Where(p => p.Value.IsChecked != true).Select(p => p.Key).ToList());
+    }
+
+    private async void OnPartsRow(object sender, RoutedEventArgs e)
+    {
+        if (Row(sender) is not { } row) return;
+        var (panel, skipped) = PartBoxes(row.Preset.Skip);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"What “{row.Name}” restores",
+            Content = panel,
+            PrimaryButtonText = "Save",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) Say(ViewModel.SetSkip(row.Name, skipped()));
+    }
+
     /// <summary>Applying a preset makes it the one in use, so it is selected first.</summary>
     private async void OnApplyRow(object sender, RoutedEventArgs e)
     {
@@ -90,6 +141,7 @@ public sealed partial class PresetsPage : Page
             SelectedItem = ViewModel.CaptureScope, HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         AutomationProperties.SetName(scope, "PresetCaptureScope");
+        var (parts, skipped) = PartBoxes([]);
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"] };
         var dialog = new ContentDialog
         {
@@ -105,7 +157,7 @@ public sealed partial class PresetsPage : Page
                         Text = "Saves the displays as they are now. The whole desk includes the layout, night light, unison and the taskbar; one display keeps to that display's own settings.",
                         TextWrapping = TextWrapping.Wrap,
                     },
-                    name, scope, error,
+                    name, scope, parts, error,
                 },
             },
             PrimaryButtonText = "Save",
@@ -118,6 +170,7 @@ public sealed partial class PresetsPage : Page
             try
             {
                 ViewModel.CaptureScope = scope.SelectedItem as PresetScopeChoice ?? ViewModel.CaptureScope;
+                ViewModel.NewSkip = skipped();
                 string message = await ViewModel.SaveAsAsync(name.Text);
                 if (message.StartsWith("Saved", StringComparison.Ordinal)) Say(message);
                 else { error.Text = message; args.Cancel = true; }

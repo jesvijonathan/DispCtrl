@@ -32,10 +32,18 @@ public sealed class Preset
         var copy = (Preset)MemberwiseClone();
         copy.Global = Global.Copy();
         copy.CaptureNotes = [.. CaptureNotes];
+        copy.Skip = [.. Skip];
         copy.Monitors = Monitors.ToDictionary(pair => pair.Key, pair => pair.Value.Copy());
         copy.Windows = Windows?.Select(w => new PresetWindow { Process = w.Process, Title = w.Title, Spot = w.Spot }).ToList();
         return copy;
     }
+
+    /// <summary>Parts of the desk this preset leaves alone: not restored, not counted as changed.</summary>
+    /// <remarks>Empty - every preset before this existed - restores everything.</remarks>
+    public List<PresetPart> Skip { get; set; } = [];
+
+    /// <summary>Whether applying this preset touches the part.</summary>
+    public bool Restores(PresetPart part) => !Skip.Contains(part);
 
     /// <summary>Restore shared desktop settings. False for monitor-only snapshots.</summary>
     public bool IncludeGlobal { get; set; } = true;

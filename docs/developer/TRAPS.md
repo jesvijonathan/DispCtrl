@@ -434,10 +434,15 @@ Every one of these was a real bug. Do not reintroduce them.
 
 ## Presets
 
-- **A preset holds everything and applies everything.** The `PresetScope` object
-  is gone (schema version 2). A preset that silently left part of the desk alone
-  was one whose behaviour you had to remember, and "why didn't it change the
-  brightness" is a worse question than "why did it".
+- **A preset holds everything and applies everything it has not been told to
+  skip.** The `PresetScope` object is gone (schema version 2): a preset that
+  silently left part of the desk alone was one whose behaviour you had to
+  remember. `Preset.Skip` (2026-10-03) brings choice back without the silence:
+  the parts (`PresetPart`) are chosen by name in "What it restores", the row
+  says what is left alone, and a skipped part is neither applied, merged into
+  settings, nor counted as drift. Asked for because brightness - the room's
+  light, a key press - kept a layout preset "changed" all day. Brightness the
+  room's light moved (`BrightnessIsAutomatic`) is never drift either.
 - v1 files still load: the unknown `scope` property is ignored, and fields they
   lack default to "not recorded".
 - **"Not recorded" has to be distinguishable from a value.** `PresetTaskbar` is a

@@ -206,6 +206,14 @@ display's card.
   without making it the one in use.
 - What has changed since the preset in use was saved, named as such, with
   **Discard** and **Save to the preset**.
+- **What it restores** (in **New preset** and each row's menu): layout,
+  brightness, night light, wallpaper, monitor controls, taskbar, windows.
+  Anything unticked is left as it is when the preset applies and is never
+  counted as a change - a layout preset that leaves brightness to you, say.
+  The row says what it leaves alone.
+- **Say when the displays change from the preset in use**: off, the banner and
+  the title bar's dot go; the page still lists the changes. Brightness moved
+  by the room's light is never counted as a change.
 - A name already taken is refused when saving or renaming; an import with a
   taken name is numbered, never overwrites.
 - **App rules**: apply a preset while an app stays in front, after an

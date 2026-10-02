@@ -48,15 +48,25 @@ New-Item -ItemType Directory -Path $assets -Force | Out-Null
 Add-Type -AssemblyName System.Drawing
 $icon = [System.Drawing.Icon]::new((Join-Path $repo 'src/DispCtrl.App/Assets/DispCtrl.ico'),256,256)
 $original = $icon.ToBitmap()
+function Save-Tile([int]$size, [string]$name) {
+    $bitmap = [System.Drawing.Bitmap]::new($size,$size)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $graphics.DrawImage($original,0,0,$size,$size)
+        $bitmap.Save((Join-Path $assets $name),[System.Drawing.Imaging.ImageFormat]::Png)
+    } finally { $graphics.Dispose(); $bitmap.Dispose() }
+}
 try {
-    foreach ($size in @(44,50,150)) {
-        $bitmap = [System.Drawing.Bitmap]::new($size,$size)
-        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-        try {
-            $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-            $graphics.DrawImage($original,0,0,$size,$size)
-            $bitmap.Save((Join-Path $assets "Logo$size.png"),[System.Drawing.Imaging.ImageFormat]::Png)
-        } finally { $graphics.Dispose(); $bitmap.Dispose() }
+    # Each tile at each scale; the manifest names the unqualified file.
+    foreach ($tile in @(@('Logo44',44),@('Logo50',50),@('Logo150',150))) {
+        foreach ($scale in @(100,125,150,200,400)) { Save-Tile ([math]::Round($tile[1] * $scale / 100)) "$($tile[0]).scale-$scale.png" }
+    }
+    # The taskbar, Alt+Tab and the title bar ask for a target size. With no
+    # unplated variant Windows draws the icon on a solid plate, which is how a
+    # pinned DispCtrl showed a square behind it while Start did not.
+    foreach ($size in @(16,20,24,30,32,36,40,48,60,64,72,80,96,256)) {
+        foreach ($form in @('','_altform-unplated','_altform-lightunplated')) { Save-Tile $size "Logo44.targetsize-$size$form.png" }
     }
 } finally { $original.Dispose(); $icon.Dispose() }
 $manifest = $template
@@ -65,6 +75,25 @@ $manifest.Package.Identity.SetAttribute('Publisher',$Publisher)
 $manifest.Package.Identity.SetAttribute('Version',$Version)
 $manifest.Package.Properties.PublisherDisplayName = $PublisherDisplayName
 $manifest.Save((Join-Path $stage 'AppxManifest.xml'))
+
+# The qualified tiles are found through resources.pri. WinUI loads that in
+# preference to DispCtrl.App.pri, so it has to carry the app's own resources
+# too: makepri's PRI indexer merges DispCtrl.App.pri in, under the package's
+# map name, as a Visual Studio MSIX build lays it out. Built from a copy of
+# only the tiles and the app's PRI, so the folder indexer does not take every
+# DLL in the package for a resource.
+$makePri = Join-Path (Split-Path -Parent $MakeAppx) 'makepri.exe'
+if (-not (Test-Path -LiteralPath $makePri)) { throw "makepri.exe is not beside $MakeAppx." }
+$priRoot = Join-Path $stage '.pri-root'
+New-Item -ItemType Directory -Path $priRoot -Force | Out-Null
+Copy-Item -LiteralPath $assets -Destination $priRoot -Recurse
+Copy-Item -LiteralPath (Join-Path $stage 'DispCtrl.App.pri') -Destination $priRoot
+$priConfig = Join-Path $priRoot 'priconfig.xml'
+& $makePri createconfig /cf $priConfig /dq lang-en-US /pv 10.0.0 /o | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'makepri createconfig failed.' }
+& $makePri new /pr $priRoot /cf $priConfig /mn (Join-Path $stage 'AppxManifest.xml') /of (Join-Path $stage 'resources.pri') /o | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'makepri could not build resources.pri.' }
+Remove-Item -LiteralPath $priRoot -Recurse -Force
 $package = Join-Path $output "DispCtrl-$Version-x64.msix"
 try { & $MakeAppx pack /d $stage /p $package /o }
 finally { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }

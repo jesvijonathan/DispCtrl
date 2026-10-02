@@ -28,12 +28,15 @@ public sealed partial class ControlService
                 {
                     ["name"] = p.Name, ["displays"] = p.Monitors.Count, ["savedUtc"] = p.SavedUtc,
                     ["applyWhenConnected"] = p.ApplyWhenConnected, ["layout"] = p.IncludeLayout,
+                    ["skips"] = new JsonArray(p.Skip.Select(s => (JsonNode?)JsonValue.Create(SkipWord(s))).ToArray()),
                 });
             return new JsonObject { ["presets"] = list };
         }
 
-        if (args.Any(p => p.Key is not ("name" or "enabled" or "dryRun")) || args.ContainsKey("enabled") && action != "desk")
-            throw new ArgumentException($"preset {action} takes a name{(action == "desk" ? " and on or off" : "")}.");
+        if (args.Any(p => p.Key is not ("name" or "enabled" or "skip" or "dryRun")) || args.ContainsKey("enabled") && action != "desk"
+            || args.ContainsKey("skip") && action is not ("save" or "set"))
+            throw new ArgumentException($"preset {action} takes a name{(action == "desk" ? " and on or off" : action is "save" or "set" ? " and --skip" : "")}.");
+        List<PresetPart>? skip = args.ContainsKey("skip") ? Parts(Text(args, "skip") ?? "") : null;
         string name = Text(args, "name")?.Trim() is { Length: > 0 } n ? n : throw new ArgumentException($"preset {action} needs a name.");
         Preset? existing = PresetStore.Read(PresetStore.PathFor(name));
         if (existing is null && action != "save") throw new InvalidOperationException($"There is no preset called '{name}'.");
@@ -62,8 +65,17 @@ public sealed partial class ControlService
                 // Keep what an existing preset already covered; the defaults would
                 // quietly widen what it controls.
                 if (existing is not null) fresh = PresetValidation.RetainScope(fresh, existing, settings);
+                if (skip is not null) fresh.Skip = skip;
                 PresetStore.Save(fresh);
-                return new JsonObject { ["state"] = "saved", ["name"] = name, ["displays"] = fresh.Monitors.Count };
+                return new JsonObject { ["state"] = "saved", ["name"] = name, ["displays"] = fresh.Monitors.Count, ["skips"] = Words(fresh.Skip) };
+            }
+            case "set":
+            {
+                if (skip is null) throw new ArgumentException("preset set needs --skip, as: preset set Evening --skip brightness,windows (or --skip none).");
+                if (dryRun) return new JsonObject { ["state"] = "validated", ["name"] = name, ["skips"] = Words(skip) };
+                existing!.Skip = skip;
+                PresetStore.Save(existing);
+                return new JsonObject { ["state"] = "saved", ["name"] = name, ["skips"] = Words(skip) };
             }
             case "desk":
             {
@@ -85,7 +97,7 @@ public sealed partial class ControlService
                 List<DisplayInfo> attached = Resolve(null);
                 Preset live = PresetService.Capture("Now", attached, settings, useCache: true);
                 var changes = new JsonArray();
-                foreach (PresetChange c in PresetDiff.Describe(wanted, live))
+                foreach (PresetChange c in PresetDiff.Describe(wanted, live, settings.Global.BrightnessIsAutomatic))
                     changes.Add((JsonNode)new JsonObject { ["where"] = c.Where, ["what"] = c.What, ["now"] = c.Now, ["preset"] = c.Saved });
                 var missing = new JsonArray(wanted.Monitors.Where(p => !attached.Any(d => d.Token == p.Key))
                     .Select(p => (JsonNode?)JsonValue.Create(p.Value.Label ?? p.Key)).ToArray());
@@ -96,7 +108,28 @@ public sealed partial class ControlService
                 PresetStore.Delete(name);
                 return new JsonObject { ["state"] = "deleted", ["name"] = name };
             default:
-                throw new ArgumentException("Preset action: list, diff, save, apply, delete, desk; launch from the command line.");
+                throw new ArgumentException("Preset action: list, diff, save, set, apply, delete, desk; launch from the command line.");
         }
+    }
+
+    private static string SkipWord(PresetPart part) => part switch
+    {
+        PresetPart.NightLight => "nightlight",
+        _ => part.ToString().ToLowerInvariant(),
+    };
+
+    private static JsonArray Words(IEnumerable<PresetPart> parts) => new(parts.Select(p => (JsonNode?)JsonValue.Create(SkipWord(p))).ToArray());
+
+    /// <summary>The parts a preset leaves alone, from "brightness,windows"; "none" or nothing is every part restored.</summary>
+    private static List<PresetPart> Parts(string text)
+    {
+        var parts = new List<PresetPart>();
+        foreach (string word in text.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (word.Equals("none", StringComparison.OrdinalIgnoreCase)) continue;
+            parts.Add(PresetParts.Parse(word) ?? throw new ArgumentException(
+                $"'{word}' is not a part. Parts: layout, brightness, nightlight, wallpaper, controls, taskbar, windows, or none."));
+        }
+        return parts.Distinct().Order().ToList();
     }
 }

@@ -40,7 +40,19 @@ public readonly record struct PresetChange(string Where, string What, string Now
 public static class PresetDiff
 {
     /// <summary>Differences between <paramref name="saved"/> and <paramref name="live"/>.</summary>
-    public static List<PresetChange> Describe(Preset saved, Preset live)
+    /// <param name="brightnessIsAutomatic">
+    /// Something else owns brightness now - the room's light - so a level that
+    /// moved is that, not a change somebody made to the desk.
+    /// </param>
+    public static List<PresetChange> Describe(Preset saved, Preset live, bool brightnessIsAutomatic = false)
+    {
+        List<PresetChange> diffs = DescribeAll(saved, live);
+        diffs.RemoveAll(change => PresetParts.Of(change) is var part
+            && (!saved.Restores(part) || brightnessIsAutomatic && part == PresetPart.Brightness));
+        return diffs;
+    }
+
+    private static List<PresetChange> DescribeAll(Preset saved, Preset live)
     {
         var diffs = new List<PresetChange>();
 

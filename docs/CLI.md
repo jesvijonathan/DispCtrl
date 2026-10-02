@@ -120,6 +120,7 @@ dispctrl preset save Evening            # the desk now, windows included
 dispctrl preset apply Evening
 dispctrl preset desk Evening on         # apply by itself when exactly its displays connect
 dispctrl preset diff Evening            # what differs between the desk and the preset
+dispctrl preset set Evening --skip brightness   # leave brightness alone: not restored, not a change
 dispctrl preset delete Evening
 dispctrl preset launch Gaming steam.exe --wait-for game.exe   # apply, run, put the desk back
 ```

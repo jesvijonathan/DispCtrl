@@ -88,6 +88,8 @@ calls it. The Devices page already works that way - it sends the same
 | In the app | Command |
 | --- | --- |
 | The list of presets; the one in use and what has changed since | `preset list`, `preset diff NAME` |
+| What it restores | `preset set NAME --skip brightness,windows` (`--skip none` for everything), or `preset save NAME --skip ...` |
+| Say when the displays change from the preset in use | `settings set --path /global/presetChangeNotice --value false` |
 | The title bar's switcher: choose, Apply, Save, create | `preset list`, `preset apply NAME`, `preset save NAME` |
 | The drift banner and its list of changes; Discard, Save | `preset diff NAME`; `preset apply NAME`, `preset save NAME` |
 | Capture a setup | `preset save NAME` |

@@ -304,7 +304,9 @@ public static class PresetService
             catch (Exception ex) { notes.Add($"{label}: {ex.Message}"); }
         }
         IReadOnlyList<DisplayInfo> displays = DisplayRegistry.Enumerate();
-        if (preset.IncludeLayout)
+        // Each step belongs to a part the preset may leave alone (PresetPart).
+        bool layout = preset.Restores(PresetPart.Layout);
+        if (preset.IncludeLayout && layout)
             Step("Topology", () =>
             {
                 if (Enum.TryParse(preset.Global.Topology, out DesktopArrangement topology)
@@ -320,27 +322,29 @@ public static class PresetService
         foreach (string token in preset.Monitors.Keys.Where(token => !matched.Any(pair => pair.Display.Token == token)))
             notes.Add($"{preset.Monitors[token].Label ?? token}: display is missing; its values were not restored.");
         // Modes determine rectangle sizes. Positions are restored after those sizes are final.
-        foreach (var pair in matched)
-            Step(pair.Display.Label, () => ApplyModes([pair], notes));
+        if (layout)
+            foreach (var pair in matched)
+                Step(pair.Display.Label, () => ApplyModes([pair], notes));
         displays = DisplayRegistry.Enumerate();
         matched = Match();
-        if (preset.IncludeLayout && preset.Global.Topology != "Duplicate") Step("Layout", () => ApplyArrangement(preset, displays, matched, notes));
+        if (layout && preset.IncludeLayout && preset.Global.Topology != "Duplicate") Step("Layout", () => ApplyArrangement(preset, displays, matched, notes));
         displays = DisplayRegistry.Enumerate();
         matched = Match();
-        if (preset.IncludeGlobal) Step("Variable refresh", () => ApplyVrr(preset, notes));
+        if (layout && preset.IncludeGlobal) Step("Variable refresh", () => ApplyVrr(preset, notes));
+        bool controls = preset.Restores(PresetPart.Controls), taskbar = preset.Restores(PresetPart.Taskbar);
         foreach (var pair in matched)
         {
-            Step(pair.Display.Label + " HDR", () => ApplyHdr([pair], notes));
-            Step(pair.Display.Label + " monitor controls", () => ApplyMonitorControls([pair], notes));
-            Step(pair.Display.Label + " brightness", () => ApplyBrightness(preset, [pair], settings, notes));
-            Step(pair.Display.Label + " warmth", () => ApplyNightLight(preset, [pair], settings));
-            Step(pair.Display.Label + " wallpaper", () => ApplyWallpaper(preset, [pair], notes));
-            ApplyTaskbar(preset, [pair], settings);
-            Step(pair.Display.Label + " input and power", () => ApplyMonitorControls([pair], notes, disruptive: true));
+            if (layout) Step(pair.Display.Label + " HDR", () => ApplyHdr([pair], notes));
+            if (controls) Step(pair.Display.Label + " monitor controls", () => ApplyMonitorControls([pair], notes));
+            if (preset.Restores(PresetPart.Brightness)) Step(pair.Display.Label + " brightness", () => ApplyBrightness(preset, [pair], settings, notes));
+            if (preset.Restores(PresetPart.NightLight)) Step(pair.Display.Label + " warmth", () => ApplyNightLight(preset, [pair], settings));
+            if (preset.Restores(PresetPart.Wallpaper)) Step(pair.Display.Label + " wallpaper", () => ApplyWallpaper(preset, [pair], notes));
+            if (taskbar) ApplyTaskbar(preset, [pair], settings);
+            if (controls) Step(pair.Display.Label + " input and power", () => ApplyMonitorControls([pair], notes, disruptive: true));
         }
-        if (preset.IncludeLayout && preset.Windows is { Count: > 0 } saved)
+        if (preset.Restores(PresetPart.Windows) && preset.IncludeLayout && preset.Windows is { Count: > 0 } saved)
             Step("Windows", () => ApplyWindows(saved, settings, notes));
-        if (preset.IncludeGlobal) ApplyTaskbarBehaviour(preset, settings);
+        if (taskbar && preset.IncludeGlobal) ApplyTaskbarBehaviour(preset, settings);
         Step("Verification", () =>
         {
             Preset live = Capture("Verification", DisplayRegistry.Enumerate(), settings);
@@ -501,6 +505,9 @@ public static class PresetService
 
             BrightnessRange range = Brightness.Read(d);
             if (!range.Supported) { notes.Add($"{d.Label}: reports no brightness control."); continue; }
+            // Already there, within what DDC/CI rounds to: a write would only be
+            // traffic, and on the built-in panel a brightness event unison hears.
+            if (Math.Abs(range.Percent - m.Brightness) <= 1) continue;
             if (!Brightness.Write(d, range.FromPercent(m.Brightness)))
                 notes.Add($"{d.Label}: brightness could not be set.");
         }
@@ -578,7 +585,8 @@ public static class PresetService
     private static void ApplyWallpaper(Preset preset, List<(DisplayInfo Display, PresetMonitor State)> matched,
                                        List<string> notes)
     {
-        if (preset.IncludeGlobal && !Wallpaper.WriteFit((WallpaperFit)preset.Global.WallpaperFit))
+        if (preset.IncludeGlobal && Wallpaper.ReadFit() != (WallpaperFit)preset.Global.WallpaperFit
+            && !Wallpaper.WriteFit((WallpaperFit)preset.Global.WallpaperFit))
             notes.Add("Wallpaper fit could not be restored.");
 
         foreach ((DisplayInfo d, PresetMonitor m) in matched)
@@ -594,6 +602,9 @@ public static class PresetService
                 continue;
             }
 
+            // Setting the wallpaper it already shows still redraws the desktop:
+            // the flash that made re-applying a preset look like a glitch.
+            if (string.Equals(Wallpaper.Read(d), m.WallpaperPath, StringComparison.OrdinalIgnoreCase)) continue;
             if (!Wallpaper.Write(d, m.WallpaperPath))
                 notes.Add($"{d.Label}: wallpaper could not be set.");
         }

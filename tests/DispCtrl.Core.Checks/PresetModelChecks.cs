@@ -196,6 +196,29 @@ internal static class PresetModelChecks
             "a display's name is never drift: the app rewrites it from the monitor, so Discard could not clear it");
         check(Count(p => Dell(p).IsOled = true, s => { s.Version = 2; Dell(s).IsOled = null; }) == 0,
             "an older preset that never said whether a panel is OLED does not disagree with it");
+
+        // Parts a preset leaves alone (PresetPart): not counted, whichever way they moved.
+        check(Count(p => { Dell(p).Brightness = 10; Dell(p).SoftwareBrightness = 40; p.Global.UnisonLevel = 3; }, s => s.Skip = [PresetPart.Brightness]) == 0
+            && Count(p => Dell(p).Brightness = 10, s => s.Skip = [PresetPart.NightLight]) == 1,
+            "a preset that leaves brightness alone does not count it as changed; one that leaves something else alone still does");
+        check(Count(p => { p.Global.NightLightEnabled = !p.Global.NightLightEnabled; Dell(p).NightLightStrength = 3; }, s => s.Skip = [PresetPart.NightLight]) == 0
+            && Count(p => { Dell(p).X = 77; Dell(p).Width = 640; }, s => s.Skip = [PresetPart.Layout]) == 0
+            && Count(p => Dell(p).MonitorControls["0x12"] = 76, s => s.Skip = [PresetPart.Controls]) == 0
+            && Count(p => { Dell(p).HideTaskbar = !Dell(p).HideTaskbar; p.Global.Taskbar!.AnimMs = 500; }, s => s.Skip = [PresetPart.Taskbar]) == 0,
+            "night light, layout, monitor controls and the taskbar are each left alone when skipped");
+        Preset own = Full(), moved = Full();
+        moved.Monitors["DEL-A234-X"].Brightness = 5;
+        check(PresetDiff.Describe(own, moved).Count == 1 && PresetDiff.Describe(own, moved, brightnessIsAutomatic: true).Count == 0,
+            "brightness moved while the room's light owns it is not a change");
+        check(PresetParts.All.All(part => PresetParts.Parse(PresetParts.Label(part)) == part) && PresetParts.Parse("nightlight") == PresetPart.NightLight
+            && PresetParts.Parse("night-light") == PresetPart.NightLight && PresetParts.Parse("nope") is null,
+            "every part reads back from its own words, and nothing else reads as a part");
+        Preset skipping = Full();
+        skipping.Skip = [PresetPart.Brightness, PresetPart.Windows];
+        check(PresetStore.Parse(PresetStore.ToJson(skipping)).Skip.SequenceEqual(skipping.Skip) && skipping.Copy().Skip is var copied
+                && !ReferenceEquals(copied, skipping.Skip) && PresetValidation.RetainScope(Full(), skipping).Skip.SequenceEqual(skipping.Skip)
+                && PresetStore.ToJson(skipping).Contains("\"Brightness\"", StringComparison.Ordinal),
+            "what a preset skips is stored by name, copied, and kept when it is saved again");
         string picture = Path.Combine(Path.GetTempPath(), "dispctrl-check-wallpaper-" + Guid.NewGuid().ToString("N") + ".jpg");
         File.WriteAllText(picture, "x");
         try
@@ -268,6 +291,17 @@ otated.jpg") == 0,
         noTaskbar.Global.Taskbar = null;
         check(PresetSettings.Merge(noTaskbar, applied, new DispCtrlSettings { Global = { HideDelayMs = 123 } }).Global.HideDelayMs == 123,
             "an older preset without taskbar timings does not reset them");
+
+        var latest3 = new DispCtrlSettings();
+        latest3.Global.UnisonLevel = 77;
+        latest3.For("DEL-A234-X").SoftwareBrightness = 90;
+        latest3.Global.HideDelayMs = 222;
+        Preset noBrightness = Full();
+        noBrightness.Skip = [PresetPart.Brightness, PresetPart.Taskbar];
+        DispCtrlSettings merged3 = PresetSettings.Merge(noBrightness, applied, latest3);
+        check(merged3.Global.UnisonLevel == 77 && merged3.For("DEL-A234-X").SoftwareBrightness == 90 && merged3.Global.HideDelayMs == 222
+            && !merged3.For("DEL-A234-X").HideTaskbar && merged3.Global.NightLight.Strength == 5,
+            "the parts a preset leaves alone are left alone in the settings too; the rest is kept");
     }
 
     private static void Scope(Action<bool, string> check)

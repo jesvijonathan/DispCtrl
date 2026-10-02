@@ -34,7 +34,7 @@ public sealed partial class ControlService
         "update.get", "update.check", "update.set", "update.skip", "update.reset",
         "machine.get", "machine.set", "machine.undo",
         "triggers.list", "triggers.get", "triggers.add", "triggers.set", "triggers.remove",
-        "preset.list", "preset.diff", "preset.save", "preset.apply", "preset.delete", "preset.desk"];
+        "preset.list", "preset.diff", "preset.set", "preset.save", "preset.apply", "preset.delete", "preset.desk"];
 
     public JsonObject Execute(JsonObject request)
     {

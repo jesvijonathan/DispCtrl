@@ -381,6 +381,15 @@ public sealed class GlobalSettings
     /// </remarks>
     public bool EngineStartupOffered { get; set; }
 
+    /// <summary>Say, across the top of the window, when the displays have changed from the preset in use.</summary>
+    /// <remarks>Off, the Presets page still lists the changes; only the banner and the title bar's dot go.</remarks>
+    public bool PresetChangeNotice { get; set; } = true;
+
+    /// <summary>Whether something other than a person is moving brightness: the room's light.</summary>
+    /// <remarks>A preset's brightness is then not counted as changed: the light moved it, not a person.</remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool BrightnessIsAutomatic => Ambient.Enabled && UnisonBrightness;
+
     /// <summary>The occasional request for a star or a donation; bookkeeping, kept by Reset all.</summary>
     public SupportPrompt Support { get; set; } = new();
 
@@ -416,6 +425,7 @@ public sealed class GlobalSettings
         DdcGuard = new() { Blocked = DdcGuard.Blocked };
         // Back to the default: the daily check on.
         Updates = new();
+        PresetChangeNotice = fresh.PresetChangeNotice;
         TaskbarOpacity = fresh.TaskbarOpacity;
         TaskbarGlassEnabled = fresh.TaskbarGlassEnabled;
         TaskbarGlassRadius = fresh.TaskbarGlassRadius;
