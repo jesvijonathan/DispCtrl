@@ -9,6 +9,7 @@ using DispCtrl, not for people reading the diff.
 ## [Unreleased]
 
 ### Added
+- Each display's night light warmth and focus dimming level can follow the common setting or be its own, with "Same as all displays" on the display's card and `common` on the command line (`dispctrl focus set --monitor 2 --dim-percent common`). Resetting a display puts all of its own values back.
 - Triggers: when something happens, run a custom feature - a display connected or disconnected, an app coming to the front or leaving it, being away and coming back, the computer locking or unlocking, unplugging or plugging in, waking, or a time of day. On the Hotkeys page and `dispctrl triggers`; the engine runs them, looking only as often as the triggers in use need.
 - Move the window in front to the next, previous or a chosen display, keeping its place and size in proportion across displays at different scales, and stretch it across every display: shortcuts (offered switched off on Ctrl+Alt+], [ and S) and `dispctrl placement move --to next` / `placement span`.
 - Company laptop switches, under Settings and `dispctrl machine`: sign in without Ctrl+Alt+Del, your own lock screen picture, skip the lock screen, no blur behind the sign-in box, lock after inactivity, dynamic lock, and no tips on the lock screen. Each reads back what Windows has, asks for administrator permission only when a machine-wide one is changed, says when an organisation manages the computer, and can be put back as it was.
@@ -24,6 +25,7 @@ using DispCtrl, not for people reading the diff.
 - The tray icon's right-click menu no longer offers Quick panel, which a left click already opens, or Close the app; Exit DispCtrl remains.
 
 ### Fixed
+- A display's night light slider no longer turns into a setting of its own as the page draws it: a display following the common warmth kept following it only until its card was first opened.
 - Hotkey action fields now update when the action changes. Slow shortcut actions are serialized off the keyboard pump; volume, mute, contrast and input commands read only the requested control.
 - LG mappings require device schema 2 so older builds cannot interpret their wire values as standard DDC. Stale input controls reject writes after their transport mapping changes.
 

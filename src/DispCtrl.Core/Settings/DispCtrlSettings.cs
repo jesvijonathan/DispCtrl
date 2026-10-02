@@ -840,6 +840,11 @@ public sealed class MonitorSettings
     /// monitor - is a property of that display, so it is set on the display.
     /// </remarks>
     public bool FocusDimming { get; set; } = true;
+
+    /// <summary>How far focus mode dims this display; -1 is the same as every display.</summary>
+    /// <remarks>Resolved by <see cref="FocusSettings.DimFor"/>, the one rule the engine and the app share.</remarks>
+    public int FocusDimPercent { get; set; } = -1;
+
     /// <summary>Temporary screen-rest request consumed by the engine.</summary>
     public DateTimeOffset? OledRestUntilUtc { get; set; }
 
@@ -884,6 +889,8 @@ public sealed class MonitorSettings
         MonitorSleepEnabled = fresh.MonitorSleepEnabled;
         MonitorSleepMinutes = fresh.MonitorSleepMinutes;
         FocusDimming = fresh.FocusDimming;
+        FocusDimPercent = fresh.FocusDimPercent;
+        OledCare = null;
         InUnison = fresh.InUnison;
         ProbedCodes = null;
         OledRestUntilUtc = null;

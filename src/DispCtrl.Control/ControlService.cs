@@ -344,7 +344,7 @@ public sealed partial class ControlService
                     "taskbar" when token is not null => ["hideTaskbar", "reclaimWorkArea"],
                     "taskbar" => TaskbarKeys,
                     "oled" => ["oledProtection", "oledWakeOnPointerReturn", "oledRestMinutes", "oledRestUntilUtc", "oledCare"],
-                    "focus" => ["focusDimming"],
+                    "focus" => ["focusDimming", "focusDimPercent"],
                     "nightlight" => ["nightLightStrength", "nightLightFloor", "nightLightCeiling"],
                     _ => throw new ArgumentException("This group has no per-monitor reset."),
                 };
@@ -369,6 +369,12 @@ public sealed partial class ControlService
                 name = group == "taskbar" ? name switch { "opacity" => "taskbarOpacity", "glass" => "taskbarGlassEnabled", "blur" => "taskbarGlassRadius",
                     "tint" => "taskbarGlassTint", "hide" => "hideTaskbar", "reclaimSpace" => "reclaimWorkArea", _ => name } : name;
                 if (group == "oled" && token is not null && name == "enabled") name = "oledProtection";
+                // A display's own level, or "common" for every display's.
+                if (token is not null && (group, name) is ("focus", "dimPercent") or ("nightlight", "strength"))
+                {
+                    name = group == "focus" ? "focusDimPercent" : "nightLightStrength";
+                    if (value is JsonValue c && c.TryGetValue(out string? common) && common == "common") value = JsonValue.Create(-1);
+                }
                 // One display's own stages: written into its oledCare block, and
                 // "common" puts a stage back to what every display has.
                 if (group == "oled" && token is not null && OledStageKeys.Contains(name))

@@ -56,6 +56,11 @@ for 15 s and reverted unless kept, as Windows does).
 
 ## 3. One settings model: common, or this display's own
 
+**Done** for OLED care (stages and levels), night light warmth and focus
+level: each display follows the common value until given its own, with one
+resolver per feature (`OledCareSettings.For`, `FocusSettings.DimFor`,
+`NightLightStrengthFor`) and "Same as all displays" in the app.
+
 Today per-display and global settings live in different shapes: OLED care's
 times and levels are global with a per-display switch, night light has a
 global strength and per-display ranges, focus dimming a per-display opt-out.

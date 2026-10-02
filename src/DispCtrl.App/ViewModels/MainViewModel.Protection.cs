@@ -8,7 +8,7 @@ public sealed partial class MainViewModel
     private FocusSettings Focus => _settings.Global.Focus;
     private OledCareSettings Care => _settings.Global.OledCare;
     public bool FocusEnabled { get => Focus.Enabled; set { if (Focus.Enabled == value) return; Focus.Enabled = value; SaveProtection(); } }
-    public double FocusDim { get => Focus.DimPercent; set { int v = Number(value, 0, 100); if (Focus.DimPercent == v) return; Focus.DimPercent = v; SaveProtectionSlider(); } }
+    public double FocusDim { get => Focus.DimPercent; set { int v = Number(value, 0, 100); if (Focus.DimPercent == v) return; Focus.DimPercent = v; SaveProtectionSlider(); foreach (DisplayViewModel d in Displays) d.RaiseFocusDim(); } }
     public double FocusDelay { get => Focus.DelayMs; set { int v = Number(value, 0, 10000); if (Focus.DelayMs == v) return; Focus.DelayMs = v; SaveProtection(); } }
     public double FocusFade { get => Focus.FadeMs; set { int v = Number(value, 0, 2000); if (Focus.FadeMs == v) return; Focus.FadeMs = v; SaveProtection(); } }
     public bool FocusOledOnly { get => Focus.OledOnly; set { if (Focus.OledOnly == value) return; Focus.OledOnly = value; SaveProtection(); } }

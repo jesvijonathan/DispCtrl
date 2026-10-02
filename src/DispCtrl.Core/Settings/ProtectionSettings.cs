@@ -122,6 +122,10 @@ public sealed class FocusSettings
     public string ExcludedApps { get; set; } = "";
 
     public HashSet<string> Exclusions() => AppList.Parse(ExcludedApps);
+
+    /// <summary>How far one display is dimmed: its own level, or the common one.</summary>
+    public int DimFor(MonitorSettings? monitor) =>
+        monitor?.FocusDimPercent is int own and >= 0 and <= 100 ? own : DimPercent;
 }
 
 /// <summary>Black or dimmed screen rest for monitors identified as OLED.</summary>

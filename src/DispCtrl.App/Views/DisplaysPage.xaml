@@ -1233,10 +1233,14 @@
                   <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE706;"/>
                   </tk:SettingsCard.HeaderIcon>
-                  <Slider Value="{x:Bind NightLightStrength, Mode=TwoWay}"
-                          Minimum="5" Maximum="100" StepFrequency="1"
-                          Width="220" VerticalAlignment="Center"
-                          AutomationProperties.Name="{x:Bind WarmthAutomationName}"/>
+                  <StackPanel Orientation="Horizontal" Spacing="12">
+                    <CheckBox Content="Same as all displays" IsChecked="{x:Bind NightLightSameAsAll, Mode=TwoWay}" MinWidth="0"
+                              VerticalAlignment="Center" AutomationProperties.Name="{x:Bind SameWarmthAutomationName}"/>
+                    <Slider Value="{x:Bind NightLightStrength, Mode=TwoWay}"
+                            Minimum="5" Maximum="100" StepFrequency="1"
+                            Width="220" VerticalAlignment="Center" IsEnabled="{x:Bind NightLightOwn, Mode=OneWay}"
+                            AutomationProperties.Name="{x:Bind WarmthAutomationName}"/>
+                  </StackPanel>
                 </tk:SettingsCard>
 
                 <!-- Windows settings, not the monitor's, but they act on this
@@ -1277,7 +1281,14 @@
                   <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE890;"/>
                   </tk:SettingsCard.HeaderIcon>
-                  <ToggleSwitch IsOn="{x:Bind FocusDimming, Mode=TwoWay}" AutomationProperties.Name="{x:Bind FocusDimmingAutomationName}"/>
+                  <StackPanel Orientation="Horizontal" Spacing="12">
+                    <CheckBox Content="Same level as all displays" IsChecked="{x:Bind FocusSameAsAll, Mode=TwoWay}" MinWidth="0"
+                              VerticalAlignment="Center" IsEnabled="{x:Bind FocusDimming, Mode=OneWay}"
+                              AutomationProperties.Name="{x:Bind SameFocusAutomationName}"/>
+                    <Slider Value="{x:Bind FocusDim, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" Width="140"
+                            VerticalAlignment="Center" IsEnabled="{x:Bind FocusOwn, Mode=OneWay}"/>
+                    <ToggleSwitch IsOn="{x:Bind FocusDimming, Mode=TwoWay}" AutomationProperties.Name="{x:Bind FocusDimmingAutomationName}"/>
+                  </StackPanel>
                 </tk:SettingsCard>
 
                 <tk:SettingsCard Header="OLED burn-in protection"

@@ -521,6 +521,13 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
             && common["ok"]!.GetValue<bool>() && SettingsStore.Load().For(ownToken).OledCare is { IdleMinutes: null, ThirdStageBacklight: false }
             && SettingsStore.Load().Global.OledCare.IdleMinutes != 7,
             "one display gets its own OLED stages, and 'common' puts one back to every display's");
+        service.Execute(Request("focus.set", new() { ["monitor"] = "1", ["dimPercent"] = 30 }));
+        service.Execute(Request("nightlight.set", new() { ["monitor"] = "1", ["strength"] = 70 }));
+        bool ownLevels = SettingsStore.Load().For(ownToken) is { FocusDimPercent: 30, NightLightStrength: 70 };
+        service.Execute(Request("focus.set", new() { ["monitor"] = "1", ["dimPercent"] = "common" }));
+        service.Execute(Request("nightlight.set", new() { ["monitor"] = "1", ["strength"] = "common" }));
+        Check(ownLevels && SettingsStore.Load().For(ownToken) is { FocusDimPercent: -1, NightLightStrength: -1 },
+            "a display gets its own focus level and warmth, and 'common' puts each back");
     }
     var offOn = service.Execute(Request("awake.displays-off", new() { ["enabled"] = true }));
     DateTimeOffset? offAsked = SettingsStore.Load().Global.Awake.DisplaysOffUtc;

@@ -59,6 +59,14 @@ var ownCare = careCheck.For(new OledCareOverride { IdleMinutes = 10, ThirdStageE
 Check(ownCare.IdleMinutes == 10 && !ownCare.ThirdStageEnabled && ownCare.DimPercent == 50 && careCheck.IdleMinutes == 1
     && ReferenceEquals(careCheck.For(new OledCareOverride()), careCheck) && ReferenceEquals(careCheck.For(null), careCheck),
     "a display's own stages replace only what it set, and leave the common settings alone");
+var focusCommon = new FocusSettings { DimPercent = 40 };
+Check(focusCommon.DimFor(null) == 40 && focusCommon.DimFor(new MonitorSettings()) == 40
+    && focusCommon.DimFor(new MonitorSettings { FocusDimPercent = 70 }) == 70 && focusCommon.DimFor(new MonitorSettings { FocusDimPercent = 0 }) == 0,
+    "a display dims by focus mode's common level until it is given its own, which may be none at all");
+var resetOwn = new MonitorSettings { FocusDimPercent = 70, OledCare = new OledCareOverride { IdleMinutes = 3 }, NightLightStrength = 60 };
+resetOwn.ResetToDefaults();
+Check(resetOwn.FocusDimPercent == -1 && resetOwn.OledCare is null && resetOwn.NightLightStrength == -1,
+    "resetting a display puts every setting of its own back to the common one");
 // A person's last input at 10 s; Stay active nudges at 65 s and 120 s.
 var personIdle = new DispCtrl.Core.Displays.PersonIdle();
 personIdle.Update(10_000, 0, 0);

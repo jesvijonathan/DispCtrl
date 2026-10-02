@@ -2094,6 +2094,10 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         {
             int v = Math.Clamp((int)value, 0, 100);
             if (_settings.NightLightStrength == v) return;
+            // Following every display, the slider shows the common strength and
+            // writes it back as it is realised; that is not this display
+            // choosing its own, and taken as one it stopped following for good.
+            if (_settings.NightLightStrength < 0) return;
             _settings.NightLightStrength = v;
             _persistSoon();
             _deskChanged();
@@ -2101,6 +2105,26 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             Raise(nameof(NightLightStrengthText));
         }
     }
+
+    /// <summary>Whether this display warms as much as every other; unticked, it starts from the common strength.</summary>
+    /// <remarks>Written only on a real change: the box writes its value back as it is realised.</remarks>
+    public bool NightLightSameAsAll
+    {
+        get => _settings.NightLightStrength < 0;
+        set
+        {
+            if (NightLightSameAsAll == value) return;
+            _settings.NightLightStrength = value ? -1 : _root.Global.NightLight.Strength;
+            _persist();
+            _deskChanged();
+            Raise();
+            Raise(nameof(NightLightOwn));
+            Raise(nameof(NightLightStrength));
+            Raise(nameof(NightLightStrengthText));
+        }
+    }
+
+    public bool NightLightOwn => !NightLightSameAsAll;
 
     public string NightLightStrengthText
     {
@@ -2186,6 +2210,43 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     }
 
     public string FocusDimmingAutomationName => $"FocusDimming {Number}";
+
+    /// <summary>Whether focus mode dims this display as far as every other.</summary>
+    public bool FocusSameAsAll
+    {
+        get => _settings.FocusDimPercent < 0;
+        set
+        {
+            if (FocusSameAsAll == value) return;
+            _settings.FocusDimPercent = value ? -1 : _root.Global.Focus.DimPercent;
+            _persist();
+            Raise();
+            Raise(nameof(FocusOwn));
+            Raise(nameof(FocusDim));
+        }
+    }
+
+    public bool FocusOwn => !FocusSameAsAll;
+
+    /// <summary>The common focus level moved: a display following it shows the new one.</summary>
+    public void RaiseFocusDim() => Raise(nameof(FocusDim));
+
+    /// <summary>How far focus mode dims this display, its own level or the common one.</summary>
+    public double FocusDim
+    {
+        get => _root.Global.Focus.DimFor(_settings);
+        set
+        {
+            int v = Math.Clamp((int)Math.Round(value), 0, 100);
+            if (_settings.FocusDimPercent < 0 || _settings.FocusDimPercent == v) return;
+            _settings.FocusDimPercent = v;
+            _persistSoon();
+            Raise();
+        }
+    }
+
+    public string SameWarmthAutomationName => $"NightLightSameAsAll {Number}";
+    public string SameFocusAutomationName => $"FocusSameAsAll {Number}";
 
     // ------------------------------------------------------ unison, the guard, the probe --
 

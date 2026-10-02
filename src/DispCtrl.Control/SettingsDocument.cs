@@ -105,7 +105,7 @@ public static class SettingsDocument
                             or "unisonLevel" or "strength" => (0, 100),
                         "brightnessBaseline" or "brightnessFloor" or "brightnessCeiling" or "nightLightFloor" or "nightLightCeiling" => (-1, 100),
                         "softwareBrightness" => (10, 100),
-                        "nightLightStrength" => (-1, 100),
+                        "nightLightStrength" or "focusDimPercent" => (-1, 100),
                         "idleMinutes" or "secondStageMinutes" => (1, 120),
                         "thirdStageMinutes" => (1, 240),
                         "oledRestMinutes" => (1, 30),

@@ -998,8 +998,8 @@ internal sealed unsafe partial class FocusService : IDisposable
                 // has something of its own to frame rather than one shared window.
                 && (focus.PerMonitorFocus || focus.DimOtherMonitors || onActiveMonitor);
             int wanted = focus.ScaleWithBrightness
-                ? FocusGeometry.ScaledDim(focus.DimPercent, PanelLevel(monitor))
-                : focus.DimPercent;
+                ? FocusGeometry.ScaledDim(focus.DimFor(monitor), PanelLevel(monitor))
+                : focus.DimFor(monitor);
             int restDim = preview ? _previewPercent : manualRest ? 100
                 : dimNow ? Math.Max(Math.Clamp(awake.DisplaysOffPercent, 0, 100), resting ? here.DimAtIdle(panelIdle) : 0)
                 : here.DimAtIdle(panelIdle);
