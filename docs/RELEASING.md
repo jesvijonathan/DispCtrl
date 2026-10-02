@@ -240,5 +240,5 @@ certification testing. MakeAppx succeeding is not Store approval.
 The channel is compiled into the binaries (`-p:DispCtrlChannel`, passed by
 `Publish.ps1`). A stable build logs errors only; beta and test builds log
 routine diagnostics as well and name themselves in their titles, and device
-shares from any build carry its version. The channel does not enable
-unfinished presets: that is `-p:EnableBetaPresets=true`.
+shares from any build carry its version. Presets are on in every
+channel and labelled Beta in the app; `-p:EnableBetaPresets=false` leaves them out.

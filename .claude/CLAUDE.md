@@ -1620,8 +1620,8 @@ Match what is there. It is deliberate and consistent.
 Working and verified on hardware: per-monitor taskbar hiding, per-monitor
 wallpaper, unison brightness (multiplier and calibrated range), night light
 (unison, per-monitor, calibrated, scheduled), software dimming, arrangement
-drag/apply, presets with per-app rules (shelved in release builds behind
-`EnableBetaPresets` in `Directory.Build.props` until the beta is ready),
+drag/apply, presets with per-app rules and desk profiles (on and labelled
+Beta since 2026-10-02; `-p:EnableBetaPresets=false` builds without them),
 monitor capability discovery and control,
 display report, identify overlays, hotplug re-discovery, device contribution
 (anonymised, consent-gated), the quick panel and tray icon, Windows' brightness

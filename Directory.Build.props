@@ -13,8 +13,9 @@
     <DispCtrlChannel Condition="'$(DispCtrlChannel)' == ''">dev</DispCtrlChannel>
     <DefineConstants Condition="'$(DispCtrlChannel)' == 'stable'">$(DefineConstants);DISPCTRL_STABLE</DefineConstants>
 
-    <!-- Presets are shelved until the beta implementation is ready. -->
-    <EnableBetaPresets Condition="'$(EnableBetaPresets)' == ''">false</EnableBetaPresets>
+    <!-- Presets, desk profiles included, are on by default and still labelled
+         Beta in the app; -p:EnableBetaPresets=false builds without them. -->
+    <EnableBetaPresets Condition="'$(EnableBetaPresets)' == ''">true</EnableBetaPresets>
     <DefineConstants Condition="'$(EnableBetaPresets)' == 'true'">$(DefineConstants);BETA_PRESETS</DefineConstants>
 
     <LangVersion>latest</LangVersion>

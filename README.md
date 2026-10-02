@@ -299,6 +299,8 @@ Each part below opens on its own. Ranges and choices are the ones the app offers
 - Saved setups: Apply, Update from displays, View / edit JSON, Map displays, Rename, Export JSON, Delete; Import JSON, Open folder
 - Shows what has changed since a preset was saved
 - App rules: executable name, preset, activation delay, Otherwise return to, Restore previous setup when leaving this app, Enabled, Remove rule, Add app rule
+- Desk profiles: a whole-desk preset applies by itself when exactly its displays are connected, windows put back where they were
+- Launch with a preset: `dispctrl preset launch "TV gaming" steam://... --wait-for game.exe` applies it, runs the program, and puts the desk back when it exits
 
 </details>
 

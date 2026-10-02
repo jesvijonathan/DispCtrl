@@ -30,6 +30,9 @@ public static class ControlTerminal
       display factory-reset --monitor ID --confirm
       display reset --monitor ID [--factory --confirm]  DispCtrl's settings for it (and the monitor's own)
       gamma get|set --unlocked on|off       Windows' gamma clamp (night light and dimming range)
+      preset list|save|apply|delete NAME    Presets and desk profiles (Beta): the whole desk, windows included
+      preset desk NAME on|off               Apply by itself when exactly its displays connect
+      preset launch NAME PROGRAM [ARGS] [--wait-for game.exe] [--keep]   Apply, run, put the desk back after
       machine get                           Sign-in and lock screen switches, and whether an organisation manages them
       machine set SWITCH on|off|MINUTES|PICTURE   no-ctrl-alt-del, lock-screen-picture, no-lock-screen, sharp-sign-in,
                                             lock-after, dynamic-lock, quiet-lock-screen (machine-wide ones ask for admin)

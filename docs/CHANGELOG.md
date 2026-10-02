@@ -9,6 +9,7 @@ using DispCtrl, not for people reading the diff.
 ## [Unreleased]
 
 ### Added
+- Presets are switched on (still labelled Beta): save and apply the whole desk, apply automatically when a desk's displays connect, launch a program with a preset and get the desk back after, and per-app rules. They were built but left out of earlier releases.
 - Taskbar glass looks, as TranslucentTB offers them: blur, clear, opaque and acrylic, tinted with a colour of your own or Windows' accent colour, and the thin border along the taskbar's top shown or hidden. Off is Windows' normal taskbar. On the Taskbar page and `dispctrl taskbar set --look acrylic --accent on --border off`.
 - OLED care can pause while a video plays on a display - in a browser or a player, fullscreen or in a window - as Windows' media sessions report it; music playing alone still lets the displays rest. On by default, beside "Pause during fullscreen content".
 - Each display's night light warmth and focus dimming level can follow the common setting or be its own, with "Same as all displays" on the display's card and `common` on the command line (`dispctrl focus set --monitor 2 --dim-percent common`). Resetting a display puts all of its own values back.

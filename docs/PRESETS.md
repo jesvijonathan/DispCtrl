@@ -1,14 +1,10 @@
 # Display presets
 
-**Status: shelved beta.** Normal builds disable presets entirely: no navigation tab,
-sticky controls, preset shortcuts, foreground-app rules, CLI operations or report
-collection. Existing preset files and stored rules remain intact but inactive.
-This is a build-time gate, not a setting users can accidentally re-enable.
-
-For future development only, build all components with `-p:EnableBetaPresets=true`.
-Use a separate output directory for beta builds and rebuild all components when
-switching modes. The UI labels the enabled feature as Beta. The implementation
-below is retained for that work; it is not available in normal releases.
+**Status: beta, on.** Presets are built into every build and labelled Beta in the
+app: the Presets page, desk profiles, preset shortcuts, foreground-app rules,
+`dispctrl preset` and report collection. A build made with
+`-p:EnableBetaPresets=false` leaves them out entirely, as releases did before
+2026-10-02; files and rules made meanwhile are kept, inactive.
 
 The sticky display-page controls remain the quick way to save and restore a selected setup. The Presets page manages capture, files, monitor mapping and foreground-app rules.
 

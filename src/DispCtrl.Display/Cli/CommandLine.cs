@@ -861,6 +861,19 @@ public static class CommandLine
     /// what exists; this says what each command is for and how the arguments
     /// behave, which is the part anyone actually needs.
     /// </remarks>
+    private const string PresetUsage = """
+        Presets and desk profiles (Beta)
+          preset list              every saved preset
+          preset save <name>       capture the desk now, windows included
+          preset apply <name>
+          preset delete <name>
+          preset desk <name> on|off       apply by itself when exactly its displays connect
+          preset launch <name> <program> [args] [--wait-for game.exe] [--keep]
+                                   apply, run, and put the desk back when it exits
+
+
+        """;
+
     private const string UsageText = """
         dispctrl — display control from the command line
 
@@ -931,7 +944,9 @@ public static class CommandLine
         TextWriter w = message is null ? Console.Out : Console.Error;
         if (message is not null) w.WriteLine(message);
 
-        w.WriteLine(UsageText);
+        // Presets are listed only in a build that has them.
+        w.WriteLine(DispCtrl.Core.FeatureFlags.Presets ? UsageText.Replace("Diagnostics" + Environment.NewLine, PresetUsage + "Diagnostics" + Environment.NewLine)
+            .Replace("Diagnostics\n", PresetUsage + "Diagnostics\n") : UsageText);
         return message is null ? 0 : 2;
     }
 }
