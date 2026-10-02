@@ -157,9 +157,9 @@ public sealed record DeviceSubmission
     /// and whether a model is OLED is exactly the sort of thing this database
     /// exists to answer.
     /// </param>
-    public static DeviceSubmission Build(DisplayInfo display, bool? isOled = null, bool includePrivateDetails = true)
+    public static DeviceSubmission Build(DisplayInfo display, bool? isOled = null, bool includePrivateDetails = true, MonitorCapability? reported = null)
     {
-        MonitorCapability capability = Safely(() => MonitorCapabilities.Read(display, includeMappings: false), MonitorCapability.None);
+        MonitorCapability capability = reported ?? Safely(() => MonitorCapabilities.Read(display, includeMappings: false), MonitorCapability.None);
         DisplayDetail detail = Safely(() => DisplayDetails.Read(display), new DisplayDetail());
         VrrState vrr = Safely(() => VariableRefreshRate.Read(display), VrrState.Unsupported);
         HdrState hdr = Safely(() => AdvancedDisplay.ReadHdr(display), HdrState.Unsupported);
@@ -240,7 +240,7 @@ public sealed record DeviceSubmission
             DdcWorks = capability.Supported,
             BrightnessOverDdc = brightness.Supported && !display.IsInternal,
             MccsVersion = capability.MccsVersion ?? "",
-            Capabilities = capability.Raw,
+            Capabilities = MonitorCapabilities.IsProbed(capability.Raw) ? "" : capability.Raw,
             Controls = controls,
             Commands = capability.Commands,
             FullReport = includePrivateDetails ? Safely(() => DisplayReport.For(display), "") : "",

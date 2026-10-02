@@ -34,11 +34,12 @@ public static class ControlTerminal
     Device library (docs/DEVICE-LIBRARY.md)
       devices list                          Every monitor model seen here, and what is known of it
       devices show --monitor ID|--model KEY Every code: standard, mapped, or not yet named
-      devices scan                          Sync: read every attached monitor now (the engine does it by itself)
+      devices scan [--monitor ID]           Read controls, list new codes and save them for Contribute
       devices forget --monitor ID|--model KEY   Remove a model from the list until the next scan
       devices probe --monitor ID [--codes unknown|all|0xE2,0xF0] [--seconds 120]
                                             Watch codes while you change the monitor's own menu
       devices map --monitor ID --code 0xE2 --name "Preset mode" [--values "0x0B=ComfortView"]
+                                            --scope model|brand|all; --transport lg-input for LG alternate input
                                             LG input: --code 0x60 --source-address 0x50 --write-code 0xF4
                   [--kind range|choice|action|information] [--writable] [--scope model|brand|all]
       devices unmap|link|definitions        Remove, cross-link (--to DEL-A233), inspect layers
@@ -415,7 +416,7 @@ public static class ControlTerminal
         int seconds = args["seconds"]?.GetValue<int>() ?? 120, interval = args["interval"]?.GetValue<int>() ?? 500;
         if (seconds is < 1 or > 3600 || interval is < 0 or > 60000) throw new ArgumentException("--seconds 1..3600, --interval 0..60000 ms.");
 
-        var capabilities = DispCtrl.Display.MonitorCapabilities.Read(display, readValues: false);
+        var capabilities = DispCtrl.Display.MonitorCapabilities.Read(display, readValues: false, includeMappings: false);
         if (!capabilities.Supported) throw new InvalidOperationException($"{display.Label} does not answer DDC/CI.");
         var known = DispCtrl.Core.Devices.DeviceLibrary.Resolve(display.Key.Model);
         string codes = args["codes"]?.ToString() ?? "unknown";
@@ -433,7 +434,7 @@ public static class ControlTerminal
         bool first = true;
         while (clock.Elapsed.TotalSeconds < seconds && !ct.IsCancellationRequested)
         {
-            await Task.Run(() => DispCtrl.Display.MonitorCapabilities.ReadValues(display, wanted), ct);
+            await Task.Run(() => DispCtrl.Display.MonitorCapabilities.ObserveValues(display, capabilities, wanted), ct);
             foreach (var c in wanted)
             {
                 if (c.Current < 0) continue;

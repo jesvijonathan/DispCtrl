@@ -62,7 +62,8 @@ public sealed class DeviceHistory
     /// it. Reads of an unchanged monitor write nothing, so the file is not
     /// rewritten on every capabilities read.
     /// </remarks>
-    public static void Update(Func<DeviceHistory, bool> change)
+    /// <returns>False when the history could not be read or written; nothing was recorded.</returns>
+    public static bool Update(Func<DeviceHistory, bool> change)
     {
         lock (Gate)
         {
@@ -70,21 +71,35 @@ public sealed class DeviceHistory
             bool held;
             try { held = mutex.WaitOne(3000); }
             catch (AbandonedMutexException) { held = true; }
-            if (!held) return;
+            if (!held) return false;
             try
             {
                 // A sharing violation must not turn an existing library into
                 // an empty one that this update would then overwrite.
                 DeviceHistory history = Read(strict: true);
-                if (!change(history)) return;
+                if (!change(history)) return true;
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
                 string temp = FilePath + ".tmp";
                 File.WriteAllText(temp, JsonSerializer.Serialize(history, DeviceJsonContext.Default.DeviceHistory));
                 File.Move(temp, FilePath, overwrite: true);
+                return true;
             }
-            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { }
+            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { return false; }
             finally { mutex.ReleaseMutex(); }
         }
+    }
+
+    // What Listed has already put in the file, per model, while the file is as
+    // this process last saw it. Every control read records its readings - a
+    // hotkey press, each tick of a watch - and nearly all of them are already
+    // there; this makes those a stamp check instead of a mutex and a parse.
+    private static readonly Dictionary<string, HashSet<string>> Recorded = new(StringComparer.OrdinalIgnoreCase);
+    private static (string Path, DateTime Written, long Length) _recordedFrom;
+
+    private static (string, DateTime, long) Stamp()
+    {
+        var file = new FileInfo(FilePath);
+        return file.Exists ? (file.FullName, file.LastWriteTimeUtc, file.Length) : (file.FullName, default, -1);
     }
 
     /// <summary>Records that a model is attached now.</summary>
@@ -109,22 +124,37 @@ public sealed class DeviceHistory
     }
 
     /// <summary>Records the codes a model listed and the values they were read at.</summary>
-    public static void Listed(string model, string capabilities, IEnumerable<SeenReading> readings)
+    public static void Listed(string model, string capabilities, IEnumerable<SeenReading> readings, bool advertised = true)
     {
         if (!DeviceDefinitions.IsModel(model)) return;
-        Update(h =>
+        var list = readings as IReadOnlyCollection<SeenReading> ?? [.. readings];
+        var prints = new string[list.Count + 1];
+        int n = 0;
+        prints[n++] = advertised ? "capabilities " + capabilities : "probed";
+        foreach (SeenReading r in list)
+            prints[n++] = $"{(advertised ? 'a' : 'p')}{r.Code:X2}|{r.Name}|{r.Kind}|{string.Join(',', r.ListedValues)}|{r.Current}|{r.Maximum}";
+        var stamp = Stamp();
+        lock (Gate)
+        {
+            if (_recordedFrom != stamp) { Recorded.Clear(); _recordedFrom = stamp; }
+            if (Recorded.TryGetValue(model, out HashSet<string>? known) && prints.All(known.Contains)) return;
+        }
+
+        bool done = Update(h =>
         {
             if (h.IsForgotten(model)) return false;
             if (!h.Models.TryGetValue(model, out SeenModel? m))
                 m = h.Models[model] = new SeenModel { Key = model, FirstSeen = DateTimeOffset.UtcNow, LastSeen = DateTimeOffset.UtcNow, Sightings = 1 };
-            bool changed = m.Capabilities != capabilities;
-            m.Capabilities = capabilities;
-            foreach (SeenReading r in readings)
+            bool changed = advertised && m.Capabilities != capabilities;
+            if (advertised) m.Capabilities = capabilities;
+            foreach (SeenReading r in list)
             {
                 string code = DeviceDefinitions.FormatCode(r.Code);
-                if (!m.Codes.TryGetValue(code, out SeenCode? c)) { c = m.Codes[code] = new SeenCode(); changed = true; }
+                if (!m.Codes.TryGetValue(code, out SeenCode? c)) { c = m.Codes[code] = new SeenCode { Probed = !advertised }; changed = true; }
+                if (advertised && c.Probed) { c.Probed = false; changed = true; }
                 if (c.Name != r.Name || c.Kind != r.Kind) { c.Name = r.Name; c.Kind = r.Kind; changed = true; }
-                if (!c.ListedValues.SequenceEqual(r.ListedValues)) { c.ListedValues = [.. r.ListedValues]; changed = true; }
+                if (advertised && !c.ListedValues.SequenceEqual(r.ListedValues)) { c.ListedValues = [.. r.ListedValues]; changed = true; }
+                if (r.Maximum is >= 0 and < 65535 && c.Maximum != r.Maximum) { c.Maximum = r.Maximum; changed = true; }
                 if (r.Current is int value && !c.Observed.Contains(value))
                 {
                     c.Observed.Add(value);
@@ -136,6 +166,14 @@ public sealed class DeviceHistory
             }
             return changed;
         });
+        if (!done) return;
+        stamp = Stamp();
+        lock (Gate)
+        {
+            if (_recordedFrom != stamp) { Recorded.Clear(); _recordedFrom = stamp; }
+            if (!Recorded.TryGetValue(model, out HashSet<string>? known)) Recorded[model] = known = [];
+            known.UnionWith(prints);
+        }
     }
 }
 
@@ -203,7 +241,10 @@ public sealed class SeenCode
 
     /// <summary>The distinct values it has been read at.</summary>
     public List<int> Observed { get; set; } = [];
+    public int? Maximum { get; set; }
+    /// <summary>Found by a read-only probe rather than the monitor's capabilities string.</summary>
+    public bool Probed { get; set; }
 }
 
 /// <summary>One code as read, for <see cref="DeviceHistory.Listed"/>.</summary>
-public sealed record SeenReading(byte Code, string Name, string Kind, IReadOnlyList<int> ListedValues, int? Current);
+public sealed record SeenReading(byte Code, string Name, string Kind, IReadOnlyList<int> ListedValues, int? Current, int? Maximum = null);

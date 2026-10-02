@@ -4,6 +4,7 @@ using DispCtrl.Control;
 using DispCtrl.Core.Devices;
 using DispCtrl.Core.Displays;
 using DispCtrl.Display;
+using DispCtrl.Display.Devices;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -21,6 +22,7 @@ public sealed class LearnSettingDialog
     private readonly Dictionary<byte, int> _baseline = [];
     private readonly Dictionary<byte, Dictionary<int, string>> _namedValues = [];
     private Dictionary<byte, ResolvedControl> _existing = [];
+    private MonitorCapability _capabilities = MonitorCapability.None;
     private bool _saving;
     private Dictionary<int, string> Values(byte code)
     {
@@ -134,9 +136,9 @@ public sealed class LearnSettingDialog
         List<VcpControl> wanted;
         try
         {
-            MonitorCapability capabilities = await Task.Run(() => MonitorCapabilities.Read(_display, readValues: false), _cancel.Token);
+            _capabilities = await Task.Run(() => MonitorCapabilities.Read(_display, readValues: false, includeMappings: false), _cancel.Token);
             _existing = await Task.Run(() => DeviceLibrary.Resolve(_display.Key.Model), _cancel.Token);
-            wanted = capabilities.Controls
+            wanted = _capabilities.Controls
                 .Where(c => !MonitorCapabilities.IsNamed(c.Code) && c.Code is not 0x04)
                 .OrderBy(c => c.Code).ToList();
             if (wanted.Count == 0)
@@ -214,11 +216,6 @@ public sealed class LearnSettingDialog
             _status.Text = "Name the value the monitor is on now.";
             return;
         }
-        if (name.Contains(','))
-        {
-            _status.Text = "Use a value name without commas.";
-            return;
-        }
         Values(c.CodeValue)[c.Now] = name;
         ShowValues(c.CodeValue);
     }
@@ -230,6 +227,7 @@ public sealed class LearnSettingDialog
             _cancel.Token.ThrowIfCancellationRequested();
             MonitorCapabilities.ReadValues(_display, [control]);
         }
+        DeviceObserver.Listed(_display, _capabilities.Raw, controls);
     }, _cancel.Token);
 
     private void ShowValues(byte code) => _seen.Text = "Values: " +
@@ -257,9 +255,9 @@ public sealed class LearnSettingDialog
         if (kind == "choice")
         {
             if (!string.IsNullOrWhiteSpace(_valueName.Text)) AddCurrentValue();
-            if (Values(c.CodeValue).Count == 0 || _valueName.Text.Contains(','))
+            if (Values(c.CodeValue).Count == 0)
             {
-                _status.Text = "Name at least one value, without commas.";
+                _status.Text = "Name at least one value.";
                 return false;
             }
         }
@@ -274,8 +272,13 @@ public sealed class LearnSettingDialog
             ["confidence"] = "observed",
         };
         if (kind == "choice")
-            args["values"] = string.Join(",", Values(c.CodeValue).OrderBy(p => p.Key).Select(p => $"0x{p.Key:X2}={p.Value}"));
-        else args["maximum"] = (int)_maximum.Value;
+            args["values"] = new JsonArray(Values(c.CodeValue).OrderBy(p => p.Key)
+                .Select(p => (JsonNode)new JsonObject { ["value"] = $"0x{p.Key:X2}", ["name"] = p.Value }).ToArray());
+        else
+        {
+            args["values"] = new JsonArray();
+            args["maximum"] = (int)_maximum.Value;
+        }
         JsonObject result = await Task.Run(() => _service.Execute(new JsonObject
         {
             ["version"] = 1,

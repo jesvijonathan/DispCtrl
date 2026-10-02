@@ -28,11 +28,12 @@ public static class DeviceObserver
     /// <summary>Records the codes a monitor listed and the values they were read at.</summary>
     public static void Listed(DisplayInfo display, string capabilities, IEnumerable<VcpControl> controls)
     {
-        SeenReading[] readings = controls.Select(c => new SeenReading(
+        SeenReading[] readings = controls.Where(c => c.MappedDefinition is null && !c.WriteOnly).Select(c => new SeenReading(
             c.Code, c.Name, c.Kind.ToString(),
             c.Values.Select(v => (int)v.Value).ToArray(),
-            c.Current < 0 ? null : c.Kind == VcpKind.Discrete ? c.CurrentValue : c.Current)).ToArray();
-        try { DeviceHistory.Listed(display.Key.Model, capabilities, readings); }
+            c.Current < 0 ? null : c.Kind == VcpKind.Discrete && MonitorCapabilities.IsNamed(c.Code) ? c.CurrentValue : c.Current,
+            c.Maximum < 0 ? null : c.Maximum)).ToArray();
+        try { DeviceHistory.Listed(display.Key.Model, capabilities, readings, advertised: !MonitorCapabilities.IsProbed(capabilities)); }
         catch (Exception) { }
     }
 }

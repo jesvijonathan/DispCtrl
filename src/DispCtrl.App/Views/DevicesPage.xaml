@@ -14,7 +14,7 @@
         <TextBlock Text="Devices" Style="{StaticResource TitleTextBlockStyle}"/>
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="Every monitor this PC has seen. DispCtrl reads each new model by itself the first time it is plugged in, and applies whatever the project already knows about it. The codes nobody has named are listed under each monitor: name one, contribute it, and every owner of that model gets the control."/>
+                   Text="Discover your monitor's controls, give them useful names, and use them from Displays. Scan for codes, watch a setting change in the monitor's menu, then name its values. Your discoveries are saved for contributions across every brand."/>
       </StackPanel>
 
       <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
@@ -25,7 +25,7 @@
                 ToolTipService.ToolTip="Read every attached monitor again now, including any removed from this list. The engine does this by itself for new models.">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <FontIcon FontSize="14" Glyph="&#xE895;"/>
-            <TextBlock Text="Sync now"/>
+            <TextBlock Text="Scan controls"/>
           </StackPanel>
         </Button>
         <Button Click="OnOpenFolder" AutomationProperties.Name="DevicesOpenFolder"

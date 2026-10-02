@@ -1,10 +1,9 @@
 using System.Text;
 using System.Diagnostics;
 using DispCtrl.Core.Caching;
+using DispCtrl.Core.Devices;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Core.Devices;
-using System.Text.Json;
 using Windows.Win32;
 using Windows.Win32.Devices.Display;
 using Windows.Win32.Foundation;
@@ -38,6 +37,10 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     public bool WriteOnly { get; init; }
     public bool MappedWritable { get; init; }
     public string? MappingSnapshot { get; init; }
+    public DefinedControl? MappedDefinition { get; init; }
+    public string? MappingOrigin { get; init; }
+    public bool FullValue { get; init; }
+    public bool IsAction => MappedDefinition?.Kind == DefinedKinds.Action;
     /// <summary>Current value, once read. -1 when it has not been.</summary>
     public int Current { get; set; } = -1;
 
@@ -47,7 +50,8 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     public string Hex => $"0x{Code:X2}";
 
     /// <summary>
-    /// The current value reduced to the byte that actually carries it.
+    /// The current value reduced to the byte that carries it, unless a mapping
+    /// names values wider than a byte.
     /// </summary>
     /// <remarks>
     /// A VCP reply is 16 bits, and for a discrete control the meaning is in the
@@ -56,21 +60,25 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     /// means anything. Matching the raw word against the listed values finds
     /// nothing and the control reads as being on a setting it does not have.
     /// </remarks>
-    public int CurrentValue => Current < 0 ? -1 : Current & 0xFF;
+    public int CurrentValue => Current < 0 ? -1 : FullValue ? Current : Current & 0xFF;
 
     /// <summary>The listed value the control is currently on, if any.</summary>
     public VcpValue? CurrentOption
     {
         get
         {
-            if (MappedWritable)
-            {
-                foreach (VcpValue v in Values)
-                    if (v.Value == Current) return v;
-                if (Values.Any(v => v.Value > 0xFF)) return null;
-            }
+            // The full word first; the low byte only when every value fits in
+            // one, as ControlValues.Cycle reads it.
+            if (Current < 0) return null;
+            bool wide = false;
             foreach (VcpValue v in Values)
-                if (v.Value == CurrentValue) return v;
+            {
+                if (v.Value == Current) return v;
+                wide |= v.Value > 0xFF;
+            }
+            if (wide) return null;
+            foreach (VcpValue v in Values)
+                if (v.Value == (Current & 0xFF)) return v;
 
             return null;
         }
@@ -91,7 +99,11 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     /// working control.
     /// </para>
     /// </remarks>
-    public bool Settable => WriteOnly ? MappedWritable :
+    public bool Settable => MappedDefinition is { } mapping
+        ? mapping.Writable && mapping.Kind != DefinedKinds.Information
+            && (Kind != VcpKind.Continuous || Maximum > 0)
+            && (Kind != VcpKind.Discrete || Values.Count > 0)
+        : MappedWritable ? (Kind != VcpKind.Discrete || Values.Count > 0) :
         Kind != VcpKind.Information
         && VcpControl.Settables.Contains(Code)
         && (Kind == VcpKind.Continuous || CurrentOption is not null);
@@ -104,7 +116,7 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
     /// capabilities string includes manufacturer-specific codes whose meaning
     /// is undocumented and differs between models; writing one to find out what
     /// it does is how a panel ends up in a state its own OSD cannot undo. They
-    /// are reported, never written.
+    /// are reported and require an explicit writable mapping before use.
     /// </remarks>
     /// <summary>Whether a code is one DispCtrl is willing to write at all.</summary>
     /// <remarks>
@@ -163,7 +175,7 @@ public sealed record VcpControl(byte Code, string Name, VcpKind Kind, IReadOnlyL
 
 /// <param name="Value">The raw value to write.</param>
 /// <param name="Name">What it means, where the standard says.</param>
-public readonly record struct VcpValue(ushort Value, string Name)
+public readonly record struct VcpValue(uint Value, string Name)
 {
     public override string ToString() => Name;
 }
@@ -402,14 +414,17 @@ public static class MonitorCapabilities
     {
         if (display.IsInternal) return MonitorCapability.None;
         string? raw = Capabilities(display);
-        if (string.IsNullOrWhiteSpace(raw)) return LgInput.Apply(display, MonitorCapability.None);
+        if (string.IsNullOrWhiteSpace(raw)) return DeviceControls.Apply(display, MonitorCapability.None);
         MonitorCapability result = Template(raw);
-        var visible = result.Controls.Where(control =>
-            (VcpControl.IsAllowed(control.Code) && control.Code != 0x10)
-            || control.Code is 0xB6 or 0xC9 or 0xC0 or 0xC8).ToList();
+        var mappings = DeviceLibrary.Resolve(display.Key.Model);
+        var visible = result.Controls.Where(control => control.Code is 0xB6 or 0xC9 or 0xC0 or 0xC8
+            || control.Code != 0x10 && (mappings.TryGetValue(control.Code, out var mapped)
+                ? mapped.Definition.Writable && mapped.Definition.DdcWrite is null
+                    && mapped.Definition.Kind is not (DefinedKinds.Action or DefinedKinds.Information)
+                : VcpControl.IsAllowed(control.Code))).ToList();
         ReadCurrentValues(display, visible, useCache: true);
-        if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, visible);
-        return LgInput.Apply(display, result);
+        Devices.DeviceObserver.Listed(display, raw, visible);
+        return DeviceControls.Apply(display, result, mappings);
     }
 
     internal static void InvalidateAllValues() => Readings.Clear();
@@ -418,16 +433,18 @@ public static class MonitorCapabilities
     public static VcpControl? ReadControl(DisplayInfo display, byte code)
     {
         if (display.IsInternal) return null;
-        if (code == 0x60 && LgInput.Mapping(display) is { } mapping) return LgInput.Control(mapping);
+        var mapped = DeviceLibrary.Resolve(display.Key.Model).GetValueOrDefault(code);
+        if (mapped?.Definition.DdcWrite is not null) return LgInput.Control(mapped.Definition);
         string? raw = Capabilities(display);
         if (string.IsNullOrWhiteSpace(raw)) return null;
         VcpControl? template = Parsed.Get(raw, TimeSpan.FromHours(1), () => Parse(raw))
             .Controls.FirstOrDefault(c => c.Code == code);
         if (template is null) return null;
         VcpControl[] wanted = [template with { }];
-        ReadCurrentValues(display, wanted);
-        if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, wanted);
-        return wanted[0];
+        if (mapped?.Definition.Kind != DefinedKinds.Action) ReadCurrentValues(display, wanted);
+        Devices.DeviceObserver.Listed(display, raw, wanted);
+        return mapped is not null ? DeviceControls.Apply(wanted[0], mapped.Definition, mapped.Origin,
+            mapped.Origin.EndsWith(" " + display.Key.Model, StringComparison.OrdinalIgnoreCase)) : wanted[0];
     }
 
     /// <summary>Whether the MCCS standard names this code; everything else is left to the manufacturer.</summary>
@@ -440,14 +457,14 @@ public static class MonitorCapabilities
         if (display.IsInternal) return MonitorCapability.None;
 
         string? raw = Capabilities(display);
-        if (string.IsNullOrWhiteSpace(raw)) return includeMappings ? LgInput.Apply(display, MonitorCapability.None) : MonitorCapability.None;
+        if (string.IsNullOrWhiteSpace(raw)) return includeMappings ? DeviceControls.Apply(display, MonitorCapability.None) : MonitorCapability.None;
 
         MonitorCapability parsed = Template(raw);
-        if (!readValues || parsed.Controls.Count == 0) return includeMappings ? LgInput.Apply(display, parsed) : parsed;
+        if (!readValues || parsed.Controls.Count == 0) return includeMappings ? DeviceControls.Apply(display, parsed) : parsed;
 
         ReadCurrentValues(display, parsed.Controls);
-        if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, parsed.Controls);
-        return includeMappings ? LgInput.Apply(display, parsed) : parsed;
+        Devices.DeviceObserver.Listed(display, raw, parsed.Controls);
+        return includeMappings ? DeviceControls.Apply(display, parsed) : parsed;
     }
 
     /// <summary>
@@ -463,6 +480,13 @@ public static class MonitorCapabilities
         ReadCurrentValues(display, controls, useCache: false);
     }
 
+    /// <summary>Records a read-only watch so its discoveries survive closing the UI/CLI.</summary>
+    public static void ObserveValues(DisplayInfo display, MonitorCapability capabilities, IReadOnlyList<VcpControl> controls)
+    {
+        ReadValues(display, controls);
+        Devices.DeviceObserver.Listed(display, capabilities.Raw, controls);
+    }
+
     /// <summary>
     /// Reads only the controls DispCtrl is willing to set.
     /// </summary>
@@ -476,20 +500,24 @@ public static class MonitorCapabilities
         if (display.IsInternal) return MonitorCapability.None;
 
         string? raw = Capabilities(display);
-        if (string.IsNullOrWhiteSpace(raw)) return LgInput.Apply(display, MonitorCapability.None);
+        if (string.IsNullOrWhiteSpace(raw)) return DeviceControls.Apply(display, MonitorCapability.None);
 
         MonitorCapability parsed = Template(raw);
+        var mappings = DeviceLibrary.Resolve(display.Key.Model);
 
         // Settable is partly decided by the value read, so the candidates are
         // filtered on the allow list here and judged fully afterwards.
         var wanted = new List<VcpControl>();
         foreach (VcpControl c in parsed.Controls)
-            if (c.Code != 0x10 && c.Kind != VcpKind.Information && VcpControl.Settables.Contains(c.Code)) wanted.Add(c);
+            if (c.Code != 0x10 && (mappings.TryGetValue(c.Code, out var mapped)
+                ? mapped.Definition.Writable && mapped.Definition.DdcWrite is null
+                    && mapped.Definition.Kind is not (DefinedKinds.Action or DefinedKinds.Information)
+                : c.Kind != VcpKind.Information && VcpControl.Settables.Contains(c.Code))) wanted.Add(c);
 
         if (wanted.Count > 0) ReadCurrentValues(display, wanted, useCache);
-        if (!IsProbed(raw)) Devices.DeviceObserver.Listed(display, raw, wanted);
+        Devices.DeviceObserver.Listed(display, raw, wanted);
 
-        return LgInput.Apply(display, parsed);
+        return DeviceControls.Apply(display, parsed, mappings);
     }
 
     /// <summary>
@@ -869,49 +897,26 @@ public static class MonitorCapabilities
     public static bool Write(DisplayInfo display, byte code, uint value, out string? error)
         => Write(display, code, value, null, out error);
 
-    /// <summary>Refuses a stale UI/plan if its input transport was edited after validation.</summary>
+    /// <summary>Rechecks a UI/plan's mapping, permissions and value limits before writing.</summary>
     public static bool Write(DisplayInfo display, VcpControl control, uint value, out string? error)
-    {
-        var resolved = DeviceLibrary.Resolve(display.Key.Model).GetValueOrDefault(control.Code);
-        if (resolved is { Definition.Writable: false })
-        {
-            error = "This control is mapped as read-only. Refresh the controls before writing.";
-            return false;
-        }
-        if (control.MappedWritable && !control.WriteOnly)
-        {
-            var current = resolved?.Definition;
-            if (current is null || !current.Writable || current.DdcWrite is not null || control.MappingSnapshot is null
-                || JsonSerializer.Serialize(current, DeviceJsonContext.Default.DefinedControl) != control.MappingSnapshot)
-            {
-                error = "The control mapping changed. Refresh the controls before writing.";
-                return false;
-            }
-            if (value > 65535 || control.Code == 0x04
-                || control.Kind == VcpKind.Discrete && !control.Values.Any(v => v.Value == value)
-                || control.Kind == VcpKind.Continuous && control.Maximum >= 0 && value > control.Maximum)
-            {
-                error = "The requested value is outside this control's mapped values or range.";
-                return false;
-            }
-        }
-        return Write(display, control.Code, value, control.WriteOnly, out error);
-    }
+        => Write(display, control.Code, value, control, out error);
 
-    private static bool Write(DisplayInfo display, byte code, uint value, bool? expectedWriteOnly, out string? error)
+    private static bool Write(DisplayInfo display, byte code, uint value, VcpControl? expected, out string? error)
     {
         error = null;
-        var mapping = code == 0x60 ? LgInput.Mapping(display) : null;
-        if (expectedWriteOnly is { } expected && expected != (mapping is not null))
+        DefinedControl? mapping = expected is not null
+            ? DeviceLibrary.Resolve(display.Key.Model).GetValueOrDefault(code)?.Definition
+            : code == 0x60 ? LgInput.Mapping(display) : null;
+        if (expected is not null && DeviceControls.ValidateWrite(expected, mapping, value) is { } invalid)
         {
-            error = "The input mapping changed. Refresh the controls before switching input.";
+            error = invalid;
             return false;
         }
         using var stateChange = new DisplayStateChange();
         InvalidateValues(display);
         try
         {
-            if (mapping is not null)
+            if (mapping?.DdcWrite is not null)
             {
                 LgInput.Result result = LgInput.Write(display, mapping, value);
                 error = result.Error;

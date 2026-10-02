@@ -9,6 +9,7 @@ using DispCtrl, not for people reading the diff.
 ## [Unreleased]
 
 ### Added
+- A guided mapper for all monitor brands: scans list new codes, watching saves observations for contributions, and mapped choices, sliders and buttons appear on Displays. Mapping values have individual name fields and model/brand/all scopes.
 - Shortcuts for the four arrangements Win+P offers - extend, duplicate, PC screen only, second screen only - on Ctrl+Alt+1 to 4. Offered switched off, because each one reconfigures the display stack and a mistyped digit is an expensive accident.
 - Shortcuts for the rest of what DispCtrl does: follow the room's light, software dimming, monitor volume and mute, HDR, variable refresh rate, make a display the main one, put windows back, and open new windows on the display in use.
 - Shortcuts that run something you wrote: a `dispctrl` command, or any program, file or link, the way a custom quick-panel tile does.

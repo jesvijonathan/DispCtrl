@@ -36,6 +36,7 @@ public sealed partial class DevicesPage : Page
     private FileSystemWatcher? _history;
     private DispatcherQueueTimer? _refresh;
     private bool _sharing;
+    private bool _editing, _scanning;
     private bool _loaded;
 
     public DevicesPage()
@@ -80,7 +81,7 @@ public sealed partial class DevicesPage : Page
             _refresh = DispatcherQueue.CreateTimer();
             _refresh.Interval = TimeSpan.FromMilliseconds(500);
             _refresh.IsRepeating = false;
-            _refresh.Tick += async (_, _) => { if (_loaded && _watch is null && !_sharing) await RefreshAsync(); };
+            _refresh.Tick += async (_, _) => { if (_loaded && _watch is null && !_sharing && !_editing && !_scanning) await RefreshAsync(); };
             _history = new FileSystemWatcher(folder, Path.GetFileName(DeviceHistory.PathOnDisk))
             {
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
@@ -114,19 +115,23 @@ public sealed partial class DevicesPage : Page
 
     private async void OnScan(object sender, RoutedEventArgs e)
     {
-        ScanButton.IsEnabled = false;
+        if (_scanning) return;
+        _scanning = true;
+        ShareAllButton.IsEnabled = ScanButton.IsEnabled = false;
+        StopWatching();
         try
         {
             JsonNode? data = await RunAsync("devices.scan");
             if (data is not null)
             {
                 int read = data["scanned"]?.AsArray().Count(s => s?["ddc"]?.GetValue<bool>() == true) ?? 0;
-                Show(read == 0 ? "Synced. No attached monitor answers DDC/CI, so there were no codes to read."
-                    : $"Synced {read} monitor(s).", InfoBarSeverity.Success);
+                int added = data["scanned"]?.AsArray().Sum(s => s?["newCodes"]?.AsArray().Count ?? 0) ?? 0;
+                Show(read == 0 ? "Scan complete. No attached monitor answers DDC/CI, so there were no codes to read."
+                    : $"Scanned {read} monitor(s), found {added} new code(s). Expand Controls to name them. Discoveries are ready for Contribute.", InfoBarSeverity.Success);
             }
             await RefreshAsync();
         }
-        finally { ScanButton.IsEnabled = true; }
+        finally { _scanning = false; ScanButton.IsEnabled = true; ShareAllButton.IsEnabled = Models.Children.Count > 0; }
     }
 
     private async void OnOpenFolder(object sender, RoutedEventArgs e)
@@ -174,14 +179,14 @@ public sealed partial class DevicesPage : Page
     private async Task RefreshAsync()
     {
         JsonNode? data = await RunAsync("devices.list");
-        if (!_loaded || _sharing) return;
+        if (!_loaded || _sharing || _editing) return;
         StopWatching();
         Models.Children.Clear();
         JsonArray models = data?["models"]?.AsArray() ?? [];
         ShareAllButton.IsEnabled = models.Count > 0;
         if (models.Count == 0)
         {
-            Models.Children.Add(Muted("No monitors recorded yet. DispCtrl's engine records each monitor when it starts and whenever one is plugged in; Sync now does it at once."));
+            Models.Children.Add(Muted("No monitors recorded yet. Choose Scan controls to discover attached monitors and their controls."));
             return;
         }
         foreach (JsonNode? m in models)
@@ -223,7 +228,7 @@ public sealed partial class DevicesPage : Page
         }
         var remove = new Button { Content = new FontIcon { Glyph = "", FontSize = 14 } };
         AutomationProperties.SetName(remove, $"Remove {model}");
-        ToolTipService.SetToolTip(remove, "Remove from this list. It stays off until you press Sync now, including after reconnecting.");
+        ToolTipService.SetToolTip(remove, "Remove from this list. It stays off until you press Scan controls, including after reconnecting.");
         remove.Click += async (_, _) =>
         {
             if (await RunAsync("devices.forget", new JsonObject { ["model"] = model }) is not null)
@@ -247,12 +252,12 @@ public sealed partial class DevicesPage : Page
                         ? $"{seen}. {codes} codes, every one of them known ({mapped} from the library)."
                         : $"{seen}. {codes} codes: {unnamed} nobody has named yet, {mapped} from the library."));
 
-        if (!builtIn && read && codes > 0)
+        if (!builtIn)
         {
             var list = new StackPanel { Spacing = 2 };
             var expander = new Expander
             {
-                Header = unnamed > 0 ? $"Codes ({codes}, {unnamed} to name)" : $"Codes ({codes})",
+                Header = unnamed > 0 ? $"Controls ({codes}, {unnamed} to name)" : $"Controls ({codes})",
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Content = list,
@@ -287,13 +292,23 @@ public sealed partial class DevicesPage : Page
     /// <summary>Every code the model listed, from the history; a live watch is one switch away.</summary>
     private async Task FillCodesAsync(StackPanel host, string model, bool attached)
     {
+        StopWatching();
         host.Children.Clear();
         JsonNode? data = await RunAsync("devices.show", new JsonObject { ["model"] = model, ["history"] = true });
         if (data is null) return;
+        host.Children.Add(Muted("1. Watch a setting change in the monitor's menu. 2. Map its name and choices. 3. Use it from Displays, then Contribute your findings."));
+        var add = new Button { Content = "Add a known code", Margin = new Thickness(0, 4, 0, 8) };
+        AutomationProperties.SetName(add, $"Add code {model}");
+        add.Click += async (_, _) =>
+        {
+            StopWatching();
+            if (await NameAsync(model, "", new JsonObject())) await FillCodesAsync(host, model, attached);
+        };
+        host.Children.Add(add);
 
         var watch = new ToggleSwitch
         {
-            Header = "Watch the unnamed codes live",
+            Header = "Watch manufacturer controls live",
             OnContent = "Watching - change one setting at a time in the monitor's own menu",
             OffContent = attached ? "Off" : "Attach the monitor to watch it",
             IsEnabled = attached,
@@ -324,6 +339,9 @@ public sealed partial class DevicesPage : Page
                 "mapped" => $"From the {Origin(c["origin"]?.GetValue<string>())}{(c["writable"]?.GetValue<bool>() == true ? ", writable" : ", read-only")}",
                 _ => Shape(c),
             }));
+            if (c["discovery"]?.GetValue<string>() == "probed") what.Children.Add(Muted("Found by a read-only probe; not advertised"));
+            if (c["discovery"]?.GetValue<string>() == "mapping") what.Children.Add(Muted(c["ddcWrite"] is null
+                ? "Not reported by this monitor; saved for reference" : "Uses an explicit input-switching method"));
 
             var value = new TextBlock { Text = Values(c), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
             var change = Muted("");
@@ -331,29 +349,31 @@ public sealed partial class DevicesPage : Page
             valueStack.Children.Add(value);
             valueStack.Children.Add(change);
 
-            FrameworkElement action = new TextBlock();
-            if (status is "unnamed" or "mapped")
+            var nameIt = new Button { Content = status == "mapped" ? "Edit mapping" : "Map" };
+            AutomationProperties.SetName(nameIt, $"Name {code}");
+            nameIt.Click += async (_, _) =>
             {
-                var nameIt = new Button { Content = status == "mapped" ? "Edit" : "Name it" };
-                AutomationProperties.SetName(nameIt, $"Name {code}");
-                nameIt.Click += async (_, _) =>
-                {
-                    if (await NameAsync(model, code, c)) await FillCodesAsync(host, model, attached);
-                };
-                action = nameIt;
-            }
+                watch.IsOn = false;
+                StopWatching();
+                JsonNode? fresh = await RunAsync("devices.show", new JsonObject { ["model"] = model, ["history"] = true });
+                JsonNode current = fresh?["codes"]?.AsArray().FirstOrDefault(item => item?["code"]?.GetValue<string>() == code) ?? c;
+                if (await NameAsync(model, code, current)) await FillCodesAsync(host, model, attached);
+            };
 
             var grid = RowGrid();
             AddCells(grid, new TextBlock { Text = code, FontFamily = new FontFamily("Consolas"), VerticalAlignment = VerticalAlignment.Center },
-                what, valueStack, action);
+                what, valueStack, nameIt);
             var rowHost = new Border { Child = grid, CornerRadius = new CornerRadius(4), Padding = new Thickness(4, 2, 4, 2) };
             host.Children.Add(rowHost);
-            if (status == "unnamed") rows.Add(new Row(code, value, change, rowHost));
+            if (DeviceDefinitions.ParseCode(code) is byte number && !MonitorCapabilities.IsNamed(number)
+                && c["ddcWrite"] is null && c["mappedKind"]?.GetValue<string>() != "action" && c["discovery"]?.GetValue<string>() != "mapping")
+                rows.Add(new Row(code, value, change, rowHost));
         }
 
+        watch.IsEnabled = attached && rows.Count > 0;
         watch.Toggled += (_, _) =>
         {
-            if (watch.IsOn) StartWatching(model, rows);
+            if (watch.IsOn) StartWatching(model, rows, watch);
             else StopWatching();
         };
     }
@@ -378,7 +398,7 @@ public sealed partial class DevicesPage : Page
         int[] listed = Ints(c["listed"]);
         int[] seen = Ints(c["observed"]);
         if (listed.Length > 0) return $"A choice of {listed.Length} value(s) the monitor lists";
-        if (seen.Length > 1) return $"A range, seen from {seen.Min()} to {seen.Max()}";
+        if (seen.Length > 1) return $"Seen at {seen.Length} different values; watch the menu to identify it";
         return c["reported"]?.GetValue<string>() is { Length: > 0 } r ? r : "Listed by the monitor, never read";
     }
 
@@ -411,48 +431,66 @@ public sealed partial class DevicesPage : Page
     /// the cache, on a background thread; the channel's own named mutex keeps
     /// this from colliding with the engine or the command line.
     /// </remarks>
-    private void StartWatching(string model, List<Row> rows)
+    private void StartWatching(string model, List<Row> rows, ToggleSwitch watch)
     {
         StopWatching();
-        var cancel = _watch = new CancellationTokenSource();
         DisplayInfo? display = DisplayRegistry.Enumerate().FirstOrDefault(d => d.Key.Model == model);
         if (display is null || rows.Count == 0) return;
+        var cancel = _watch = new CancellationTokenSource();
+        CancellationToken token = cancel.Token;
 
         _ = Task.Run(async () =>
         {
-            MonitorCapability capabilities = MonitorCapabilities.Read(display, readValues: false);
-            var codes = rows.Select(r => DeviceDefinitions.ParseCode(r.Code)).ToHashSet();
-            List<VcpControl> wanted = capabilities.Controls.Where(c => codes.Contains(c.Code)).ToList();
-            var last = new Dictionary<byte, int>();
-            while (!cancel.IsCancellationRequested)
+            try
             {
-                MonitorCapabilities.ReadValues(display, wanted);
-                foreach (VcpControl c in wanted)
+                MonitorCapability capabilities = MonitorCapabilities.Read(display, readValues: false, includeMappings: false);
+                var byCode = rows.ToDictionary(r => DeviceDefinitions.ParseCode(r.Code)!.Value);
+                List<VcpControl> wanted = capabilities.Controls.Where(c => byCode.ContainsKey(c.Code)).ToList();
+                if (wanted.Count == 0) throw new InvalidOperationException("No manufacturer controls are available to watch. Scan controls again with the monitor connected.");
+                var last = new Dictionary<byte, int>();
+                while (!token.IsCancellationRequested)
                 {
-                    if (c.Current < 0) continue;
-                    bool had = last.TryGetValue(c.Code, out int before);
-                    last[c.Code] = c.Current;
-                    int now = c.Current;
-                    Row? row = rows.FirstOrDefault(r => DeviceDefinitions.ParseCode(r.Code) == c.Code);
-                    if (row is null) continue;
-                    DispatcherQueue.TryEnqueue(() =>
+                    MonitorCapabilities.ObserveValues(display, capabilities, wanted);
+                    foreach (VcpControl c in wanted)
                     {
-                        row.Value.Text = $"now {now} (0x{now & 0xFF:X2})";
-                        if (had && before != now)
+                        if (c.Current < 0) continue;
+                        bool had = last.TryGetValue(c.Code, out int before);
+                        last[c.Code] = c.Current;
+                        if (had && before == c.Current) continue;
+                        int now = c.Current;
+                        if (!byCode.TryGetValue(c.Code, out Row? row)) continue;
+                        DispatcherQueue.TryEnqueue(() =>
                         {
-                            row.Change.Text = $"changed from {before} at {DateTime.Now:HH:mm:ss}";
-                            row.Host.Background = Brush("AccentFillColorTertiaryBrush");
-                        }
-                    });
+                            if (token.IsCancellationRequested || !_loaded) return;
+                            row.Value.Text = $"now {now} (0x{now:X2})";
+                            if (had)
+                            {
+                                row.Change.Text = $"changed from {before} at {DateTime.Now:HH:mm:ss}";
+                                row.Host.Background = Brush("AccentFillColorTertiaryBrush");
+                            }
+                        });
+                    }
+                    await Task.Delay(400, token);
                 }
-                try { await Task.Delay(400, cancel.Token); } catch (OperationCanceledException) { break; }
             }
-        }, cancel.Token);
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { DispatcherQueue.TryEnqueue(() => { if (!token.IsCancellationRequested && _loaded) Show(ex.Message, InfoBarSeverity.Error); }); }
+            finally
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (!ReferenceEquals(_watch, cancel)) return;
+                    StopWatching();
+                    watch.IsOn = false;
+                });
+            }
+        });
     }
 
     private void StopWatching()
     {
         _watch?.Cancel();
+        _watch?.Dispose();
         _watch = null;
     }
 
@@ -466,50 +504,86 @@ public sealed partial class DevicesPage : Page
     {
         int[] listed = Ints(entry["listed"]);
         string[] kinds = ["choice", "range", "action", "information"];
-        string startKind = entry["mappedKind"]?.GetValue<string>() ?? (listed.Length > 0 ? "choice" : "information");
-        string startValues = entry["values"]?.AsArray() is { Count: > 0 } named
-            ? string.Join(", ", named.Select(v => $"{v!["value"]}={v["name"]}"))
-            : string.Join(", ", listed.Select(v => $"0x{v:X2}=Value {v:X2}"));
-
+        string startKind = entry["mappedKind"]?.GetValue<string>() ?? (listed.Length > 0 ? "choice"
+            : entry["kind"]?.GetValue<string>() == "continuous" ? "range" : "information");
+        var codeBox = new TextBox { Header = "Control code", PlaceholderText = "0xE2", Text = code, IsReadOnly = code.Length > 0 };
         var name = new TextBox { Header = "What it does", PlaceholderText = "Preset mode", Text = entry["name"]?.GetValue<string>() ?? "" };
-        var kind = new ComboBox { Header = "Kind", ItemsSource = kinds, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var kind = new ComboBox { Header = "How to use it", ItemsSource = new[] { "Choices (menu options)", "Slider (a number)", "Button (sends value 1)", "Read-only information" }, HorizontalAlignment = HorizontalAlignment.Stretch };
         kind.SelectedIndex = Math.Max(0, Array.IndexOf(kinds, startKind));
-        var values = new TextBox
+        var values = new StackPanel { Spacing = 6 };
+        values.Children.Add(Muted("Name the options you recognise. Values found by scanning or watching are filled in for you."));
+        var valueRows = new StackPanel { Spacing = 4 };
+        values.Children.Add(valueRows);
+        var choices = new List<(TextBox Value, TextBox Name)>();
+        void AddChoice(string value, string label)
         {
-            Header = "Values it takes (for a choice)",
-            PlaceholderText = "0x00=Standard, 0x0B=ComfortView",
-            Text = startValues,
-            TextWrapping = TextWrapping.Wrap,
-        };
+            var raw = new TextBox { Text = value, PlaceholderText = "Value", Width = 92 };
+            var title = new TextBox { Text = label, PlaceholderText = "What this option does", MinWidth = 200 };
+            var remove = new Button { Content = "Remove" };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            row.Children.Add(raw); row.Children.Add(title); row.Children.Add(remove);
+            choices.Add((raw, title)); valueRows.Children.Add(row);
+            remove.Click += (_, _) => { choices.Remove((raw, title)); valueRows.Children.Remove(row); };
+        }
+        if (entry["values"]?.AsArray() is { Count: > 0 } named)
+            foreach (JsonNode? v in named) AddChoice(v!["value"]!.ToString(), v["name"]!.GetValue<string>());
+        else foreach (int v in listed.Concat(Ints(entry["observed"])).Distinct().Order()) AddChoice($"0x{v:X2}", "");
+        var addValue = new Button { Content = "Add an option" };
+        addValue.Click += (_, _) => AddChoice("", "");
+        values.Children.Add(addValue);
         string brand = DeviceDefinitions.Brand(model);
+        string? localTarget = entry["origin"]?.GetValue<string>() is { } origin && origin.StartsWith("local ", StringComparison.Ordinal)
+            ? origin[6..] : null;
         var scope = new ComboBox
         {
             Header = "Applies to",
             ItemsSource = new[] { $"This model ({model})", $"Every {brand} monitor that lists it", "Every monitor that lists it" },
-            SelectedIndex = 0,
+            SelectedIndex = localTarget == "*" ? 2 : localTarget == brand ? 1 : 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        var writable = new CheckBox { Content = "I have written it and seen what the monitor does - let DispCtrl write it", IsChecked = entry["writable"]?.GetValue<bool>() == true };
+        var writable = new CheckBox { Content = "I confirmed what these values do. Enable this control.", IsChecked = entry["writable"]?.GetValue<bool>() == true };
         var maximum = new NumberBox { Header = "Maximum (optional, for a range)", Minimum = 0, Maximum = 65535,
-            Value = entry["maximum"]?.GetValue<int>() ?? double.NaN };
+            Value = entry["maximum"]?.GetValue<int>() ?? entry["reportedMaximum"]?.GetValue<int>() ?? double.NaN };
+        var transport = new ComboBox { Header = "Input switching method", HorizontalAlignment = HorizontalAlignment.Stretch,
+            ItemsSource = new[] { "Standard DDC/CI", "LG alternate input (model-specific)" },
+            SelectedIndex = entry["ddcWrite"] is null ? 0 : 1,
+            Visibility = DeviceDefinitions.IsLgModel(model) ? Visibility.Visible : Visibility.Collapsed };
+        void UpdateTransport()
+        {
+            bool alternate = transport.SelectedIndex == 1;
+            scope.IsEnabled = !alternate;
+            if (!alternate) return;
+            scope.SelectedIndex = 0;
+            codeBox.Text = "0x60";
+            kind.SelectedIndex = 0;
+            if (string.IsNullOrWhiteSpace(name.Text)) name.Text = "Input source";
+        }
+        transport.SelectionChanged += (_, _) => UpdateTransport();
+        UpdateTransport();
+        // A transport choice applies to logical input only; editing another
+        // code must not silently turn it into an input mapping.
+        if (code.Length > 0 && DeviceDefinitions.ParseCode(code) != 0x60) transport.Visibility = Visibility.Collapsed;
         var notes = new TextBox { Header = "Notes", PlaceholderText = "Moves when the OSD's Preset Modes item changes.", AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 72,
             Text = entry["notes"]?.GetValue<string>() ?? "" };
         var error = new TextBlock { Foreground = Brush("SystemFillColorCriticalBrush"), TextWrapping = TextWrapping.Wrap };
 
         var form = new StackPanel { Spacing = 10, MinWidth = 420 };
-        form.Children.Add(Muted($"{code} on {model}. Saved on this PC and used at once; contribute it to make it everyone's."));
-        foreach (UIElement e in new UIElement[] { name, kind, values, maximum, scope, writable, notes, error }) form.Children.Add(e);
+        form.Children.Add(Muted($"Save for {model}, use from Displays, then Contribute. A shared brand mapping applies only where the monitor exposes that code."));
+        form.Children.Add(Muted("Model mappings take priority over brand mappings; brand mappings take priority over all monitors."));
+        foreach (UIElement e in new UIElement[] { codeBox, name, kind, values, maximum, scope, transport, writable, notes, error }) form.Children.Add(e);
         void UpdateKind()
         {
-            values.Visibility = kind.SelectedItem as string == "choice" ? Visibility.Visible : Visibility.Collapsed;
-            maximum.Visibility = kind.SelectedItem as string == "range" ? Visibility.Visible : Visibility.Collapsed;
+            values.Visibility = kind.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+            maximum.Visibility = kind.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            writable.IsEnabled = kind.SelectedIndex != 3;
+            if (!writable.IsEnabled) writable.IsChecked = false;
         }
         kind.SelectionChanged += (_, _) => UpdateKind();
         UpdateKind();
 
         var dialog = new ContentDialog
         {
-            Title = $"Name {code}",
+            Title = code.Length == 0 ? "Add a monitor control" : $"Map {code}",
             Content = new ScrollViewer { Content = form },
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
@@ -517,30 +591,63 @@ public sealed partial class DevicesPage : Page
             XamlRoot = XamlRoot,
         };
 
+        string removeScope = localTarget == "*" ? "all" : localTarget == brand ? "brand" : "model";
+        if (localTarget is not null) dialog.SecondaryButtonText = removeScope == "model" ? "Remove local mapping" : $"Remove {removeScope} mapping";
         bool saved = false;
+        bool removed = false;
+        dialog.SecondaryButtonClick += async (_, args) =>
+        {
+            var deferral = args.GetDeferral();
+            try
+            {
+                JsonNode? result = await RunAsync("devices.unmap", new JsonObject { ["model"] = model, ["code"] = code, ["scope"] = removeScope });
+                removed = saved = result is not null;
+                args.Cancel = !saved;
+                if (removed) scope.SelectedIndex = removeScope == "all" ? 2 : removeScope == "brand" ? 1 : 0;
+            }
+            finally { deferral.Complete(); }
+        };
         dialog.PrimaryButtonClick += async (_, args) =>
         {
             var deferral = args.GetDeferral();
             try
             {
-                string chosen = kind.SelectedItem as string ?? "information";
+                string chosen = kinds[kind.SelectedIndex];
+                var namedChoices = choices.Where(c => c.Name.Text.Trim().Length > 0).ToArray();
+                if (chosen == "choice" && namedChoices.Select(c => DeviceDefinitions.KeyFor(c.Name.Text))
+                    .Distinct(StringComparer.Ordinal).Count() != namedChoices.Length)
+                    throw new ArgumentException("Give each option a different name so it can be selected unambiguously.");
                 var request = new JsonObject
                 {
-                    ["model"] = model, ["code"] = code, ["name"] = name.Text.Trim(),
+                    ["model"] = model, ["code"] = codeBox.Text.Trim(), ["name"] = name.Text.Trim(),
                     ["kind"] = chosen,
                     ["scope"] = scope.SelectedIndex switch { 1 => "brand", 2 => "all", _ => "model" },
                     ["writable"] = writable.IsChecked == true,
+                    ["confidence"] = "observed",
                 };
                 // Values only mean something for a choice; sent for another kind
                 // they would be refused as a contradiction.
-                if (chosen == "choice" && values.Text.Trim().Length > 0) request["values"] = values.Text.Trim();
+                request["values"] = chosen == "choice" ? new JsonArray(namedChoices
+                    .Select(c => (JsonNode)new JsonObject { ["value"] = c.Value.Text.Trim(), ["name"] = c.Name.Text.Trim() }).ToArray()) : new JsonArray();
+                request["maximum"] = null;
                 if (chosen == "range" && !double.IsNaN(maximum.Value))
                 {
                     if (maximum.Value != Math.Truncate(maximum.Value)) throw new ArgumentException("Maximum must be a whole number.");
                     request["maximum"] = (int)maximum.Value;
                 }
                 request["notes"] = notes.Text.Trim();
-                JsonObject result = await Task.Run(() => _service.Execute(new JsonObject { ["version"] = 1, ["command"] = "devices.map", ["args"] = request }));
+                request["transport"] = transport.SelectedIndex == 1 ? "lg-input" : "standard";
+                bool broadened = localTarget == model && scope.SelectedIndex > 0
+                    || localTarget == brand && scope.SelectedIndex == 2;
+                JsonObject result = await Task.Run(() =>
+                {
+                    JsonObject mapped = _service.Execute(new JsonObject { ["version"] = 1, ["command"] = "devices.map", ["args"] = request });
+                    if (mapped["ok"]?.GetValue<bool>() != true || !broadened) return mapped;
+                    // Save first. Only then remove the narrower local override,
+                    // otherwise it would silently hide the newly broadened mapping.
+                    return _service.Execute(new JsonObject { ["version"] = 1, ["command"] = "devices.unmap",
+                        ["args"] = new JsonObject { ["model"] = model, ["code"] = code, ["scope"] = removeScope } });
+                });
                 if (result["ok"]?.GetValue<bool>() == true) saved = true;
                 else
                 {
@@ -551,8 +658,17 @@ public sealed partial class DevicesPage : Page
             catch (Exception ex) { error.Text = ex.Message; args.Cancel = true; }
             finally { deferral.Complete(); }
         };
-        await dialog.ShowAsync();
-        if (saved) Show($"{code} saved for {model}. Contribute it when you are happy with it.", InfoBarSeverity.Success);
+        _editing = true;
+        try { await dialog.ShowAsync(); }
+        finally { _editing = false; }
+        if (saved)
+        {
+            await Task.WhenAll(App.ViewModel.Displays.Where(d => scope.SelectedIndex == 2
+                || scope.SelectedIndex == 1 && DeviceDefinitions.Brand(d.ModelCode) == brand
+                || d.ModelCode == model).Select(d => d.RefreshMonitorControlsAsync()));
+            Show(removed ? "Local mapping removed. Any inherited mapping applies again."
+                : $"{codeBox.Text} saved. Supported, enabled controls are available on Displays. Contribute includes your mapping and discoveries.", InfoBarSeverity.Success);
+        }
         return saved;
     }
 
@@ -572,6 +688,7 @@ public sealed partial class DevicesPage : Page
 
     private async Task ShareAsync(string? model)
     {
+        if (_scanning) { Show("The scan is still running. Contribute will include the results when it finishes.", InfoBarSeverity.Informational); return; }
         if (_sharing) return;
         _sharing = true;
         StopWatching();

@@ -76,8 +76,11 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
         _control.Kind == VcpKind.Discrete && Options.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility ReadOnlyVisibility =>
-        SliderVisibility == Visibility.Collapsed && ChoiceVisibility == Visibility.Collapsed
+        SliderVisibility == Visibility.Collapsed && ChoiceVisibility == Visibility.Collapsed && !_control.IsAction
             ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility ActionVisibility => _control.IsAction ? Visibility.Visible : Visibility.Collapsed;
+    public void ActivateAction(object sender, RoutedEventArgs args) => Queue(token => Send(1, token));
 
     public string ReadOnlyText => _control.Display;
 
@@ -95,8 +98,7 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
             Raise();
             Raise(nameof(ValueText));
 
-            Queue(token => MonitorCapabilities.Write(_display, _control, (uint)v, out _));
-            _deskChanged();
+            Queue(token => Send((uint)v, token));
         }
     }
 
@@ -124,27 +126,32 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
                 {
                     Queue(token =>
                     {
-                        bool sent = MonitorCapabilities.Write(_display, _control, v.Value, out string? error);
-                        _dispatcher?.TryEnqueue(() =>
-                        {
-                            if (token.IsCancellationRequested) return;
-                            _writeStatus = sent ? "Input command sent; confirm the change on your monitor." : error ?? "The input command failed.";
-                            _selected = null;
-                            Raise(nameof(Selected));
-                            Raise(nameof(Description));
-                            if (sent) _deskChanged();
-                        });
-                        return sent;
+                        return Send(v.Value, token);
                     });
                     break;
                 }
 
-                _control.Current = v.Value;
-                Queue(token => MonitorCapabilities.Write(_display, _control, v.Value, out _));
-                _deskChanged();
+                _control.Current = (int)v.Value;
+                Queue(token => Send(v.Value, token));
                 break;
             }
         }
+    }
+
+    private bool Send(uint value, CancellationToken token)
+    {
+        bool sent = MonitorCapabilities.Write(_display, _control, value, out string? error);
+        _dispatcher?.TryEnqueue(() =>
+        {
+            if (token.IsCancellationRequested) return;
+            _writeStatus = !sent ? error ?? "The monitor command failed."
+                : _control.WriteOnly || _control.IsAction ? "Command sent; confirm the change on your monitor." : null;
+            if (_control.WriteOnly || !sent && _control.Kind == VcpKind.Discrete)
+            { _selected = null; Raise(nameof(Selected)); }
+            Raise(nameof(Description));
+            if (sent) _deskChanged();
+        });
+        return sent;
     }
 
     private void Queue(Func<CancellationToken, bool> write)

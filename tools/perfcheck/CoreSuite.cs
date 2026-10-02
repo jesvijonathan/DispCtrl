@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using DispCtrl.Control;
+using DispCtrl.Core.Devices;
 using DispCtrl.Core.Presets;
 using DispCtrl.Core.Settings;
 
@@ -101,6 +102,46 @@ internal static class CoreSuite
         context.Add(Bench.Allocations(S, "preset diff allocations", o.N(500), 64, () => PresetDiff.Describe(saved, live)));
 
         context.Add(Bench.Time(S, "settings schema", o.N(50), 3, 20.0, () => SettingsDocument.Schema().ToJsonString()));
+
+        Devices(context, o);
+    }
+
+    /// <summary>
+    /// What every DDC/CI control read and write pays before it reaches the
+    /// monitor: resolving the model's mappings and recording what was read.
+    /// </summary>
+    /// <remarks>
+    /// Both used to touch disk in full each time - three definition files read
+    /// and parsed, the history read and parsed under a named mutex - on every
+    /// hotkey press, slider step and tick of a watch. The "uncached" rows are
+    /// that floor, measured beside the paths that now avoid it.
+    /// </remarks>
+    private static void Devices(Context context, Options o)
+    {
+        const string model = "TST-0001";
+        DefinedControl Choice(byte code) => new()
+        {
+            Code = DeviceDefinitions.FormatCode(code), Name = $"Feature {code:X2}", Kind = DefinedKinds.Choice, Writable = true,
+            Values = [new() { Value = "0x00", Name = "Off" }, new() { Value = "0x01", Name = "On" }, new() { Value = "0x02", Name = "Auto" }],
+        };
+        foreach (string target in new[] { "*", DeviceDefinitions.Brand(model), model })
+            for (byte code = 0xE0; code < 0xE8; code++) DeviceLibrary.Map(target, Choice(code));
+
+        context.Add(Bench.Time(S, "device mappings: resolve a model (files unchanged)", o.N(2000), 50, 0.15,
+            () => DeviceLibrary.Resolve(model), "3 local files, 8 codes each"));
+        context.Add(Bench.Time(S, "device mappings: read and parse the 3 files (uncached floor)", o.N(500), 20, null, () =>
+        {
+            foreach (string target in new[] { "*", DeviceDefinitions.Brand(model), model }) DeviceLibrary.LoadLocal(target);
+        }));
+
+        // A desk's worth of readings: what one capabilities read records.
+        SeenReading[] readings = [.. Enumerable.Range(0x10, 37).Select(c =>
+            new SeenReading((byte)c, $"VCP {c:X2}", "Continuous", [], 50, 100))];
+        DeviceHistory.Listed(model, "(vcp(10 12))", readings);
+        context.Add(Bench.Time(S, "device history: record readings already recorded", o.N(2000), 50, 0.15,
+            () => DeviceHistory.Listed(model, "(vcp(10 12))", readings), "37 codes"));
+        context.Add(Bench.Time(S, "device history: mutex + read + parse (uncached floor)", o.N(300), 10, null,
+            () => DeviceHistory.Update(_ => false)));
     }
 
     private static Preset Desk(int monitors)

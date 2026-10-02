@@ -23,6 +23,7 @@ var service = new ControlService();
 try
 {
     Check(SettingsStore.Directory == scratch, "test settings are isolated");
+    DeviceMappingChecks.Run(Check);
     using (var entered = new ManualResetEventSlim())
     using (var release = new ManualResetEventSlim())
     using (var queue = new DispCtrl.Engine.Input.HotkeyWorkQueue(_ => { }))

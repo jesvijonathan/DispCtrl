@@ -194,7 +194,7 @@ public static class PresetService
         {
             foreach (VcpControl c in MonitorCapabilities.ReadSettable(display, useCache).Controls)
             {
-                if (!c.Settable || c.CurrentValue < 0) continue;
+                if (!c.Settable || c.IsAction || c.WriteOnly || c.CurrentValue < 0) continue;
 
                 // Brightness has its own field, captured through the same path
                 // the brightness slider uses. Recording it here as well would
@@ -547,11 +547,11 @@ public static class PresetService
             if (!m.MonitorControls.Keys.Any(hex => TryParseCode(hex, out byte code)
                 && code != BrightnessCode && disruptive == (code is 0x60 or 0xD6))) continue;
 
-            Dictionary<byte, int> live = [];
+            Dictionary<byte, VcpControl> live = [];
             try
             {
                 foreach (VcpControl c in MonitorCapabilities.ReadSettable(d).Controls)
-                    if (c.Settable && c.CurrentValue >= 0) live[c.Code] = c.CurrentValue;
+                    if (c.Settable && !c.IsAction && !c.WriteOnly && c.CurrentValue >= 0) live[c.Code] = c;
             }
             catch (Exception)
             {
@@ -570,11 +570,11 @@ public static class PresetService
                 // Only controls the monitor still offers. A preset from another
                 // machine, or from before a firmware change, can name codes this
                 // panel does not have.
-                if (!live.TryGetValue(code, out int have))
+                if (!live.TryGetValue(code, out VcpControl? control))
                 { notes.Add($"{d.Label}: control {hex} is unavailable; value {want} was not restored."); continue; }
-                if (have == want) continue;
+                if (control.CurrentValue == want) continue;
 
-                if (!MonitorCapabilities.Write(d, code, (uint)want))
+                if (!MonitorCapabilities.Write(d, control, (uint)want, out _))
                     notes.Add($"{d.Label}: {hex} would not take {want}.");
             }
         }

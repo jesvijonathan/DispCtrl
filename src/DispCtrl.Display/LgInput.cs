@@ -18,21 +18,11 @@ public static class LgInput
             && mapped.Definition.DdcWrite is not null ? mapped.Definition : null;
     }
 
-    internal static MonitorCapability Apply(DisplayInfo display, MonitorCapability capability)
-    {
-        if (Mapping(display) is not { } mapping) return capability;
-        var input = Control(mapping);
-        return capability with
-        {
-            Supported = true,
-            Controls = capability.Controls.Where(c => c.Code != 0x60).Append(input).OrderBy(c => c.Code).ToArray(),
-        };
-    }
-
     /// <summary>A write-only input from a validated, resolved model mapping.</summary>
     public static VcpControl Control(DefinedControl mapping) => new(0x60, mapping.Name, VcpKind.Discrete,
         mapping.Values.Select(v => new VcpValue((byte)v.Number!.Value, v.Name)).ToArray())
-        { WriteOnly = true, MappedWritable = mapping.Writable };
+        { WriteOnly = true, MappedWritable = mapping.Writable, MappedDefinition = mapping,
+            MappingSnapshot = System.Text.Json.JsonSerializer.Serialize(mapping, DeviceJsonContext.Default.DefinedControl) };
 
     // Includes the source byte, not the bus destination. 0x6E is the shifted
     // DDC/CI bus address (0x37), and participates in the checksum.

@@ -84,8 +84,27 @@ public static class DeviceLibrary
     public static DeviceDefinition? Shipped(string target) =>
         ShippedCache.GetOrAdd(target, t => DeviceDefinitions.IsTarget(t) ? ReadFile(DeviceLayout.DefinitionPath(ShippedRoot, t), null) : null);
 
-    /// <summary>The local definition for one target, or null; read fresh, because this machine edits it.</summary>
-    public static DeviceDefinition? Local(string target) => File.Exists(PathFor(target)) ? ReadFile(PathFor(target), null) : null;
+    /// <summary>The local definition for one target, or null; current, because this machine edits it.</summary>
+    /// <remarks>
+    /// Shared, like a shipped one: never change what this returns. Resolve runs
+    /// on every control read and write - a hotkey press, a slider step - and
+    /// read three files each time. Now each costs one look at the file's
+    /// times and length, and a parse only when another process saved it. A
+    /// save is a rename over the file, which changes its creation time.
+    /// </remarks>
+    public static DeviceDefinition? Local(string target)
+    {
+        var file = new FileInfo(PathFor(target));
+        if (!file.Exists) { LocalCache.TryRemove(file.FullName, out _); return null; }
+        var stamp = (file.LastWriteTimeUtc, file.CreationTimeUtc, file.Length);
+        if (LocalCache.TryGetValue(file.FullName, out var cached) && cached.Stamp == stamp) return cached.Definition;
+        DeviceDefinition? d = ReadFile(file.FullName, null);
+        LocalCache[file.FullName] = (stamp, d);
+        return d;
+    }
+
+    private static readonly ConcurrentDictionary<string, ((DateTime, DateTime, long) Stamp, DeviceDefinition? Definition)> LocalCache =
+        new(StringComparer.OrdinalIgnoreCase);
 
     private static DeviceDefinition? ReadFile(string file, List<string>? problems)
     {

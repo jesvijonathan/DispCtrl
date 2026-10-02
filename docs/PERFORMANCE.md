@@ -63,6 +63,8 @@ row (`displays not restored after the slider test`, budget 0).
 | The app's call through the broker to the engine applying a toggle | 135 ms | 11 ms |
 | A brightness slider waited 120 ms after the last change before sending. Now single flight, newest wins. | slider -> engine 178 ms | 80 ms |
 | Engine start-up waited for focus/OLED care to build its overlays, for the WMI brightness subscription, and for two parses of the device history. The broker started last. | ~600 ms to started (JIT build) | ~440 ms; broker 3 ms in |
+| Every DDC/CI control read and write resolved the model's mappings by reading and parsing three local definition files. `DeviceLibrary.Local` keeps each file's parse until its times or length change. | ~490 us + 3 stats | 98 us |
+| Every control read recorded its readings into the device history: a named mutex, a read and a parse of `history.json`, every hotkey press and every watch tick. Readings this process already recorded are a stamp check. | 266 us + compare | 45 us |
 
 **Size.** The Windows App SDK metapackage shipped machine learning, AI,
 Search and Widgets DispCtrl never uses (onnxruntime and DirectML alone are

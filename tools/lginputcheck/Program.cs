@@ -70,11 +70,11 @@ try
     Check(!DeviceLibrary.Resolve("DEL-1234").ContainsKey(0x60), "cross-brand inheritance cannot turn LG wire values into standard input writes");
     Check(DeviceLibrary.Local("GSM-1234")!.Controls[0].DdcWrite?.Code == "0xF4", "wire mapping survives serialization and validation on reload");
     var reported = MonitorCapabilities.Parse("(prot(monitor)vcp(10 60(0F 11)))");
-    var applied = LgInput.Apply(display, reported);
+    var applied = DeviceControls.Apply(display, reported);
     var input = applied.Controls.Single(c => c.Code == 0x60);
-    Check(input.Settable && input.WriteOnly && input.Current == -1 && input.Values.Select(v => v.Value).SequenceEqual(new ushort[] { 0x90, 0xD0 }), "mapped input replaces standard values without inventing a current input");
+    Check(input.Settable && input.WriteOnly && input.Current == -1 && input.Values.Select(v => v.Value).SequenceEqual(new uint[] { 0x90, 0xD0 }), "mapped input replaces standard values without inventing a current input");
     Check(reported.Controls.Single(c => c.Code == 0x60).Values[0].Value == 0x0F, "capability discovery remains unmodified");
-    Check(LgInput.Apply(display, MonitorCapability.None).Controls.Single().Settable, "an explicitly mapped write-only input can be absent from advertised capabilities");
+    Check(DeviceControls.Apply(display, MonitorCapability.None).Controls.Single().Settable, "an explicitly mapped write-only input can be absent from advertised capabilities");
     Check(MonitorCapabilities.ReadControl(display, 0x60) is { WriteOnly: true, Current: -1 },
         "reading the mapped input requires no standard DDC capability or current-value request");
     DeviceLibrary.Unmap("GSM-1234", 0x60);
@@ -83,12 +83,12 @@ try
     DeviceLibrary.SaveLocal(definition);
     Check(!MonitorCapabilities.Write(display, reported.Controls.Single(c => c.Code == 0x60), 0x11, out staleError)
         && staleError!.Contains("mapping changed"), "a newly added mapping also invalidates a stale standard control");
-    Check(LgInput.Apply(display with { Key = new("other", "DEL-1234", "") }, reported) == reported, "another manufacturer's input stays on the normal path");
+    Check(DeviceControls.Apply(display with { Key = new("other", "DEL-1234", "") }, reported) == reported, "another manufacturer's input stays on the normal path");
     Check(LgInput.Mapping(display with { Connector = ConnectorKind.Internal }) is null, "internal panels cannot use raw LG input writes");
     Check(!LgInput.Write(display, mapping, 0x91).Sent, "unmapped values are refused before display discovery or GPU access");
     mapping.Writable = false;
     DeviceLibrary.SaveLocal(definition);
-    Check(!LgInput.Apply(display, reported).Controls.Single(c => c.Code == 0x60).Settable
+    Check(!DeviceControls.Apply(display, reported).Controls.Single(c => c.Code == 0x60).Settable
         && !LgInput.Write(display, mapping, 0x90).Sent, "read-only contributions cannot enable writes");
     mapping.Writable = true;
     DeviceLibrary.SaveLocal(definition);

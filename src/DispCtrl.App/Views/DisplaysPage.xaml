@@ -1504,6 +1504,8 @@
                                        VerticalAlignment="Center"
                                        Visibility="{x:Bind ReadOnlyVisibility}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <Button Content="Run" Click="{x:Bind ActivateAction}"
+                                    Visibility="{x:Bind ActionVisibility}" AutomationProperties.Name="{x:Bind Name}"/>
                           </StackPanel>
                         </Grid>
                       </DataTemplate>

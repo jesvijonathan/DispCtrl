@@ -1973,6 +1973,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// off the UI thread, and never on a timer.
     /// </remarks>
     private int _monitorControlGeneration;
+
     private async Task LoadMonitorControlsAsync()
     {
         int generation = ++_monitorControlGeneration;
@@ -1989,29 +1990,27 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         }
 
         var shown = new HashSet<byte> { 0x10, 0xD6 };
+        // Every listed code, settable or not: ReadForUi has already applied its
+        // mapping, and asking again would only repeat a DDC/CI read per code.
+        // What is left is a model's own mappings for codes the monitor omits.
+        shown.UnionWith(cap.Controls.Select(c => c.Code));
         IReadOnlyList<VcpControl> mapped;
-        HashSet<byte> mappedCodes;
         try
         {
-            (mapped, mappedCodes) = await Task.Run(() =>
-                (DispCtrl.Control.ControlService.MappedControls(d, shown), DeviceLibrary.Resolve(d.Key.Model).Keys.ToHashSet()));
+            mapped = await Task.Run(() => DispCtrl.Control.ControlService.MappedControls(d, shown));
         }
         catch (Exception) { return; }
         if (generation != _monitorControlGeneration) return;
         MonitorControls.Clear();
         foreach (VcpControl c in cap.Controls)
         {
-            // Settable only. A manufacturer-specific code's meaning is
-            // undocumented and model-specific; it belongs in the report, not
-            // behind a slider somebody might drag.
+            // Standard supported controls and explicitly enabled mappings.
+            // Unnamed manufacturer codes remain on the Devices page to map.
             if (!c.Settable) continue;
 
             // Brightness already has its own card, driven through the same
             // code, and two controls for one value would fight each other.
             if (c.Code is 0x10 or 0xD6) continue;
-            if (!c.WriteOnly && mappedCodes.Contains(c.Code)) continue;
-
-            shown.Add(c.Code);
             MonitorControls.Add(new MonitorControlViewModel(d, c, _deskChanged));
         }
 
@@ -2068,7 +2067,11 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         RaiseProbe();
     }
 
-    public Task RefreshMonitorControlsAsync() => LoadMonitorControlsAsync();
+    public async Task RefreshMonitorControlsAsync()
+    {
+        await ReadingsReady;
+        await LoadMonitorControlsAsync();
+    }
 
     // --------------------------------------------------------- night light --
 

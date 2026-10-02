@@ -65,13 +65,26 @@ public static partial class DeviceContribution
             sb.AppendLine("Shared from saved discovery. A full model record has not been collected yet; the known codes and mappings follow.");
         }
 
+        var definitions = DeviceLibrary.LocalFor(model);
+        // Brand/common/linked mappings remain visible as provenance. Also carry
+        // the effective controls for this model so intake can review them without
+        // silently applying one owner's findings to an entire manufacturer.
+        var inherited = DeviceLibrary.Resolve(model).Values.Where(r => r.Origin.StartsWith("local ", StringComparison.Ordinal)).ToList();
+        if (inherited.Count > 0)
+        {
+            DeviceDefinition? own = definitions.FirstOrDefault(d => d.Target == model);
+            if (own is null) { own = new DeviceDefinition { Target = model }; definitions.Add(own); }
+            foreach (ResolvedControl control in inherited)
+                if (!own.Controls.Any(c => c.CodeValue == control.Code)) own.Controls.Add(control.Definition);
+            if (own.Controls.Any(c => c.DdcWrite is not null)) own.Schema = 2;
+        }
         var payload = new JsonObject
         {
             ["schema"] = 1,
             ["kind"] = DeviceShare.Kind,
             ["model"] = model,
             ["name"] = name,
-            ["definitions"] = new JsonArray(DeviceLibrary.LocalFor(model)
+            ["definitions"] = new JsonArray(definitions
                 .Select(d => JsonNode.Parse(JsonSerializer.Serialize(d, DeviceJsonContext.Default.DeviceDefinition)))
                 .ToArray()),
             ["observed"] = Observed(model, seen),
@@ -159,11 +172,13 @@ public static partial class DeviceContribution
             {
                 ["name"] = c.Name,
                 ["kind"] = c.Kind,
+                ["maximum"] = c.Maximum,
+                ["discovery"] = c.Probed ? "probed" : "advertised",
                 ["listed"] = new JsonArray(c.ListedValues.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
             };
             // A standard control's values are a person's settings; an unnamed
             // code's values are the evidence a mapping is made from.
-            if (!standard && !named)
+            if (!standard && (!named || value is byte vendor && !MonitorCapabilities.IsNamed(vendor)))
                 entry["observed"] = new JsonArray(c.Observed.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             codes[code] = entry;
         }

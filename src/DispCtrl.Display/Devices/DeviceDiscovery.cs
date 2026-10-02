@@ -44,16 +44,16 @@ public static class DeviceDiscovery
     {
         if (!Tried.TryAdd(display.Key.Model, 0)) return 0;
         MonitorCapability capabilities = display.IsInternal ? MonitorCapability.None : MonitorCapabilities.Read(display, includeMappings: false);
-        CacheRecord(display);
+        CacheRecord(display, capabilities);
         return capabilities.Supported ? capabilities.Controls.Count : -1;
     }
 
     /// <summary>Collects the public model record outside the Share button's path.</summary>
-    public static void CacheRecord(DisplayInfo display)
+    public static void CacheRecord(DisplayInfo display, MonitorCapability? reported = null)
     {
         bool? oled = Core.Settings.SettingsStore.Load().For(display.Token).IsOled;
         string record = Redact.Ascii(Redact.Scrub(
-            DeviceSubmission.Build(display, oled, includePrivateDetails: false).ToRepositoryMarkdown(),
+            DeviceSubmission.Build(display, oled, includePrivateDetails: false, reported: reported).ToRepositoryMarkdown(),
             DeviceContribution.Identifiers([display]))).Replace("\r\n", "\n", StringComparison.Ordinal);
         DeviceHistory.Update(history =>
         {

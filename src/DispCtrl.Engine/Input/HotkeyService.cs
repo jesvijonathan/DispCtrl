@@ -320,7 +320,7 @@ internal sealed class HotkeyService : IDisposable
                     if (contrast is not { Settable: true } || contrast.Current < 0) continue;
                     int max = contrast.Maximum > 0 ? contrast.Maximum : 100;
                     int step = Math.Sign(delta) * Math.Max(1, (int)Math.Round(max * Math.Abs(delta) / 100.0));
-                    _ = MonitorCapabilities.Write(d, 0x12, (uint)Math.Clamp(contrast.Current + step, 0, max));
+                    _ = MonitorCapabilities.Write(d, contrast, (uint)Math.Clamp(contrast.Current + step, 0, max), out _);
                 }
                 break;
             }
@@ -485,7 +485,7 @@ internal sealed class HotkeyService : IDisposable
                     if (volume is not { Settable: true } || volume.Current < 0) continue;
                     int max = volume.Maximum > 0 ? volume.Maximum : 100;
                     int step = Math.Sign(delta) * Math.Max(1, (int)Math.Round(max * Math.Abs(delta) / 100.0));
-                    _ = MonitorCapabilities.Write(d, 0x62, (uint)Math.Clamp(volume.Current + step, 0, max));
+                    _ = MonitorCapabilities.Write(d, volume, (uint)Math.Clamp(volume.Current + step, 0, max), out _);
                 }
                 break;
             }
@@ -497,7 +497,7 @@ internal sealed class HotkeyService : IDisposable
                     VcpControl? mute = MonitorCapabilities.ReadControl(d, 0x8D);
                     if (mute is not { Settable: true } || mute.CurrentValue is not (1 or 2)) continue;
                     // MCCS audio mute: 1 muted, 2 unmuted.
-                    _ = MonitorCapabilities.Write(d, 0x8D, mute.CurrentValue == 1 ? 2u : 1u);
+                    _ = MonitorCapabilities.Write(d, mute, mute.CurrentValue == 1 ? 2u : 1u, out _);
                 }
                 break;
 

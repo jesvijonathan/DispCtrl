@@ -3,15 +3,15 @@
 For the guided mapping popup, custom features, hotkeys and tiles, see
 [Custom monitor controls and features](CUSTOM-CONTROLS.md).
 
-Every monitor answers DDC/CI with a list of VCP codes. The MCCS standard names
+External monitors can advertise their DDC/CI controls as VCP codes. Some omit
+the capabilities string or individual controls. The MCCS standard names
 some of them - brightness, contrast, input source. Manufacturers add their own,
 from `0xE0` up and in the gaps between, and document none of them. That is
 where the features live that make one monitor different from another: preset
 modes, low blue light, KVM switches, uniformity compensation.
 
-No public database of those codes exists; `ddcutil`, the most complete VCP
-table there is, stops at the standard. The device library is how DispCtrl
-builds one: every owner can see what their monitor lists, work out what an
+The device library collects those model-specific meanings: every owner can
+see what their monitor lists, work out what an
 unnamed code does, name it, and share that, so every owner of the same model -
 or the same brand - gets the control.
 
@@ -149,8 +149,38 @@ Contributions retain the transport metadata. See
 
 ## Mapping a code
 
+The guided path works across brands:
+
+1. Open **Devices → Scan controls**. The list shows discovered codes; the scan
+   saves them for **Contribute**, including codes nobody has named yet.
+2. Expand **Controls** and turn on **Watch manufacturer controls live**. Change
+   one setting in the monitor's own menu. Changed values are highlighted and
+   saved, so closing the page does not lose the discovery.
+3. Choose **Map**. Name the function, choose a slider, menu, button or read-only
+   information, then name the options you recognise in the prefilled rows.
+   No JSON or comma-separated value syntax is needed in the app.
+4. Keep **This model**, or choose its brand/all monitors when the same mapping
+   is known to apply. Enable a control after confirming its meaning. Matching
+   controls become available on **Displays** immediately; a button sends value 1.
+5. Choose **Contribute** to review the saved discoveries and mappings before
+   opening the issue. Brand/common mappings also carry a model-scoped candidate
+   for review, so intake never silently enables a whole manufacturer's controls.
+
+**Edit mapping** can remove a local mapping or change its scope. **Add a known
+code** records a code from documentation or another tool. A general mapping
+does not invent support for a code the monitor has never exposed; such entries
+remain visible as references. A model's own mapped range or menu can also be
+offered when a read-only probe confirms that the monitor answers the code.
+LG's explicit alternate input method is write-only, selected by name in the editor.
+
+Read-only probe results carry `discovery: "probed"`; they do not become a fake
+advertised capabilities string. Scanning and watching read controls, and do not
+try writes to guess what unknown functions do. Hidden vendor protocols still
+need model-specific support.
+
 ```powershell
 dispctrl devices show --monitor 2            # every code: standard, named, mapped, unnamed
+dispctrl devices scan --monitor 2            # fresh code list, newCodes, saved contribution evidence
 dispctrl devices probe --monitor 2           # watch the unnamed ones
 ```
 
@@ -171,9 +201,11 @@ Only after writing a value and seeing the monitor do what the name says, add
 `dispctrl display control --monitor 2 --name preset-mode --value comfortview`
 works like any standard control.
 
-In the app, **Devices** does the same: *Map codes* lists every code with its
-value, *Watch the unnamed codes* lights up whichever moves, and *Name it* saves
-the definition.
+The API also accepts `values` as an array of `{ "value": "0x0B", "name": "ComfortView" }`
+objects. Renaming an existing mapping preserves omitted values and permissions;
+an explicit empty values array clears the options. CLI comma-separated values
+remain supported. `--transport lg-input` selects the LG method without wire bytes;
+`--transport standard` explicitly clears a local alternate transport.
 
 ## Sharing
 
@@ -184,8 +216,8 @@ dispctrl devices contribute --monitor 2 --open
 One issue per model, replacing the old collect, view, submit. The body is the
 model's record (when it is attached) and one fenced JSON block: this PC's
 definitions for the model, its brand and every monitor, plus what its unnamed
-codes were seen to do. Observed values are included only for codes nobody has
-named - they are what a mapping is worked out from; a standard control's value
+codes were seen to do. Observed values remain included for manufacturer codes
+after naming them, so reviewers retain the evidence; a standard control's value
 is somebody's setting and stays out. The whole body goes through `Redact.Scrub`
 and the ASCII fold, like every record. The app shows the exact text first.
 There is no token and no request from DispCtrl: the browser opens with the body

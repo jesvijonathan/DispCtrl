@@ -60,9 +60,10 @@ public sealed partial class ControlService
         Only(args, "list");
         // Opening the page also records arrivals when the resident engine is
         // stopped; enumeration itself does not touch a DDC/CI control.
-        DeviceObserver.Attached(DisplayRegistry.Enumerate());
+        List<DisplayInfo> displays = DisplayRegistry.Enumerate();
+        DeviceObserver.Attached(displays);
         DeviceHistory history = DeviceHistory.Load();
-        var attached = DisplayRegistry.Enumerate().Select(d => d.Key.Model).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var attached = displays.Select(d => d.Key.Model).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var models = new JsonArray();
         foreach (SeenModel m in history.Models.Values.OrderByDescending(m => m.LastSeen))
         {
@@ -73,7 +74,7 @@ public sealed partial class ControlService
                 ["model"] = m.Key, ["name"] = m.Name, ["connector"] = m.Connector, ["builtIn"] = m.BuiltIn,
                 ["attached"] = attached.Contains(m.Key), ["firstSeen"] = m.FirstSeen.ToString("O"), ["lastSeen"] = m.LastSeen.ToString("O"),
                 ["codes"] = m.Codes.Count, ["mapped"] = known.Count, ["unnamed"] = unnamed,
-                ["capabilitiesRead"] = m.Capabilities is not null,
+                ["capabilitiesRead"] = m.Capabilities is not null || m.Codes.Count > 0,
             });
         }
         return new JsonObject { ["history"] = DeviceHistory.PathOnDisk, ["models"] = models };
@@ -92,14 +93,18 @@ public sealed partial class ControlService
         // the Devices page shows first, before anybody asks for a live read.
         if (display is not null && !display.IsInternal && !Flag(args, "history"))
         {
-            MonitorCapability capabilities = MonitorCapabilities.Read(display);
-            if (!capabilities.Supported) throw new InvalidOperationException($"{display.Label} does not answer DDC/CI.");
+            MonitorCapability capabilities = MonitorCapabilities.Read(display, includeMappings: false);
+            if (!capabilities.Supported && known.Count == 0) throw new InvalidOperationException($"{display.Label} does not answer DDC/CI.");
             source = "live";
             foreach (VcpControl c in capabilities.Controls)
             {
                 known.TryGetValue(c.Code, out ResolvedControl? mapped);
-                codes.Add((JsonNode)CodeEntry(c.Code, c.Name, c.Kind.ToString().ToLowerInvariant(),
-                    c.Values.Select(v => (int)v.Value), c.Current < 0 ? null : c.Kind == VcpKind.Discrete ? c.CurrentValue : c.Current, mapped));
+                JsonObject entry = CodeEntry(c.Code, c.Name, c.Kind.ToString().ToLowerInvariant(),
+                    c.Values.Select(v => (int)v.Value), c.Current < 0 ? null
+                        : c.Kind == VcpKind.Discrete && MonitorCapabilities.IsNamed(c.Code) ? c.CurrentValue : c.Current, mapped);
+                entry["reportedMaximum"] = c.Maximum < 0 ? null : c.Maximum;
+                entry["discovery"] = MonitorCapabilities.IsProbed(capabilities.Raw) ? "probed" : "advertised";
+                codes.Add((JsonNode)entry);
             }
         }
         else
@@ -112,11 +117,18 @@ public sealed partial class ControlService
             {
                 byte b = DeviceDefinitions.ParseCode(code) ?? 0;
                 known.TryGetValue(b, out ResolvedControl? mapped);
-                codes.Add((JsonNode)CodeEntry(b, c.Name, c.Kind.ToLowerInvariant(), c.ListedValues, null, mapped, c.Observed));
+                JsonObject entry = CodeEntry(b, c.Name, c.Kind.ToLowerInvariant(), c.ListedValues, null, mapped, c.Observed);
+                entry["reportedMaximum"] = c.Maximum;
+                entry["discovery"] = c.Probed ? "probed" : "advertised";
+                codes.Add((JsonNode)entry);
             }
-            foreach (var mapped in known.Values.Where(m => m.Definition.DdcWrite is not null
-                         && !seen.Codes.Keys.Any(key => DeviceDefinitions.ParseCode(key) == m.Code)))
-                codes.Add((JsonNode)CodeEntry(mapped.Code, "Input source (device mapping)", "discrete", [], null, mapped));
+        }
+        var shown = codes.Select(c => DeviceDefinitions.ParseCode(c!["code"]!.GetValue<string>())).ToHashSet();
+        foreach (var mapped in known.Values.Where(m => !shown.Contains(m.Code)))
+        {
+            JsonObject entry = CodeEntry(mapped.Code, "Device mapping", mapped.Definition.Kind, [], null, mapped);
+            entry["discovery"] = "mapping";
+            codes.Add((JsonNode)entry);
         }
 
         return new JsonObject { ["model"] = model, ["source"] = source, ["panel"] = DeviceLibrary.Panel(model)?.Technology, ["codes"] = codes };
@@ -162,9 +174,12 @@ public sealed partial class ControlService
 
     private static JsonNode DevicesScan(JsonObject args)
     {
-        Only(args, "scan");
+        Only(args, "scan", "monitor", "model");
         var scanned = new JsonArray();
-        List<DisplayInfo> displays = DisplayRegistry.Enumerate();
+        List<DisplayInfo> displays = args.ContainsKey("monitor") || args.ContainsKey("model")
+            ? [ModelOf(args).Display ?? throw new ArgumentException("Attach this monitor to scan its controls.")]
+            : DisplayRegistry.Enumerate();
+        DeviceHistory before = DeviceHistory.Load();
         // An explicit sync brings back a monitor the person removed earlier;
         // only the automatic learning respects the removal.
         DeviceHistoryEdits.Remember(displays.Select(d => d.Key.Model));
@@ -177,11 +192,29 @@ public sealed partial class ControlService
                 scanned.Add((JsonNode)new JsonObject { ["model"] = d.Key.Model, ["ddc"] = false });
                 continue;
             }
+            MonitorCapabilities.Forget(d);
             MonitorCapability c = MonitorCapabilities.Read(d, includeMappings: false);
-            DeviceDiscovery.CacheRecord(d);
-            scanned.Add((JsonNode)new JsonObject { ["model"] = d.Key.Model, ["ddc"] = c.Supported, ["codes"] = c.Controls.Count });
+            DeviceDiscovery.CacheRecord(d, c);
+            var known = DeviceLibrary.Resolve(d.Key.Model);
+            before.Models.TryGetValue(d.Key.Model, out SeenModel? previous);
+            var found = new JsonArray();
+            var added = new JsonArray();
+            foreach (VcpControl control in c.Controls)
+            {
+                known.TryGetValue(control.Code, out var mapping);
+                JsonObject entry = CodeEntry(control.Code, control.Name, control.Kind.ToString().ToLowerInvariant(),
+                    control.Values.Select(v => (int)v.Value), control.Current < 0 ? null
+                        : control.Kind == VcpKind.Discrete && MonitorCapabilities.IsNamed(control.Code) ? control.CurrentValue : control.Current, mapping);
+                entry["reportedMaximum"] = control.Maximum < 0 ? null : control.Maximum;
+                entry["discovery"] = MonitorCapabilities.IsProbed(c.Raw) ? "probed" : "advertised";
+                found.Add((JsonNode)entry);
+                if (previous?.Codes.ContainsKey(control.Hex) != true) added.Add((JsonNode)JsonValue.Create(control.Hex)!);
+            }
+            scanned.Add((JsonNode)new JsonObject { ["model"] = d.Key.Model, ["ddc"] = c.Supported, ["codes"] = c.Controls.Count,
+                ["controls"] = found, ["newCodes"] = added, ["contributionReady"] = c.Supported });
         }
-        return new JsonObject { ["scanned"] = scanned, ["history"] = DeviceHistory.PathOnDisk };
+        return new JsonObject { ["scanned"] = scanned, ["history"] = DeviceHistory.PathOnDisk,
+            ["note"] = "Discovered codes are saved locally and included in devices contribute. Scanning does not name or enable unknown controls." };
     }
 
     /// <summary>Removes a model from this PC's list; it is not recorded again by itself until a scan.</summary>
@@ -201,11 +234,15 @@ public sealed partial class ControlService
     private static JsonNode DevicesMap(JsonObject args)
     {
         Only(args, "map", "monitor", "model", "code", "name", "key", "kind", "values", "maximum", "writable", "scope",
-            "confidence", "notes", "dryRun", "sourceAddress", "writeCode");
+            "confidence", "notes", "dryRun", "sourceAddress", "writeCode", "transport");
         var (model, _) = ModelOf(args);
         byte code = DeviceDefinitions.ParseCode(Text(args, "code") ?? "")
             ?? throw new ArgumentException("--code is the VCP code, written 0xE2.");
         string scope = Text(args, "scope") ?? "model";
+        string? transport = Text(args, "transport");
+        if (transport is not (null or "standard" or "lg-input")) throw new ArgumentException("Transport is standard or lg-input.");
+        if (transport == "standard" && (args.ContainsKey("sourceAddress") || args.ContainsKey("writeCode")))
+            throw new ArgumentException("Standard DDC does not take alternate source or wire-code options.");
         string target = scope switch
         {
             "model" => model,
@@ -214,39 +251,56 @@ public sealed partial class ControlService
             _ => throw new ArgumentException("--scope is model, brand or all."),
         };
 
+        DefinedControl? before = DeviceLibrary.LoadLocal(target).Controls.FirstOrDefault(c => c.CodeValue == code)
+            ?? DeviceLibrary.Resolve(model).GetValueOrDefault(code)?.Definition;
         var control = new DefinedControl
         {
             Code = DeviceDefinitions.FormatCode(code),
-            Key = Text(args, "key"),
+            Key = Text(args, "key") ?? before?.Key,
             Name = Text(args, "name") ?? throw new ArgumentException("--name says what the code does, in words."),
-            Kind = Text(args, "kind") ?? DefinedKinds.Information,
-            Writable = Flag(args, "writable"),
-            Maximum = args.ContainsKey("maximum") ? Integer(args, "maximum", 0, 65535) : null,
-            Confidence = Text(args, "confidence") ?? DefinedConfidence.Observed,
+            Kind = Text(args, "kind") ?? before?.Kind ?? DefinedKinds.Information,
+            Writable = args.ContainsKey("writable") ? Flag(args, "writable") : before?.Writable ?? false,
+            Maximum = args.ContainsKey("maximum") ? args["maximum"] is null ? null : Integer(args, "maximum", 0, 65535) : before?.Maximum,
+            Confidence = Text(args, "confidence") ?? before?.Confidence ?? DefinedConfidence.Observed,
             Notes = Text(args, "notes"),
             Sources = [model],
-            DdcWrite = args.ContainsKey("sourceAddress") || args.ContainsKey("writeCode")
+            DdcWrite = transport == "lg-input" || args.ContainsKey("sourceAddress") || args.ContainsKey("writeCode")
                 ? new DefinedDdcWrite
                 {
                     SourceAddress = Text(args, "sourceAddress") ?? "0x50",
                     Code = Text(args, "writeCode") ?? "0xF4",
                 } : null,
         };
-        foreach (string pair in (Text(args, "values") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        if (args["values"] is JsonArray values)
+        {
+            foreach (JsonNode? value in values)
+            {
+                if (value is not JsonObject item || item.Any(p => p.Key is not ("value" or "name")))
+                    throw new ArgumentException("Each choice needs a value and a name.");
+                control.Values.Add(new DefinedValue { Value = item["value"]?.ToString() ?? "", Name = Text(item, "name") ?? "" });
+            }
+        }
+        else foreach (string pair in (Text(args, "values") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             int equals = pair.IndexOf('=');
             if (equals <= 0) throw new ArgumentException("--values is value=name pairs: \"0x0B=ComfortView,0x00=Standard\".");
             control.Values.Add(new DefinedValue { Value = pair[..equals].Trim(), Name = pair[(equals + 1)..].Trim() });
         }
-        if (control.Values.Count > 0 && Text(args, "kind") is null) control.Kind = DefinedKinds.Choice;
+        if (!args.ContainsKey("values") && before is not null) control.Values = [.. before.Values];
+        if (before is not null && args.ContainsKey("kind") && control.Kind != before.Kind)
+        {
+            if (!args.ContainsKey("values")) control.Values = [];
+            if (!args.ContainsKey("maximum")) control.Maximum = null;
+            if (control.Kind == DefinedKinds.Information && !args.ContainsKey("writable")) control.Writable = false;
+        }
+        if (control.Values.Count > 0 && Text(args, "kind") is null && (args.ContainsKey("values") || before is null)) control.Kind = DefinedKinds.Choice;
 
         // Keep what was there: another model's source, earlier notes.
-        DefinedControl? before = DeviceLibrary.LoadLocal(target).Controls.FirstOrDefault(c => c.CodeValue == code);
         if (before is not null)
         {
             foreach (string s in before.Sources) if (!control.Sources.Contains(s)) control.Sources.Add(s);
             control.Notes ??= before.Notes;
-            control.DdcWrite ??= before.DdcWrite;
+            if (transport != "standard") control.DdcWrite ??= before.DdcWrite;
         }
 
         var probe = new DeviceDefinition { Schema = control.DdcWrite is null ? 1 : 2, Target = target, Controls = [control] };
