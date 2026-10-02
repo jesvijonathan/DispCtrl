@@ -56,7 +56,7 @@ shown display. It is a mode rather than a preset of the lists, so the sections,
 tiles and rows are untouched and switching it off brings the full panel back
 exactly. The customisation page greys only what simple mode ignores.
 
-The same layout is also a section of the full panel, **Simple brightness**
+The same layout is also a section of the full panel, **Brightness**
 (`simpleBrightness`, hidden until switched on): somebody who wants the plain
 sliders but keeps the tiles, night light or taskbar can show it and hide
 Unison brightness and Displays. It is drawn by the same code as simple mode,

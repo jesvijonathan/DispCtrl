@@ -81,6 +81,11 @@ internal sealed partial class QuickPanelContent
             "newWindows" => _vm.SeveralDisplays
                 ? Tile(e, () => _vm.NewWindowsOnActive, v => _vm.NewWindowsOnActive = v, nameof(MainViewModel.NewWindowsOnActive))
                 : null,
+            // Only where there is a sensor to follow; switching it on switches unison on too.
+            "ambient" => _vm.AmbientAvailable
+                ? Tile(e, () => _vm.AmbientEnabled, v => _vm.AmbientEnabled = v, nameof(MainViewModel.AmbientEnabled))
+                : null,
+            "restore" => ActionTile(e, RestoreEverything),
             "restAll" => _vm.Displays.Any(d => d.IsOled)
                 ? ActionTile(e, () =>
                 {
@@ -92,6 +97,17 @@ internal sealed partial class QuickPanelContent
                 : null,
             _ => null,
         };
+    }
+
+    /// <summary>The way back, as Ctrl+Alt+Backspace: the same control request, then the app catches up.</summary>
+    private async void RestoreEverything()
+    {
+        _dismiss();
+        var result = await Task.Run(() => new DispCtrl.Control.ControlService().Execute(new System.Text.Json.Nodes.JsonObject
+        {
+            ["version"] = 1, ["command"] = "restore.now", ["args"] = new System.Text.Json.Nodes.JsonObject(),
+        }));
+        if (result["ok"]?.GetValue<bool>() == true) _vm.ReloadFromDisk();
     }
 
     /// <summary>A tile that opens the list of windows to pin, from its whole face.</summary>
@@ -179,7 +195,7 @@ internal sealed partial class QuickPanelContent
     private static HyperlinkButton WindowsLink(string text, string uri) =>
         new() { Content = text, NavigateUri = new Uri(uri), Margin = new Thickness(0, 2, 0, 0) };
 
-    private Flyout UnisonFlyout() => OptionsFlyout("Unison brightness", "displays",
+    private Flyout UnisonFlyout() => OptionsFlyout("Unison brightness", "brightness",
         SliderRow("", "Level", _vm.UnisonLevel, _vm.UnisonMinimum, 100,
             v => _vm.UnisonLevel = v, _vm, nameof(MainViewModel.UnisonLevel), () => _vm.UnisonLevel,
             "QuickUnisonFlyoutLevel", "%", labelled: true),
@@ -368,9 +384,27 @@ internal sealed partial class QuickPanelContent
                     v => _vm.OledSecondStageDim = v, _vm, nameof(MainViewModel.OledSecondStageDim), () => _vm.OledSecondStageDim,
                     "QuickOledSecondDim", "%", labelled: true),
                 () => _vm.OledSecondStageEnabled, nameof(MainViewModel.OledSecondStageEnabled)),
+            SwitchRow("Turn it off after longer", "A third stage: black, once the display has been idle longer still.",
+                () => _vm.OledThirdStageEnabled, v => _vm.OledThirdStageEnabled = v,
+                nameof(MainViewModel.OledThirdStageEnabled), "QuickOledThirdStage"),
+            EnabledWhen(SliderRow("", "Off after", _vm.OledThirdStageMinutes, 1, 240,
+                    v => _vm.OledThirdStageMinutes = v, _vm, nameof(MainViewModel.OledThirdStageMinutes), () => _vm.OledThirdStageMinutes,
+                    "QuickOledThirdAfter", " min", labelled: true),
+                () => _vm.OledThirdStageEnabled, nameof(MainViewModel.OledThirdStageEnabled)),
+            EnabledWhen(SwitchRow("Backlight off too", "The display's real backlight goes down as well, and comes back as it wakes.",
+                    () => _vm.OledThirdStageBacklight, v => _vm.OledThirdStageBacklight = v,
+                    nameof(MainViewModel.OledThirdStageBacklight), "QuickOledThirdBacklight"),
+                () => _vm.OledThirdStageEnabled, nameof(MainViewModel.OledThirdStageEnabled)),
+            EnabledWhen(SwitchRow("Keep the computer active", "Off: once a display is off, the computer may sleep on Windows' own schedule.",
+                    () => _vm.OledThirdStageKeepActive, v => _vm.OledThirdStageKeepActive = v,
+                    nameof(MainViewModel.OledThirdStageKeepActive), "QuickOledThirdActive"),
+                () => _vm.OledThirdStageEnabled, nameof(MainViewModel.OledThirdStageEnabled)),
             SwitchRow("Pause during fullscreen", "No dimming while a fullscreen app or game runs.",
                 () => _vm.OledPauseFullscreen, v => _vm.OledPauseFullscreen = v,
                 nameof(MainViewModel.OledPauseFullscreen), "QuickOledFullscreen"),
+            SwitchRow("Pause while a video plays", "No dimming on a display showing a video that is playing.",
+                () => _vm.OledPauseVideo, v => _vm.OledPauseVideo = v,
+                nameof(MainViewModel.OledPauseVideo), "QuickOledVideo"),
             SwitchRow("Each display on its own", "A display rests when the pointer and your typing have been elsewhere, even while you work on another.",
                 () => _vm.OledPerDisplayActivity, v => _vm.OledPerDisplayActivity = v,
                 nameof(MainViewModel.OledPerDisplayActivity), "QuickOledPerDisplay"),
@@ -378,14 +412,14 @@ internal sealed partial class QuickPanelContent
         ];
     }
 
-    private Flyout NightLightFlyout() => OptionsFlyout("Night light", "displays",
+    private Flyout NightLightFlyout() => OptionsFlyout("Night light", "brightness",
         [.. NightLightRows(out _), WindowsLink("Night light in Windows", "ms-settings:nightlight")]);
 
-    private Flyout FocusFlyout() => OptionsFlyout("Focus mode", "displays", FocusRows());
+    private Flyout FocusFlyout() => OptionsFlyout("Focus mode", "care", FocusRows());
 
-    private Flyout OledFlyout() => OptionsFlyout("OLED care", "displays", OledRows());
+    private Flyout OledFlyout() => OptionsFlyout("OLED care", "care", OledRows());
 
-    private Flyout DisplaysOffFlyout() => OptionsFlyout("Displays off", "displays", DisplaysOffRows(inKeepAwake: false));
+    private Flyout DisplaysOffFlyout() => OptionsFlyout("Displays off", "care", DisplaysOffRows(inKeepAwake: false));
 
     /// <summary>"Turn off displays": how dark, which displays, how soon, what wakes them, and staying awake meanwhile.</summary>
     /// <remarks>Used by its own tile and inside Keep awake's, which is where people look for "walk away".</remarks>
@@ -462,7 +496,7 @@ internal sealed partial class QuickPanelContent
                  WriteAwake(mode);
              });
 
-        return OptionsFlyout("Keep awake", "displays",
+        return OptionsFlyout("Keep awake", "care",
         [
             Choices(
                 For("Let the computer sleep", 0, 0, 0),
@@ -512,6 +546,26 @@ internal sealed partial class QuickPanelContent
                 "DispCtrl's blurred glass behind the taskbar.",
                 () => _vm.TaskbarGlassEnabled, v => _vm.TaskbarGlassEnabled = v, nameof(MainViewModel.TaskbarGlassEnabled),
                 "QuickTaskbarGlass"));
+            body.Children.Add(EnabledWhen(Choices(nameof(MainViewModel.TaskbarGlassLookIndex),
+                    ("Blur", () => _vm.TaskbarGlassLookIndex == 0, () => _vm.TaskbarGlassLookIndex = 0),
+                    ("Clear", () => _vm.TaskbarGlassLookIndex == 1, () => _vm.TaskbarGlassLookIndex = 1),
+                    ("Opaque", () => _vm.TaskbarGlassLookIndex == 2, () => _vm.TaskbarGlassLookIndex = 2),
+                    ("Acrylic", () => _vm.TaskbarGlassLookIndex == 3, () => _vm.TaskbarGlassLookIndex = 3)),
+                () => _vm.TaskbarGlassEnabled, nameof(MainViewModel.TaskbarGlassEnabled)));
+            body.Children.Add(EnabledWhen(SwitchRow("Accent colour", "Tint with Windows' accent colour; off, with a colour of your own.",
+                    () => _vm.TaskbarGlassAccent, v => _vm.TaskbarGlassAccent = v,
+                    nameof(MainViewModel.TaskbarGlassAccent), "QuickTaskbarAccent"),
+                () => _vm.TaskbarGlassEnabled, nameof(MainViewModel.TaskbarGlassEnabled)));
+            // Typed whole, saved when the box is left; an unreadable colour is refused and shown as it was.
+            var colour = new TextBox { Header = "Colour", PlaceholderText = "#202020", Text = _vm.TaskbarGlassColour, Margin = new Thickness(RowInset, 2, 0, 2) };
+            AutomationProperties.SetName(colour, "QuickTaskbarColour");
+            colour.LostFocus += (_, _) => { if (colour.Text != _vm.TaskbarGlassColour) _vm.TaskbarGlassColour = colour.Text; colour.Text = _vm.TaskbarGlassColour; };
+            Watch(_vm, nameof(MainViewModel.TaskbarGlassColour), () => { if (colour.FocusState == FocusState.Unfocused) colour.Text = _vm.TaskbarGlassColour; });
+            body.Children.Add(EnabledWhen(colour, () => _vm.TaskbarGlassOwnColour, nameof(MainViewModel.TaskbarGlassOwnColour)));
+            body.Children.Add(EnabledWhen(SwitchRow("Top border", "The thin line along the taskbar's top edge.",
+                    () => _vm.TaskbarGlassBorder, v => _vm.TaskbarGlassBorder = v,
+                    nameof(MainViewModel.TaskbarGlassBorder), "QuickTaskbarBorder"),
+                () => _vm.TaskbarGlassEnabled, nameof(MainViewModel.TaskbarGlassEnabled)));
             body.Children.Add(SliderRow("\uE790", "Glass tint", _vm.TaskbarGlassTint, 0, 100,
                 v => _vm.TaskbarGlassTint = v, _vm, nameof(MainViewModel.TaskbarGlassTint), () => _vm.TaskbarGlassTint,
                 "QuickTaskbarTint", "%", labelled: true));

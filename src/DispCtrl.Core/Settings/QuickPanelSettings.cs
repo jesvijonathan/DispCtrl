@@ -156,7 +156,7 @@ public static class QuickPanelCatalog
     [
         new("unison", "Unison brightness", "\uE793",
             "One slider that moves every display together. The symbol beside it switches unison on and off.", true),
-        new("simpleBrightness", "Simple brightness", "\uE706",
+        new("simpleBrightness", "Brightness", "\uE706",
             "Simple mode's brightness inside the full panel: all displays together, then one slider per display. Use it in place of Unison brightness and Displays.", false),
         new("tiles", "Quick toggles", "\uE8A9",
             "A grid of small switches and actions, like Windows' quick settings.", true),
@@ -193,6 +193,8 @@ public static class QuickPanelCatalog
         new("unison", "Unison", "\uE793", "Move every display's brightness with one slider.", false),
         new("identify", "Identify", "\uE7C4", "Show each display's number on it for three seconds. The arrow picks one display, or looks for displays again.", false),
         new("cast", "Cast", "\uE7F7", "Connect to a wireless display.", false),
+        new("ambient", "Room light", "\uE9F3", "Follow the room's light with every display, from the light sensor. Only where there is a sensor.", false),
+        new("restore", "Way back", "\uE777", "Put every display back, as Ctrl+Alt+Backspace does: switch off whatever darkens, tints or hides a screen. Settings, Undo the way back, puts it back.", false),
         new("restAll", "Rest OLED", "\uEA14", "Rest every OLED display under the idle-protection dimming until the computer is next used.", false),
         new("engine", "Engine", "\uE9F5", "DispCtrl's background engine, which runs taskbar hiding, night light, focus and shortcuts.", false),
         new("pin", "Pin on top", "\uE718", "Keep a window above every other. The arrow lists the open windows to pin or unpin, and how a pinned window is marked.", false),

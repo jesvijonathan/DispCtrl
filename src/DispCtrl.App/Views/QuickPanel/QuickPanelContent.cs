@@ -249,7 +249,7 @@ internal sealed partial class QuickPanelContent
     /// </remarks>
     private void SimpleBrightness()
     {
-        StackPanel target = Foldable("simpleBrightness", SectionHeader("Simple brightness"));
+        StackPanel target = Foldable("simpleBrightness", SectionHeader("Brightness"));
         target.Spacing = 10;
         Metrics full = _m;
         _m = _m with { SliderLabels = false };
