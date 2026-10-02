@@ -237,6 +237,19 @@ public sealed class GlobalSettings
     public int TaskbarGlassRadius { get; set; } = 48;
     /// <summary>Dark acrylic tint opacity applied after blur.</summary>
     public int TaskbarGlassTint { get; set; } = 24;
+
+    /// <summary>What the taskbar's surface is, with glass on; off, it is Windows' own.</summary>
+    /// <remarks>TranslucentTB's choices, done by the same Explorer helper as the blur: see <see cref="TaskbarLook"/>.</remarks>
+    public TaskbarLook TaskbarGlassLook { get; set; } = TaskbarLook.Blur;
+
+    /// <summary>The tint's colour, written #RRGGBB; empty for black.</summary>
+    public string TaskbarGlassColour { get; set; } = "";
+
+    /// <summary>Tint with Windows' accent colour, followed when it changes, instead of <see cref="TaskbarGlassColour"/>.</summary>
+    public bool TaskbarGlassAccent { get; set; }
+
+    /// <summary>Keep the thin line along the taskbar's top edge; off hides it while glass is on.</summary>
+    public bool TaskbarGlassBorder { get; set; } = true;
     /// <summary>How long the bar stays out after the cursor leaves.</summary>
     public int HideDelayMs { get; set; } = 1500;
 
@@ -403,6 +416,10 @@ public sealed class GlobalSettings
         TaskbarGlassEnabled = fresh.TaskbarGlassEnabled;
         TaskbarGlassRadius = fresh.TaskbarGlassRadius;
         TaskbarGlassTint = fresh.TaskbarGlassTint;
+        TaskbarGlassLook = fresh.TaskbarGlassLook;
+        TaskbarGlassColour = fresh.TaskbarGlassColour;
+        TaskbarGlassAccent = fresh.TaskbarGlassAccent;
+        TaskbarGlassBorder = fresh.TaskbarGlassBorder;
 
         HideDelayMs = fresh.HideDelayMs;
         AnimMs = fresh.AnimMs;

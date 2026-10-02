@@ -367,7 +367,20 @@ public sealed partial class ControlService
                     name = "oledWakeOnPointerReturn"; value = JsonValue.Create(mode == "pointer-return");
                 }
                 name = group == "taskbar" ? name switch { "opacity" => "taskbarOpacity", "glass" => "taskbarGlassEnabled", "blur" => "taskbarGlassRadius",
-                    "tint" => "taskbarGlassTint", "hide" => "hideTaskbar", "reclaimSpace" => "reclaimWorkArea", _ => name } : name;
+                    "tint" => "taskbarGlassTint", "hide" => "hideTaskbar", "reclaimSpace" => "reclaimWorkArea",
+                    "look" => "taskbarGlassLook", "colour" or "color" => "taskbarGlassColour", "accent" => "taskbarGlassAccent",
+                    "border" => "taskbarGlassBorder", _ => name } : name;
+                if (name == "taskbarGlassColour" && value?.ToString() is { Length: > 0 } typed)
+                {
+                    if (TaskbarGlass.ParseColour(typed) is null) throw new ArgumentException("--colour is #RRGGBB, or empty for black.");
+                    value = JsonValue.Create("#" + typed.Trim().TrimStart('#').ToUpperInvariant());
+                }
+                if (name == "taskbarGlassLook" && value?.ToString() is { } look)
+                {
+                    if (!Enum.TryParse(look, ignoreCase: true, out TaskbarLook parsed) || !Enum.IsDefined(parsed))
+                        throw new ArgumentException("--look is blur, clear, opaque or acrylic.");
+                    value = JsonValue.Create(parsed.ToString());
+                }
                 if (group == "oled" && token is not null && name == "enabled") name = "oledProtection";
                 // A display's own level, or "common" for every display's.
                 if (token is not null && (group, name) is ("focus", "dimPercent") or ("nightlight", "strength"))
@@ -431,6 +444,7 @@ public sealed partial class ControlService
         "secondStageDimPercent", "thirdStageEnabled", "thirdStageMinutes", "thirdStageBacklight"];
 
     private static readonly string[] TaskbarKeys = ["taskbarOpacity", "taskbarGlassEnabled", "taskbarGlassRadius", "taskbarGlassTint",
+        "taskbarGlassLook", "taskbarGlassColour", "taskbarGlassAccent", "taskbarGlassBorder",
         "hideDelayMs", "animMs", "revealPx", "armDistancePx", "idlePollMs", "farPollMs", "armedPollMs", "shownPollMs"];
 
     internal static string? Text(JsonObject args, string key) => args[key] is null ? null

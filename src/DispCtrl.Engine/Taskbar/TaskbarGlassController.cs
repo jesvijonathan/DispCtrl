@@ -15,13 +15,13 @@ internal sealed class TaskbarGlassController : IDisposable
     private delegate int AttachDelegate(uint explorerPid);
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
-    private delegate int UpdateDelegate(uint explorerPid, uint ownerPid, uint config);
+    private delegate int UpdateDelegate(uint explorerPid, uint ownerPid, ulong config);
 
     private nint _module;
     private AttachDelegate? _attach;
     private UpdateDelegate? _update;
     private uint _explorerPid;
-    private int _lastConfig;
+    private ulong _lastConfig;
     private bool _missingLogged;
     private string? _lastStatus;
     private long _retryAt;
@@ -74,7 +74,8 @@ internal sealed class TaskbarGlassController : IDisposable
 
         int radius = Math.Clamp(settings.TaskbarGlassRadius, 0, 100);
         int tint = Math.Clamp(settings.TaskbarGlassTint, 0, 100);
-        int config = unchecked((int)(0x01000000u | (uint)radius | ((uint)tint << 8)));
+        int? colour = settings.TaskbarGlassAccent ? TaskbarGlass.AccentColour() : TaskbarGlass.ParseColour(settings.TaskbarGlassColour);
+        ulong config = TaskbarGlass.Pack(radius, tint, settings.TaskbarGlassLook, settings.TaskbarGlassBorder, colour);
         if (!moved && config == _lastConfig && now < _nextCheckAt) return;
 
         Protection.OverlayNative.GetWindowThreadProcessId(taskbar, out uint pid);
@@ -102,7 +103,7 @@ internal sealed class TaskbarGlassController : IDisposable
         // New taskbar XAML threads and Explorer's own visual-state changes
         // can arrive after a successful application, so it is re-checked on
         // the cadence above rather than applied once.
-        int result = InvokeUpdate(pid, unchecked((uint)config));
+        int result = InvokeUpdate(pid, config);
         if (result < 0)
         {
             Log.Write($"taskbar glass: Explorer update failed (0x{result:X8})");
@@ -120,7 +121,7 @@ internal sealed class TaskbarGlassController : IDisposable
         if (result > 0) _waitingSince = 0;
         else if (_waitingSince == 0) _waitingSince = now;
         WriteStatus(result > 0
-            ? $"Applied to {result} taskbar surface(s) · blur {radius}px · tint {tint}%"
+            ? $"Applied to {result} taskbar surface(s) · {settings.TaskbarGlassLook.ToString().ToLowerInvariant()} · blur {radius}px · tint {tint}%"
             : now - _waitingSince < SurfaceWaitMs
                 ? "Connected to Explorer; waiting for the taskbar surface"
                 : "Explorer never gave this build the taskbar surface; another DispCtrl build's glass helper still holds it. Restart Windows Explorer to load this one.");
@@ -166,7 +167,7 @@ internal sealed class TaskbarGlassController : IDisposable
         return true;
     }
 
-    private int InvokeUpdate(uint explorerPid, uint config)
+    private int InvokeUpdate(uint explorerPid, ulong config)
     {
         try { return _update!(explorerPid, unchecked((uint)Environment.ProcessId), config); }
         catch (Exception ex) { Log.Write($"taskbar glass: bridge call failed: {ex.Message}"); return -1; }

@@ -1283,6 +1283,14 @@ unrecallable.
   Explorer restarts. A one-line tidy of `build.ps1` did exactly that: glass
   stopped applying on the next engine start. Leave the script alone unless the
   helper really changes, and expect to restart Explorer when it does.
+- **The glass helper is configured with one 64-bit number** (`TaskbarGlass.Pack`):
+  radius, tint, on, the look (blur, clear, opaque, acrylic) in bits 25-27,
+  hide-the-top-border in 28, and a 0xRRGGBB colour in 32-55 behind bit 29.
+  `GlassUpdate` takes it as an unsigned 64-bit value; the engine's delegate
+  must match, or the colour is cut off. The border is the Rectangle named
+  `BackgroundStroke`, hidden by taking its fill away and given back on
+  restore. Changing this changed the helper's revision; the engine retired the
+  old one in Explorer by itself here (no restart).
 - **Explorer can leave a secondary taskbar with a region sized for the wrong
   DPI** - 2880 x 48 on a 96 px bar at 200%, measured after an Explorer restart.
   Windows clips to the region, so the lower half was never drawn.

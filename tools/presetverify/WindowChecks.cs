@@ -178,6 +178,15 @@ internal static class WindowChecks
             && DispCtrl.Display.MediaPlayback.ProcessFor("Microsoft.ZuneVideo_8wekyb3d8bbwe!Microsoft.ZuneVideo") == "ZuneVideo"
             && DispCtrl.Display.MediaPlayback.ProcessFor(@"C:\Program Files\VideoLAN\VLC\vlc.exe") == "vlc",
             "a media session's app ID becomes the process its windows are found by");
+
+        ulong packed = TaskbarGlass.Pack(36, 8, TaskbarLook.Acrylic, border: false, rgb: 0x1E3A5F);
+        check((packed & 0xFF) == 36 && ((packed >> 8) & 0xFF) == 8 && (packed & 0x01000000) != 0 && ((packed >> 25) & 7) == 3
+            && (packed & (1ul << 28)) != 0 && (packed & (1ul << 29)) != 0 && ((packed >> 32) & 0xFFFFFF) == 0x1E3A5F
+            && TaskbarGlass.Pack(36, 8, TaskbarLook.Blur, border: true, rgb: null) == (0x01000000ul | 36 | (8 << 8)),
+            "taskbar glass packs look, border and colour where the helper reads them, and blur alone as before");
+        check(TaskbarGlass.ParseColour("#1e3a5f") == 0x1E3A5F && TaskbarGlass.ParseColour("1E3A5F") == 0x1E3A5F
+            && TaskbarGlass.ParseColour("blue") is null && TaskbarGlass.ParseColour("#12345") is null && TaskbarGlass.ParseColour("") is null,
+            "a colour is #RRGGBB or RRGGBB and nothing else");
     }
 
     private static void Panel(Action<bool, string> check)

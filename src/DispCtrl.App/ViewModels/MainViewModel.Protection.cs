@@ -91,6 +91,35 @@ public sealed partial class MainViewModel
     public double TaskbarOpacity { get => _settings.Global.TaskbarOpacity; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarOpacity == v) return; _settings.Global.TaskbarOpacity = v; SaveProtectionSlider(); } }
     public bool TaskbarGlassEnabled { get => _settings.Global.TaskbarGlassEnabled; set { if (_settings.Global.TaskbarGlassEnabled == value) return; _settings.Global.TaskbarGlassEnabled = value; SaveProtection(); Raise(nameof(TaskbarGlassStatus)); Raise(nameof(TaskbarGlassRestartVisibility)); } }
     public double TaskbarGlassRadius { get => _settings.Global.TaskbarGlassRadius; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarGlassRadius == v) return; _settings.Global.TaskbarGlassRadius = v; SaveProtectionSlider(); } }
+    /// <summary>The surface's look, in the order of <see cref="TaskbarLook"/>; written only on a real change.</summary>
+    public int TaskbarGlassLookIndex
+    {
+        get => (int)_settings.Global.TaskbarGlassLook;
+        set { if (value is < 0 or > 3 || (int)_settings.Global.TaskbarGlassLook == value) return; _settings.Global.TaskbarGlassLook = (TaskbarLook)value; SaveProtection(); }
+    }
+    public bool TaskbarGlassAccent
+    {
+        get => _settings.Global.TaskbarGlassAccent;
+        set { if (_settings.Global.TaskbarGlassAccent == value) return; _settings.Global.TaskbarGlassAccent = value; SaveProtection(); Raise(nameof(TaskbarGlassOwnColour)); }
+    }
+    public bool TaskbarGlassOwnColour => _settings.Global.TaskbarGlassEnabled && !_settings.Global.TaskbarGlassAccent;
+    /// <summary>The tint colour as typed; kept only once it reads as #RRGGBB, or empty for black.</summary>
+    public string TaskbarGlassColour
+    {
+        get => _settings.Global.TaskbarGlassColour;
+        set
+        {
+            string v = (value ?? "").Trim();
+            if (v == _settings.Global.TaskbarGlassColour || v.Length > 0 && TaskbarGlass.ParseColour(v) is null) return;
+            _settings.Global.TaskbarGlassColour = v.Length == 0 ? "" : "#" + v.TrimStart('#').ToUpperInvariant();
+            SaveProtection();
+        }
+    }
+    public bool TaskbarGlassBorder
+    {
+        get => _settings.Global.TaskbarGlassBorder;
+        set { if (_settings.Global.TaskbarGlassBorder == value) return; _settings.Global.TaskbarGlassBorder = value; SaveProtection(); }
+    }
     public double TaskbarGlassTint { get => _settings.Global.TaskbarGlassTint; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarGlassTint == v) return; _settings.Global.TaskbarGlassTint = v; SaveProtectionSlider(); } }
     public string TaskbarGlassStatus
     {
@@ -155,6 +184,10 @@ public sealed partial class MainViewModel
         _settings.Global.TaskbarGlassEnabled = fresh.TaskbarGlassEnabled;
         _settings.Global.TaskbarGlassRadius = fresh.TaskbarGlassRadius;
         _settings.Global.TaskbarGlassTint = fresh.TaskbarGlassTint;
+        _settings.Global.TaskbarGlassLook = fresh.TaskbarGlassLook;
+        _settings.Global.TaskbarGlassColour = fresh.TaskbarGlassColour;
+        _settings.Global.TaskbarGlassAccent = fresh.TaskbarGlassAccent;
+        _settings.Global.TaskbarGlassBorder = fresh.TaskbarGlassBorder;
 
         bool transparency = WindowsTaskbarAppearance.SetTransparency(true);
         AppearanceStatus = transparency
@@ -330,7 +363,8 @@ public sealed partial class MainViewModel
             nameof(OledPauseFullscreen), nameof(TaskbarOpacity), nameof(WindowsTransparency),
             nameof(SmallTaskbarButtons), nameof(TaskbarAlignment), nameof(TaskbarCombineButtons), nameof(OtherTaskbarCombineButtons),
             nameof(TaskbarShowTaskView), nameof(TaskbarShowWidgets), nameof(TaskbarShowBadges), nameof(TaskbarAllowFlashing),
-            nameof(TaskbarShowDesktopCorner), nameof(TaskbarGlassEnabled), nameof(TaskbarGlassRadius), nameof(TaskbarGlassTint), nameof(TaskbarGlassStatus), nameof(TaskbarGlassRestartVisibility), nameof(AppearanceStatus), nameof(ProtectionStatus),
+            nameof(TaskbarShowDesktopCorner), nameof(TaskbarGlassEnabled), nameof(TaskbarGlassRadius), nameof(TaskbarGlassTint),
+            nameof(TaskbarGlassLookIndex), nameof(TaskbarGlassAccent), nameof(TaskbarGlassOwnColour), nameof(TaskbarGlassColour), nameof(TaskbarGlassBorder), nameof(TaskbarGlassStatus), nameof(TaskbarGlassRestartVisibility), nameof(AppearanceStatus), nameof(ProtectionStatus),
             nameof(OledCoverage), nameof(FocusClearIndex), nameof(OledPerDisplayActivity), nameof(OledExcludedApps) }) Raise(name);
     }
 }

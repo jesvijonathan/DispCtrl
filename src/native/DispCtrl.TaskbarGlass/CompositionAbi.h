@@ -170,7 +170,12 @@ inline Ptr<fx::IGraphicsEffectSource> effect(GUID id, std::vector<Ptr<IInspectab
     *result.put() = new Effect(id, std::move(props), std::move(sources)); return result;
 }
 
-inline Ptr<IInspectable> makeBrush(IInspectable* element, unsigned radius, unsigned tint, bool light) {
+// look: 0 blur, 1 clear (no blur), 2 opaque (the tint covers everything), 3 acrylic
+// (blur, then saturation, as Fluent's acrylic recipe). colour is 0xRRGGBB, or
+// negative for white or black by the theme.
+inline Ptr<IInspectable> makeBrush(IInspectable* element, unsigned radius, unsigned tint, bool light, unsigned look, long long colour) {
+    if (look == 1) radius = 0;
+    if (look == 2) tint = 100;
     auto preview = factory<Preview>(L"Windows.UI.Xaml.Hosting.ElementCompositionPreview", PreviewId);
     auto ui = query<IInspectable>(element, UIElementId);
     Ptr<comp::IVisual> visual; check(preview->GetElementVisual(ui.get(), visual.put()), "GetElementVisual");
@@ -188,7 +193,18 @@ inline Ptr<IInspectable> makeBrush(IInspectable* element, unsigned radius, unsig
     check(values->CreateUInt32(1 /* D2D1_GAUSSIANBLUR_OPTIMIZATION_BALANCED */, optimization.put()), "Box optimization");
     check(values->CreateUInt32(D2D1_BORDER_MODE_HARD, border.put()), "Box border");
     auto blur = effect(CLSID_D2D1GaussianBlur, {deviation, optimization, border}, {input});
-    FLOAT rgba[]{light ? 1.0f : 0.0f, light ? 1.0f : 0.0f, light ? 1.0f : 0.0f, tint / 100.0f};
+    if (look == 3) {
+        Ptr<IInspectable> saturation;
+        check(values->CreateSingle(1.4f, saturation.put()), "Box saturation");
+        blur = effect(CLSID_D2D1Saturation, {saturation}, {blur});
+    }
+    FLOAT shade = light ? 1.0f : 0.0f;
+    FLOAT rgba[]{shade, shade, shade, tint / 100.0f};
+    if (colour >= 0) {
+        rgba[0] = ((colour >> 16) & 0xff) / 255.0f;
+        rgba[1] = ((colour >> 8) & 0xff) / 255.0f;
+        rgba[2] = (colour & 0xff) / 255.0f;
+    }
     check(values->CreateSingleArray(4, rgba, color.put()), "Box tint");
     auto flood = effect(CLSID_D2D1Flood, {color}, {});
     check(values->CreateUInt32(0 /* D2D1_COMPOSITE_MODE_SOURCE_OVER */, mode.put()), "Box composite");

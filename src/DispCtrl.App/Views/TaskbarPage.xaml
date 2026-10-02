@@ -23,9 +23,31 @@
           <tk:SettingsCard Header="Windows transparency" Description="Windows' translucency effect for the taskbar, Start and other system surfaces.">
             <ToggleSwitch IsOn="{x:Bind ViewModel.WindowsTransparency, Mode=TwoWay}" AutomationProperties.Name="TaskbarTransparency"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Aero glass blur"
-                           Description="Uses Explorer's compositor and keeps the taskbar icons sharp.">
+          <tk:SettingsCard Header="Taskbar glass"
+                           Description="Replaces the taskbar's background through Explorer's own compositor, keeping the icons sharp. Off is Windows' normal taskbar.">
             <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=TwoWay}" OnContent="On" OffContent="Off" AutomationProperties.Name="TaskbarGlassEnabled"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Look"
+                           Description="Blur softens what is behind; Clear shows it sharp; Opaque is a solid colour; Acrylic is blur with richer colour, like Windows' own material.">
+            <ComboBox SelectedIndex="{x:Bind ViewModel.TaskbarGlassLookIndex, Mode=TwoWay}" MinWidth="160"
+                      IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassLook">
+              <x:String>Blur</x:String>
+              <x:String>Clear</x:String>
+              <x:String>Opaque</x:String>
+              <x:String>Acrylic</x:String>
+            </ComboBox>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Colour" Description="The tint's colour: Windows' accent colour, followed when it changes, or one of your own as #RRGGBB. Empty is black.">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarGlassAccent, Mode=TwoWay}" OnContent="Accent colour" OffContent="Own colour"
+                            IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassAccent"/>
+              <TextBox Text="{x:Bind ViewModel.TaskbarGlassColour, Mode=TwoWay}" PlaceholderText="#202020" Width="110"
+                       IsEnabled="{x:Bind ViewModel.TaskbarGlassOwnColour, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassColour"/>
+            </StackPanel>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Show the taskbar border" Description="The thin line along the taskbar's top edge. Off hides it while glass is on.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarGlassBorder, Mode=TwoWay}"
+                          IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassBorder"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Blur radius" Description="How far the background is softened behind the taskbar.">
             <StackPanel Orientation="Horizontal" Spacing="8">

@@ -45,10 +45,13 @@ struct ThreadState {
     Ptr<IVisualTreeService2> tree;
     std::unordered_set<InstanceHandle> descendants;
     std::map<InstanceHandle, Background> backgrounds;
+    // The 1-pixel line along the taskbar's top (BackgroundStroke): hidden by
+    // taking its fill away, given back on restore.
+    std::map<InstanceHandle, Background> strokes;
     HWND window = nullptr;
     DWORD owner = 0;
     HANDLE process = nullptr, wait = nullptr;
-    unsigned config = 0;
+    unsigned long long config = 0;
     HRESULT error = S_OK;
     bool active = false;
 
@@ -59,7 +62,30 @@ struct ThreadState {
             if (FAILED(hr)) log("Restore Fill", hr);
             else bg.applied = {};
         }
+        showStrokes();
         active = false;
+    }
+    void showStrokes() noexcept {
+        for (auto& [_, stroke] : strokes) {
+            if (!stroke.applied) continue;
+            HRESULT hr = stroke.shape->put_Fill(stroke.original.get());
+            if (FAILED(hr)) log("Restore stroke", hr);
+            else stroke.applied = {};
+        }
+    }
+    // A stroke's "applied" marks it hidden; its fill is then null.
+    void hideStroke(Background& stroke) {
+        if (stroke.applied) return;
+        Ptr<IInspectable> current;
+        check(stroke.shape->get_Fill(current.put()), "Check stroke");
+        if (current) stroke.original = std::move(current);
+        check(stroke.shape->put_Fill(nullptr), "Hide stroke");
+        stroke.applied = stroke.original;
+    }
+    bool hidesStroke() const noexcept { return (config & 0x10000000ull) != 0; }
+    void applyStrokes() {
+        if (!hidesStroke()) { showStrokes(); return; }
+        for (auto& [_, stroke] : strokes) hideStroke(stroke);
     }
     void releaseOwner() noexcept {
         if (wait) { UnregisterWaitEx(wait, INVALID_HANDLE_VALUE); wait = nullptr; }
@@ -85,14 +111,16 @@ struct ThreadState {
     void apply(Background& bg) {
         Ptr<IInspectable> element;
         check(diagnostics->GetIInspectableFromHandle(bg.handle, element.put()), "Get background");
-        auto brush = makeBrush(element.get(), config & 0xff, (config >> 8) & 0xff, (config & 0x10000) != 0);
+        long long colour = (config & 0x20000000ull) ? static_cast<long long>((config >> 32) & 0xffffff) : -1;
+        auto brush = makeBrush(element.get(), config & 0xff, (config >> 8) & 0xff, (config & 0x10000) != 0,
+            static_cast<unsigned>((config >> 25) & 0x7), colour);
         check(bg.shape->put_Fill(brush.get()), "Set Fill");
         bg.applied = std::move(brush);
     }
-    LRESULT configure(DWORD pid, unsigned value) noexcept {
+    LRESULT configure(DWORD pid, unsigned long long value) noexcept {
         try {
             if (!(value & 0x1000000)) { restore(); releaseOwner(); return static_cast<LRESULT>(backgrounds.size()); }
-            if ((value & 0xff) > 120 || ((value >> 8) & 0xff) > 100) return E_INVALIDARG;
+            if ((value & 0xff) > 120 || ((value >> 8) & 0xff) > 100 || ((value >> 25) & 0x7) > 3) return E_INVALIDARG;
             setOwner(pid);
             bool unchanged = active && config == value && SUCCEEDED(error);
             config = value;
@@ -107,6 +135,7 @@ struct ThreadState {
                 if (unchanged && bg.applied) check(bg.shape->put_Fill(bg.applied.get()), "Reapply Fill");
                 else apply(bg);
             }
+            applyStrokes();
             active = true; error = S_OK;
             return static_cast<LRESULT>(backgrounds.size());
         } catch (const Failure& e) { error = e.hr; log(e.operation, e.hr); }
@@ -123,7 +152,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) noexcept {
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state));
     }
     if (state) {
-        if (msg == Configure) return retired ? E_ABORT : state->configure(static_cast<DWORD>(w), static_cast<unsigned>(l));
+        if (msg == Configure) return retired ? E_ABORT : state->configure(static_cast<DWORD>(w), static_cast<unsigned long long>(l));
         if (msg == OwnerExited && state->owner == w) { state->restore(); state->releaseOwner(); return 0; }
         if (msg == Retire) { retired = true; state->restore(); state->releaseOwner(); DestroyWindow(hwnd); return 1; }
     }
@@ -180,7 +209,7 @@ public:
         if (retired) return S_OK;
         try {
             if (mutation == Remove) {
-                if (local) { local->descendants.erase(element.Handle); local->backgrounds.erase(element.Handle); }
+                if (local) { local->descendants.erase(element.Handle); local->backgrounds.erase(element.Handle); local->strokes.erase(element.Handle); }
                 return S_OK;
             }
             const std::wstring_view type(element.Type ? element.Type : L""), name(element.Name ? element.Name : L"");
@@ -206,6 +235,16 @@ public:
                 auto [entry, _] = local->backgrounds.emplace(bg.handle, std::move(bg));
                 log("Taskbar background found", S_OK);
                 if (local->active) local->apply(entry->second);
+            }
+            if (type == L"Windows.UI.Xaml.Shapes.Rectangle" && name == L"BackgroundStroke" && !local->strokes.contains(element.Handle)) {
+                Background stroke; stroke.handle = element.Handle;
+                Ptr<IInspectable> elementObject;
+                check(diagnostics->GetIInspectableFromHandle(stroke.handle, elementObject.put()), "Get stroke");
+                stroke.shape = query<Shape>(elementObject.get(), ShapeId);
+                check(stroke.shape->get_Fill(stroke.original.put()), "Get original stroke");
+                auto [entry, _] = local->strokes.emplace(stroke.handle, std::move(stroke));
+                log("Taskbar border found", S_OK);
+                if (local->active && local->hidesStroke()) local->hideStroke(entry->second);
             }
             return S_OK;
         } catch (const Failure& e) { log(e.operation, e.hr); if (local) local->error = e.hr; }
@@ -282,7 +321,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI GlassAttach(DWORD pid) {
 
 // Positive = confirmed background count; zero = waiting for a taskbar;
 // negative = HRESULT. Numeric messages only, never cross-process pointers.
-extern "C" __declspec(dllexport) int WINAPI GlassUpdate(DWORD pid, DWORD owner, unsigned config) {
+extern "C" __declspec(dllexport) int WINAPI GlassUpdate(DWORD pid, DWORD owner, unsigned long long config) {
     using namespace glass;
     HWND window = nullptr; int count = 0; HRESULT error = S_OK;
     while ((window = FindWindowExW(HWND_MESSAGE, window, WindowClass, nullptr))) {
@@ -292,7 +331,7 @@ extern "C" __declspec(dllexport) int WINAPI GlassUpdate(DWORD pid, DWORD owner, 
         if (wcscmp(revision, GLASS_BUILD) != 0) {
             SendMessageTimeoutW(window, Retire, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, 200, &result); continue;
         }
-        if (!SendMessageTimeoutW(window, Configure, owner, config, SMTO_ABORTIFHUNG | SMTO_BLOCK, 200, &result)) {
+        if (!SendMessageTimeoutW(window, Configure, owner, static_cast<LPARAM>(config), SMTO_ABORTIFHUNG | SMTO_BLOCK, 200, &result)) {
             error = HRESULT_FROM_WIN32(ERROR_TIMEOUT); continue;
         }
         int value = static_cast<int>(result);
