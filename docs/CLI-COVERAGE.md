@@ -77,7 +77,7 @@ calls it. The Devices page already works that way - it sends the same
 | In the app | Command |
 | --- | --- |
 | Reveal: distance, delay, animation length (0 for none), polling | `taskbar set --reveal-px 2 --hide-delay-ms 400 --anim-ms 150 --idle-poll-ms 250 ...` (`taskbar get` lists them) |
-| Glass, tint, rounding, opacity | `taskbar set --glass on --tint 15 --blur 6 --opacity 90` |
+| Glass, tint, blur, opacity | `taskbar set --glass on --tint 15 --blur 6 --opacity 90` |
 | Windows: auto-hide, alignment, combining, badges, flashing, widgets, task view, corner, small buttons, transparency | `windows set --auto-hide on --alignment 1 --combine-buttons 1 --show-widgets off ...` |
 | Resets | `taskbar reset` |
 | Windows taskbar settings | `windows open --page taskbar` |
@@ -87,9 +87,10 @@ calls it. The Devices page already works that way - it sends the same
 | In the app | Command |
 | --- | --- |
 | Show the icon | `tray set --enabled on` |
-| Keep it on the taskbar | Windows' own setting, from the icon's right-click menu; not a DispCtrl setting |
-| Tray menu: simple view, stop the engine, exit, close the app | `tray set --simple on`, `engine stop`; closing the app is the app's own (close its window), and exit is that plus `engine stop` |
-| Simple mode, lock, stay open, animation, footer | `tray set --simple on --locked on --stay-open off --animate on --show-footer on` |
+| Keep it on the taskbar | Windows keeps it (`NotifyIconSettings`), so there is no `dispctrl` setting; the page's switch and the icon's right-click menu both set it |
+| Tray menu: open DispCtrl, simple view, keep on the taskbar, hide the icon, stop the engine, exit | `tray set --simple on`, `tray set --enabled off`, `engine stop`; exit closes the app and stops the engine |
+| The icon: symbol, colour, bolder while active | `tray set --icon brightness --icon-colour taskbar --icon-shows-active on` |
+| Simple mode; opening, closing and position: animation, stay open, lock; the All display settings button | `tray set --simple on --animate on --stay-open off --locked on --show-footer on` |
 | Density, width, toggles per row, height | `tray set --density comfortable --width 360 --tile-columns 4 --fixed-height off` |
 | Sections, toggles, rows, switches, and their order | `tray set --sections '["unison","tiles","displays"]'` (and `--tiles`, `--display-rows`, `--display-tiles`) |
 | Your tiles | `tray set --custom-tiles '[...]'` |

@@ -105,6 +105,15 @@
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
 
+      <tk:SettingsCard Header="All display settings button" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                       Description="A button at the bottom of the panel that opens DispCtrl at its Displays page.">
+        <tk:SettingsCard.HeaderIcon>
+          <FontIcon Glyph="&#xE8A7;"/>
+        </tk:SettingsCard.HeaderIcon>
+        <ToggleSwitch IsOn="{x:Bind ViewModel.QuickFooter, Mode=TwoWay}"
+                      AutomationProperties.Name="QuickFooter"/>
+      </tk:SettingsCard>
+
       <!-- ===================== your tiles ===================== -->
 
       <TextBlock Text="Your tiles" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
@@ -139,7 +148,7 @@
 
       <TextBlock Text="Look and behaviour" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
 
-      <tk:SettingsExpander Header="Look and size" Description="The icon, its colour, density, width, columns, height, and the slide in and out.">
+      <tk:SettingsExpander Header="The icon" Description="How the notification area icon looks: the symbol, its colour, and bolder while staying awake.">
         <tk:SettingsExpander.HeaderIcon>
           <FontIcon Glyph="&#xE790;"/>
         </tk:SettingsExpander.HeaderIcon>
@@ -167,6 +176,14 @@
             </tk:SettingsCard.HeaderIcon>
             <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelIconShowsActive, Mode=TwoWay}" AutomationProperties.Name="QuickPanelIconShowsActive"/>
           </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Size" Description="Density, width, toggles per row and height.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE740;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
           <tk:SettingsCard Header="Density" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
                            Description="Comfortable, the default, labels each quick toggle underneath as Windows' quick settings do. Compact shows the toggles as symbols alone and packs the rows tight. Spacious makes the toggles larger and names every slider above itself.">
             <tk:SettingsCard.HeaderIcon>
@@ -195,41 +212,18 @@
             </tk:SettingsCard.HeaderIcon>
             <StackPanel x:Name="HeightHost" Orientation="Horizontal" Spacing="12"/>
           </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Opening, closing and position" Description="The slide in and out, staying open when you click elsewhere, and whether its title drags it.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE8A7;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
           <tk:SettingsCard Header="Animate opening and closing"
                            Description="Rises from the taskbar and sinks back into it, as Windows' own flyouts do. Off here, or with Windows' animation effects off, it simply appears.">
             <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelAnimate, Mode=TwoWay}"
                           AutomationProperties.Name="QuickPanelAnimate"/>
-          </tk:SettingsCard>
-        </tk:SettingsExpander.Items>
-      </tk:SettingsExpander>
-
-      <tk:SettingsExpander Header="Mouse wheel and behaviour" Description="The wheel over the icon and on sliders, staying open, locking its place, and the link to all settings.">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE962;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <tk:SettingsExpander.Items>
-          <!-- Power Display's tray wheel. The engine watches the wheel only while
-               the pointer is on the icon, through a hook it removes as it leaves. -->
-          <tk:SettingsCard Header="Mouse wheel over the icon"
-                           Description="Turn the wheel over the icon to change brightness. With unison on it moves unison; the icon's tooltip shows the level.">
-            <tk:SettingsCard.HeaderIcon>
-              <FontIcon Glyph="&#xE962;"/>
-            </tk:SettingsCard.HeaderIcon>
-            <ComboBox ItemsSource="{x:Bind ViewModel.TrayWheelChoices}"
-                      SelectedIndex="{x:Bind ViewModel.TrayWheelIndex, Mode=TwoWay}"
-                      MinWidth="200" AutomationProperties.Name="TrayWheel"/>
-          </tk:SettingsCard>
-          <tk:SettingsCard Header="Wheel step" Description="How far one notch moves brightness, over the icon and on the panel's sliders.">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <Slider Value="{x:Bind ViewModel.WheelStep, Mode=TwoWay}" Minimum="1" Maximum="25" StepFrequency="1"
-                      Width="200" AutomationProperties.Name="WheelStep"/>
-              <TextBlock Text="{x:Bind ViewModel.WheelStep, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
-              <TextBlock Text="%" VerticalAlignment="Center"/>
-            </StackPanel>
-          </tk:SettingsCard>
-          <tk:SettingsCard Header="Mouse wheel on the panel's sliders"
-                           Description="Off by default: the panel scrolls, and a wheel meant for scrolling that lands on a slider would change the brightness instead.">
-            <ToggleSwitch IsOn="{x:Bind ViewModel.WheelOnSliders, Mode=TwoWay}" AutomationProperties.Name="WheelOnSliders"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Stay open when it loses focus"
                            Description="Otherwise it closes as soon as you click elsewhere, the way Windows' flyouts do. The pin in the panel's title changes this too.">
@@ -247,13 +241,36 @@
             <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelLocked, Mode=TwoWay}"
                           AutomationProperties.Name="QuickPanelLocked"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Link to all display settings" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
-                           Description="A button at the bottom that opens this window.">
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Mouse wheel" Description="Brightness from the wheel, over the icon and on the panel's sliders, and how far a notch moves it.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE962;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <!-- Power Display's tray wheel. The engine watches the wheel only while
+               the pointer is on the icon, through a hook it removes as it leaves. -->
+          <tk:SettingsCard Header="Mouse wheel over the icon"
+                           Description="Turn the wheel over the icon to change brightness. With unison on it moves unison; the icon's tooltip shows the level.">
             <tk:SettingsCard.HeaderIcon>
-              <FontIcon Glyph="&#xE8A7;"/>
+              <FontIcon Glyph="&#xE962;"/>
             </tk:SettingsCard.HeaderIcon>
-            <ToggleSwitch IsOn="{x:Bind ViewModel.QuickFooter, Mode=TwoWay}"
-                          AutomationProperties.Name="QuickFooter"/>
+            <ComboBox ItemsSource="{x:Bind ViewModel.TrayWheelChoices}"
+                      SelectedIndex="{x:Bind ViewModel.TrayWheelIndex, Mode=TwoWay}"
+                      MinWidth="200" AutomationProperties.Name="TrayWheel"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Mouse wheel on the panel's sliders"
+                           Description="Off by default: the panel scrolls, and a wheel meant for scrolling that lands on a slider would change the brightness instead.">
+            <ToggleSwitch IsOn="{x:Bind ViewModel.WheelOnSliders, Mode=TwoWay}" AutomationProperties.Name="WheelOnSliders"/>
+          </tk:SettingsCard>
+          <tk:SettingsCard Header="Wheel step" Description="How far one notch moves brightness, over the icon and on the panel's sliders.">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Slider Value="{x:Bind ViewModel.WheelStep, Mode=TwoWay}" Minimum="1" Maximum="25" StepFrequency="1"
+                      Width="200" AutomationProperties.Name="WheelStep"/>
+              <TextBlock Text="{x:Bind ViewModel.WheelStep, Mode=OneWay}" VerticalAlignment="Center" MinWidth="28"/>
+              <TextBlock Text="%" VerticalAlignment="Center"/>
+            </StackPanel>
           </tk:SettingsCard>
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>

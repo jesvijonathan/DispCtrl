@@ -17,7 +17,7 @@
                  Style="{StaticResource BodyStrongTextBlockStyle}"
                  Margin="0,0,0,8"/>
 
-      <tk:SettingsExpander Header="Taskbar surface" Description="Windows transparency and whole-bar opacity.">
+      <tk:SettingsExpander Header="Taskbar surface" Description="Windows' transparency, DispCtrl's glass with its look, colour and border, and the whole bar's opacity.">
         <Button Content="Restore defaults" Click="OnResetTaskbarSurface" AutomationProperties.Name="ResetTaskbarSurface"/>
         <tk:SettingsExpander.Items>
           <tk:SettingsCard Header="Windows transparency" Description="Windows' translucency effect for the taskbar, Start and other system surfaces.">
@@ -52,7 +52,7 @@
             <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarGlassBorder, Mode=TwoWay}"
                           IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassBorder"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Blur radius" Description="How far the background is softened behind the taskbar."
+          <tk:SettingsCard Header="Blur radius" Description="How far the background is softened behind the taskbar. Clear does not blur."
                            Visibility="{x:Bind ViewModel.TaskbarGlassOptionsVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Slider Value="{x:Bind ViewModel.TaskbarGlassRadius, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="160" IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassRadius"/>
@@ -60,7 +60,7 @@
               <TextBlock Text="px" VerticalAlignment="Center"/>
             </StackPanel>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Acrylic tint" Description="Adds a subtle dark tint after the blur."
+          <tk:SettingsCard Header="Tint" Description="How strongly the colour above shows through, in every look."
                            Visibility="{x:Bind ViewModel.TaskbarGlassOptionsVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Slider Value="{x:Bind ViewModel.TaskbarGlassTint, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="160" IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassTint"/>

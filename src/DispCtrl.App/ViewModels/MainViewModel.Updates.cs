@@ -126,7 +126,7 @@ public sealed partial class MainViewModel
     {
         if (_updateAnnounced || Available is not { } a) return;
         _updateAnnounced = true;
-        ShowFooterStatus($"DispCtrl {a.Latest} is available: Settings > Updates.");
+        ShowFooterStatus($"DispCtrl {a.Latest} is available: Settings > Updates and maintenance.");
     }
 
     private void RaiseUpdates()

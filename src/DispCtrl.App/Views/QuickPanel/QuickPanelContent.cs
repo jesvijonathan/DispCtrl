@@ -471,33 +471,7 @@ internal sealed partial class QuickPanelContent
 
     private void Taskbar()
     {
-        StackPanel body = Foldable("taskbar", SectionHeader("Taskbar"));
-
-        body.Children.Add(SwitchRow("Transparency effects",
-            "Windows' own transparency: Start, the taskbar and window backgrounds.",
-            () => _vm.WindowsTransparency, v => _vm.WindowsTransparency = v, nameof(MainViewModel.WindowsTransparency),
-            "QuickTransparency"));
-
-        body.Children.Add(SwitchRow("Auto-hide the main taskbar",
-            "Windows' own auto-hide. The main taskbar is the one DispCtrl cannot move itself.",
-            () => _vm.GlobalAutoHide, v => _vm.GlobalAutoHide = v, nameof(MainViewModel.GlobalAutoHide),
-            "QuickAutoHide"));
-
-        if (_vm.Windows11TaskbarSupported)
-        {
-            body.Children.Add(SwitchRow("Taskbar glass",
-                "DispCtrl's blurred glass behind the taskbar.",
-                () => _vm.TaskbarGlassEnabled, v => _vm.TaskbarGlassEnabled = v, nameof(MainViewModel.TaskbarGlassEnabled),
-                "QuickGlass"));
-
-            body.Children.Add(SliderRow("\uE790", "Glass tint", _vm.TaskbarGlassTint, 0, 100,
-                v => _vm.TaskbarGlassTint = v, _vm, nameof(MainViewModel.TaskbarGlassTint), () => _vm.TaskbarGlassTint,
-                "QuickGlassTint", "%", labelled: true));
-        }
-
-        body.Children.Add(SliderRow("\uE7C4", "Taskbar opacity", _vm.TaskbarOpacity, 0, 100,
-            v => _vm.TaskbarOpacity = v, _vm, nameof(MainViewModel.TaskbarOpacity), () => _vm.TaskbarOpacity,
-            "QuickTaskbarOpacity", "%", labelled: true));
+        AddRows(Foldable("taskbar", SectionHeader("Taskbar")), TaskbarRows());
     }
 
     private void Presets()

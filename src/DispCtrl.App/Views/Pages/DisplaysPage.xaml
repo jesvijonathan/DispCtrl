@@ -587,7 +587,7 @@
                 </tk:SettingsCard>
                 <!-- The rest of this display, folded until asked for: see Fold. -->
                 <tk:SettingsCard Header="{x:Bind AdvancedFold.Label, Mode=OneWay}"
-                                 Description="Software dimming, refresh and colour, OLED and focus on this display, sleep, controls the monitor did not list, and reset.">
+                                 Description="Software dimming, adaptive brightness and rotation, OLED and focus on this display, sleep, variable refresh and colour profile, the work area, controls the monitor did not list, and reset.">
                   <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE713;"/>
                   </tk:SettingsCard.HeaderIcon>
@@ -663,7 +663,7 @@
                   </StackPanel>
                 </tk:SettingsCard>
                 <tk:SettingsCard Header="OLED burn-in protection"
-                                 Description="Whether the shared idle and screen-rest settings above reach this panel."
+                                 Description="Whether OLED care's idle and rest settings, on the Screen care page, reach this panel."
                                  Visibility="{x:Bind Advanced(AdvancedFold.Open, OledProtectionVisibility), Mode=OneWay}">
                   <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE7F4;"/>

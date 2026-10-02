@@ -281,7 +281,7 @@ internal sealed partial class QuickPanelContent
                     () => !_vm.NightLightUnison, v => _vm.NightLightUnison = !v,
                     nameof(MainViewModel.NightLightUnison), "QuickNightPerDisplay"),
                 () => !_vm.NightLightFollowsWindows, nameof(MainViewModel.NightLightFollowsWindows)),
-            SwitchRow("On a schedule", "Comes on and goes off at the times set on the Displays page.",
+            SwitchRow("On a schedule", "Comes on and goes off at the times set on the Brightness page.",
                 () => _vm.NightLightScheduled, v => _vm.NightLightScheduled = v,
                 nameof(MainViewModel.NightLightScheduled), "QuickNightSchedule"),
             schedule,
@@ -519,73 +519,80 @@ internal sealed partial class QuickPanelContent
 
     // ---- taskbar ----
 
-    /// <summary>
-    /// The taskbar's settings in one flyout: switches and sliders together.
-    /// </summary>
+    /// <summary>The taskbar's settings: Windows' own, DispCtrl's glass and its look, and opacity.</summary>
     /// <remarks>
-    /// A flyout rather than a menu, because a menu can hold a switch but not a
-    /// slider, and tint and opacity are settings you judge by moving them.
+    /// One builder for the Taskbar section and the tile's flyout. The section
+    /// had rows of its own, and when the glass gained its looks only the
+    /// flyout was given them.
     /// </remarks>
-    private Flyout TaskbarFlyout()
+    private FrameworkElement?[] TaskbarRows()
     {
-        var body = new StackPanel { Spacing = 2, Width = 300 };
-
-        body.Children.Add(Caption("Taskbar"));
-        body.Children.Add(SwitchRow("Transparency effects",
-            "Windows' own transparency: Start, the taskbar and window backgrounds.",
-            () => _vm.WindowsTransparency, v => _vm.WindowsTransparency = v, nameof(MainViewModel.WindowsTransparency),
-            "QuickTaskbarTransparency"));
-        body.Children.Add(SwitchRow("Auto-hide the main taskbar",
-            "Windows' own auto-hide. The main taskbar is the one DispCtrl cannot move itself.",
-            () => _vm.GlobalAutoHide, v => _vm.GlobalAutoHide = v, nameof(MainViewModel.GlobalAutoHide),
-            "QuickTaskbarAutoHide"));
+        var rows = new List<FrameworkElement?>
+        {
+            SwitchRow("Transparency effects",
+                "Windows' own transparency: Start, the taskbar and window backgrounds.",
+                () => _vm.WindowsTransparency, v => _vm.WindowsTransparency = v, nameof(MainViewModel.WindowsTransparency),
+                "QuickTaskbarTransparency"),
+            SwitchRow("Auto-hide the main taskbar",
+                "Windows' own auto-hide. The main taskbar is the one DispCtrl cannot move itself.",
+                () => _vm.GlobalAutoHide, v => _vm.GlobalAutoHide = v, nameof(MainViewModel.GlobalAutoHide),
+                "QuickTaskbarAutoHide"),
+        };
 
         if (_vm.Windows11TaskbarSupported)
         {
-            body.Children.Add(SwitchRow("Glass",
-                "DispCtrl's blurred glass behind the taskbar.",
-                () => _vm.TaskbarGlassEnabled, v => _vm.TaskbarGlassEnabled = v, nameof(MainViewModel.TaskbarGlassEnabled),
-                "QuickTaskbarGlass"));
-            body.Children.Add(EnabledWhen(Choices(nameof(MainViewModel.TaskbarGlassLookIndex),
-                    ("Blur", () => _vm.TaskbarGlassLookIndex == 0, () => _vm.TaskbarGlassLookIndex = 0),
-                    ("Clear", () => _vm.TaskbarGlassLookIndex == 1, () => _vm.TaskbarGlassLookIndex = 1),
-                    ("Opaque", () => _vm.TaskbarGlassLookIndex == 2, () => _vm.TaskbarGlassLookIndex = 2),
-                    ("Acrylic", () => _vm.TaskbarGlassLookIndex == 3, () => _vm.TaskbarGlassLookIndex = 3)),
-                () => _vm.TaskbarGlassEnabled, nameof(MainViewModel.TaskbarGlassEnabled)));
-            body.Children.Add(EnabledWhen(SwitchRow("Accent colour", "Tint with Windows' accent colour; off, with a colour of your own.",
-                    () => _vm.TaskbarGlassAccent, v => _vm.TaskbarGlassAccent = v,
-                    nameof(MainViewModel.TaskbarGlassAccent), "QuickTaskbarAccent"),
-                () => _vm.TaskbarGlassEnabled, nameof(MainViewModel.TaskbarGlassEnabled)));
+            FrameworkElement WhileGlass(FrameworkElement row) =>
+                EnabledWhen(row, () => _vm.TaskbarGlassEnabled, nameof(MainViewModel.TaskbarGlassEnabled));
+
             // Typed whole, saved when the box is left; an unreadable colour is refused and shown as it was.
             var colour = new TextBox { Header = "Colour", PlaceholderText = "#202020", Text = _vm.TaskbarGlassColour, Margin = new Thickness(RowInset, 2, 0, 2) };
             AutomationProperties.SetName(colour, "QuickTaskbarColour");
             colour.LostFocus += (_, _) => { if (colour.Text != _vm.TaskbarGlassColour) _vm.TaskbarGlassColour = colour.Text; colour.Text = _vm.TaskbarGlassColour; };
             Watch(_vm, nameof(MainViewModel.TaskbarGlassColour), () => { if (colour.FocusState == FocusState.Unfocused) colour.Text = _vm.TaskbarGlassColour; });
-            body.Children.Add(EnabledWhen(colour, () => _vm.TaskbarGlassOwnColour, nameof(MainViewModel.TaskbarGlassOwnColour)));
-            body.Children.Add(EnabledWhen(SwitchRow("Top border", "The thin line along the taskbar's top edge.",
+
+            rows.AddRange(
+            [
+                SwitchRow("Glass", "DispCtrl's own taskbar background, in the look chosen below.",
+                    () => _vm.TaskbarGlassEnabled, v => _vm.TaskbarGlassEnabled = v, nameof(MainViewModel.TaskbarGlassEnabled),
+                    "QuickTaskbarGlass"),
+                WhileGlass(Choices(nameof(MainViewModel.TaskbarGlassLookIndex),
+                    ("Blur", () => _vm.TaskbarGlassLookIndex == 0, () => _vm.TaskbarGlassLookIndex = 0),
+                    ("Clear", () => _vm.TaskbarGlassLookIndex == 1, () => _vm.TaskbarGlassLookIndex = 1),
+                    ("Opaque", () => _vm.TaskbarGlassLookIndex == 2, () => _vm.TaskbarGlassLookIndex = 2),
+                    ("Acrylic", () => _vm.TaskbarGlassLookIndex == 3, () => _vm.TaskbarGlassLookIndex = 3))),
+                WhileGlass(SwitchRow("Accent colour", "Tint with Windows' accent colour; off, with a colour of your own.",
+                    () => _vm.TaskbarGlassAccent, v => _vm.TaskbarGlassAccent = v,
+                    nameof(MainViewModel.TaskbarGlassAccent), "QuickTaskbarAccent")),
+                EnabledWhen(colour, () => _vm.TaskbarGlassOwnColour, nameof(MainViewModel.TaskbarGlassOwnColour)),
+                WhileGlass(SwitchRow("Top border", "The thin line along the taskbar's top edge.",
                     () => _vm.TaskbarGlassBorder, v => _vm.TaskbarGlassBorder = v,
-                    nameof(MainViewModel.TaskbarGlassBorder), "QuickTaskbarBorder"),
-                () => _vm.TaskbarGlassEnabled, nameof(MainViewModel.TaskbarGlassEnabled)));
-            body.Children.Add(SliderRow("\uE790", "Glass tint", _vm.TaskbarGlassTint, 0, 100,
-                v => _vm.TaskbarGlassTint = v, _vm, nameof(MainViewModel.TaskbarGlassTint), () => _vm.TaskbarGlassTint,
-                "QuickTaskbarTint", "%", labelled: true));
-            body.Children.Add(SliderRow("\uE7FB", "Corner rounding", _vm.TaskbarGlassRadius, 0, 100,
-                v => _vm.TaskbarGlassRadius = v, _vm, nameof(MainViewModel.TaskbarGlassRadius), () => _vm.TaskbarGlassRadius,
-                "QuickTaskbarRadius", "", labelled: true));
+                    nameof(MainViewModel.TaskbarGlassBorder), "QuickTaskbarBorder")),
+                // How strongly the colour shows, in every look.
+                WhileGlass(SliderRow("\uE790", "Tint", _vm.TaskbarGlassTint, 0, 100,
+                    v => _vm.TaskbarGlassTint = v, _vm, nameof(MainViewModel.TaskbarGlassTint), () => _vm.TaskbarGlassTint,
+                    "QuickTaskbarTint", "%", labelled: true)),
+                // The blur's radius - Clear does not blur, so it is greyed there.
+                EnabledWhen(SliderRow("\uE727", "Blur", _vm.TaskbarGlassRadius, 0, 100,
+                        v => _vm.TaskbarGlassRadius = v, _vm, nameof(MainViewModel.TaskbarGlassRadius), () => _vm.TaskbarGlassRadius,
+                        "QuickTaskbarRadius", "", labelled: true),
+                    () => _vm.TaskbarGlassEnabled && _vm.TaskbarGlassLookIndex != 1,
+                    nameof(MainViewModel.TaskbarGlassEnabled), nameof(MainViewModel.TaskbarGlassLookIndex)),
+            ]);
         }
 
         // The full range, 0 included, as everywhere else: somebody who wants
         // the bar gone can have it, and bring it back from here.
-        body.Children.Add(SliderRow("\uE7C4", "Opacity", _vm.TaskbarOpacity, 0, 100,
+        rows.Add(SliderRow("\uE7C4", "Opacity", _vm.TaskbarOpacity, 0, 100,
             v => _vm.TaskbarOpacity = v, _vm, nameof(MainViewModel.TaskbarOpacity), () => _vm.TaskbarOpacity,
             "QuickTaskbarOpacity", "%", labelled: true));
-
-        var more = new HyperlinkButton { Content = "All taskbar settings", Margin = new Thickness(0, 6, 0, 0) };
-        more.Click += (_, _) => { _dismiss(); App.ShowMainWindow("taskbar"); };
-        body.Children.Add(more);
-
-        return new Flyout { Content = body, Placement = FlyoutPlacementMode.Bottom };
+        return [.. rows];
     }
+
+    /// <remarks>
+    /// A flyout rather than a menu, because a menu can hold a switch but not a
+    /// slider, and tint and opacity are settings you judge by moving them.
+    /// </remarks>
+    private Flyout TaskbarFlyout() => OptionsFlyout("Taskbar", "taskbar", TaskbarRows());
 
     // ---- identify and display mode ----
 

@@ -55,7 +55,7 @@
           </tk:SettingsCard>
           <!-- The rest of this section, folded until asked for: see Fold. -->
           <tk:SettingsCard Header="{x:Bind ViewModel.FocusFold.Label, Mode=OneWay}"
-                           Description="Timing, transitions, which windows stay clear, and exceptions.">
+                           Description="Timing and transitions, one window per display, which displays and apps are left alone, and reset.">
             <tk:SettingsCard.HeaderIcon>
               <FontIcon Glyph="&#xE713;"/>
             </tk:SettingsCard.HeaderIcon>
@@ -94,7 +94,7 @@
             </tk:SettingsCard.HeaderIcon>
             <ToggleSwitch IsOn="{x:Bind ViewModel.FocusPerMonitor, Mode=TwoWay}" AutomationProperties.Name="FocusPerMonitor"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="OLED displays only" Description="Dim only the panels marked as OLED under Each display, below."
+          <tk:SettingsCard Header="OLED displays only" Description="Dim only the panels marked as OLED, on each display's card on the Displays page."
                            Visibility="{x:Bind ViewModel.FocusFold.Visibility, Mode=OneWay}">
             <ToggleSwitch IsOn="{x:Bind ViewModel.FocusOledOnly, Mode=TwoWay}" AutomationProperties.Name="FocusOledOnly"/>
           </tk:SettingsCard>
@@ -231,7 +231,7 @@
           </tk:SettingsCard>
           <!-- The rest of this section, folded until asked for: see Fold. -->
           <tk:SettingsCard Header="{x:Bind ViewModel.OledFold.Label, Mode=OneWay}"
-                           Description="A second dimming stage, each display on its own, exceptions, the backlight and fading.">
+                           Description="A second dimming stage, each display on its own, apps that keep a display awake, what the third stage does to the backlight and the computer, and fading.">
             <tk:SettingsCard.HeaderIcon>
               <FontIcon Glyph="&#xE713;"/>
             </tk:SettingsCard.HeaderIcon>
@@ -281,13 +281,13 @@
               <TextBlock Text="%" VerticalAlignment="Center"/>
             </StackPanel>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Backlight off too"
+          <tk:SettingsCard Header="Third stage: backlight off too"
                            Description="Turn the display's own brightness to its lowest while it is off, as Turn off displays does, and back when it wakes."
                            Visibility="{x:Bind ViewModel.OledFold.Visibility, Mode=OneWay}">
             <ToggleSwitch IsOn="{x:Bind ViewModel.OledThirdStageBacklight, Mode=TwoWay}"
                           IsEnabled="{x:Bind ViewModel.OledThirdStageEnabled, Mode=OneWay}" AutomationProperties.Name="OledThirdStageBacklight"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Keep the computer active"
+          <tk:SettingsCard Header="Third stage: keep the computer active"
                            Description="On, Keep awake and Stay active carry on while a display is off. Off, a display reaching this stage means nobody is there: DispCtrl stops holding the computer awake, and Windows may lock or sleep on its own timers."
                            Visibility="{x:Bind ViewModel.OledFold.Visibility, Mode=OneWay}">
             <ToggleSwitch IsOn="{x:Bind ViewModel.OledThirdStageKeepActive, Mode=TwoWay}"
@@ -309,7 +309,7 @@
       </tk:SettingsExpander>
 
       <tk:SettingsExpander Expanded="OnExpanderExpanded" Header="Keep awake"
-                           Description="Temporarily prevent system sleep without changing the selected Windows power plan."
+                           Description="Stop the computer sleeping without changing the Windows power plan, stay shown as available, and turn the displays off while it keeps running."
                            Margin="0,4,0,0">
         <tk:SettingsExpander.HeaderIcon>
           <FontIcon Glyph="&#xE916;"/>
@@ -365,7 +365,7 @@
               <FontIcon Glyph="{x:Bind ViewModel.AwakeFold.Glyph, Mode=OneWay}" FontSize="12"/>
             </ToggleButton>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Darkness" Description="100% is black. The monitors stay on underneath, and so does everything on them."
+          <tk:SettingsCard Header="How dark they go" Description="100% is black. The monitors stay on underneath, and so does everything on them."
                            Visibility="{x:Bind ViewModel.AwakeFold.Visibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="12">
               <Slider Value="{x:Bind ViewModel.DisplaysOffLevel, Mode=TwoWay}" Minimum="50" Maximum="100" StepFrequency="5"
@@ -380,12 +380,12 @@
                            Visibility="{x:Bind ViewModel.AwakeFold.Visibility, Mode=OneWay}">
             <ToggleSwitch IsOn="{x:Bind ViewModel.DisplaysOffBacklight, Mode=TwoWay}" AutomationProperties.Name="DisplaysOffBacklight"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Which displays" Description="Decided when they go off, so the pointer and the active window count where they are then."
+          <tk:SettingsCard Header="Which displays go off" Description="Decided when they go off, so the pointer and the active window count where they are then."
                            Visibility="{x:Bind ViewModel.AwakeFold.Visibility, Mode=OneWay}">
             <ComboBox ItemsSource="{x:Bind ViewModel.DisplaysOffTargets}" SelectedIndex="{x:Bind ViewModel.DisplaysOffTargetIndex, Mode=TwoWay}"
                       MinWidth="240" AutomationProperties.Name="DisplaysOffTarget"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Delay" Description="Time to take your hand off the mouse, or to move the pointer to the display you are keeping."
+          <tk:SettingsCard Header="Delay before they go off" Description="Time to take your hand off the mouse, or to move the pointer to the display you are keeping."
                            Visibility="{x:Bind ViewModel.AwakeFold.Visibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="12">
               <Slider Value="{x:Bind ViewModel.DisplaysOffDelay, Mode=TwoWay}" Minimum="0" Maximum="30" StepFrequency="1"

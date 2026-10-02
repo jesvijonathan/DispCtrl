@@ -122,7 +122,7 @@
                   <ComboBox ItemsSource="{x:Bind Presets, Mode=OneWay}" SelectedItem="{x:Bind SelectedPreset, Mode=TwoWay}"
                             PlaceholderText="Choose a preset" MinWidth="200" AutomationProperties.Name="HotkeyPreset"/>
                 </tk:SettingsCard>
-                <tk:SettingsCard Header="Control" Description="picture-mode, input-source or 0x15"
+                <tk:SettingsCard Header="Control" Description="The monitor control, by its name or its code."
                                  Visibility="{x:Bind ControlVisibility, Mode=OneWay}">
                   <TextBox Text="{x:Bind Control, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                            PlaceholderText="picture-mode, input-source or 0x15"
@@ -242,7 +242,7 @@
         <ItemsControl ItemsSource="{x:Bind WinAltB}" ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
       </tk:SettingsCard>
       <tk:SettingsCard Header="Quick Settings, with Windows' brightness slider"
-                       Description="With Replace Windows brightness on (Displays page), that slider and the brightness keys move every display.">
+                       Description="With Replace Windows brightness on (Brightness page), that slider and the brightness keys move every display.">
         <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE706;"/></tk:SettingsCard.HeaderIcon>
         <ItemsControl ItemsSource="{x:Bind WinA}" ItemTemplate="{StaticResource Keycap}" ItemsPanel="{StaticResource KeycapRow}"/>
       </tk:SettingsCard>

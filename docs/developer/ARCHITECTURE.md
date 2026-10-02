@@ -91,8 +91,8 @@ bound to it, never a nested expander); a card that already shows only when it
 applies combines the two (`OledSecondStageVisibility`, `NightLightThemeVisibility`,
 and on a display card the `Advanced(open, visibility)` x:Bind function). Settings
 ends with an Advanced heading (the DDC/CI guard, raw writes, logging); the
-Quick panel page groups its options into "Look and size" and "Mouse wheel and
-behaviour"; the taskbar glass options show only with glass on. `docs/CLI-COVERAGE.md` maps every control on every
+Quick panel page leads with what the panel shows, then groups the rest as the
+icon, size, opening, closing and position, and the mouse wheel; the taskbar glass options show only with glass on. `docs/CLI-COVERAGE.md` maps every control on every
 page to its command; a new feature lands in `DispCtrl.Control` first and the
 page calls it. Taskbar was split out of Settings: reveal behaviour, the four polling
 intervals (which had no UI at all before, only settings.json), and Windows'

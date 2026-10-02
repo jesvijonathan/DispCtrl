@@ -289,14 +289,6 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         or HotkeyAction.HdrToggle or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown or HotkeyAction.MuteToggle
         ? Visibility.Visible : Visibility.Collapsed;
 
-    /// <summary>What 0 means for this action: every display, or for gathering the one in use.</summary>
-    public string DisplayHint => Hotkey.Action switch
-    {
-        HotkeyAction.GatherWindows or HotkeyAction.MakePrimary => "The number shown by Identify; 0 for the display in use, as chosen on the Displays page.",
-        HotkeyAction.MoveWindowTo => "The number shown by Identify; 0 for the next display.",
-        _ => "The number shown by Identify; 0 for every display.",
-    };
-
     /// <summary>
     /// The displays a shortcut can name, numbered as Identify numbers them, with
     /// what 0 means first.
@@ -526,7 +518,6 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         Raise(nameof(ControlVisibility));
         Raise(nameof(ValueVisibility));
         Raise(nameof(DisplayVisibility));
-        Raise(nameof(DisplayHint));
         Raise(nameof(StepVisibility));
         Raise(nameof(Presets));
         Changed?.Invoke();

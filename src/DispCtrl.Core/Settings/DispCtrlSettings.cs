@@ -236,7 +236,7 @@ public sealed class GlobalSettings
     public bool TaskbarGlassEnabled { get; set; }
     /// <summary>Gaussian blur radius in XAML/compositor pixels.</summary>
     public int TaskbarGlassRadius { get; set; } = 48;
-    /// <summary>Dark acrylic tint opacity applied after blur.</summary>
+    /// <summary>How strongly the glass colour (accent or own) shows, in every look, 0 to 100.</summary>
     public int TaskbarGlassTint { get; set; } = 24;
 
     /// <summary>What the taskbar's surface is, with glass on; off, it is Windows' own.</summary>
