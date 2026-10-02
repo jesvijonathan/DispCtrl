@@ -24,7 +24,9 @@ Two displays, and nearly every hard-won lesson below comes from one of them.
 | Taskbar | hidden by DispCtrl | Windows' own auto-hide |
 | DDC/CI | none — built-in panels have no channel | 37 VCP controls, 11 offered |
 
-Token identities: `SDC-4154-0A1B2C3D` (internal), `DEL-A234-9XYZ7K1` (Dell).
+Token identities: `SDC-4154-D571EEB5` (internal; no serial, so model plus a
+hash of its port), `DEL-A234-9XYZ7K1` (Dell). The internal one was
+`0A1B2C3D`, then `E2387367`: see "A token must not move" below.
 
 **Leave the desk as you found it.** Brightness 68% internal / 62% Dell, night
 light off, Dell contrast 75. Several bugs in this project's history were caused
@@ -942,6 +944,23 @@ Every one of these was a real bug. Do not reintroduce them.
   dead handle - it used to enumerate every second whenever it held no bar,
   which is a laptop with its monitor unplugged - and a live bar it stops
   managing is put back on its monitor as that monitor now is.
+- **A token must not move.** A serial-less panel's token hashed its whole
+  device path, whose middle segment Windows renumbers after a driver update,
+  dock or GPU switch: the laptop came back as a stranger twice, its
+  calibration and taskbar choices left under a token nothing matched. Now the
+  hash is of model and target UID only (`DisplayKey.Port`), placeholder
+  serials (`01010101`, all one character) are not identities, and
+  `MonitorAdoption` gives an arriving display with nothing of its own the
+  most recent unattached entry of its model - in the app's refresh and the
+  engine's start and settled changes - recording `FormerTokens`. Two
+  identical serial-less monitors arriving together adopt nothing. Verified
+  here: the laptop moved to its new token with floor 24 / ceiling 79 intact.
+- **Three or more displays must stay one desktop.** Slots only checked that
+  the dragged display touched something, so dragging the middle of a row away
+  stranded the other two and Windows refused the layout. `IsValid` now asks
+  for one connected piece, and a drop runs `ArrangementSolver.Close`, sliding
+  stranded pieces whole back to the primary's. `presetverify` drops every slot
+  on a 2x2 grid and a mixed-size rig of four and checks each ends valid.
 - **The app reads an arrival again.** Read the moment it appears, a monitor
   answers nothing, and the card stayed without brightness or controls until
   Rescan. `LookAgainAsync` re-reads arrivals that answered nothing at 3 s and

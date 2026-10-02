@@ -828,6 +828,14 @@ public sealed class MonitorSettings
     /// <summary>When this monitor was last connected or left, so lists of monitors put recent ones first.</summary>
     /// <remarks>Bookkeeping: a reset of the display leaves it.</remarks>
     public DateTimeOffset? LastSeenUtc { get; set; }
+
+    /// <summary>Tokens this monitor's settings were saved under before, newest last.</summary>
+    /// <remarks>
+    /// Written by <see cref="MonitorAdoption"/>. Kept so anything else that
+    /// names a monitor by token - a preset, a shared file - can still find it.
+    /// </remarks>
+    public List<string> FormerTokens { get; set; } = [];
+
     [JsonIgnore]
     public bool TreatAsOled => IsOled ?? OledDetected;
 

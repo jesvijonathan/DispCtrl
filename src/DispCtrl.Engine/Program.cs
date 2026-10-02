@@ -422,7 +422,11 @@ internal static class Program
     /// caller's thread, and only a stamp more than a minute old is rewritten,
     /// so a cable wobbling in and out writes the file once.
     /// </remarks>
-    private static void RecordSeen(IEnumerable<string> tokens)
+    /// <param name="attached">
+    /// When given, every display attached now: a display whose token changed
+    /// takes back its settings first (<see cref="MonitorAdoption"/>).
+    /// </param>
+    private static void RecordSeen(IEnumerable<string> tokens, IReadOnlyList<DisplayInfo>? attached = null)
     {
         string[] seen = tokens.Distinct(StringComparer.Ordinal).ToArray();
         if (seen.Length == 0) return;
@@ -433,6 +437,12 @@ internal static class Program
                 DispCtrlSettings settings = SettingsStore.Load();
                 DateTimeOffset now = DateTimeOffset.UtcNow;
                 bool changed = false;
+                if (attached is not null)
+                    foreach (MonitorAdoption.Move move in MonitorAdoption.Adopt(settings, attached))
+                    {
+                        Log.Write($"displays: {move.To} took back the settings saved as {move.From}");
+                        changed = true;
+                    }
                 foreach (string token in seen)
                 {
                     MonitorSettings monitor = settings.For(token);
@@ -580,8 +590,9 @@ internal static class Program
             // First, so every service below can hear a display arriving or
             // leaving from the moment it exists.
             List<DisplayInfo> attached = Color.DisplayChanges.Start();
-            RecordSeen(attached.Select(d => d.Token));
-            Color.DisplayChanges.Settled += change => RecordSeen(change.Arrived.Select(d => d.Token).Concat(change.Departed));
+            RecordSeen(attached.Select(d => d.Token), attached);
+            Color.DisplayChanges.Settled += change => RecordSeen(change.Arrived.Select(d => d.Token).Concat(change.Departed),
+                change.Arrived.Count > 0 ? change.Displays : null);
             Phase("displays");
 
             using var nightLight = new NightLightService(settings);

@@ -418,13 +418,34 @@ public sealed partial class ArrangeCanvas : UserControl
         Canvas.SetZIndex(border, 1);
         if (moved.X == _grabbedAt.X && moved.Y == _grabbedAt.Y) { Layout(); return; }
 
+        // With three or more displays the one dropped may have been holding
+        // others to the desktop; slide them back together, as Windows does.
+        var closed = ArrangementSolver.Close(_tiles.Select(tile => new ArrangementSolver.Panel(tile.Display.Token,
+            tile.X, tile.Y, tile.Width, tile.Height, tile.Display.IsPrimary)).ToList());
+        bool rejoined = false;
+        foreach (var panel in closed)
+        {
+            Tile tile = _tiles.First(t => t.Display.Token == panel.Token);
+            rejoined |= tile != moved && (tile.X - panel.X != moved.X - closed.First(c => c.Token == moved.Display.Token).X
+                || tile.Y - panel.Y != moved.Y - closed.First(c => c.Token == moved.Display.Token).Y);
+        }
+        foreach (var panel in closed)
+        {
+            Tile tile = _tiles.First(t => t.Display.Token == panel.Token);
+            tile.X = panel.X;
+            tile.Y = panel.Y;
+        }
+        if (rejoined) UpdatePreview();
+
         NormaliseToPrimary();
         foreach (Tile tile in _tiles) _staged[tile.Display.Token] = (tile.X, tile.Y);
         PlaceTiles();
         _settle.Stop();
         Layout();
         ApplyButton.IsEnabled = _tiles.Any(tile => !_livePositions.TryGetValue(tile.Display.Token, out var original) || original != (tile.X, tile.Y));
-        Hint.Text = "Aligned with the nearest display. Not applied yet.";
+        Hint.Text = rejoined
+            ? "Aligned, and the displays it left on their own were moved back beside the others. Not applied yet."
+            : "Aligned with the nearest display. Not applied yet.";
     }
 
     private void NormaliseToPrimary()

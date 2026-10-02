@@ -212,6 +212,10 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
 
         List<DisplayInfo> found = DisplayRegistry.Enumerate();
 
+        // Before anything is looked up by token: a display whose token changed
+        // takes back the settings saved under the old one.
+        if (MonitorAdoption.Adopt(_settings, found).Count > 0) Persist();
+
         // Built-in panel first, then left to right. Windows numbers displays by
         // an internal path order that has nothing to do with where they are, so
         // sorting here is what makes the numbering on the cards mean something.
