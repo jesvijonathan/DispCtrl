@@ -49,7 +49,7 @@ public sealed partial class MainViewModel
     public bool OledIdleEnabled { get => Care.Enabled; set { if (Care.Enabled == value) return; Care.Enabled = value; SaveProtection(); } }
     public double OledIdleMinutes { get => Care.IdleMinutes; set { int v = Number(value, 1, 120); if (Care.IdleMinutes == v) return; Care.IdleMinutes = v; SaveProtection(); RaiseOledRows(); } }
     public double OledIdleDim { get => Care.DimPercent; set { int v = Number(value, 0, 100); if (Care.DimPercent == v) return; Care.DimPercent = v; SaveProtectionSlider(); PreviewOled(v); Raise(nameof(OledSecondStageVisibility)); Raise(nameof(OledSecondStageDim)); RaiseOledRows(); } }
-    public Visibility OledSecondStageVisibility => Care.DimPercent is > 0 and < 100 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility OledSecondStageVisibility => Care.DimPercent is > 0 and < 100 && OledFold.Open ? Visibility.Visible : Visibility.Collapsed;
     public bool OledSecondStageEnabled { get => Care.SecondStageEnabled; set { if (Care.SecondStageEnabled == value) return; Care.SecondStageEnabled = value; SaveProtection(); } }
     public double OledSecondStageMinutes { get => Care.SecondStageMinutes; set { int v = Number(value, 1, 120); if (Care.SecondStageMinutes == v) return; Care.SecondStageMinutes = v; SaveProtection(); } }
     public bool OledPauseVideo { get => Care.PauseVideo; set { if (Care.PauseVideo == value) return; Care.PauseVideo = value; SaveProtection(); } }
@@ -89,7 +89,7 @@ public sealed partial class MainViewModel
     public double OledIdleFade { get => Care.FadeMs; set { int v = Number(value, 0, 2000); if (Care.FadeMs == v) return; Care.FadeMs = v; SaveProtection(); } }
     public bool OledPauseFullscreen { get => Care.PauseFullscreen; set { if (Care.PauseFullscreen == value) return; Care.PauseFullscreen = value; SaveProtection(); } }
     public double TaskbarOpacity { get => _settings.Global.TaskbarOpacity; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarOpacity == v) return; _settings.Global.TaskbarOpacity = v; SaveProtectionSlider(); } }
-    public bool TaskbarGlassEnabled { get => _settings.Global.TaskbarGlassEnabled; set { if (_settings.Global.TaskbarGlassEnabled == value) return; _settings.Global.TaskbarGlassEnabled = value; SaveProtection(); Raise(nameof(TaskbarGlassStatus)); Raise(nameof(TaskbarGlassRestartVisibility)); } }
+    public bool TaskbarGlassEnabled { get => _settings.Global.TaskbarGlassEnabled; set { if (_settings.Global.TaskbarGlassEnabled == value) return; _settings.Global.TaskbarGlassEnabled = value; SaveProtection(); Raise(nameof(TaskbarGlassStatus)); Raise(nameof(TaskbarGlassRestartVisibility)); Raise(nameof(TaskbarGlassOptionsVisibility)); Raise(nameof(TaskbarGlassOwnColour)); } }
     public double TaskbarGlassRadius { get => _settings.Global.TaskbarGlassRadius; set { int v = Number(value, 0, 100); if (_settings.Global.TaskbarGlassRadius == v) return; _settings.Global.TaskbarGlassRadius = v; SaveProtectionSlider(); } }
     /// <summary>The surface's look, in the order of <see cref="TaskbarLook"/>; written only on a real change.</summary>
     public int TaskbarGlassLookIndex
@@ -102,6 +102,8 @@ public sealed partial class MainViewModel
         get => _settings.Global.TaskbarGlassAccent;
         set { if (_settings.Global.TaskbarGlassAccent == value) return; _settings.Global.TaskbarGlassAccent = value; SaveProtection(); Raise(nameof(TaskbarGlassOwnColour)); }
     }
+    /// <summary>Glass's own options, shown only with glass on: off, they describe nothing that happens.</summary>
+    public Visibility TaskbarGlassOptionsVisibility => _settings.Global.TaskbarGlassEnabled ? Visibility.Visible : Visibility.Collapsed;
     public bool TaskbarGlassOwnColour => _settings.Global.TaskbarGlassEnabled && !_settings.Global.TaskbarGlassAccent;
     /// <summary>The tint colour as typed; kept only once it reads as #RRGGBB, or empty for black.</summary>
     public string TaskbarGlassColour
@@ -364,7 +366,7 @@ public sealed partial class MainViewModel
             nameof(SmallTaskbarButtons), nameof(TaskbarAlignment), nameof(TaskbarCombineButtons), nameof(OtherTaskbarCombineButtons),
             nameof(TaskbarShowTaskView), nameof(TaskbarShowWidgets), nameof(TaskbarShowBadges), nameof(TaskbarAllowFlashing),
             nameof(TaskbarShowDesktopCorner), nameof(TaskbarGlassEnabled), nameof(TaskbarGlassRadius), nameof(TaskbarGlassTint),
-            nameof(TaskbarGlassLookIndex), nameof(TaskbarGlassAccent), nameof(TaskbarGlassOwnColour), nameof(TaskbarGlassColour), nameof(TaskbarGlassBorder), nameof(TaskbarGlassStatus), nameof(TaskbarGlassRestartVisibility), nameof(AppearanceStatus), nameof(ProtectionStatus),
+            nameof(TaskbarGlassOptionsVisibility), nameof(TaskbarGlassLookIndex), nameof(TaskbarGlassAccent), nameof(TaskbarGlassOwnColour), nameof(TaskbarGlassColour), nameof(TaskbarGlassBorder), nameof(TaskbarGlassStatus), nameof(TaskbarGlassRestartVisibility), nameof(AppearanceStatus), nameof(ProtectionStatus),
             nameof(OledCoverage), nameof(FocusClearIndex), nameof(OledPerDisplayActivity), nameof(OledExcludedApps) }) Raise(name);
     }
 }

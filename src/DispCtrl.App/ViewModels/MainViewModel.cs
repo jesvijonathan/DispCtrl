@@ -1166,6 +1166,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     private void RaiseNightLight()
     {
         Raise(nameof(NightLightVisibility));
+        Raise(nameof(NightLightThemeVisibility));
         Raise(nameof(NightLightSharedVisibility));
         Raise(nameof(NightLightScheduleVisibility));
         Raise(nameof(NightLightThemeDescription));

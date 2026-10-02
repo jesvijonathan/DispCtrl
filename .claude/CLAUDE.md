@@ -1579,8 +1579,18 @@ overflow in `paste` instead of exceeding the issue-link limit. Saved monitor
 tokens are scrubbed too because old logs can name disconnected displays. The
 CLI prints the report and link without opening a browser or touching the clipboard.
 
-`Displays`, `Taskbar`, `Presets`, `Quick panel`, `Hotkeys`, `Devices`, `Engine`,
-`Settings`, `Help`, `About`. `docs/CLI-COVERAGE.md` maps every control on every
+`Displays`, `Brightness`, `Screen care`, `Windows`, `Taskbar`, `Presets`,
+`Quick panel`, `Hotkeys`, `Devices`, `Engine`, `Settings`, `Help`, `About`.
+Brightness, Screen care and Windows were split off Displays (2026-10-02): it had
+grown to 180 cards, every desk-wide feature beside the displays themselves.
+Each feature leads with its essentials and folds the rest behind "Advanced
+options" (`Fold`: a ToggleButton bound to `Open`, the advanced cards' Visibility
+bound to it, never a nested expander); a card that already shows only when it
+applies combines the two (`OledSecondStageVisibility`, `NightLightThemeVisibility`,
+and on a display card the `Advanced(open, visibility)` x:Bind function). Settings
+ends with an Advanced heading (the DDC/CI guard, raw writes, logging); the
+Quick panel page groups its options into "Look and size" and "Mouse wheel and
+behaviour"; the taskbar glass options show only with glass on. `docs/CLI-COVERAGE.md` maps every control on every
 page to its command; a new feature lands in `DispCtrl.Control` first and the
 page calls it. Taskbar was split out of Settings: reveal behaviour, the four polling
 intervals (which had no UI at all before, only settings.json), and Windows'

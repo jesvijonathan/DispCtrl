@@ -41,6 +41,24 @@
           </muxc:NavigationViewItem.Icon>
         </muxc:NavigationViewItem>
 
+        <muxc:NavigationViewItem Content="Brightness" Tag="brightness">
+          <muxc:NavigationViewItem.Icon>
+            <FontIcon Glyph="&#xE706;"/>
+          </muxc:NavigationViewItem.Icon>
+        </muxc:NavigationViewItem>
+
+        <muxc:NavigationViewItem Content="Screen care" Tag="care">
+          <muxc:NavigationViewItem.Icon>
+            <FontIcon Glyph="&#xE890;"/>
+          </muxc:NavigationViewItem.Icon>
+        </muxc:NavigationViewItem>
+
+        <muxc:NavigationViewItem Content="Windows" Tag="windows">
+          <muxc:NavigationViewItem.Icon>
+            <FontIcon Glyph="&#xE737;"/>
+          </muxc:NavigationViewItem.Icon>
+        </muxc:NavigationViewItem>
+
         <muxc:NavigationViewItem Content="Taskbar" Tag="taskbar">
           <muxc:NavigationViewItem.Icon>
             <FontIcon Glyph="&#xE7C4;"/>

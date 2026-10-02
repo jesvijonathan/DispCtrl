@@ -16,29 +16,17 @@ public sealed partial class DisplaysPage : Page
     // back to the window refreshes at once; the timer only catches a slideshow
     // changing while the page is watched.
     private readonly DispatcherTimer _wallpaperRefresh = new() { Interval = TimeSpan.FromSeconds(10) };
-    // The light sensor's reading, live while its options are open, so covering
-    // it or shining a light at it shows before "This is dark" or "bright" is
-    // pressed. Only then, and only while the window can be seen.
-    private readonly DispatcherTimer _ambientRefresh = new() { Interval = TimeSpan.FromSeconds(2) };
     private Window? _wallpaperWindow;
 
     public DisplaysPage()
     {
         InitializeComponent();
         _wallpaperRefresh.Tick += OnWallpaperRefresh;
-        _ambientRefresh.Tick += (_, _) => _ = ViewModel.RefreshAmbientReadingAsync();
         Unloaded += (_, _) =>
         {
             StopWallpaperRefresh();
-            ViewModel.PropertyChanged -= OnViewModelChanged;
             ViewModel.DisplaysRebuilt -= LoadArrangement;
         };
-
-        // Dark mode is read from Windows rather than stored here, so the switch
-        // has to be told when something else moves it - Windows' own Settings,
-        // a theme, or its sunset schedule. This is the notification WinUI
-        // already raises for exactly that.
-        ActualThemeChanged += (_, _) => ViewModel.RaiseTheme();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -48,15 +36,11 @@ public sealed partial class DisplaysPage : Page
         // drawn from the whole set, so it follows the list, not the Rescan button.
         ViewModel.DisplaysRebuilt -= LoadArrangement;
         ViewModel.DisplaysRebuilt += LoadArrangement;
-        _ = ViewModel.LoadAmbientSensorsAsync();
-        ViewModel.PropertyChanged -= OnViewModelChanged;
-        ViewModel.PropertyChanged += OnViewModelChanged;
         _wallpaperWindow = App.MainWindow;
         _wallpaperWindow.AppWindow.Changed += OnWallpaperWindowChanged;
         _wallpaperWindow.Activated += OnWallpaperWindowActivated;
         _wallpaperWindow.Closed += OnWallpaperWindowClosed;
         UpdateWallpaperVisibility();
-        ViewModel.RefreshPinnedWindows();
         if (ViewModel.PresetsEnabled) ViewModel.Presets.RefreshDrift();
     }
 
@@ -96,20 +80,8 @@ public sealed partial class DisplaysPage : Page
     }
     private void OnWallpaperWindowClosed(object sender, WindowEventArgs args) => StopWallpaperRefresh();
 
-    private void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(MainViewModel.AmbientOptionsOpen) or "") UpdateAmbientRefresh();
-    }
-
-    private void UpdateAmbientRefresh()
-    {
-        if (ViewModel.AmbientOptionsOpen && CanRefreshWallpaper) _ambientRefresh.Start();
-        else _ambientRefresh.Stop();
-    }
-
     private void UpdateWallpaperVisibility()
     {
-        UpdateAmbientRefresh();
         bool visible = CanRefreshWallpaper;
         if (ArrangeSurface.WallpapersActive == visible) return;
         ArrangeSurface.WallpapersActive = visible;
@@ -130,7 +102,6 @@ public sealed partial class DisplaysPage : Page
     private void StopWallpaperRefresh()
     {
         _wallpaperRefresh.Stop();
-        _ambientRefresh.Stop();
         ArrangeSurface.WallpapersActive = false;
         if (_wallpaperWindow is not { } window) return;
         window.AppWindow.Changed -= OnWallpaperWindowChanged;
@@ -161,15 +132,9 @@ public sealed partial class DisplaysPage : Page
         }
     }
 
-    private void OnOpenWindowsColours(object sender, RoutedEventArgs e) =>
-        WindowsTheme.OpenSettings();
 
-    private void OnResetFocus(object sender, RoutedEventArgs e) => ViewModel.ResetFocusSettings();
 
-    private void OnResetOled(object sender, RoutedEventArgs e) => ViewModel.ResetOledSettings();
-    private void OnTurnOffDisplays(object sender, RoutedEventArgs e) => ViewModel.DisplaysOff = true;
 
-    private void OnResetAwake(object sender, RoutedEventArgs e) => ViewModel.ResetAwakeSettings();
 
     /// <remarks>
     /// Tagged rather than read from the DataContext, which is how every other
@@ -260,8 +225,6 @@ public sealed partial class DisplaysPage : Page
     private void OnConnectWireless(object sender, RoutedEventArgs e) =>
         MainViewModel.ConnectWirelessDisplay();
 
-    private void OnOpenWindowsNightLight(object sender, RoutedEventArgs e) =>
-        WindowsNightLight.OpenSettings();
 
     private void OnRescan(object sender, RoutedEventArgs e) => ViewModel.Refresh();
 
@@ -273,24 +236,9 @@ public sealed partial class DisplaysPage : Page
 
     // ---- pinned windows, gathering, the DDC/CI guard and the probe ----
 
-    private void OnUnpin(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.Tag is WindowItem item) ViewModel.Unpin(item);
-    }
 
-    private void OnUnpinAll(object sender, RoutedEventArgs e) => ViewModel.UnpinAll();
 
-    private void OnRefreshPins(object sender, RoutedEventArgs e) => ViewModel.RefreshPinnedWindows();
 
-    private async void OnGather(object sender, RoutedEventArgs e)
-    {
-        // async void: an exception here would take the window down with it.
-        try
-        {
-            if ((sender as FrameworkElement)?.Tag is DisplayViewModel display) await ViewModel.GatherAsync(display);
-        }
-        catch (Exception) { }
-    }
 
     private async void OnAllowDdc(object sender, RoutedEventArgs e)
     {
@@ -373,43 +321,7 @@ public sealed partial class DisplaysPage : Page
             display.ResetToDefaults(factory.IsChecked == true);
     }
 
-    private async void OnCaptureLimits(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button button)
-        {
-            // A DDC/CI capture is a round trip per external monitor. Without
-            // this the button invites a second press that would capture the
-            // same step twice and skip the other limit.
-            button.IsEnabled = false;
-            try
-            {
-                await ViewModel.CaptureLimitsAsync();
-            }
-            finally
-            {
-                button.IsEnabled = true;
-            }
 
-            return;
-        }
-
-        await ViewModel.CaptureLimitsAsync();
-    }
-
-    private async void OnToggleGammaRange(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button) return;
-
-        button.IsEnabled = false;
-        try
-        {
-            await ViewModel.ToggleGammaRangeAsync();
-        }
-        finally
-        {
-            button.IsEnabled = true;
-        }
-    }
 
     private void OnCaptureWarmth(object sender, RoutedEventArgs e) =>
         ViewModel.CaptureWarmthLimits();
@@ -420,25 +332,11 @@ public sealed partial class DisplaysPage : Page
     private void OnRecalibrateWarmth(object sender, RoutedEventArgs e) =>
         ViewModel.BeginWarmthCalibration();
 
-    private void OnCancelCalibration(object sender, RoutedEventArgs e) =>
-        ViewModel.CancelCalibration();
 
-    private void OnRecalibrate(object sender, RoutedEventArgs e) =>
-        ViewModel.BeginCalibration();
 
-    private async void OnAmbientCaptureDark(object sender, RoutedEventArgs e) =>
-        SayAmbient(await ViewModel.CaptureAmbientAsync(dark: true));
 
-    private async void OnAmbientCaptureBright(object sender, RoutedEventArgs e) =>
-        SayAmbient(await ViewModel.CaptureAmbientAsync(dark: false));
 
-    private async void OnAmbientForget(object sender, RoutedEventArgs e) =>
-        SayAmbient(await ViewModel.ForgetAmbientAsync());
 
-    private void SayAmbient(string? problem)
-    {
-        if (problem is not null) ViewModel.ShowFooterStatus(problem);
-    }
 
     private async void OnPickWallpaper(object sender, RoutedEventArgs e)
     {

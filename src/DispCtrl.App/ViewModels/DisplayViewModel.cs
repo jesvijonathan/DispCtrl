@@ -2211,6 +2211,14 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     public string FocusDimmingAutomationName => $"FocusDimming {Number}";
 
+    /// <summary>This display's less-used settings, folded until asked for; see <see cref="Fold"/>.</summary>
+    public Fold AdvancedFold { get; } = new();
+    public string AdvancedAutomationName => $"DisplayAdvanced {Number}";
+
+    /// <summary>A card shown only with the fold open, and only when it would be shown at all.</summary>
+    /// <remarks>An x:Bind function, so it is evaluated again when either argument changes.</remarks>
+    public Visibility Advanced(bool open, Visibility shown) => open ? shown : Visibility.Collapsed;
+
     /// <summary>Whether focus mode dims this display as far as every other.</summary>
     public bool FocusSameAsAll
     {

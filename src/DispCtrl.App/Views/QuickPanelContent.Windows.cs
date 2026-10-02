@@ -44,7 +44,7 @@ internal sealed partial class QuickPanelContent
             () => _vm.PinClearInFocus, v => _vm.PinClearInFocus = v, nameof(MainViewModel.PinClearInFocus), "QuickPinClearFocus"));
 
         var more = new HyperlinkButton { Content = "All pinning settings", Margin = new Thickness(0, 6, 0, 0) };
-        more.Click += (_, _) => { _dismiss(); App.ShowMainWindow("displays"); };
+        more.Click += (_, _) => { _dismiss(); App.ShowMainWindow("windows"); };
         body.Children.Add(more);
 
         void Fill()
@@ -107,7 +107,7 @@ internal sealed partial class QuickPanelContent
             menu.Items.Add(item);
         }
         menu.Items.Add(new MenuFlyoutSeparator());
-        menu.Items.Add(Page("Window settings...", "displays"));
+        menu.Items.Add(Page("Window settings...", "windows"));
         return menu;
     }
 

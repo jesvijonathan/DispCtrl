@@ -21,29 +21,7 @@ calls it. The Devices page already works that way - it sends the same
 | Multiple displays (extend, duplicate, only one) | `topology get`, `topology set --mode extend` |
 | Monitor library | `devices list`, `devices show`, `devices map`, `devices contribute` (docs/DEVICE-LIBRARY.md) |
 | Connect to a wireless display | `windows open --page cast` |
-| Unison: on, level, Windows brightness | `unison set --enabled on --level 50 --follow-windows on` |
-| Unison: calibrated, and each display's limits | `unison set --calibrated on`, `unison set --monitor 2 --floor 20 --ceiling 80` |
-| Unison: follow the room's light, sensor, ends, calibration, learned levels | `ambient set --enabled on --sensor-id ID --dark-level 20 --bright-level 100 --dark-lux 5 --bright-lux 800 --learn-corrections on`, `ambient capture --as dark`, `ambient forget` |
-| Night light: on, strength, schedule, follow Windows | `nightlight set --enabled on --strength 60 --scheduled on --from 20:00 --to 07:00 --follow-windows off` (`--from`/`--to` are stored as `fromMinutes`/`toMinutes`) |
-| Night light: dark mode on the schedule | `nightlight set --dark-mode-on-schedule on` (applies at the next look; after that once per boundary) |
-| Lift the gamma limit | `gamma set --unlocked on` |
-| Windows night light, colours, colour management | `windows open --page nightlight`, `--page colors`, `--page colormanagement` |
-| Dark mode | `windows set --dark-mode on` |
-| Focus mode, every option, window transition | `focus set --enabled on --dim-percent 40 ...` (`focus get` lists them) |
-| Focus mode: which windows stay clear | `focus set --keep-clear focused\|pointer\|both` |
-| OLED care, both stages | `oled set --enabled on --dim-percent 50 --idle-minutes 5 --second-stage-enabled on ...` |
-| OLED care: which displays (connected and remembered), each on its own, apps that keep a display awake | `settings set --monitor TOKEN --path isOled --value true` (and `oledProtection`), `oled set --per-display-activity on --excluded-apps "vlc.exe"` |
-| Screen rest now | `oled rest --monitor 1 --minutes 5` |
-| Keep awake | `awake set --mode timed --interval-hours 1 --keep-displays-on on` (`awake get` lists the fields) |
-| Pin windows on top: the switch, what is pinned, unpin, unpin all | `pin set --enabled on`, `pin list`, `pin off --window 0x1A2B`, `pin off --all` |
-| Pin windows on top: border, colour, width, opacity | `pin set --border on --border-colour "#FF8C00" --border-thickness 3 --border-opacity 100` (empty colour for the accent) |
-| Pin windows on top: clear of focus mode and OLED dimming, fullscreen, excluded apps | `pin set --clear-in-focus on --clear-in-oled-care off --skip-fullscreen on --step-aside-for-fullscreen on --excluded-apps "game.exe"` |
-| Move windows: gather onto a display | `placement gather --to 2` (`--to active` for the display in use) |
-| Move windows: put back when a display returns, new windows on the display in use | `placement set --return-windows on --new-windows-on-active on` |
-| Move windows: which display is in use, keep size, excluded apps | `placement set --active pointer --keep-size on --excluded-apps "obs64.exe"` |
-| Windows: remember window locations, minimize on disconnect | `windows set --remember-window-locations on --minimize-on-disconnect off` |
 | Settings: updates - check now, check automatically (opt-in), Not now | `update check`, `update set --check-automatically on`, `update skip`, `update get` |
-| Reset focus, OLED care, keep awake | `focus reset`, `oled reset`, `awake reset` |
 | Per display: brightness | `display set --monitor 2 --brightness 60` |
 | Per display: in unison | `unison set --monitor 2 --include off` |
 | Per display: DDC/CI off after a crash, talk to it again | `ddc get`, `ddc allow --monitor 2` |
@@ -56,6 +34,43 @@ calls it. The Devices page already works that way - it sends the same
 | Per display: variable refresh, adaptive brightness, rotation | `windows set --variable-refresh on --adaptive-brightness off --auto-rotation on` |
 | Per display: reset | `display reset --monitor 2`, with the monitor's own defaults `--factory --confirm` |
 | Copy these details | `display get --monitor 2 --hardware` |
+
+## Brightness
+
+| In the app | Command |
+| --- | --- |
+| Unison: on, level, Windows brightness | `unison set --enabled on --level 50 --follow-windows on` |
+| Unison: calibrated, and each display's limits | `unison set --calibrated on`, `unison set --monitor 2 --floor 20 --ceiling 80` |
+| Unison: follow the room's light, sensor, ends, calibration, learned levels | `ambient set --enabled on --sensor-id ID --dark-level 20 --bright-level 100 --dark-lux 5 --bright-lux 800 --learn-corrections on`, `ambient capture --as dark`, `ambient forget` |
+| Night light: on, strength, schedule, follow Windows | `nightlight set --enabled on --strength 60 --scheduled on --from 20:00 --to 07:00 --follow-windows off` (`--from`/`--to` are stored as `fromMinutes`/`toMinutes`) |
+| Night light: dark mode on the schedule | `nightlight set --dark-mode-on-schedule on` (applies at the next look; after that once per boundary) |
+| Lift the gamma limit | `gamma set --unlocked on` |
+| Windows night light, colours, colour management | `windows open --page nightlight`, `--page colors`, `--page colormanagement` |
+| Dark mode | `windows set --dark-mode on` |
+
+## Screen care
+
+| In the app | Command |
+| --- | --- |
+| Focus mode, every option, window transition | `focus set --enabled on --dim-percent 40 ...` (`focus get` lists them) |
+| Focus mode: which windows stay clear | `focus set --keep-clear focused\|pointer\|both` |
+| OLED care, both stages | `oled set --enabled on --dim-percent 50 --idle-minutes 5 --second-stage-enabled on ...` |
+| OLED care: which displays (connected and remembered), each on its own, apps that keep a display awake | `settings set --monitor TOKEN --path isOled --value true` (and `oledProtection`), `oled set --per-display-activity on --excluded-apps "vlc.exe"` |
+| Screen rest now | `oled rest --monitor 1 --minutes 5` |
+| Keep awake | `awake set --mode timed --interval-hours 1 --keep-displays-on on` (`awake get` lists the fields) |
+| Reset focus, OLED care, keep awake | `focus reset`, `oled reset`, `awake reset` |
+
+## Windows
+
+| In the app | Command |
+| --- | --- |
+| Pin windows on top: the switch, what is pinned, unpin, unpin all | `pin set --enabled on`, `pin list`, `pin off --window 0x1A2B`, `pin off --all` |
+| Pin windows on top: border, colour, width, opacity | `pin set --border on --border-colour "#FF8C00" --border-thickness 3 --border-opacity 100` (empty colour for the accent) |
+| Pin windows on top: clear of focus mode and OLED dimming, fullscreen, excluded apps | `pin set --clear-in-focus on --clear-in-oled-care off --skip-fullscreen on --step-aside-for-fullscreen on --excluded-apps "game.exe"` |
+| Move windows: gather onto a display | `placement gather --to 2` (`--to active` for the display in use) |
+| Move windows: put back when a display returns, new windows on the display in use | `placement set --return-windows on --new-windows-on-active on` |
+| Move windows: which display is in use, keep size, excluded apps | `placement set --active pointer --keep-size on --excluded-apps "obs64.exe"` |
+| Windows: remember window locations, minimize on disconnect | `windows set --remember-window-locations on --minimize-on-disconnect off` |
 
 ## Taskbar
 

@@ -25,6 +25,7 @@ using DispCtrl, not for people reading the diff.
 - Experimental LG alternate input switching through NVIDIA, AMD and Intel GPU APIs, enabled only by a model-specific device mapping. Mapping contributions retain the transport metadata; hardware confirmation is still required.
 
 ### Changed
+- The app is easier to find your way around. Brightness (unison, the light sensor, night light, dark mode), Screen care (focus mode, OLED protection, keep awake and turning the displays off) and Windows (pinning, gathering, putting back) have pages of their own instead of sharing the Displays page with every display. Each feature and each display shows the settings most people change first, with the rest under "Advanced options". Settings ends with an Advanced section, the quick panel's options are grouped, and the taskbar glass options show only while glass is on.
 - The tray icon's right-click menu no longer offers Quick panel, which a left click already opens, or Close the app; Exit DispCtrl remains.
 
 ### Fixed

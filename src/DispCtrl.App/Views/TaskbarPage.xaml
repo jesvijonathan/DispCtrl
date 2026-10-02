@@ -28,7 +28,8 @@
             <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=TwoWay}" OnContent="On" OffContent="Off" AutomationProperties.Name="TaskbarGlassEnabled"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Look"
-                           Description="Blur softens what is behind; Clear shows it sharp; Opaque is a solid colour; Acrylic is blur with richer colour, like Windows' own material.">
+                           Description="Blur softens what is behind; Clear shows it sharp; Opaque is a solid colour; Acrylic is blur with richer colour, like Windows' own material."
+                           Visibility="{x:Bind ViewModel.TaskbarGlassOptionsVisibility, Mode=OneWay}">
             <ComboBox SelectedIndex="{x:Bind ViewModel.TaskbarGlassLookIndex, Mode=TwoWay}" MinWidth="160"
                       IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassLook">
               <x:String>Blur</x:String>
@@ -37,7 +38,8 @@
               <x:String>Acrylic</x:String>
             </ComboBox>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Colour" Description="The tint's colour: Windows' accent colour, followed when it changes, or one of your own as #RRGGBB. Empty is black.">
+          <tk:SettingsCard Header="Colour" Description="The tint's colour: Windows' accent colour, followed when it changes, or one of your own as #RRGGBB. Empty is black."
+                           Visibility="{x:Bind ViewModel.TaskbarGlassOptionsVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="12">
               <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarGlassAccent, Mode=TwoWay}" OnContent="Accent colour" OffContent="Own colour"
                             IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassAccent"/>
@@ -45,18 +47,21 @@
                        IsEnabled="{x:Bind ViewModel.TaskbarGlassOwnColour, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassColour"/>
             </StackPanel>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Show the taskbar border" Description="The thin line along the taskbar's top edge. Off hides it while glass is on.">
+          <tk:SettingsCard Header="Show the taskbar border" Description="The thin line along the taskbar's top edge. Off hides it while glass is on."
+                           Visibility="{x:Bind ViewModel.TaskbarGlassOptionsVisibility, Mode=OneWay}">
             <ToggleSwitch IsOn="{x:Bind ViewModel.TaskbarGlassBorder, Mode=TwoWay}"
                           IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassBorder"/>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Blur radius" Description="How far the background is softened behind the taskbar.">
+          <tk:SettingsCard Header="Blur radius" Description="How far the background is softened behind the taskbar."
+                           Visibility="{x:Bind ViewModel.TaskbarGlassOptionsVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Slider Value="{x:Bind ViewModel.TaskbarGlassRadius, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="160" IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassRadius"/>
               <TextBlock Text="{x:Bind ViewModel.TaskbarGlassRadius, Mode=OneWay}" VerticalAlignment="Center"/>
               <TextBlock Text="px" VerticalAlignment="Center"/>
             </StackPanel>
           </tk:SettingsCard>
-          <tk:SettingsCard Header="Acrylic tint" Description="Adds a subtle dark tint after the blur.">
+          <tk:SettingsCard Header="Acrylic tint" Description="Adds a subtle dark tint after the blur."
+                           Visibility="{x:Bind ViewModel.TaskbarGlassOptionsVisibility, Mode=OneWay}">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Slider Value="{x:Bind ViewModel.TaskbarGlassTint, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="1" Width="160" IsEnabled="{x:Bind ViewModel.TaskbarGlassEnabled, Mode=OneWay}" AutomationProperties.Name="TaskbarGlassTint"/>
               <TextBlock Text="{x:Bind ViewModel.TaskbarGlassTint, Mode=OneWay}" VerticalAlignment="Center"/>
@@ -196,7 +201,8 @@
         <Button Content="Restore defaults" Click="OnResetTaskbarBehaviour" AutomationProperties.Name="ResetTaskbarBehaviour"/>
       </tk:SettingsCard>
 
-      <TextBlock Text="Responsiveness"
+      <!-- Polling intervals: what someone tuning the engine changes, nobody else. -->
+      <TextBlock Text="Advanced"
                  Style="{StaticResource BodyStrongTextBlockStyle}"
                  Margin="0,28,0,8"/>
 

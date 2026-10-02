@@ -142,7 +142,7 @@ internal sealed partial class QuickPanelContent
         RefreshEnabled();
         Watch(_vm, nameof(MainViewModel.UnisonBrightness), RefreshEnabled);
         Watch(_vm, nameof(MainViewModel.Calibrating), RefreshEnabled);
-        row.ContextFlyout = Menu(Page("More unison options...", "displays"));
+        row.ContextFlyout = Menu(Page("More unison options...", "brightness"));
 
         var windows = SwitchRow("Use Windows brightness",
             "The Windows brightness slider and keys move unison, within each display's calibrated range. Works with the panel closed.",

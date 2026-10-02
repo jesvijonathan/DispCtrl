@@ -174,6 +174,9 @@ public sealed partial class MainWindow : Window
             ? typeof(SettingsPage)
             : tag switch
             {
+                "brightness" => typeof(BrightnessPage),
+                "care" => typeof(ScreenCarePage),
+                "windows" => typeof(WindowsPage),
                 "taskbar" => typeof(TaskbarPage),
                 "presets" => PresetsEnabled ? typeof(PresetsPage) : typeof(PresetsPreviewPage),
                 "quickpanel" => typeof(QuickPanelPage),
