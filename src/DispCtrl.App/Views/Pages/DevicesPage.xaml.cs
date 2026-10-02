@@ -128,11 +128,11 @@ public sealed partial class DevicesPage : Page
                 int read = data["scanned"]?.AsArray().Count(s => s?["ddc"]?.GetValue<bool>() == true) ?? 0;
                 int added = data["scanned"]?.AsArray().Sum(s => s?["newCodes"]?.AsArray().Count ?? 0) ?? 0;
                 Show(read == 0 ? "Scan complete. No attached monitor answers DDC/CI, so there were no codes to read."
-                    : $"Scanned {read} monitor(s), found {added} new code(s). Expand Controls to name them. Discoveries are ready for Contribute.", InfoBarSeverity.Success);
+                    : $"Scanned {read} monitor(s), found {added} new code(s). Discoveries are ready for Contribute.", InfoBarSeverity.Success);
             }
             await RefreshAsync();
         }
-        finally { _scanning = false; ScanButton.IsEnabled = true; ShareAllButton.IsEnabled = Models.Children.Count > 0; }
+        finally { _scanning = false; ScanButton.IsEnabled = true; ShareAllButton.IsEnabled = _models.Count > 0; }
     }
 
     private async void OnOpenFolder(object sender, RoutedEventArgs e)
@@ -142,59 +142,86 @@ public sealed partial class DevicesPage : Page
         _ = await Windows.System.Launcher.LaunchFolderPathAsync(folder);
     }
 
-    private async void OnLearnSetting(object sender, RoutedEventArgs e)
-    {
-        List<DisplayInfo> displays = DisplayRegistry.Enumerate().Where(d => !d.IsInternal).ToList();
-        if (displays.Count == 0)
-        {
-            Show("Attach an external DDC/CI monitor first.", InfoBarSeverity.Warning);
-            return;
-        }
-        DisplayInfo display = displays[0];
-        if (displays.Count > 1)
-        {
-            var picker = new ComboBox { Header = "Monitor", ItemsSource = displays.Select(d => d.Label).ToArray(), SelectedIndex = 0, MinWidth = 280 };
-            var choose = new ContentDialog
-            {
-                Title = "Learn a setting",
-                Content = picker,
-                PrimaryButtonText = "Continue",
-                CloseButtonText = "Cancel",
-                XamlRoot = XamlRoot,
-            };
-            if (await choose.ShowAsync() != ContentDialogResult.Primary) return;
-            display = displays[Math.Max(0, picker.SelectedIndex)];
-        }
-        var dialog = new LearnSettingDialog(display);
-        if (await dialog.ShowAsync(XamlRoot))
-        {
-            Show("Saved. Share it with others from Devices > Contribute.", InfoBarSeverity.Success);
-            await RefreshAsync();
-            foreach (var model in App.ViewModel.Displays.Where(d => d.Info.Key.Model == display.Key.Model))
-                await model.RefreshMonitorControlsAsync();
-        }
-    }
+    // ================================================================ the monitor
 
-    // ================================================================ the list
+    private JsonArray _models = [];
+    private string? _selected;
+    private string _filter = "";
+    private bool _picking;
 
     private async Task RefreshAsync()
     {
         JsonNode? data = await RunAsync("devices.list");
         if (!_loaded || _sharing || _editing) return;
-        StopWatching();
-        Models.Children.Clear();
-        JsonArray models = data?["models"]?.AsArray() ?? [];
-        ShareAllButton.IsEnabled = models.Count > 0;
-        if (models.Count == 0)
+        _models = data?["models"]?.AsArray() ?? [];
+        ShareAllButton.IsEnabled = _models.Count > 0;
+        _picking = true;
+        try
         {
-            Models.Children.Add(Muted("No monitors recorded yet. Choose Scan controls to discover attached monitors and their controls."));
+            MonitorPicker.ItemsSource = _models.Select(m => PickerLabel(m!)).ToList();
+            MonitorPicker.IsEnabled = _models.Count > 0;
+            // The one last looked at; otherwise an attached monitor with codes
+            // left to name, which is what someone opening the page came for.
+            int index = _models.ToList().FindIndex(m => m?["model"]?.GetValue<string>() == _selected);
+            if (index < 0) index = _models.ToList().FindIndex(m => m?["attached"]?.GetValue<bool>() == true && (m["unnamed"]?.GetValue<int>() ?? 0) > 0);
+            if (index < 0) index = _models.ToList().FindIndex(m => m?["attached"]?.GetValue<bool>() == true && m["builtIn"]?.GetValue<bool>() != true);
+            if (index < 0 && _models.Count > 0) index = 0;
+            MonitorPicker.SelectedIndex = index;
+        }
+        finally { _picking = false; }
+        if (_models.Count == 0)
+        {
+            StopWatching();
+            Detail.Children.Clear();
+            Detail.Children.Add(Muted("No monitors recorded yet. Choose Scan to read the attached monitors and their controls."));
             return;
         }
-        foreach (JsonNode? m in models)
-            if (m is not null) Models.Children.Add(ModelCard(m));
+        await ShowModelAsync(_models[MonitorPicker.SelectedIndex]!);
     }
 
-    private FrameworkElement ModelCard(JsonNode m)
+    private static string PickerLabel(JsonNode m)
+    {
+        string name = m["name"]?.GetValue<string>() is { Length: > 0 } n ? n : m["model"]!.GetValue<string>();
+        int unnamed = m["unnamed"]?.GetValue<int>() ?? 0;
+        string state = m["attached"]?.GetValue<bool>() == true ? "attached" : "not attached";
+        return m["builtIn"]?.GetValue<bool>() == true ? $"{name}  ·  built-in, {state}"
+            : unnamed > 0 ? $"{name}  ·  {state}, {unnamed} to name" : $"{name}  ·  {state}";
+    }
+
+    private async void OnMonitorChosen(object sender, SelectionChangedEventArgs e)
+    {
+        if (_picking || MonitorPicker.SelectedIndex < 0 || MonitorPicker.SelectedIndex >= _models.Count) return;
+        _filter = "";
+        await ShowModelAsync(_models[MonitorPicker.SelectedIndex]!);
+    }
+
+    /// <summary>Everything about one model: what it is, the quick ways to name its codes, and the codes.</summary>
+    private async Task ShowModelAsync(JsonNode m)
+    {
+        StopWatching();
+        string model = m["model"]!.GetValue<string>();
+        _selected = model;
+        bool builtIn = m["builtIn"]?.GetValue<bool>() == true;
+        bool attached = m["attached"]?.GetValue<bool>() == true;
+        Detail.Children.Clear();
+        Detail.Children.Add(Summary(m));
+        if (builtIn)
+        {
+            Detail.Children.Add(await PanelCardAsync(model));
+            return;
+        }
+        if (m["capabilitiesRead"]?.GetValue<bool>() != true) return;
+
+        JsonNode? data = await RunAsync("devices.show", new JsonObject { ["model"] = model, ["history"] = true });
+        if (data is null || _selected != model) return;
+        JsonArray codes = data["codes"]?.AsArray() ?? [];
+        int unnamed = codes.Count(c => c?["status"]?.GetValue<string>() == "unnamed");
+        if (_filter.Length == 0) _filter = unnamed > 0 ? "name" : "all";
+        if (unnamed > 0) Detail.Children.Add(await QuickWaysAsync(model, attached, unnamed));
+        Detail.Children.Add(CodesCard(model, attached, codes));
+    }
+
+    private FrameworkElement Summary(JsonNode m)
     {
         string model = m["model"]!.GetValue<string>();
         string name = m["name"]?.GetValue<string>() is { Length: > 0 } n ? n : model;
@@ -203,181 +230,307 @@ public sealed partial class DevicesPage : Page
         bool read = m["capabilitiesRead"]?.GetValue<bool>() == true;
         int codes = m["codes"]?.GetValue<int>() ?? 0, unnamed = m["unnamed"]?.GetValue<int>() ?? 0, mapped = m["mapped"]?.GetValue<int>() ?? 0;
 
-        var body = new StackPanel { Spacing = 6 };
         var head = new Grid { ColumnSpacing = 10 };
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var title = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        title.Children.Add(new TextBlock { Text = name, FontWeight = FontWeights.SemiBold, FontSize = 15, TextWrapping = TextWrapping.Wrap });
-        var identity = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        var modelLabel = Muted($"Model: {model}");
-        modelLabel.VerticalAlignment = VerticalAlignment.Center;
-        identity.Children.Add(modelLabel);
-        identity.Children.Add(Badge(attached ? "Attached" : "Disconnected"));
+        var title = new StackPanel { Spacing = 4 };
+        title.Children.Add(new TextBlock { Text = name, FontWeight = FontWeights.SemiBold, FontSize = 18, TextWrapping = TextWrapping.Wrap });
+        var identity = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        identity.Children.Add(new TextBlock { Text = model, FontFamily = new FontFamily("Consolas"), VerticalAlignment = VerticalAlignment.Center });
+        identity.Children.Add(Badge(attached ? "Attached" : "Not attached"));
+        if (builtIn) identity.Children.Add(Badge("Built-in"));
         title.Children.Add(identity);
+        string seen = $"Seen {Date(m["firstSeen"])} to {Date(m["lastSeen"])}.";
+        title.Children.Add(Muted(builtIn ? $"{seen} A built-in panel has no DDC/CI channel, so it has no codes; what it is still matters to burn-in protection."
+            : !read && attached ? $"{seen} The engine is reading its codes; they appear here by themselves."
+            : !read ? $"{seen} Its codes were never read; they will be the next time it is attached."
+            : $"{seen} {codes} codes: {codes - unnamed - mapped} named by the standard, {mapped} by you or the library, {unnamed} by nobody yet."));
         head.Children.Add(title);
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Top };
         Grid.SetColumn(buttons, 1);
         if (DeviceDefinitions.IsModel(model))
         {
             var share = new Button { Content = "Contribute", Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
             AutomationProperties.SetName(share, $"Contribute {model}");
-            ToolTipService.SetToolTip(share, "Shows exactly what would be published - the model's record, your mappings, and what its unnamed codes were seen to do - then opens a GitHub issue for you to submit.");
+            ToolTipService.SetToolTip(share, "Shows exactly what would be published - the model's record, your names, and what its unnamed codes were seen to do - then opens a GitHub issue for you to submit.");
             share.Click += async (_, _) => await ShareAsync(model);
             buttons.Children.Add(share);
         }
-        var remove = new Button { Content = new FontIcon { Glyph = "", FontSize = 14 } };
+        var remove = new Button { Content = new FontIcon { Glyph = "\uE74D", FontSize = 14 } };
         AutomationProperties.SetName(remove, $"Remove {model}");
-        ToolTipService.SetToolTip(remove, "Remove from this list. It stays off until you press Scan controls, including after reconnecting.");
+        ToolTipService.SetToolTip(remove, "Remove from this list. It stays off until you choose Scan, including after reconnecting. Names you made are kept.");
         remove.Click += async (_, _) =>
         {
             if (await RunAsync("devices.forget", new JsonObject { ["model"] = model }) is not null)
             {
                 Show($"Removed {name}. Any codes you named for it are kept.", InfoBarSeverity.Informational);
+                _selected = null;
                 await RefreshAsync();
             }
         };
         buttons.Children.Add(remove);
         head.Children.Add(buttons);
-        body.Children.Add(head);
+        return Card(head);
+    }
 
-        string seen = $"Seen {Date(m["firstSeen"])} to {Date(m["lastSeen"])}";
-        body.Children.Add(Muted(builtIn
-            ? $"{seen}. A built-in panel: it has no DDC/CI channel, so there are no codes to map."
-            : !read && attached
-                ? $"{seen}. Its codes are being read by the engine; they appear here by themselves."
-                : !read
-                    ? $"{seen}. Its codes were never read; they will be the next time it is attached."
-                    : unnamed == 0
-                        ? $"{seen}. {codes} codes, every one of them known ({mapped} from the library)."
-                        : $"{seen}. {codes} codes: {unnamed} nobody has named yet, {mapped} from the library."));
-
-        if (!builtIn)
+    /// <summary>What a built-in panel is: the one fact it can be described by.</summary>
+    private async Task<FrameworkElement> PanelCardAsync(string model)
+    {
+        JsonNode? data = await RunAsync("devices.show", new JsonObject { ["model"] = model, ["history"] = true });
+        string[] kinds = ["Not said", "LCD", "OLED", "QD-OLED", "Mini-LED"];
+        string current = data?["panel"]?.GetValue<string>() ?? "";
+        var picker = new ComboBox { Header = "What the panel is", ItemsSource = kinds, MinWidth = 200,
+            SelectedIndex = Math.Max(0, Array.FindIndex(kinds, k => k.Equals(current, StringComparison.OrdinalIgnoreCase))) };
+        AutomationProperties.SetName(picker, $"Panel {model}");
+        picker.SelectionChanged += async (_, _) =>
         {
-            var list = new StackPanel { Spacing = 2 };
-            var expander = new Expander
-            {
-                Header = unnamed > 0 ? $"Controls ({codes}, {unnamed} to name)" : $"Controls ({codes})",
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                Content = list,
-            };
-            AutomationProperties.SetName(expander, $"Codes {model}");
-            bool filled = false;
-            expander.Expanding += async (_, _) =>
-            {
-                if (filled) return;
-                filled = true;
-                await FillCodesAsync(list, model, attached);
-            };
-            expander.Collapsed += (_, _) => StopWatching();
-            body.Children.Add(expander);
-        }
-
-        return new Border
-        {
-            Child = body,
-            Padding = new Thickness(16, 12, 16, 12),
-            CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
-            Background = Brush("CardBackgroundFillColorDefaultBrush"),
-            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            string technology = picker.SelectedIndex <= 0 ? "none" : kinds[picker.SelectedIndex];
+            if (await RunAsync("devices.panel", new JsonObject { ["model"] = model, ["technology"] = technology }) is not null)
+                Show(technology == "none" ? "Cleared." : $"Saved: {technology}. Contribute shares it with every owner of this laptop.", InfoBarSeverity.Success);
         };
+        var body = new StackPanel { Spacing = 6 };
+        body.Children.Add(Heading("The panel"));
+        body.Children.Add(Muted("Nothing a built-in panel reports says whether it is OLED, and OLED care keys off it. Say it here once; shared, the library answers for everyone with the same laptop."));
+        body.Children.Add(picker);
+        return Card(body);
+    }
+
+    /// <summary>The three quickest ways to name a code, best first.</summary>
+    /// <remarks>
+    /// Learning a setting is the one that needs no knowledge of codes at all:
+    /// change it with the monitor's buttons and the code that moved is the
+    /// answer. Borrowing a sibling model's names needs none either, when the
+    /// library has one. Naming by hand is for those who already know.
+    /// </remarks>
+    private async Task<FrameworkElement> QuickWaysAsync(string model, bool attached, int unnamed)
+    {
+        var body = new StackPanel { Spacing = 10 };
+        body.Children.Add(Heading($"Name the {unnamed} unknown code{(unnamed == 1 ? "" : "s")}"));
+
+        var learn = new Button { Content = "Learn a setting…", IsEnabled = attached, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
+        AutomationProperties.SetName(learn, "DevicesLearnSetting");
+        learn.Click += async (_, _) => await LearnAsync(model);
+        body.Children.Add(Way(learn, "Easiest. Change one setting with the monitor's own buttons - a picture mode, say - and DispCtrl finds the code that moved and its values.",
+            attached ? null : "Attach the monitor to use this."));
+
+        JsonNode? similar = await RunAsync("devices.similar", new JsonObject { ["model"] = model });
+        var known = new StackPanel { Spacing = 6 };
+        JsonArray candidates = similar?["candidates"]?.AsArray() ?? [];
+        string brand = DeviceDefinitions.Brand(model);
+        if (candidates.Count == 0)
+            known.Children.Add(Muted($"No other {brand} model in the library names these codes yet. Naming them here and choosing Contribute is how one gets there."));
+        foreach (JsonNode? c in candidates)
+        {
+            string other = c!["model"]!.GetValue<string>();
+            bool linked = c["linked"]!.GetValue<bool>();
+            int would = c["wouldName"]!.GetValue<int>();
+            var row = new Grid { ColumnSpacing = 10 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = new StackPanel();
+            text.Children.Add(new TextBlock { Text = c["name"]?.GetValue<string>() is { Length: > 0 } n ? $"{n}  ({other})" : other });
+            text.Children.Add(Muted(linked ? $"In use: its names apply to this monitor. From the {c["from"]}."
+                : $"Would name {would} of this monitor's unknown codes. From the {c["from"]}."));
+            row.Children.Add(text);
+            var use = new Button { Content = linked ? "Stop using" : "Use its names", VerticalAlignment = VerticalAlignment.Center };
+            AutomationProperties.SetName(use, $"{(linked ? "Stop using" : "Use")} {other}");
+            ToolTipService.SetToolTip(use, "Writes one line in this model's own definition on this PC; nothing on the monitor changes. Names are read-only until you confirm a value.");
+            use.Click += async (_, _) =>
+            {
+                var request = new JsonObject { ["model"] = model, ["to"] = other };
+                if (linked) request["remove"] = true;
+                if (await RunAsync("devices.link", request) is null) return;
+                Show(linked ? $"{other}'s names no longer apply." : $"{other}'s names now apply to {model}. Check each on Displays before enabling it.", InfoBarSeverity.Success);
+                await RefreshAsync();
+            };
+            Grid.SetColumn(use, 1);
+            row.Children.Add(use);
+            known.Children.Add(row);
+        }
+        body.Children.Add(Way(known, "Borrow the names from a known monitor. A maker reuses its codes across a range, so a sibling model often names most of them.", null));
+
+        var byHand = new Button { Content = "Add a code by hand…" };
+        AutomationProperties.SetName(byHand, $"Add code {model}");
+        byHand.Click += async (_, _) =>
+        {
+            StopWatching();
+            if (await NameAsync(model, "", new JsonObject())) await RefreshAsync();
+        };
+        body.Children.Add(Way(byHand, "If you already know a code and what it does, from a manual or ddcutil, name it directly. Each code below has its own Name button too.", null));
+        return Card(body);
+    }
+
+    private static FrameworkElement Way(FrameworkElement action, string explanation, string? note)
+    {
+        var text = new StackPanel { Spacing = 2 };
+        text.Children.Add(new TextBlock { Text = explanation, TextWrapping = TextWrapping.Wrap });
+        if (note is not null) text.Children.Add(Muted(note));
+        var row = new StackPanel { Spacing = 6 };
+        row.Children.Add(text);
+        row.Children.Add(action);
+        return row;
+    }
+
+    private async Task LearnAsync(string model)
+    {
+        DisplayInfo? display = DisplayRegistry.Enumerate().FirstOrDefault(d => d.Key.Model == model);
+        if (display is null) { Show("Attach the monitor first.", InfoBarSeverity.Warning); return; }
+        StopWatching();
+        var dialog = new LearnSettingDialog(display);
+        _editing = true;
+        bool saved;
+        try { saved = await dialog.ShowAsync(XamlRoot); }
+        finally { _editing = false; }
+        if (!saved) return;
+        Show("Saved. It is a control on Displays now; Contribute shares it.", InfoBarSeverity.Success);
+        foreach (var d in App.ViewModel.Displays.Where(d => d.Info.Key.Model == model))
+            await d.RefreshMonitorControlsAsync();
+        await RefreshAsync();
     }
 
     // ================================================================ the codes
 
     private sealed record Row(string Code, TextBlock Value, TextBlock Change, Border Host);
 
-    /// <summary>Every code the model listed, from the history; a live watch is one switch away.</summary>
-    private async Task FillCodesAsync(StackPanel host, string model, bool attached)
+    /// <summary>The codes, filtered to what is left to name by default and grouped by who defines them.</summary>
+    /// <remarks>
+    /// 0xE0 to 0xFF is MCCS's manufacturer range: nothing there is standard, so
+    /// it is where nearly every unknown code lives and gets its own heading.
+    /// </remarks>
+    private FrameworkElement CodesCard(string model, bool attached, JsonArray codes)
     {
-        StopWatching();
-        host.Children.Clear();
-        JsonNode? data = await RunAsync("devices.show", new JsonObject { ["model"] = model, ["history"] = true });
-        if (data is null) return;
-        host.Children.Add(Muted("1. Watch a setting change in the monitor's menu. 2. Map its name and choices. 3. Use it from Displays, then Contribute your findings."));
-        var add = new Button { Content = "Add a known code", Margin = new Thickness(0, 4, 0, 8) };
-        AutomationProperties.SetName(add, $"Add code {model}");
-        add.Click += async (_, _) =>
-        {
-            StopWatching();
-            if (await NameAsync(model, "", new JsonObject())) await FillCodesAsync(host, model, attached);
-        };
-        host.Children.Add(add);
+        var body = new StackPanel { Spacing = 6 };
+        body.Children.Add(Heading("Codes"));
+        int unnamed = codes.Count(c => c?["status"]?.GetValue<string>() == "unnamed");
+        string[] keys = ["name", "named", "all"];
+        var filter = new RadioButtons { MaxColumns = 3 };
+        filter.Items.Add($"To name ({unnamed})");
+        filter.Items.Add($"Named ({codes.Count - unnamed})");
+        filter.Items.Add($"Everything ({codes.Count})");
+        filter.SelectedIndex = Math.Max(0, Array.IndexOf(keys, _filter));
+        AutomationProperties.SetName(filter, $"Code filter {model}");
+        body.Children.Add(filter);
 
         var watch = new ToggleSwitch
         {
-            Header = "Watch manufacturer controls live",
+            Header = "Watch the unknown codes live",
             OnContent = "Watching - change one setting at a time in the monitor's own menu",
             OffContent = attached ? "Off" : "Attach the monitor to watch it",
             IsEnabled = attached,
         };
         AutomationProperties.SetName(watch, $"Watch {model}");
-        host.Children.Add(watch);
+        body.Children.Add(watch);
 
-        var header = RowGrid();
-        AddCells(header, Muted("Code"), Muted("What it is"), Muted("Values"), new TextBlock());
-        host.Children.Add(header);
-
+        var list = new StackPanel { Spacing = 2 };
+        body.Children.Add(list);
         var rows = new List<Row>();
-        var entries = (data["codes"]?.AsArray() ?? []).Where(c => c is not null)
-            .OrderBy(c => c!["status"]!.GetValue<string>() switch { "unnamed" => 0, "mapped" => 1, "named" => 2, _ => 3 })
-            .ThenBy(c => c!["code"]!.GetValue<string>(), StringComparer.Ordinal);
-        foreach (JsonNode? c in entries)
+
+        void Fill()
         {
-            string code = c!["code"]!.GetValue<string>();
-            string status = c["status"]!.GetValue<string>();
-            string name = c["name"]?.GetValue<string>() ?? c["reported"]?.GetValue<string>() ?? code;
-
-            var what = new StackPanel();
-            what.Children.Add(new TextBlock { Text = status == "unnamed" ? "Not named yet" : name, TextTrimming = TextTrimming.CharacterEllipsis });
-            what.Children.Add(Muted(status switch
+            StopWatching();
+            watch.IsOn = false;
+            list.Children.Clear();
+            rows.Clear();
+            var shown = codes.Where(c => c is not null && _filter switch
             {
-                "standard" => "Standard; DispCtrl controls it",
-                "named" => "Named by the standard; read-only here",
-                "mapped" => $"From the {Origin(c["origin"]?.GetValue<string>())}{(c["writable"]?.GetValue<bool>() == true ? ", writable" : ", read-only")}",
-                _ => Shape(c),
-            }));
-            if (c["discovery"]?.GetValue<string>() == "probed") what.Children.Add(Muted("Found by a read-only probe; not advertised"));
-            if (c["discovery"]?.GetValue<string>() == "mapping") what.Children.Add(Muted(c["ddcWrite"] is null
-                ? "Not reported by this monitor; saved for reference" : "Uses an explicit input-switching method"));
-
-            var value = new TextBlock { Text = Values(c), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-            var change = Muted("");
-            var valueStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            valueStack.Children.Add(value);
-            valueStack.Children.Add(change);
-
-            var nameIt = new Button { Content = status == "mapped" ? "Edit mapping" : "Map" };
-            AutomationProperties.SetName(nameIt, $"Name {code}");
-            nameIt.Click += async (_, _) =>
+                "name" => c["status"]!.GetValue<string>() == "unnamed",
+                "named" => c["status"]!.GetValue<string>() != "unnamed",
+                _ => true,
+            }).OrderBy(c => c!["code"]!.GetValue<string>(), StringComparer.Ordinal).ToList();
+            if (shown.Count == 0)
             {
-                watch.IsOn = false;
-                StopWatching();
-                JsonNode? fresh = await RunAsync("devices.show", new JsonObject { ["model"] = model, ["history"] = true });
-                JsonNode current = fresh?["codes"]?.AsArray().FirstOrDefault(item => item?["code"]?.GetValue<string>() == code) ?? c;
-                if (await NameAsync(model, code, current)) await FillCodesAsync(host, model, attached);
-            };
-
-            var grid = RowGrid();
-            AddCells(grid, new TextBlock { Text = code, FontFamily = new FontFamily("Consolas"), VerticalAlignment = VerticalAlignment.Center },
-                what, valueStack, nameIt);
-            var rowHost = new Border { Child = grid, CornerRadius = new CornerRadius(4), Padding = new Thickness(4, 2, 4, 2) };
-            host.Children.Add(rowHost);
-            if (DeviceDefinitions.ParseCode(code) is byte number && !MonitorCapabilities.IsNamed(number)
-                && c["ddcWrite"] is null && c["mappedKind"]?.GetValue<string>() != "action" && c["discovery"]?.GetValue<string>() != "mapping")
-                rows.Add(new Row(code, value, change, rowHost));
+                list.Children.Add(Muted(_filter == "name" ? "Nothing left to name." : "None."));
+                return;
+            }
+            foreach (var group in shown.GroupBy(c => DeviceDefinitions.ParseCode(c!["code"]!.GetValue<string>()) >= 0xE0).OrderBy(g => g.Key))
+            {
+                var heading = Muted(group.Key ? "Manufacturer-specific codes (0xE0 to 0xFF): the maker's own, never in the standard"
+                    : "Standard range (0x00 to 0xDF)");
+                heading.Margin = new Thickness(0, 8, 0, 2);
+                heading.FontWeight = FontWeights.SemiBold;
+                list.Children.Add(heading);
+                var header = RowGrid();
+                AddCells(header, Muted("Code"), Muted("What it is"), Muted("Values"), new TextBlock());
+                list.Children.Add(header);
+                foreach (JsonNode? c in group) list.Children.Add(CodeRow(model, c!, rows, watch));
+            }
+            watch.IsEnabled = attached && rows.Count > 0;
         }
-
-        watch.IsEnabled = attached && rows.Count > 0;
+        filter.SelectionChanged += (_, _) =>
+        {
+            if (filter.SelectedIndex < 0) return;
+            _filter = keys[filter.SelectedIndex];
+            Fill();
+        };
         watch.Toggled += (_, _) =>
         {
             if (watch.IsOn) StartWatching(model, rows, watch);
             else StopWatching();
         };
+        Fill();
+        return Card(body);
     }
+
+    private FrameworkElement CodeRow(string model, JsonNode c, List<Row> rows, ToggleSwitch watch)
+    {
+        string code = c["code"]!.GetValue<string>();
+        string status = c["status"]!.GetValue<string>();
+        string name = c["name"]?.GetValue<string>() ?? c["reported"]?.GetValue<string>() ?? code;
+
+        var what = new StackPanel();
+        what.Children.Add(new TextBlock { Text = status == "unnamed" ? "Not named yet" : name, TextTrimming = TextTrimming.CharacterEllipsis });
+        what.Children.Add(Muted(status switch
+        {
+            "standard" => "Standard; DispCtrl controls it",
+            "named" => "Named by the standard; read-only here",
+            "mapped" => $"Named in the {Origin(c["origin"]?.GetValue<string>())}{(c["writable"]?.GetValue<bool>() == true ? ", writable" : ", read-only")}",
+            _ => Shape(c),
+        }));
+        if (c["discovery"]?.GetValue<string>() == "probed") what.Children.Add(Muted("Found by a read-only probe; not advertised"));
+        if (c["discovery"]?.GetValue<string>() == "mapping") what.Children.Add(Muted(c["ddcWrite"] is null
+            ? "Not reported by this monitor; saved for reference" : "Uses an explicit input-switching method"));
+
+        var value = new TextBlock { Text = Values(c), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        var change = Muted("");
+        var valueStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        valueStack.Children.Add(value);
+        valueStack.Children.Add(change);
+
+        var nameIt = new Button { Content = status == "mapped" ? "Edit" : "Name" };
+        // Standard codes DispCtrl already controls have nothing to name.
+        if (status == "standard") nameIt.Visibility = Visibility.Collapsed;
+        AutomationProperties.SetName(nameIt, $"Name {code}");
+        nameIt.Click += async (_, _) =>
+        {
+            watch.IsOn = false;
+            StopWatching();
+            JsonNode? fresh = await RunAsync("devices.show", new JsonObject { ["model"] = model, ["history"] = true });
+            JsonNode current = fresh?["codes"]?.AsArray().FirstOrDefault(item => item?["code"]?.GetValue<string>() == code) ?? c;
+            if (await NameAsync(model, code, current)) await RefreshAsync();
+        };
+
+        var grid = RowGrid();
+        AddCells(grid, new TextBlock { Text = code, FontFamily = new FontFamily("Consolas"), VerticalAlignment = VerticalAlignment.Center },
+            what, valueStack, nameIt);
+        var host = new Border { Child = grid, CornerRadius = new CornerRadius(4), Padding = new Thickness(4, 2, 4, 2) };
+        if (DeviceDefinitions.ParseCode(code) is byte number && !MonitorCapabilities.IsNamed(number)
+            && c["ddcWrite"] is null && c["mappedKind"]?.GetValue<string>() != "action" && c["discovery"]?.GetValue<string>() != "mapping")
+            rows.Add(new Row(code, value, change, host));
+        return host;
+    }
+
+    private static TextBlock Heading(string text) => new() { Text = text, FontWeight = FontWeights.SemiBold, FontSize = 15 };
+
+    private static Border Card(UIElement child) => new()
+    {
+        Child = child,
+        Padding = new Thickness(16, 12, 16, 14),
+        CornerRadius = new CornerRadius(8),
+        BorderThickness = new Thickness(1),
+        Background = Brush("CardBackgroundFillColorDefaultBrush"),
+        BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+    };
 
     private static string Origin(string? origin) => origin switch
     {

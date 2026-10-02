@@ -50,9 +50,94 @@
                       AutomationProperties.Name="QuickPanelOnTaskbar"/>
       </tk:SettingsCard>
 
+      <!-- ===================== layout ===================== -->
+
+      <TextBlock Text="What it shows" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
+
+      <!-- Each editor sits in a SettingsCard: anything that is not card-like
+           inside a SettingsExpander takes the process down when realised. -->
+      <tk:SettingsExpander Header="Sections" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Description="The blocks the panel is made of, top to bottom. Drag to reorder."
+                           IsExpanded="True">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE8FD;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <local:QuickPanelListEditor x:Name="SectionsEditor"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Quick toggles" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Description="The grid of small switches and actions, your own tiles among them. Each shows its name when you hover over it, and the ones with an arrow have options on a right-click.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE8A9;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <local:QuickPanelListEditor x:Name="TilesEditor"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Each display" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Description="The rows under every display's name. A row a display cannot use - brightness on a monitor that does not answer, scaling it does not offer - is left out for that display alone.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE7F4;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <local:QuickPanelListEditor x:Name="RowsEditor"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <tk:SettingsExpander Header="Switches on each display" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Description="The strip of small switches in each display's block. Shown only where the display supports them: HDR where it has HDR, OLED care on OLED panels.">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE9E9;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <local:QuickPanelListEditor x:Name="StripEditor"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <!-- ===================== your tiles ===================== -->
+
+      <TextBlock Text="Your tiles" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
+
+      <tk:SettingsExpander x:Name="CustomEditor" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
+                           Header="Tiles you have made"
+                           Description="A tile can run a dispctrl command - the same words you would type in a terminal, such as brightness 40 --all - or open a program, a script, a document or a web address. New tiles appear at the end of the quick toggles."
+                           IsExpanded="True">
+        <tk:SettingsExpander.HeaderIcon>
+          <FontIcon Glyph="&#xE710;"/>
+        </tk:SettingsExpander.HeaderIcon>
+        <!-- A host declared here, filled in code. Items added to a
+             SettingsExpander from code after it is built are never drawn. -->
+        <tk:SettingsExpander.Items>
+          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+            <StackPanel x:Name="CustomTilesHost" Spacing="4"/>
+          </tk:SettingsCard>
+        </tk:SettingsExpander.Items>
+      </tk:SettingsExpander>
+
+      <!-- ===================== which displays ===================== -->
+
+      <TextBlock Text="Which displays" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
+      <TextBlock Text="Remembered by the display itself, so one moved to another port stays hidden rather than hiding whichever display took its place."
+                 Style="{StaticResource CaptionTextBlockStyle}"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                 TextWrapping="Wrap" Margin="1,0,0,6"/>
+
+      <StackPanel x:Name="DisplayChoices" Spacing="4"/>
+
       <!-- ===================== look ===================== -->
 
-      <TextBlock Text="Look" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
+      <TextBlock Text="Look and behaviour" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
 
       <tk:SettingsExpander Header="Look and size" Description="The icon, its colour, density, width, columns, height, and the slide in and out.">
         <tk:SettingsExpander.HeaderIcon>
@@ -172,102 +257,6 @@
           </tk:SettingsCard>
         </tk:SettingsExpander.Items>
       </tk:SettingsExpander>
-
-      <!-- ===================== layout ===================== -->
-
-      <TextBlock Text="Layout" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
-
-      <!-- Each editor sits in a SettingsCard: anything that is not card-like
-           inside a SettingsExpander takes the process down when realised. -->
-      <tk:SettingsExpander Header="Sections" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
-                           Description="The blocks the panel is made of, top to bottom. Drag to reorder."
-                           IsExpanded="True">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE8FD;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <tk:SettingsExpander.Items>
-          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
-            <local:QuickPanelListEditor x:Name="SectionsEditor"/>
-          </tk:SettingsCard>
-        </tk:SettingsExpander.Items>
-      </tk:SettingsExpander>
-
-      <tk:SettingsExpander Header="Quick toggles" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
-                           Description="The grid of small switches and actions, your own tiles among them. Each shows its name when you hover over it, and the ones with an arrow have options on a right-click.">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE8A9;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <tk:SettingsExpander.Items>
-          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
-            <local:QuickPanelListEditor x:Name="TilesEditor"/>
-          </tk:SettingsCard>
-        </tk:SettingsExpander.Items>
-      </tk:SettingsExpander>
-
-      <tk:SettingsExpander Header="Each display" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
-                           Description="The rows under every display's name. A row a display cannot use - brightness on a monitor that does not answer, scaling it does not offer - is left out for that display alone.">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE7F4;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <tk:SettingsExpander.Items>
-          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
-            <local:QuickPanelListEditor x:Name="RowsEditor"/>
-          </tk:SettingsCard>
-        </tk:SettingsExpander.Items>
-      </tk:SettingsExpander>
-
-      <tk:SettingsExpander Header="Switches on each display" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
-                           Description="The strip of small switches in each display's block. Shown only where the display supports them: HDR where it has HDR, OLED care on OLED panels.">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE9E9;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <tk:SettingsExpander.Items>
-          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
-            <local:QuickPanelListEditor x:Name="StripEditor"/>
-          </tk:SettingsCard>
-        </tk:SettingsExpander.Items>
-      </tk:SettingsExpander>
-
-      <!-- Greyed until presets are finished, so the page shows where they
-           will go rather than pretending they are not coming. -->
-      <tk:SettingsCard Header="Presets in the panel"
-                       Description="Coming soon: the whole desk saved under a name - brightness, night light, layout, the lot - and applied from the panel in one click. The panel already keeps a place for them."
-                       IsEnabled="False">
-        <tk:SettingsCard.HeaderIcon>
-          <FontIcon Glyph="&#xE768;"/>
-        </tk:SettingsCard.HeaderIcon>
-        <TextBlock Text="Coming soon" Foreground="{ThemeResource TextFillColorDisabledBrush}"/>
-      </tk:SettingsCard>
-
-      <!-- ===================== your tiles ===================== -->
-
-      <TextBlock Text="Your tiles" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
-
-      <tk:SettingsExpander x:Name="CustomEditor" IsEnabled="{x:Bind ViewModel.QuickPanelCustomisable, Mode=OneWay}"
-                           Header="Tiles you have made"
-                           Description="A tile can run a dispctrl command - the same words you would type in a terminal, such as brightness 40 --all - or open a program, a script, a document or a web address. New tiles appear at the end of the quick toggles."
-                           IsExpanded="True">
-        <tk:SettingsExpander.HeaderIcon>
-          <FontIcon Glyph="&#xE710;"/>
-        </tk:SettingsExpander.HeaderIcon>
-        <!-- A host declared here, filled in code. Items added to a
-             SettingsExpander from code after it is built are never drawn. -->
-        <tk:SettingsExpander.Items>
-          <tk:SettingsCard ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
-            <StackPanel x:Name="CustomTilesHost" Spacing="4"/>
-          </tk:SettingsCard>
-        </tk:SettingsExpander.Items>
-      </tk:SettingsExpander>
-
-      <!-- ===================== which displays ===================== -->
-
-      <TextBlock Text="Which displays" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4"/>
-      <TextBlock Text="Remembered by the display itself, so one moved to another port stays hidden rather than hiding whichever display took its place."
-                 Style="{StaticResource CaptionTextBlockStyle}"
-                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                 TextWrapping="Wrap" Margin="1,0,0,6"/>
-
-      <StackPanel x:Name="DisplayChoices" Spacing="4"/>
 
       <tk:SettingsCard Header="Reset the quick panel"
                        Description="Back to the shipped sections, toggles and rows. Your own tiles, whether the icon is shown, and which displays are hidden are left as they are."

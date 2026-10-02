@@ -30,6 +30,16 @@
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
       </StackPanel>
 
+      <!-- Four jobs, one at a time: the page used to scroll through shortcuts,
+           features, triggers and Windows' own keys as one list. -->
+      <SelectorBar x:Name="Sections" SelectionChanged="OnSection" Margin="-12,0,0,8">
+        <SelectorBarItem Text="Shortcuts" IsSelected="True" AutomationProperties.Name="HotkeysShortcutsTab"/>
+        <SelectorBarItem Text="Features" AutomationProperties.Name="HotkeysFeaturesTab"/>
+        <SelectorBarItem Text="Triggers" AutomationProperties.Name="HotkeysTriggersTab"/>
+        <SelectorBarItem Text="Windows' own" AutomationProperties.Name="HotkeysWindowsTab"/>
+      </SelectorBar>
+
+      <StackPanel x:Name="ShortcutsSection" Spacing="4">
       <Grid Margin="0,0,0,8" ColumnSpacing="8">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
@@ -87,20 +97,26 @@
                   <Button Content="{x:Bind CaptureLabel, Mode=OneWay}" Click="OnCapture" Tag="{x:Bind}"
                           AutomationProperties.Name="SetHotkey"/>
                 </tk:SettingsCard>
-                <tk:SettingsCard Header="What it does">
-                  <ComboBox ItemsSource="{x:Bind ActionNames}"
-                            SelectedIndex="{x:Bind SelectedActionIndex, Mode=TwoWay}"
-                            MinWidth="260" AutomationProperties.Name="HotkeyAction"/>
+                <tk:SettingsCard Header="What it does" Description="Choose what it works on, then the action.">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ComboBox ItemsSource="{x:Bind CategoryNames}"
+                              SelectedIndex="{x:Bind SelectedCategoryIndex, Mode=TwoWay}"
+                              MinWidth="200" AutomationProperties.Name="HotkeyCategory"/>
+                    <ComboBox ItemsSource="{x:Bind ActionNames, Mode=OneWay}"
+                              SelectedIndex="{x:Bind SelectedActionIndex, Mode=TwoWay}"
+                              MinWidth="280" AutomationProperties.Name="HotkeyAction"/>
+                  </StackPanel>
                 </tk:SettingsCard>
                 <tk:SettingsCard Header="Step" Description="How far one press moves it, in percent."
                                  Visibility="{x:Bind StepVisibility, Mode=OneWay}">
                   <NumberBox Value="{x:Bind Step, Mode=TwoWay}" Minimum="1" Maximum="100" SmallChange="1"
                              SpinButtonPlacementMode="Compact" Width="110" AutomationProperties.Name="HotkeyStep"/>
                 </tk:SettingsCard>
-                <tk:SettingsCard Header="Display" Description="{x:Bind DisplayHint, Mode=OneWay}"
+                <tk:SettingsCard Header="Display" Description="Numbered as Identify numbers them."
                                  Visibility="{x:Bind DisplayVisibility, Mode=OneWay}">
-                  <NumberBox Value="{x:Bind DisplayNumber, Mode=TwoWay}" Minimum="0" Maximum="16" SmallChange="1"
-                             SpinButtonPlacementMode="Compact" Width="110" AutomationProperties.Name="HotkeyDisplay"/>
+                  <ComboBox ItemsSource="{x:Bind DisplayChoices, Mode=OneWay}"
+                            SelectedIndex="{x:Bind SelectedDisplayIndex, Mode=TwoWay}"
+                            MinWidth="260" AutomationProperties.Name="HotkeyDisplay"/>
                 </tk:SettingsCard>
                 <tk:SettingsCard Header="Preset" Visibility="{x:Bind PresetVisibility, Mode=OneWay}">
                   <ComboBox ItemsSource="{x:Bind Presets, Mode=OneWay}" SelectedItem="{x:Bind SelectedPreset, Mode=TwoWay}"
@@ -145,7 +161,9 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <TextBlock Text="Custom features" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,24,0,4"/>
+      </StackPanel>
+
+      <StackPanel x:Name="FeaturesSection" Spacing="4" Visibility="Collapsed">
       <TextBlock Text="A feature is a named list of monitor writes, dispctrl commands, waits and scripts. Run one from here, a hotkey, the command line or a quick-panel command tile."
                  Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="0,0,0,8"
                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -194,7 +212,9 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <TextBlock Text="Triggers" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,24,0,4"/>
+      </StackPanel>
+
+      <StackPanel x:Name="TriggersSection" Spacing="4" Visibility="Collapsed">
       <TextBlock Text="When something happens, run a feature: a display connected or disconnected, an app coming to the front or leaving it, being away and coming back, locking, power, waking, a time of day. The engine runs them."
                  Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="0,0,0,8"
                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -202,8 +222,10 @@
            place, the control API, says what a trigger is and whether it can run. -->
       <StackPanel x:Name="TriggerRows" Spacing="8"/>
 
+      </StackPanel>
+
       <!-- What Windows already does, so nobody binds over it or looks for it here. -->
-      <TextBlock Text="Windows' own display shortcuts" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,24,0,4"/>
+      <StackPanel x:Name="WindowsSection" Spacing="4" Visibility="Collapsed">
       <TextBlock Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="0,0,0,8"
                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                  Text="Built into Windows and always available. DispCtrl does not change them; they are here so you need not bind over them."/>
@@ -240,6 +262,7 @@
         <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE7F8;"/></tk:SettingsCard.HeaderIcon>
         <Button Content="Open" Click="OnOpenWindowsDisplay" AutomationProperties.Name="OpenWindowsDisplaySettings"/>
       </tk:SettingsCard>
+      </StackPanel>
     </StackPanel>
   </ScrollViewer>
 </Page>

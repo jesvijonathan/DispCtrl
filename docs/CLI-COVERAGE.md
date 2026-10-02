@@ -114,12 +114,16 @@ calls it. The Devices page already works that way - it sends the same
 
 | In the app | Command |
 | --- | --- |
-| Sync attached monitors (new models are read automatically by the engine) | `devices scan` |
-| The list | `devices list` |
-| Remove a model until the next explicit sync | `devices forget --model DEL-A234` |
-| Map codes, watch | `devices show --monitor 2`, `devices probe --monitor 2` |
-| Name it | `devices map --monitor 2 --code 0xE2 --name "Preset mode" --values "0x00=Standard,0x0B=ComfortView"` |
-| Share with the project | `devices contribute --monitor 2 --open` |
+| Scan (new models are read automatically by the engine) | `devices scan` |
+| The monitor picker | `devices list` |
+| Remove a model until the next scan | `devices forget --model DEL-A234` |
+| Codes: To name, Named, Everything | `devices show --monitor 2` (the page filters it) |
+| Watch the unknown codes live | `devices probe --monitor 2` |
+| Learn a setting | `devices probe --monitor 2`, then `devices map` |
+| Borrow the names from a known monitor | `devices similar --monitor 2`, then `devices link --monitor 2 --to DEL-A233` (`--remove` to stop) |
+| Name a code, or add one by hand | `devices map --monitor 2 --code 0xE2 --name "Preset mode" --values "0x00=Standard,0x0B=ComfortView"` |
+| What a built-in panel is | `devices panel --monitor 1 --technology OLED` |
+| Contribute, Contribute all | `devices contribute --monitor 2 --open`, `devices contribute --all --open` |
 
 ## Settings and startup
 

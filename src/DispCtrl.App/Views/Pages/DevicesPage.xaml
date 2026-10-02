@@ -4,46 +4,54 @@
       Loaded="OnLoaded"
       Unloaded="OnUnloaded">
 
-  <!-- Built in code, like the quick panel: which cards exist depends on the
-       monitors this machine has seen, and every action goes through the same
-       devices.* operations the command line uses. -->
+  <!-- One monitor at a time: pick it, see what it is, name what nobody has.
+       The sections are built in code, like the quick panel: which exist depends
+       on the monitor, and every action is the same devices.* request the
+       command line sends. -->
   <ScrollViewer Padding="0,0,0,32">
-    <StackPanel Padding="36,12,36,0" Spacing="4" HorizontalAlignment="Stretch">
+    <StackPanel Padding="36,12,36,0" Spacing="8" HorizontalAlignment="Stretch" MaxWidth="1100">
 
-      <StackPanel Spacing="4" Margin="0,0,0,12">
+      <StackPanel Spacing="4" Margin="0,0,0,8">
         <TextBlock Text="Devices" Style="{StaticResource TitleTextBlockStyle}"/>
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="Discover your monitor's controls, give them useful names, and use them from Displays. Scan for codes, watch a setting change in the monitor's menu, then name its values. Your discoveries are saved for contributions across every brand."/>
+                   Text="What each monitor's controls are. Most codes are named by the standard; a manufacturer's own are not, and naming one makes it a control on Displays. Share what you name, and every owner of the same model gets it."/>
       </StackPanel>
 
-      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-        <Button x:Name="ShareAllButton" Content="Contribute my monitors" Click="OnShareAll"
-                Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Contribute my monitors"
-                ToolTipService.ToolTip="Review one issue containing every model in this list, including built-in and disconnected displays."/>
-        <Button x:Name="ScanButton" Click="OnScan" AutomationProperties.Name="DevicesScan"
-                ToolTipService.ToolTip="Read every attached monitor again now, including any removed from this list. The engine does this by itself for new models.">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <FontIcon FontSize="14" Glyph="&#xE895;"/>
-            <TextBlock Text="Scan controls"/>
-          </StackPanel>
-        </Button>
-        <Button Click="OnOpenFolder" AutomationProperties.Name="DevicesOpenFolder"
-                ToolTipService.ToolTip="The history and the definitions made on this PC">
-          <StackPanel Orientation="Horizontal" Spacing="8">
+      <Grid ColumnSpacing="8">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <ComboBox x:Name="MonitorPicker" Header="Monitor" MinWidth="320" HorizontalAlignment="Left"
+                  SelectionChanged="OnMonitorChosen" AutomationProperties.Name="DevicesMonitor"/>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom">
+          <Button x:Name="ScanButton" Click="OnScan" AutomationProperties.Name="DevicesScan"
+                  ToolTipService.ToolTip="Read every attached monitor again now, including any removed from this list. The engine does this by itself for new models.">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <FontIcon FontSize="14" Glyph="&#xE895;"/>
+              <TextBlock Text="Scan"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="ShareAllButton" Click="OnShareAll" AutomationProperties.Name="Contribute my monitors"
+                  ToolTipService.ToolTip="Review one issue containing every model in the list, including built-in and disconnected displays.">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <FontIcon FontSize="14" Glyph="&#xE898;"/>
+              <TextBlock Text="Contribute all"/>
+            </StackPanel>
+          </Button>
+          <Button Click="OnOpenFolder" AutomationProperties.Name="DevicesOpenFolder"
+                  ToolTipService.ToolTip="The history and the names made on this PC">
             <FontIcon FontSize="14" Glyph="&#xE838;"/>
-            <TextBlock Text="Open the folder"/>
-          </StackPanel>
-        </Button>
-        <Button Content="Learn a setting…" Click="OnLearnSetting" AutomationProperties.Name="DevicesLearnSetting"
-                ToolTipService.ToolTip="Watch an attached monitor while you change one setting with its own buttons, then save a mapping."/>
-        <HyperlinkButton Content="How mapping works" VerticalAlignment="Center"
-                         NavigateUri="https://github.com/jesvijonathan/DispCtrl/blob/master/docs/DEVICE-LIBRARY.md"/>
-      </StackPanel>
+          </Button>
+          <HyperlinkButton Content="How mapping works" VerticalAlignment="Center"
+                           NavigateUri="https://github.com/jesvijonathan/DispCtrl/blob/master/docs/DEVICE-LIBRARY.md"/>
+        </StackPanel>
+      </Grid>
 
-      <InfoBar x:Name="Result" IsOpen="False" IsClosable="True" Margin="0,0,0,8"/>
+      <InfoBar x:Name="Result" IsOpen="False" IsClosable="True"/>
 
-      <StackPanel x:Name="Models" Spacing="8"/>
+      <StackPanel x:Name="Detail" Spacing="8"/>
     </StackPanel>
   </ScrollViewer>
 </Page>

@@ -66,6 +66,7 @@ public static class ControlTerminal
                                             LG input: --code 0x60 --source-address 0x50 --write-code 0xF4
                   [--kind range|choice|action|information] [--writable] [--scope model|brand|all]
       devices unmap|link|definitions        Remove, cross-link (--to DEL-A233), inspect layers
+      devices similar --monitor ID          Known models whose names would name this one's codes; use one with link
       devices panel --monitor ID --technology OLED [--notes TEXT]   What the panel is (none clears); built-in panels too
       devices contribute --monitor ID [--open]  Record and mappings as one prefilled issue
       devices contribute --all [--open]         Every recorded model in one issue (share is the old name)

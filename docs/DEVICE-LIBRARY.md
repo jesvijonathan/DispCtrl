@@ -149,25 +149,38 @@ Contributions retain the transport metadata. See
 
 ## Mapping a code
 
-The guided path works across brands:
+Open **Devices** and pick the monitor; it opens on an attached one with codes
+left to name. The page offers three ways to name them, easiest first:
 
-1. Open **Devices → Scan controls**. The list shows discovered codes; the scan
-   saves them for **Contribute**, including codes nobody has named yet.
-2. Expand **Controls** and turn on **Watch manufacturer controls live**. Change
-   one setting in the monitor's own menu. Changed values are highlighted and
-   saved, so closing the page does not lose the discovery.
-3. Choose **Map**. Name the function, choose a slider, menu, button or read-only
-   information, then name the options you recognise in the prefilled rows.
-   No JSON or comma-separated value syntax is needed in the app.
-4. Keep **This model**, or choose its brand/all monitors when the same mapping
-   is known to apply. Enable a control after confirming its meaning. Matching
-   controls become available on **Displays** immediately; a button sends value 1.
-5. Choose **Contribute** to review the saved discoveries and mappings before
-   opening the issue. Brand/common mappings also carry a model-scoped candidate
-   for review, so intake never silently enables a whole manufacturer's controls.
+1. **Learn a setting.** Change one setting with the monitor's own buttons - a
+   picture mode, say. DispCtrl watches every unknown code, finds the one that
+   moved and the values it moved through, and you give them names. No codes to
+   know, no menus to decode.
+2. **Borrow the names from a known monitor.** A maker reuses its codes across a
+   range, so a sibling model often names most of a new one's. The page lists
+   the brand's models that would name this monitor's unknown codes, best
+   first (`devices similar`); **Use its names** links them (`devices link`),
+   and **Stop using** undoes it. Nothing on the monitor changes, and borrowed
+   names stay read-only until you confirm one.
+3. **Name a code by hand**, from a manual or ddcutil: **Add a code by hand**,
+   or **Name** on any row.
 
-**Edit mapping** can remove a local mapping or change its scope. **Add a known
-code** records a code from documentation or another tool. A general mapping
+The codes below are filtered to **To name** by default (**Named** and
+**Everything** show the rest) and grouped into the standard range and the
+manufacturer range, 0xE0 to 0xFF, where almost every unknown code lives.
+**Watch the unknown codes live** highlights any that move while you use the
+monitor's menu.
+
+Naming a code asks what it does, whether it is a menu of choices, a slider, a
+button or read-only information, and the names of the options it was seen at
+(prefilled). Keep **This model**, or choose its brand or every monitor when the
+name is known to apply. Enable it only after confirming what its values do;
+it is then a control on **Displays**, and a button sends value 1.
+**Contribute** shows exactly what would be shared before opening the issue.
+Brand and all-monitor names also carry a model-scoped candidate for review,
+so intake never silently enables a whole manufacturer's controls.
+
+**Edit** on a named code can remove a local name or change its scope. A general mapping
 does not invent support for a code the monitor has never exposed; such entries
 remain visible as references. A model's own mapped range or menu can also be
 offered when a read-only probe confirms that the monitor answers the code.

@@ -16,71 +16,92 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     public Hotkey Hotkey { get; } = hotkey;
 
     /// <summary>
-    /// The actions, in the order they are worth reaching for.
+    /// The actions, grouped by what they work on, in the order worth reaching for.
     /// </summary>
     /// <remarks>
     /// Names written out rather than taken from the enum: "Brightness up" reads
     /// better than "BrightnessUp", and the enum's job is storage, not wording.
+    /// Fifty actions in one list was a list nobody could find anything in, so
+    /// the page asks for the group first and then the action within it.
     /// </remarks>
-    public string[] ActionNames => AllActionNames;
-
-    private static readonly (HotkeyAction Action, string Name)[] AvailableActions = new (HotkeyAction, string)[]
+    private static readonly (string Category, HotkeyAction Action, string Name)[] AvailableActions = new (string, HotkeyAction, string)[]
     {
-        (HotkeyAction.UnisonUp, "Unison brightness up"),
-        (HotkeyAction.UnisonDown, "Unison brightness down"),
-        (HotkeyAction.UnisonToggle, "Unison brightness on or off"),
-        (HotkeyAction.BrightnessUp, "Brightness up, one display"),
-        (HotkeyAction.BrightnessDown, "Brightness down, one display"),
-        (HotkeyAction.SoftwareDimUp, "Software brightness up (less dimming)"),
-        (HotkeyAction.SoftwareDimDown, "Software brightness down (more dimming)"),
-        (HotkeyAction.AmbientToggle, "Follow the room's light, on or off"),
-        (HotkeyAction.NightLightToggle, "Night light on or off"),
-        (HotkeyAction.NightLightWarmer, "Night light warmer"),
-        (HotkeyAction.NightLightCooler, "Night light cooler"),
-        (HotkeyAction.FocusToggle, "Focus mode on or off"),
-        (HotkeyAction.OledCareToggle, "OLED care on or off"),
-        (HotkeyAction.OledRestNow, "Rest the OLED displays now"),
-        (HotkeyAction.KeepAwakeToggle, "Keep awake on or off"),
-        (HotkeyAction.StayActiveToggle, "Stay active on or off"),
-        (HotkeyAction.DisplaysOffToggle, "Turn the displays off, or back on"),
-        (HotkeyAction.RestoreDisplays, "Put every display back (emergency)"),
-        (HotkeyAction.DarkModeToggle, "Dark or light mode"),
-        (HotkeyAction.TaskbarToggle, "Hide or show the taskbar"),
-        (HotkeyAction.TaskbarGlassToggle, "Taskbar glass on or off"),
-        (HotkeyAction.ContrastUp, "Contrast up"),
-        (HotkeyAction.ContrastDown, "Contrast down"),
-        (HotkeyAction.VolumeUp, "Monitor volume up"),
-        (HotkeyAction.VolumeDown, "Monitor volume down"),
-        (HotkeyAction.MuteToggle, "Mute or unmute the monitor"),
-        (HotkeyAction.NextInput, "Next input source"),
-        (HotkeyAction.SetControl, "Set a monitor control"),
-        (HotkeyAction.NextControlValue, "Next value of a monitor control"),
-        (HotkeyAction.PreviousControlValue, "Previous value of a monitor control"),
-        (HotkeyAction.ControlUp, "Monitor control up"),
-        (HotkeyAction.ControlDown, "Monitor control down"),
-        (HotkeyAction.RunFeature, "Run a custom feature"),
-        (HotkeyAction.Identify, "Show the display numbers"),
-        (HotkeyAction.DisplayMode, "Display mode: extend, duplicate, one screen"),
-        (HotkeyAction.MakePrimary, "Make a display the main one"),
-        (HotkeyAction.HdrToggle, "HDR on or off"),
-        (HotkeyAction.VariableRefreshToggle, "Variable refresh rate on or off"),
-        (HotkeyAction.QuickPanel, "Open or close the quick panel"),
-        (HotkeyAction.PinWindow, "Pin the active window on top, or unpin it"),
-        (HotkeyAction.UnpinAllWindows, "Unpin every pinned window"),
-        (HotkeyAction.GatherWindows, "Gather every window onto one display"),
-        (HotkeyAction.MoveWindowNext, "Move the window in front to the next display"),
-        (HotkeyAction.MoveWindowPrevious, "Move the window in front to the previous display"),
-        (HotkeyAction.MoveWindowTo, "Move the window in front to a display"),
-        (HotkeyAction.SpanWindow, "Stretch the window in front across every display"),
-        (HotkeyAction.ReturnWindowsToggle, "Put windows back on or off"),
-        (HotkeyAction.NewWindowsToggle, "Open new windows on the display in use"),
-        (HotkeyAction.RunCommand, "Run a dispctrl command"),
-        (HotkeyAction.OpenProgram, "Open a program, file or link"),
-        (HotkeyAction.ApplyPreset, "Apply a preset (Beta)"),
-    }.Where(item => DispCtrl.Core.FeatureFlags.Presets || item.Item1 != HotkeyAction.ApplyPreset).ToArray();
+        ("Brightness", HotkeyAction.UnisonUp, "Unison brightness up"),
+        ("Brightness", HotkeyAction.UnisonDown, "Unison brightness down"),
+        ("Brightness", HotkeyAction.UnisonToggle, "Unison brightness on or off"),
+        ("Brightness", HotkeyAction.BrightnessUp, "Brightness up, one display"),
+        ("Brightness", HotkeyAction.BrightnessDown, "Brightness down, one display"),
+        ("Brightness", HotkeyAction.SoftwareDimUp, "Software brightness up (less dimming)"),
+        ("Brightness", HotkeyAction.SoftwareDimDown, "Software brightness down (more dimming)"),
+        ("Brightness", HotkeyAction.AmbientToggle, "Follow the room's light, on or off"),
+        ("Night light and theme", HotkeyAction.NightLightToggle, "Night light on or off"),
+        ("Night light and theme", HotkeyAction.NightLightWarmer, "Night light warmer"),
+        ("Night light and theme", HotkeyAction.NightLightCooler, "Night light cooler"),
+        ("Night light and theme", HotkeyAction.DarkModeToggle, "Dark or light mode"),
+        ("Screen care and power", HotkeyAction.FocusToggle, "Focus mode on or off"),
+        ("Screen care and power", HotkeyAction.OledCareToggle, "OLED care on or off"),
+        ("Screen care and power", HotkeyAction.OledRestNow, "Rest the OLED displays now"),
+        ("Screen care and power", HotkeyAction.KeepAwakeToggle, "Keep awake on or off"),
+        ("Screen care and power", HotkeyAction.StayActiveToggle, "Stay active on or off"),
+        ("Screen care and power", HotkeyAction.DisplaysOffToggle, "Turn the displays off, or back on"),
+        ("Screen care and power", HotkeyAction.RestoreDisplays, "Put every display back (emergency)"),
+        ("The monitor's own controls", HotkeyAction.ContrastUp, "Contrast up"),
+        ("The monitor's own controls", HotkeyAction.ContrastDown, "Contrast down"),
+        ("The monitor's own controls", HotkeyAction.VolumeUp, "Monitor volume up"),
+        ("The monitor's own controls", HotkeyAction.VolumeDown, "Monitor volume down"),
+        ("The monitor's own controls", HotkeyAction.MuteToggle, "Mute or unmute the monitor"),
+        ("The monitor's own controls", HotkeyAction.NextInput, "Next input source"),
+        ("The monitor's own controls", HotkeyAction.SetControl, "Set a monitor control"),
+        ("The monitor's own controls", HotkeyAction.NextControlValue, "Next value of a monitor control"),
+        ("The monitor's own controls", HotkeyAction.PreviousControlValue, "Previous value of a monitor control"),
+        ("The monitor's own controls", HotkeyAction.ControlUp, "Monitor control up"),
+        ("The monitor's own controls", HotkeyAction.ControlDown, "Monitor control down"),
+        ("Displays and arrangement", HotkeyAction.Identify, "Show the display numbers"),
+        ("Displays and arrangement", HotkeyAction.DisplayMode, "Display mode: extend, duplicate, one screen"),
+        ("Displays and arrangement", HotkeyAction.MakePrimary, "Make a display the main one"),
+        ("Displays and arrangement", HotkeyAction.HdrToggle, "HDR on or off"),
+        ("Displays and arrangement", HotkeyAction.VariableRefreshToggle, "Variable refresh rate on or off"),
+        ("Windows", HotkeyAction.PinWindow, "Pin the active window on top, or unpin it"),
+        ("Windows", HotkeyAction.UnpinAllWindows, "Unpin every pinned window"),
+        ("Windows", HotkeyAction.GatherWindows, "Gather every window onto one display"),
+        ("Windows", HotkeyAction.MoveWindowNext, "Move the window in front to the next display"),
+        ("Windows", HotkeyAction.MoveWindowPrevious, "Move the window in front to the previous display"),
+        ("Windows", HotkeyAction.MoveWindowTo, "Move the window in front to a display"),
+        ("Windows", HotkeyAction.SpanWindow, "Stretch the window in front across every display"),
+        ("Windows", HotkeyAction.ReturnWindowsToggle, "Put windows back on or off"),
+        ("Windows", HotkeyAction.NewWindowsToggle, "Open new windows on the display in use"),
+        ("Taskbar and quick panel", HotkeyAction.TaskbarToggle, "Hide or show the taskbar"),
+        ("Taskbar and quick panel", HotkeyAction.TaskbarGlassToggle, "Taskbar glass on or off"),
+        ("Taskbar and quick panel", HotkeyAction.QuickPanel, "Open or close the quick panel"),
+        ("Run something", HotkeyAction.RunFeature, "Run a custom feature"),
+        ("Run something", HotkeyAction.RunCommand, "Run a dispctrl command"),
+        ("Run something", HotkeyAction.OpenProgram, "Open a program, file or link"),
+        ("Run something", HotkeyAction.ApplyPreset, "Apply a preset (Beta)"),
+    }.Where(item => DispCtrl.Core.FeatureFlags.Presets || item.Item2 != HotkeyAction.ApplyPreset).ToArray();
 
-    private static readonly string[] AllActionNames = AvailableActions.Select(item => item.Name).ToArray();
-    private static readonly HotkeyAction[] Actions = AvailableActions.Select(item => item.Action).ToArray();
+    private static readonly string[] AllCategories = AvailableActions.Select(a => a.Category).Distinct().ToArray();
+
+    /// <summary>The groups, for the first picker.</summary>
+    public string[] CategoryNames => AllCategories;
+
+    private string Category => AvailableActions.FirstOrDefault(a => a.Action == Hotkey.Action).Category ?? AllCategories[0];
+
+    private (string Category, HotkeyAction Action, string Name)[] InCategory =>
+        AvailableActions.Where(a => a.Category == Category).ToArray();
+
+    /// <summary>The group, as an index; choosing another picks its first action.</summary>
+    public int SelectedCategoryIndex
+    {
+        get => Math.Max(0, Array.IndexOf(AllCategories, Category));
+        set
+        {
+            if (value < 0 || value >= AllCategories.Length || AllCategories[value] == Category) return;
+            Choose(AvailableActions.First(a => a.Category == AllCategories[value]).Action);
+        }
+    }
+
+    /// <summary>The actions in the chosen group, for the second picker.</summary>
+    public string[] ActionNames => InCategory.Select(a => a.Name).ToArray();
 
     /// <summary>
     /// The action, as an index into <see cref="ActionNames"/>.
@@ -92,23 +113,27 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
     /// </remarks>
     public int SelectedActionIndex
     {
-        get
-        {
-            int at = Array.IndexOf(Actions, Hotkey.Action);
-            return at < 0 ? 0 : at;
-        }
+        get => Math.Max(0, Array.FindIndex(InCategory, a => a.Action == Hotkey.Action));
         set
         {
-            if (value < 0 || value >= Actions.Length || Actions[value] == Hotkey.Action) return;
-
-            Hotkey.Action = Actions[value];
-            // The picker below shows the first arrangement, so record it rather
-            // than leaving the shortcut incomplete under a filled-in control.
-            if (Hotkey.Action == HotkeyAction.DisplayMode && !Hotkey.Modes.Contains(Hotkey.Mode)) Hotkey.Mode = Hotkey.Modes[0];
-            persist();
-            Raise();
-            RaiseAll();
+            var actions = InCategory;
+            if (value < 0 || value >= actions.Length) return;
+            Choose(actions[value].Action);
         }
+    }
+
+    private void Choose(HotkeyAction action)
+    {
+        if (action == Hotkey.Action) return;
+        Hotkey.Action = action;
+        // The picker below shows the first arrangement, so record it rather
+        // than leaving the shortcut incomplete under a filled-in control.
+        if (Hotkey.Action == HotkeyAction.DisplayMode && !Hotkey.Modes.Contains(Hotkey.Mode)) Hotkey.Mode = Hotkey.Modes[0];
+        persist();
+        Raise(nameof(SelectedCategoryIndex));
+        Raise(nameof(ActionNames));
+        Raise(nameof(SelectedActionIndex));
+        RaiseAll();
     }
 
     /// <summary>Preset names, plus a blank so one can be cleared.</summary>
@@ -271,6 +296,63 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         HotkeyAction.MoveWindowTo => "The number shown by Identify; 0 for the next display.",
         _ => "The number shown by Identify; 0 for every display.",
     };
+
+    /// <summary>
+    /// The displays a shortcut can name, numbered as Identify numbers them, with
+    /// what 0 means first.
+    /// </summary>
+    /// <remarks>
+    /// A number box asked people to know the numbering; a list says which
+    /// monitor each number is. A shortcut for a display that is not connected
+    /// now keeps its number and says so, rather than showing blank.
+    /// </remarks>
+    public IReadOnlyList<string> DisplayChoices
+    {
+        get
+        {
+            var choices = new List<string>
+            {
+                Hotkey.Action switch
+                {
+                    HotkeyAction.GatherWindows or HotkeyAction.MakePrimary => "The display in use",
+                    HotkeyAction.MoveWindowTo => "The next display",
+                    _ => "Every display",
+                },
+            };
+            choices.AddRange(AttachedNames());
+            for (int n = choices.Count; n <= Hotkey.Display; n++) choices.Add($"{n}  ·  not connected");
+            return choices;
+        }
+    }
+
+    private static (long Tick, string[] Names) _attached = (long.MinValue / 2, []);
+
+    /// <summary>Attached displays, read at most every two seconds: one page draws every shortcut.</summary>
+    private static string[] AttachedNames()
+    {
+        long now = Environment.TickCount64;
+        if (now - _attached.Tick < 2000) return _attached.Names;
+        string[] names = [];
+        try
+        {
+            names = DispCtrl.Core.Displays.DisplayRegistry.Enumerate()
+                .OrderByDescending(d => d.IsInternal).ThenBy(d => d.Bounds.Left).ThenBy(d => d.Bounds.Top)
+                .Select((d, i) => $"{i + 1}  ·  {d.Label}").ToArray();
+        }
+        catch (Exception) { }
+        _attached = (now, names);
+        return names;
+    }
+
+    public int SelectedDisplayIndex
+    {
+        get => Hotkey.Display;
+        set
+        {
+            if (value < 0 || value == Hotkey.Display) return;
+            DisplayNumber = value;
+        }
+    }
 
     public double DisplayNumber
     {
@@ -435,6 +517,8 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         Raise(nameof(Features));
         Raise(nameof(ModeVisibility));
         Raise(nameof(SelectedModeIndex));
+        Raise(nameof(DisplayChoices));
+        Raise(nameof(SelectedDisplayIndex));
         Raise(nameof(CommandVisibility));
         Raise(nameof(ArgumentsVisibility));
         Raise(nameof(CommandHeader));

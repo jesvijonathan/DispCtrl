@@ -18,9 +18,17 @@ namespace DispCtrl.Core.Devices;
 /// </remarks>
 public static class DeviceLibrary
 {
-    public static string ShippedFolder => Path.Combine(AppContext.BaseDirectory, "devices");
+    /// <summary>The reviewed library shipped beside the executable, or the checks' stand-in.</summary>
+    public static string ShippedFolder => FoldersOverride?.Shipped ?? Path.Combine(AppContext.BaseDirectory, "devices");
 
-    public static string UserFolder => Path.Combine(SettingsStore.Directory, "devices", "definitions");
+    /// <summary>Definitions made on this PC, or the checks' stand-in.</summary>
+    /// <remarks>
+    /// Both honour <see cref="FoldersOverride"/>: they answered the real folders
+    /// while every lookup here used the override, so an operation that listed
+    /// a folder (devices similar, devices definitions) saw a different library
+    /// from the one it resolved against.
+    /// </remarks>
+    public static string UserFolder => FoldersOverride?.User ?? Path.Combine(SettingsStore.Directory, "devices", "definitions");
 
     /// <summary>Overrides the folders, for checks that must not touch the real ones.</summary>
     public static (string Shipped, string User)? FoldersOverride
@@ -35,8 +43,8 @@ public static class DeviceLibrary
     // remembered.
     private static readonly ConcurrentDictionary<string, DeviceDefinition?> ShippedCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private static string ShippedRoot => FoldersOverride?.Shipped ?? ShippedFolder;
-    private static string User => FoldersOverride?.User ?? UserFolder;
+    private static string ShippedRoot => ShippedFolder;
+    private static string User => UserFolder;
 
     /// <summary>Every definition in a folder, by target; unreadable files are reported, not fatal.</summary>
     public static Dictionary<string, DeviceDefinition> LoadFolder(string folder, List<string>? problems = null)

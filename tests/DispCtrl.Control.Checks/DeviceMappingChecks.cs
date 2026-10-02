@@ -97,6 +97,17 @@ internal static class DeviceMappingChecks
             check(shown["ok"]!.GetValue<bool>() && shown["data"]!["codes"]!.AsArray()
                 .Single(c => c!["code"]!.GetValue<string>() == "0xE3")!["reportedMaximum"]!.GetValue<int>() == 80,
                 "scanned range limits are available to the mapper without another hardware read");
+            // A sibling that names what this model leaves unknown is offered, and using it is a link.
+            DeviceObserver.Listed(Display("DEL-5678"), raw.Raw, raw.Controls);
+            JsonNode? Sibling() => service.Execute(Request("devices.similar", new() { ["model"] = "DEL-5678" }))["data"]?["candidates"]?
+                .AsArray().SingleOrDefault(c => c!["model"]!.GetValue<string>() == "DEL-1234");
+            var offered = Sibling();
+            bool linkedOk = service.Execute(Request("devices.link", new() { ["model"] = "DEL-5678", ["to"] = "DEL-1234" }))["ok"]!.GetValue<bool>();
+            var inUse = Sibling();
+            check(offered?["wouldName"]?.GetValue<int>() == 2 && offered["linked"]!.GetValue<bool>() == false
+                && linkedOk && inUse?["linked"]?.GetValue<bool>() == true && inUse["wouldName"]!.GetValue<int>() == 0
+                && DeviceLibrary.Resolve("DEL-5678").ContainsKey(0xE3),
+                "a sibling model is offered for the codes it would name, and using it links them");
             var share = DeviceContribution.PrepareMapping("DEL-1234");
             int start = share.Body.IndexOf("```json\n", StringComparison.Ordinal) + 8;
             var payload = JsonNode.Parse(share.Body[start..share.Body.IndexOf("\n```", start, StringComparison.Ordinal)])!;

@@ -69,17 +69,27 @@ try
     var editor = new DispCtrl.App.ViewModels.HotkeyViewModel(editorKey, () => { }, () => [], () => []);
     var notified = new HashSet<string?>();
     editor.PropertyChanged += (_, e) => notified.Add(e.PropertyName);
+    editor.SelectedCategoryIndex = Array.IndexOf(editor.CategoryNames, "Displays and arrangement");
     editor.SelectedActionIndex = editor.ActionNames.ToList().FindIndex(n => n.StartsWith("Display mode:"));
     Check(editorKey.Mode == "Extend" && editor.ModeVisibility == Microsoft.UI.Xaml.Visibility.Visible
         && notified.Contains(nameof(editor.ModeVisibility)) && notified.Contains(nameof(editor.SelectedModeIndex)),
         "changing a shortcut to display mode refreshes the picker and stores its visible default");
     notified.Clear();
+    editor.SelectedCategoryIndex = Array.IndexOf(editor.CategoryNames, "Run something");
     editor.SelectedActionIndex = editor.ActionNames.ToList().FindIndex(n => n.StartsWith("Open a program"));
     Check(editor.CommandVisibility == Microsoft.UI.Xaml.Visibility.Visible && editor.ArgumentsVisibility == Microsoft.UI.Xaml.Visibility.Visible
         && notified.Contains(nameof(editor.CommandVisibility)) && notified.Contains(nameof(editor.ArgumentsVisibility))
         && notified.Contains(nameof(editor.CommandHeader)), "program shortcut fields appear when the action changes");
     editor.SelectedModeIndex = 2;
     Check(editorKey.Mode == "Extend", "a collapsed mode picker cannot edit another action");
+    var everyName = new List<string>();
+    foreach (int category in Enumerable.Range(0, editor.CategoryNames.Length))
+    {
+        editor.SelectedCategoryIndex = category;
+        everyName.AddRange(editor.ActionNames);
+    }
+    Check(everyName.Count == everyName.Distinct().Count() && everyName.Count >= 50 && editor.SelectedActionIndex == 0,
+        "every hotkey action sits in exactly one group, and choosing a group picks its first action");
     editor.Step = 100; editor.DisplayNumber = 16;
     Check(editorKey.Step == 100 && editorKey.Display == 16, "shortcut editor supports the same limits as the CLI");
     var defaults = SettingsDocument.Read();

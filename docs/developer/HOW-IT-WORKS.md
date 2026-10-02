@@ -67,7 +67,15 @@ every change to `devices/` (`check`) and regenerates the index after a merge
 (`DeviceLayout`; built for thousands of models, one folder each) and ship
 beside every executable in that layout; records and the generated index do not
 ship. The app's **Devices** page sends the same
-`devices.*` requests - it replaced the Collect / View / Submit card.
+`devices.*` requests. It shows one monitor at a time (a picker that
+opens on an attached monitor with codes left to name), then the quickest ways
+to name them, easiest first - Learn a setting (change it with the monitor's
+buttons; the code that moved is the answer), borrowing a sibling model's names
+(`devices similar` ranks the brand's models by how many of this monitor's
+unknown codes they would name; using one is `devices link`), and naming by
+hand - then the codes, filtered to what is left to name and grouped into the
+standard range and the manufacturer range (0xE0 to 0xFF). A built-in panel
+gets the one thing it can be described by: what the panel is.
 
 - **A mapped code is writable only when its definition says so**, and only on a
   monitor that lists it. That is the single, deliberate exception to "never

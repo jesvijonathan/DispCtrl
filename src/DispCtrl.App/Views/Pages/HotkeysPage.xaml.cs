@@ -145,6 +145,14 @@ public sealed partial class HotkeysPage : Page
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
     }
 
+    /// <summary>Shows one of the page's four parts.</summary>
+    private void OnSection(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        int at = sender.Items.IndexOf(sender.SelectedItem);
+        StackPanel[] sections = [ShortcutsSection, FeaturesSection, TriggersSection, WindowsSection];
+        for (int i = 0; i < sections.Length; i++) sections[i].Visibility = i == at ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         HotkeyViewModel.SafetyNetOffRequested -= OnSafetyNetOff;

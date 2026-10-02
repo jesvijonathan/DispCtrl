@@ -82,7 +82,7 @@ tokens are scrubbed too because old logs can name disconnected displays. The
 CLI prints the report and link without opening a browser or touching the clipboard.
 
 `Displays`, `Brightness`, `Screen care`, `Windows`, `Taskbar`, `Presets`,
-`Quick panel`, `Hotkeys`, `Devices`, `Engine`, `Settings`, `Help`, `About`.
+`Quick panel`, `Hotkeys`, `Devices`, `Settings` (the engine's state and files among them), `Help`, `About`.
 Brightness, Screen care and Windows were split off Displays (2026-10-02): it had
 grown to 180 cards, every desk-wide feature beside the displays themselves.
 Each feature leads with its essentials and folds the rest behind "Advanced

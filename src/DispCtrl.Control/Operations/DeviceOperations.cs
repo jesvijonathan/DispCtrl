@@ -28,10 +28,11 @@ public sealed partial class ControlService
         "link" => DevicesLink(args),
         "panel" => DevicesPanel(args),
         "definitions" => DevicesDefinitions(args),
+        "similar" => DevicesSimilar(args),
         // "share" was the first name; scripts that use it keep working.
         "contribute" or "share" => DevicesShare(args),
         "validate" => DevicesValidate(args),
-        _ => throw new ArgumentException("devices actions: list, show, scan, forget, map, unmap, link, panel, definitions, contribute, validate. probe runs in the terminal."),
+        _ => throw new ArgumentException("devices actions: list, show, scan, forget, map, unmap, link, similar, panel, definitions, contribute, validate. probe runs in the terminal."),
     };
 
     private static void Only(JsonObject args, string command, params string[] allowed)
@@ -363,6 +364,65 @@ public sealed partial class ControlService
         if (Flag(args, "dryRun")) return new JsonObject { ["state"] = "validated", ["model"] = model };
         string path = DeviceLibrary.SaveLocal(d);
         return new JsonObject { ["state"] = "saved", ["model"] = model, ["panel"] = d.Panel?.Technology, ["path"] = path };
+    }
+
+    /// <summary>
+    /// Other models whose names would name this one's codes: the quickest start
+    /// for a monitor nobody has mapped.
+    /// </summary>
+    /// <remarks>
+    /// A maker reuses its manufacturer codes across a range, so a sibling
+    /// model's definition usually names most of a new one's. Candidates are the
+    /// same brand's models in the shipped library and on this PC, ranked by how
+    /// many codes this monitor lists but nothing names yet that the candidate
+    /// would name. Using one is <c>devices link</c>: the link is the model's own
+    /// definition saying it extends the other, so it is undone the same way and
+    /// shared with a contribution like any other mapping. Only the brand's
+    /// folder is read, never the whole library.
+    /// </remarks>
+    private static JsonNode DevicesSimilar(JsonObject args)
+    {
+        Only(args, "similar", "monitor", "model");
+        var (model, _) = ModelOf(args);
+        string brand = DeviceDefinitions.Brand(model);
+        DeviceHistory history = DeviceHistory.Load();
+        HashSet<byte> listed = history.Models.TryGetValue(model, out SeenModel? seen)
+            ? seen.Codes.Keys.Select(DeviceDefinitions.ParseCode).OfType<byte>().ToHashSet() : [];
+        Dictionary<byte, ResolvedControl> known = DeviceLibrary.Resolve(model);
+        List<string> linked = DeviceLibrary.Local(model)?.Extends ?? [];
+
+        var candidates = new Dictionary<string, (DeviceDefinition Definition, string Where)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (target, _) in DeviceLayout.Definitions(DeviceLibrary.ShippedFolder))
+            if (DeviceDefinitions.IsModel(target) && target.StartsWith(brand + "-", StringComparison.OrdinalIgnoreCase)
+                && DeviceLibrary.Shipped(target) is { } shipped)
+                candidates[target] = (shipped, "library");
+        foreach (DeviceDefinition local in DeviceLibrary.LoadFolder(DeviceLibrary.UserFolder).Values)
+            if (DeviceDefinitions.IsModel(local.Target) && local.Target.StartsWith(brand + "-", StringComparison.OrdinalIgnoreCase))
+                candidates[local.Target] = candidates.TryGetValue(local.Target, out var both) ? (both.Definition, "library and this PC") : (local, "this PC");
+        candidates.Remove(model);
+
+        var list = new JsonArray();
+        foreach (var (target, (definition, where)) in candidates)
+        {
+            var codes = definition.Controls.Select(c => c.CodeValue).OfType<byte>().ToHashSet();
+            int names = codes.Count(c => listed.Contains(c) && !known.ContainsKey(c) && !MonitorCapabilities.IsNamed(c));
+            bool isLinked = linked.Contains(target, StringComparer.OrdinalIgnoreCase);
+            if (names == 0 && !isLinked) continue;
+            list.Add((JsonNode)new JsonObject
+            {
+                ["model"] = target, ["name"] = definition.Name, ["from"] = where, ["controls"] = codes.Count,
+                ["wouldName"] = names, ["shared"] = codes.Count(listed.Contains), ["linked"] = isLinked,
+            });
+        }
+        var ranked = new JsonArray(list.OrderByDescending(c => c!["linked"]!.GetValue<bool>())
+            .ThenByDescending(c => c!["wouldName"]!.GetValue<int>()).Take(8).Select(c => c!.DeepClone()).ToArray());
+        DeviceDefinition? brandWide = DeviceLibrary.Find(brand);
+        return new JsonObject
+        {
+            ["model"] = model, ["candidates"] = ranked,
+            ["linked"] = new JsonArray(linked.Select(l => (JsonNode?)JsonValue.Create(l)).ToArray()),
+            ["brand"] = new JsonObject { ["key"] = brand, ["controls"] = brandWide?.Controls.Count ?? 0 },
+        };
     }
 
     private static JsonNode DevicesDefinitions(JsonObject args)
