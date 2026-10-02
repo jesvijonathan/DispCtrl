@@ -83,4 +83,4 @@ The resident engine must be running. Transitions are serial; short foreground ch
 
 ## Verification
 
-`dotnet run --project tools/presetverify -c Release` checks parsing, schema/range validation, scoped drift, scope-preserving recapture, readable reports and rule serialization without touching user settings or hardware.
+`dotnet run --project tests/DispCtrl.Core.Checks -c Release` checks parsing, schema/range validation, scoped drift, scope-preserving recapture, readable reports and rule serialization without touching user settings or hardware.

@@ -107,7 +107,7 @@ bundled.
 - [AMD reference implementation](https://github.com/amildahl/amdddc-windows)
 - [Intel C# reference implementation](https://github.com/Jason7536/lg-input-switch)
 
-Run `dotnet run --project tools/lginputcheck` for protocol, ABI, mapping,
+Run `dotnet run --project tests/DispCtrl.LgInput.Checks` for protocol, ABI, mapping,
 contribution and command validation without sending monitor commands.
 `dotnet run --project tools/devicecheck -- selftest` also exercises the
 contribution intake and review guard.

@@ -263,7 +263,7 @@ is what two monitors of different heights do on a real desk. The drag maths and
 the snap threshold both convert through the dragged display's own density —
 skipping that made a dense panel crawl under the cursor.
 
-Covered in `tools/presetcheck`: true sizes, flushness, top alignment,
+Covered in `tests/DispCtrl.Hardware.Checks`: true sizes, flushness, top alignment,
 proportional offset, and the fall back to pixels when any display reports no
 physical size.
 
@@ -406,7 +406,7 @@ slow monitor. In the engine, preset applies are serialised under their own lock
 rather than the settings lock, so a topology change cannot stall settings
 reloads for the seconds it takes.
 
-`tools/presetcheck` covers the awkward cases directly — colliding names, rename
+`tests/DispCtrl.Hardware.Checks` covers the awkward cases directly — colliding names, rename
 onto the same file, import never overwriting, scope honoured by the diff,
 brightness tolerance, absent displays, schedules crossing midnight, and app
 rule matching. 24 checks.

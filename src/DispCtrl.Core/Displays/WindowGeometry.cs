@@ -28,7 +28,7 @@ public sealed record WindowSpot(string Token, int Left, int Top, int Width, int 
 /// The arithmetic of moving windows between displays, apart from moving them.
 /// </summary>
 /// <remarks>
-/// Pure, so it is checked in presetverify: moving another program's window can
+/// Pure, so it is checked in DispCtrl.Core.Checks: moving another program's window can
 /// only be watched, not tested, and every rule about where it lands is here.
 /// All rectangles are physical pixels, the coordinates a per-monitor aware
 /// process sees.

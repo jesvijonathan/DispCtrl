@@ -135,11 +135,11 @@ A row under each display is the same pair: `QuickPanelCatalog.DisplayRows` and
 `DisplayRow`. A switch in a display's strip: `QuickPanelCatalog.DisplayTiles`
 and `StripItem`.
 
-`presetcheck` asserts that every catalogue entry has a symbol, a name and hover
+`DispCtrl.Hardware.Checks` asserts that every catalogue entry has a symbol, a name and hover
 text, and that the default lists name each item exactly once. Run it:
 
 ```bash
-dotnet run --project tools/presetcheck/presetcheck.csproj -c Release
+dotnet run --project tests/DispCtrl.Hardware.Checks/DispCtrl.Hardware.Checks.csproj -c Release
 ```
 
 ## Rules the building blocks keep for you
@@ -183,7 +183,7 @@ hide and move like any other. Nothing runs except when its tile is clicked.
 
 Synthetic pointer input does not reach WinUI, so a panel cannot be clicked
 through by a script. What can be checked is the logic: placement, the lists,
-the night-light rule, unison resuming - all in `presetcheck`. For the panel
+the night-light rule, unison resuming - all in `DispCtrl.Hardware.Checks`. For the panel
 itself, drive it through UI Automation by the `AutomationProperties.Name` every
 block sets (`QuickTile <id>`, `QuickDisplay <n>`, `QuickSection <title>`), and
 summon it by setting `Local\DispCtrl.QuickPanel.Show`.

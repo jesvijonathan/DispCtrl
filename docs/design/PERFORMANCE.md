@@ -37,4 +37,4 @@ These are individual runs, not statistical guarantees. Hardware timings vary wit
 
 Run `dotnet run --project tools/perfcheck -c Release` to measure the current paths; `-- --details` breaks down individual read APIs. This reads hardware and uses a temporary preset file, but does not apply settings or overwrite user presets.
 
-Run `dotnet run --project tools/presetverify -c Release` for regression checks, including concurrent cache misses, LRU eviction, expiry, transient failures, in-flight invalidation, mutable-object isolation, external file edits and deleted files. Add `-- --capture-live` for a read-only capture/JSON round trip on attached displays.
+Run `dotnet run --project tests/DispCtrl.Core.Checks -c Release` for regression checks, including concurrent cache misses, LRU eviction, expiry, transient failures, in-flight invalidation, mutable-object isolation, external file edits and deleted files. Add `-- --capture-live` for a read-only capture/JSON round trip on attached displays.

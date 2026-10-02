@@ -236,7 +236,7 @@ Keep scripts in the data directory's `scripts` folder for `scripts list`.
 
 For isolated development, set `DISPCTRL_DATA_DIR` to an absolute directory before
 starting the CLI/engine. This isolates settings, not the physical displays:
-hardware writes still affect the current desktop. Run `tools/controlcheck` for
+hardware writes still affect the current desktop. Run `tests/DispCtrl.Control.Checks` for
 protocol, validation, concurrency and failure-sequencing checks using fake steps.
 Diagnostics/log paths remain local. See [architecture](CONTROL-ARCHITECTURE.md)
 and [release instructions](RELEASING.md) for unfinished migration and delivery work.

@@ -47,7 +47,7 @@ the outputs that are scrubbed for you.
    .\build.cmd build
    .\build.cmd test -Hardware
    ```
-   `test` alone needs no display hardware. `-Hardware` adds `presetcheck`,
+   `test` alone needs no display hardware. `-Hardware` adds `DispCtrl.Hardware.Checks`,
    which asserts the redaction rules against the monitors actually attached.
    On Linux, `./build.sh build && ./build.sh test` covers everything but the
    window.

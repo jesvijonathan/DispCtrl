@@ -9,16 +9,16 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Build failed: $project" }
     }
     if ($Test) {
-        # The same set as dev.ps1 test, less presetcheck, which needs monitors.
+        # The same set as dev.ps1 test, less DispCtrl.Hardware.Checks, which needs monitors.
         $checks = @(
-            @('controlcheck', @()),
-            @('lginputcheck', @()),
-            @('presetverify', @()),
-            @('devicecheck', @('validate', 'devices')),
-            @('devicecheck', @('selftest'))
+            @('tests/DispCtrl.Control.Checks', @()),
+            @('tests/DispCtrl.LgInput.Checks', @()),
+            @('tests/DispCtrl.Core.Checks', @()),
+            @('tools/devicecheck', @('validate', 'devices')),
+            @('tools/devicecheck', @('selftest'))
         )
         foreach ($check in $checks) {
-            & dotnet run --project "tools/$($check[0])" -c $Configuration -- @($check[1])
+            & dotnet run --project $check[0] -c $Configuration -- @($check[1])
             if ($LASTEXITCODE -ne 0) { throw "Checks failed: $($check[0]) $($check[1] -join ' ')" }
         }
     }

@@ -70,7 +70,7 @@ It must never hold:
 - **Personal settings.** Brightness 62 describes an evening at someone's desk,
   not a monitor.
 
-DispCtrl strips all four before showing you anything, `tools/presetcheck`
+DispCtrl strips all four before showing you anything, `tests/DispCtrl.Hardware.Checks`
 asserts it over the monitors actually attached, and `devicecheck validate`
 refuses a record that still carries a path or an instance id.
 

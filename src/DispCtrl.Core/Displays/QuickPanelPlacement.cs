@@ -19,7 +19,7 @@ public enum ScreenEdge
 /// of geometry in this project is: synthetic pointer input does not reach a
 /// WinUI surface, so a flyout cannot be positioned and then measured through
 /// automation. What can be checked is the arithmetic, and it is checked in
-/// <c>presetcheck</c>.
+/// <c>DispCtrl.Hardware.Checks</c>.
 /// </remarks>
 public static class QuickPanelPlacement
 {

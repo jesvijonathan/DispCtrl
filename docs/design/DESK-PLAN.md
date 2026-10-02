@@ -167,5 +167,5 @@ Pending: Reddit is blocked from this machine's tools. Save the thread
 
 2 (bugs first, then the profile memory people asked for), 3 (the settings
 model every later section builds on), 4, 7 (small and self-contained), 5,
-6. Each lands with its checks in presetverify or controlcheck and a hardware
+6. Each lands with its checks in DispCtrl.Core.Checks or DispCtrl.Control.Checks and a hardware
 verification line in its commit.

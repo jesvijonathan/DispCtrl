@@ -5,7 +5,7 @@ taskbar hiding and work-area reclaim on the first secondary display. This check
 supports a bottom-docked, horizontal secondary taskbar.
 
 ```powershell
-dotnet run --project tools/taskbarcheck/taskbarcheck.csproj -c Release
+dotnet run --project tests/DispCtrl.Taskbar.Checks/DispCtrl.Taskbar.Checks.csproj -c Release
 ```
 
 The test opens a temporary maximized app and checks three hide/reveal cycles:

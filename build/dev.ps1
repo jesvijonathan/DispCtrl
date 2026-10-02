@@ -25,7 +25,7 @@ param(
     [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version,
     # setup: allow winget to install the .NET SDK and MinGW-w64 system-wide.
     [switch]$Install,
-    # test: also run presetcheck, which reads the monitors actually attached.
+    # test: also run DispCtrl.Hardware.Checks, which reads the monitors actually attached.
     [switch]$Hardware,
     # Build without the native taskbar-glass helper (no MinGW needed); remembered.
     [switch]$NoNative,
@@ -305,24 +305,24 @@ function Invoke-Test {
     Push-Location $repo
     try {
         $checks = @(
-            @('controlcheck', @()),
-            @('lginputcheck', @()),
-            @('presetverify', @()),
+            @('tests/DispCtrl.Control.Checks', @()),
+            @('tests/DispCtrl.LgInput.Checks', @()),
+            @('tests/DispCtrl.Core.Checks', @()),
             # The index is regenerated after each merge, so a new device folder
             # is valid without it: only the layout and the rules are checked.
-            @('devicecheck', @('validate', 'devices')),
-            @('devicecheck', @('selftest'))
+            @('tools/devicecheck', @('validate', 'devices')),
+            @('tools/devicecheck', @('selftest'))
         )
-        if ($Hardware) { $checks += , @('presetcheck', @()) }
+        if ($Hardware) { $checks += , @('tests/DispCtrl.Hardware.Checks', @()) }
         $failed = @()
         foreach ($check in $checks) {
             Write-Host "`n== $($check[0]) $($check[1] -join ' ')" -ForegroundColor Cyan
-            & dotnet run --project "tools/$($check[0])" -c $options.configuration -- @($check[1])
+            & dotnet run --project $check[0] -c $options.configuration -- @($check[1])
             if ($LASTEXITCODE -ne 0) { $failed += "$($check[0]) (exit $LASTEXITCODE)" }
         }
         if ($failed) { throw "Failed: $($failed -join ', ')" }
         Write-Host "`nAll checks passed." -ForegroundColor Green
-        if (-not $Hardware) { Write-Host 'presetcheck reads the attached monitors; add -Hardware to run it too.' }
+        if (-not $Hardware) { Write-Host 'DispCtrl.Hardware.Checks reads the attached monitors; add -Hardware to run it too.' }
     } finally { Pop-Location }
 }
 

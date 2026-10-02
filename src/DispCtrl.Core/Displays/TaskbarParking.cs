@@ -5,7 +5,7 @@ public enum TaskbarSide { Bottom, Top, Left, Right }
 
 /// <summary>Where a hidden taskbar can go without showing on another monitor.</summary>
 /// <remarks>
-/// Pure geometry, so it is checked in presetverify: stacking monitors to test it
+/// Pure geometry, so it is checked in DispCtrl.Core.Checks: stacking monitors to test it
 /// on hardware means rearranging the desk.
 /// </remarks>
 public static class TaskbarParking

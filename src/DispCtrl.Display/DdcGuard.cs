@@ -48,7 +48,7 @@ public static class DdcGuard
     private static int _recovered;
 
     /// <summary>
-    /// Judges one marker. Pure, so the rule is checked in presetverify.
+    /// Judges one marker. Pure, so the rule is checked in DispCtrl.Core.Checks.
     /// </summary>
     /// <param name="markerBoot">When the boot that wrote it began.</param>
     /// <param name="currentBoot">When this boot began.</param>

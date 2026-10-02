@@ -1,0 +1,33 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/DispCtrl.Core/DispCtrl.Core.csproj" />
+    <Project Path="src/DispCtrl.Display/DispCtrl.Display.csproj" />
+    <Project Path="src/DispCtrl.Control/DispCtrl.Control.csproj" />
+    <Project Path="src/DispCtrl.Engine/DispCtrl.Engine.csproj" />
+    <Project Path="src/DispCtrl.Cli/DispCtrl.Cli.csproj" />
+    <Project Path="src/DispCtrl.App/DispCtrl.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DispCtrl.Core.Checks/DispCtrl.Core.Checks.csproj" />
+    <Project Path="tests/DispCtrl.Control.Checks/DispCtrl.Control.Checks.csproj" />
+    <Project Path="tests/DispCtrl.LgInput.Checks/DispCtrl.LgInput.Checks.csproj" />
+    <Project Path="tests/DispCtrl.Hardware.Checks/DispCtrl.Hardware.Checks.csproj" />
+    <Project Path="tests/DispCtrl.Taskbar.Checks/DispCtrl.Taskbar.Checks.csproj" />
+    <Project Path="tests/DispCtrl.TaskbarGlass.Checks/DispCtrl.TaskbarGlass.Checks.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/devicecheck/devicecheck.csproj" />
+    <Project Path="tools/perfcheck/perfcheck.csproj" />
+  </Folder>
+  <Folder Name="/repository/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+  </Folder>
+</Solution>

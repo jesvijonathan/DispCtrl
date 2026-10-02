@@ -64,8 +64,8 @@ A normal build also removes files an earlier layout left in the output folders
 (`Directory.Build.targets`): MSBuild copies files, but never deletes the ones it
 has stopped copying.
 
-**`test`** runs `controlcheck`, `presetverify` and `devicecheck validate` (the
-device library's layout, rules and privacy). `-Hardware` adds `presetcheck`, which reads the monitors actually
+**`test`** runs `DispCtrl.Control.Checks`, `DispCtrl.Core.Checks` and `devicecheck validate` (the
+device library's layout, rules and privacy). `-Hardware` adds `DispCtrl.Hardware.Checks`, which reads the monitors actually
 attached, including the redaction checks against their serials.
 
 **`perf`** runs `tools/perfcheck` against what is already built in `bin`:
@@ -152,12 +152,12 @@ Git repositories, without building packages or contacting GitHub.
 ```bash
 ./build.sh setup     # .NET 10 into .tools/dotnet, no sudo; prints what else to install
 ./build.sh build     # Core, Display, Control, CLI, engine, and the checks
-./build.sh test      # presetverify, devicecheck
+./build.sh test      # DispCtrl.Core.Checks, devicecheck
 ```
 
 Verified on WSL Ubuntu:
 - Every project except the window compiles, with `EnableWindowsTargeting=true`.
-- `presetverify` (70 checks) and `devicecheck` pass.
+- `DispCtrl.Core.Checks` (70 checks) and `devicecheck` pass.
 
 The binaries are still Windows x64: this is for editing, compiling and checking
 changes, not for running DispCtrl.
@@ -165,7 +165,7 @@ changes, not for running DispCtrl.
 What needs Windows, and why:
 - **The window** (`DispCtrl.App`). The WinUI XAML compiler loads Windows-only
   DLLs (`GenXbf.dll`).
-- **`controlcheck` and `presetcheck`.** They call the Windows display APIs:
+- **`DispCtrl.Control.Checks` and `DispCtrl.Hardware.Checks`.** They call the Windows display APIs:
   `QueryDisplayConfig`, DDC/CI, WMI.
 - **The installer and the MSIX.** Inno Setup and MakeAppx are Windows tools.
 

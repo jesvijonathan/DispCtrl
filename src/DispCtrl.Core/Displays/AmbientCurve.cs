@@ -6,7 +6,7 @@ namespace DispCtrl.Core.Displays;
 /// <remarks>
 /// Logarithmic, because eyes are: the step from a dark room to a lamp is as
 /// large to them as the one from a lamp to a sunny window, though the second is
-/// a hundred times more light. Pure, so it is checked in presetverify.
+/// a hundred times more light. Pure, so it is checked in DispCtrl.Core.Checks.
 /// <para>
 /// The two ends are settings, and between them runs whatever the person has
 /// taught it: every level chosen by hand while following is a knot the curve

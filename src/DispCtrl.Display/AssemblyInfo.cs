@@ -1,3 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("lginputcheck")]
+[assembly: InternalsVisibleTo("DispCtrl.LgInput.Checks")]

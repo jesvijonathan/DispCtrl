@@ -6,14 +6,14 @@
 #   ./build.sh setup       .NET 10 SDK into .tools/dotnet (no sudo); prints the
 #                          package commands for anything else
 #   ./build.sh build       Core, Display, Control, CLI, engine and the checks
-#   ./build.sh test        presetverify and devicecheck
+#   ./build.sh test        DispCtrl.Core.Checks and devicecheck
 #   ./build.sh clean       bin/ and obj/ folders
 #
 # Options: -c Debug|Release (default Release), --native (build the taskbar-glass
 # helper with x86_64-w64-mingw32-g++; needs pwsh).
 #
 # What cannot happen here, and why: the window (DispCtrl.App) needs the WinUI
-# XAML compiler, which loads Windows-only DLLs, and controlcheck, presetcheck
+# XAML compiler, which loads Windows-only DLLs, and DispCtrl.Control.Checks, DispCtrl.Hardware.Checks
 # and every command that touches a display call Windows itself. Building the
 # installer and the MSIX needs Windows too. Use build.cmd there.
 set -euo pipefail
@@ -82,7 +82,7 @@ build() {
     export DISPCTRL_CXX="$(cxx)"; glass=()
   fi
   for p in src/DispCtrl.Core src/DispCtrl.Display src/DispCtrl.Control src/DispCtrl.Cli src/DispCtrl.Engine \
-           tools/presetverify tools/devicecheck tools/controlcheck; do
+           tests/DispCtrl.Core.Checks tools/devicecheck tests/DispCtrl.Control.Checks; do
     echo "== $p"
     dotnet build "$repo/$p" -c "$configuration" -v q --nologo -p:EnableWindowsTargeting=true "${glass[@]}"
   done
@@ -92,16 +92,16 @@ build() {
 test_() {
   dotnet_env
   cd "$repo"
-  dotnet run --project tools/presetverify -c "$configuration" --property:EnableWindowsTargeting=true
+  dotnet run --project tests/DispCtrl.Core.Checks -c "$configuration" --property:EnableWindowsTargeting=true
   dotnet run --project tools/devicecheck -c "$configuration" --property:EnableWindowsTargeting=true -- validate devices
   # Not "index --check": the index is regenerated after each merge, so a pull
   # request that adds a device is valid without it.
   dotnet run --project tools/devicecheck -c "$configuration" --property:EnableWindowsTargeting=true -- selftest
-  echo; echo "Passed. controlcheck and presetcheck call Windows display APIs: run them with build.cmd test."
+  echo; echo "Passed. DispCtrl.Control.Checks and DispCtrl.Hardware.Checks call Windows display APIs: run them with build.cmd test."
 }
 
 clean() {
-  find "$repo/src" "$repo/tools" -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
+  find "$repo/src" "$repo/tests" "$repo/tools" -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
   echo "Clean."
 }
 

@@ -13,7 +13,7 @@ namespace DispCtrl.Core.Displays;
 /// the same idea, keyed on the layout itself: a fingerprint has to hold for
 /// <see cref="QuietMs"/> before it counts, and one that comes back to where it
 /// started never counts at all, so a cable that drops and returns does nothing.
-/// <para>Pure, and driven by the caller's clock, so presetverify can run it.</para>
+/// <para>Pure, and driven by the caller's clock, so DispCtrl.Core.Checks can run it.</para>
 /// </remarks>
 public sealed class DisplaySettle
 {

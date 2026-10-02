@@ -748,7 +748,7 @@ src/
   DispCtrl.Core/       settings, EDID, geometry; no hardware writes
   native/              taskbar-glass helper (C++)
 devices/               the shared monitor library, a folder per model
-tools/                 checks: controlcheck, presetcheck, devicecheck, ...
+tools/                 checks: DispCtrl.Control.Checks, DispCtrl.Hardware.Checks, devicecheck, ...
 build/                 build, publish, installer and MSIX scripts
 docs/                  CLI, developing, releasing, device library, changelog
 site/                  the website (GitHub Pages) and every image the README uses

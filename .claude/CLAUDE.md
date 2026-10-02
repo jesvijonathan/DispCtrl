@@ -311,7 +311,7 @@ event carries no data; the control broker separately handles structured requests
   `QuickPanelContent.Registry.cs`.
 - `QuickPanelSettings.Reorder` **hides** whatever it is not handed. The page's
   remove button works by leaving an item out; keeping its old visibility made
-  that button do nothing, and a `presetcheck` assertion caught it.
+  that button do nothing, and a `DispCtrl.Hardware.Checks` assertion caught it.
 - **The engine passes the foreground on** (`AllowSetForegroundWindow(ASFW_ANY)`)
   before signalling the panel, from a tray click or a hotkey. Without it the
   panel's `Activate()` fails quietly, the panel is never active, never
@@ -445,7 +445,7 @@ default `Collapsed` list, which records only departures from it.
 desk has none, so it is untested on hardware here). The first version
 was reported working badly on a laptop that has one: covering the sensor
 barely dimmed, a torch never reached the top, and it was slow. Two bugs, both
-now checked in presetverify:
+now checked in DispCtrl.Core.Checks:
 
 - **A sensor reports only on change.** The old filter averaged once per
   reading, so when the light stopped changing the average stopped partway
@@ -645,7 +645,7 @@ Every pair was walked through; these are the ones that needed code.
 - **The block list is read at most once a second, and only when settings.json
   moved.** Its "last checked" started at `long.MinValue`, and `now - MinValue`
   overflows negative - read as "checked a moment ago" forever, so the list never
-  loaded and nothing was ever blocked. controlcheck now asks on the first call.
+  loaded and nothing was ever blocked. DispCtrl.Control.Checks now asks on the first call.
 - **The probe reads, never writes**, every named code except MCCS's commands.
   A continuous answer with maximum 0 or the 0xFFFF filler is dropped: this Dell
   answers black levels, gamma and colour temperature that way, and on a monitor
@@ -689,7 +689,7 @@ Every pair was walked through; these are the ones that needed code.
 ### Tests
 
 ```bash
-dotnet run --project tools/presetcheck/presetcheck.csproj -c Release
+dotnet run --project tests/DispCtrl.Hardware.Checks/DispCtrl.Hardware.Checks.csproj -c Release
 ```
 
 Assertions over preset store edge cases, the diff, night-light schedules,
@@ -711,9 +711,9 @@ which drive the tray and panel and need the desk left alone. Measure CPU from
 cycle counts and measure warm - both have produced wrong conclusions here.
 Run it before and after anything on a hot path.
 
-`presetcheck` needs monitors. The hardware-free suites, which CI and
-`build.sh test` run, are `controlcheck` (the command API against a scratch
-settings folder), `presetverify` (parsing, geometry, the settings merge) and
+`DispCtrl.Hardware.Checks` needs monitors. The hardware-free suites, which CI and
+`build.sh test` run, are `DispCtrl.Control.Checks` (the command API against a scratch
+settings folder), `DispCtrl.Core.Checks` (parsing, geometry, the settings merge) and
 `devicecheck validate` / `selftest` (the device library and its intake).
 
 ---
@@ -943,7 +943,7 @@ Every one of these was a real bug. Do not reintroduce them.
   there, which read as no animation at all; now it slides between its shown
   position and its own edge under a window region clipped to its monitor
   (`Clip`, set before each move so no frame shows on the neighbour), and parks
-  only on the last frame. The rescan's `HealRegion` skips a bar mid-clip. Checked in `presetverify`, since stacking needs the desk moved.
+  only on the last frame. The rescan's `HealRegion` skips a bar mid-clip. Checked in `DispCtrl.Core.Checks`, since stacking needs the desk moved.
 - **A monitor keeps its own brightness while unplugged**, so one reconnected
   after unison moved came back out of step. `UnisonHotplug` writes arrivals
   only, after 1.5 s, because the DDC/CI channel is not up when the monitor
@@ -981,7 +981,7 @@ Every one of these was a real bug. Do not reintroduce them.
   the dragged display touched something, so dragging the middle of a row away
   stranded the other two and Windows refused the layout. `IsValid` now asks
   for one connected piece, and a drop runs `ArrangementSolver.Close`, sliding
-  stranded pieces whole back to the primary's. `presetverify` drops every slot
+  stranded pieces whole back to the primary's. `DispCtrl.Core.Checks` drops every slot
   on a 2x2 grid and a mixed-size rig of four and checks each ends valid.
 - **The app reads an arrival again.** Read the moment it appears, a monitor
   answers nothing, and the card stayed without brightness or controls until
@@ -1119,7 +1119,7 @@ Every one of these was a real bug. Do not reintroduce them.
   0.14 ms for the next open, and a load follows most saves. `SettingsStore`
   keeps its own last write and reuses it while the file's write time, creation
   time and length are unchanged; anybody else's save changes the creation time
-  (rename-over) or the write time (in place). `controlcheck` covers both with a
+  (rename-over) or the write time (in place). `DispCtrl.Control.Checks` covers both with a
   same-length file. Load + save went from 8.15 ms to 2.42 ms.
 - **A save is reloaded on its rename, an edit after the debounce.** Every
   DispCtrl save raises exactly one `Renamed` to settings.json with the file
@@ -1184,7 +1184,7 @@ Every one of these was a real bug. Do not reintroduce them.
   loads, the file is untouched, and a save merges into it, keeping what was
   set aside and every property this build never knew. The engine logs what it
   left out. Only text that is not JSON at all is still quarantined. Checked in
-  controlcheck with a hand-made future file. **This protects builds from 0.1.5
+  DispCtrl.Control.Checks with a hand-made future file. **This protects builds from 0.1.5
   on; 0.1.4 and earlier still quarantine** - a desk that runs a newer test
   build beside the Store's 0.1.4 must not let 0.1.4 start on the same file.
 - New settings need nothing else: a missing property takes its initialiser,
@@ -1245,13 +1245,13 @@ unrecallable.
   writes it into file names. `InstanceId` catches the bare form.
 - **Check for fragments, not just whole strings.** Both leaks survived checks
   that looked for `Jesvi Jonathan` and the full device path, because what
-  escaped was a piece of each. `presetcheck` now asserts that no *word* of the
+  escaped was a piece of each. `DispCtrl.Hardware.Checks` now asserts that no *word* of the
   account name and no instance id appears, and builds a record with the list
   narrowed to one display as well as with all of them.
 - **`Redact.Scrub` runs over the finished text**, not the fields, so a field
   added later cannot quietly reintroduce a leak. It removes attached panels'
   serials, device paths, `C:\Users\...` paths, bare GUIDs and the account name.
-- `tools/presetcheck` asserts all of this **against the monitors actually
+- `tests/DispCtrl.Hardware.Checks` asserts all of this **against the monitors actually
   attached**, not fixtures. That end-to-end check is the one that matters.
 - **No token, no network call from the app.** It opens a prefilled issue in the
   browser the person is already signed into and they press Submit. A token in a
@@ -1419,7 +1419,7 @@ unrecallable.
   builds for win-x64, so `dotnet run` on the Linux runner tried to execute
   `devicecheck.exe` - "Exec format error" - and every shared monitor record
   failed intake. WSL hid it: it runs Windows .exe files through interop, so
-  the check "passed on Linux" there. `devicecheck` and `presetverify` set
+  the check "passed on Linux" there. `devicecheck` and `DispCtrl.Core.Checks` set
   `UseAppHost=false` off Windows; verify on Linux by confirming no `.exe` was
   built. The workflow's shell is named `bash` so `| tee` no longer hides a
   failure (the default shell has no pipefail).
@@ -1534,7 +1534,7 @@ What does not work, and cost time discovering:
 - **Synthetic pointer input does not reach the WinUI canvas.** `PointerPressed`
   never fires, so drag behaviour cannot be tested through automation. That is why
   `ArrangementSolver` and `PhysicalLayout` are pure geometry with checks in
-  `presetcheck`.
+  `DispCtrl.Hardware.Checks`.
 - **Foreground cannot be stolen** from a background script — neither
   `SetForegroundWindow` nor `AppActivate`. To test per-app rules, match on
   whatever genuinely holds the foreground instead of trying to create it.

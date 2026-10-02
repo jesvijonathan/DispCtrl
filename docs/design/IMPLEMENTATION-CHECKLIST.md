@@ -33,7 +33,7 @@ verification named beside them.
   untouched. Refusals before the broker answer `--json` in the envelope.
 - [x] Ordered apply, topology rediscovery, dry run, partial errors and hot-plug.
   Topology runs first and the rest is planned after rediscovery; dry runs defer
-  monitors a topology could switch on (controlcheck). Unison hot-plug sync is
+  monitors a topology could switch on (DispCtrl.Control.Checks). Unison hot-plug sync is
   built but has not seen a physical replug.
 - [x] Cached inventory, invalidation, latest-value writes and event delivery.
   `watch` polls metadata; it is not a broker push stream.
@@ -48,7 +48,7 @@ verification named beside them.
   Frame captures of both directions; first summons from preload 42 ms; engine
   started from the `DispCtrl.Engine` task at normal priority.
 - [x] Generic monitor controls from the CLI: keys and values from the monitor.
-- [x] Settings saves survive a reader holding the file (controlcheck).
+- [x] Settings saves survive a reader holding the file (DispCtrl.Control.Checks).
 - [x] Quick panel title bar without the redundant menu; position lock.
 - [x] Tile flyouts with sliders and switches (night light, focus, OLED care,
   keep awake, unison, colours); redundant glass, auto-hide and transparency
@@ -57,7 +57,7 @@ verification named beside them.
   panel is pulled back into range only once the slider is still.
 - [x] Device library: local history, definitions (model, brand, every monitor,
   links), probe, map, share, intake workflow and validation. End to end on the
-  Dell in an isolated data folder; six controlcheck assertions; devicecheck.
+  Dell in an isolated data folder; six DispCtrl.Control.Checks assertions; devicecheck.
   The intake workflow has not run on GitHub.
 - [x] Every page's controls reachable from the CLI (docs/CLI-COVERAGE.md):
   hotkeys, display reset, wallpaper fit, Windows pages, unison limits added.
@@ -113,7 +113,7 @@ verification named beside them.
   test passed all four checks. Script parses under Windows PowerShell 5.1.
   WSL Ubuntu, from a clean copy: setup installed .NET into .tools, build
   compiled everything but the app with the glass helper skipped, and
-  presetverify and devicecheck passed. setup -Install (winget) and build.sh
+  DispCtrl.Core.Checks and devicecheck passed. setup -Install (winget) and build.sh
   --native are not exercised.
 - [x] Licence (MIT), README, CONTRIBUTING, SECURITY, code of conduct, changelog,
   issue forms, PR template, dependabot. README claims checked against the code:
@@ -126,9 +126,9 @@ verification named beside them.
   pasting; saved disconnected monitor identities are scrubbed. Fixed the pending
   CLI-help indentation and Devices timer import that prevented builds, plus
   WinUI truncating both report and device-share previews to their first line.
-  Release CLI, engine and app build with zero warnings. `controlcheck` passes 68
-  checks; `presetverify`, `devicecheck validate devices` and the attached-monitor
-  `presetcheck` pass. Live UI Automation verified the report's description,
+  Release CLI, engine and app build with zero warnings. `DispCtrl.Control.Checks` passes 68
+  checks; `DispCtrl.Core.Checks`, `devicecheck validate devices` and the attached-monitor
+  `DispCtrl.Hardware.Checks` pass. Live UI Automation verified the report's description,
   Windows/display/log sections, a complete Dell mapping-share preview and its
   clipboard-fallback notice, the Hotkeys page and sponsor entry. The engine is
   restarted through its task. No issue was submitted; browser submission remains

@@ -19,7 +19,7 @@ namespace DispCtrl.Core.Displays;
 /// 15% change is as visible at 20 lux as at 2,000. Darkening waits longer:
 /// a lean towards the screen should not dim it.
 /// </para>
-/// <para>Pure, and driven by the caller's clock, so presetverify can run it.</para>
+/// <para>Pure, and driven by the caller's clock, so DispCtrl.Core.Checks can run it.</para>
 /// </remarks>
 public sealed class AmbientFilter
 {

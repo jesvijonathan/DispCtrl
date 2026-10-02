@@ -754,7 +754,7 @@ public static partial class Redact
     /// Only the characters this project actually emits are mapped. Anything else
     /// is left alone rather than replaced: mangling an accented monitor name into
     /// a question mark would be a worse answer than carrying it, and
-    /// <c>presetcheck</c> asserting the result is ASCII is what would report it.
+    /// <c>DispCtrl.Hardware.Checks</c> asserting the result is ASCII is what would report it.
     /// </para>
     /// </remarks>
     public static string Ascii(string text)
