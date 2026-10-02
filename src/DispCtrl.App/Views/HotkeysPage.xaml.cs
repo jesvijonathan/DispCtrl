@@ -43,6 +43,7 @@ public sealed partial class HotkeysPage : Page
         HotkeyViewModel.SafetyNetOffRequested += OnSafetyNetOff;
         ViewModel.Reload();
         ViewModel.SetEngineRunning(App.ViewModel.EngineRunning);
+        _ = FillTriggersAsync();
 
         // The engine rewrites its status each time it registers, so a card
         // changes from "waiting" to "working" or "taken" by itself.
@@ -58,6 +59,90 @@ public sealed partial class HotkeysPage : Page
             _status.Renamed += (_, _) => DispatcherQueue.TryEnqueue(ViewModel.RefreshStates);
         }
         catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException) { }
+    }
+
+    // -------------------------------------------------------------- triggers --
+
+    private static Task<System.Text.Json.Nodes.JsonObject> TriggerCommand(string action, System.Text.Json.Nodes.JsonObject? args = null) => Task.Run(() =>
+        new DispCtrl.Control.ControlService().Execute(new System.Text.Json.Nodes.JsonObject
+        { ["version"] = 1, ["command"] = "triggers." + action, ["args"] = args ?? [] }));
+
+    /// <summary>Every trigger as a row, and a row to add one; read again after each change.</summary>
+    private async Task FillTriggersAsync(string? message = null)
+    {
+        var result = await TriggerCommand("list");
+        TriggerRows.Children.Clear();
+        if (message is not null)
+            TriggerRows.Children.Add(new InfoBar { IsOpen = true, IsClosable = true, Message = message, Severity = InfoBarSeverity.Warning });
+        var data = result["data"];
+        foreach (var item in data?["triggers"]?.AsArray() ?? [])
+        {
+            if (item is null) continue;
+            int index = item["index"]!.GetValue<int>();
+            var row = new Grid { ColumnSpacing = 8 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            words.Children.Add(new TextBlock { Text = item["does"]!.ToString(), TextWrapping = TextWrapping.Wrap });
+            if (item["problem"]?.ToString() is { Length: > 0 } problem)
+                words.Children.Add(new TextBlock { Text = problem, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"] });
+            row.Children.Add(words);
+            // Value first, handler after: a switch set from code raises Toggled too.
+            var on = new ToggleSwitch { IsOn = item["enabled"]!.GetValue<bool>(), OnContent = null, OffContent = null, MinWidth = 0 };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(on, $"Trigger {index}");
+            on.Toggled += async (_, _) =>
+            {
+                var set = await TriggerCommand("set", new() { ["index"] = index, ["enabled"] = on.IsOn });
+                if (set["ok"]?.GetValue<bool>() != true) await FillTriggersAsync(set["error"]?["message"]?.ToString());
+            };
+            Grid.SetColumn(on, 1);
+            row.Children.Add(on);
+            var remove = new Button { Content = "Remove" };
+            remove.Click += async (_, _) =>
+            {
+                var gone = await TriggerCommand("remove", new() { ["index"] = index });
+                await FillTriggersAsync(gone["ok"]?.GetValue<bool>() == true ? null : gone["error"]?["message"]?.ToString());
+            };
+            Grid.SetColumn(remove, 2);
+            row.Children.Add(remove);
+            TriggerRows.Children.Add(row);
+        }
+
+        string[] events = [.. (data?["events"]?.AsArray() ?? []).Select(e => e!.ToString())];
+        var when = new ComboBox { Header = "When", ItemsSource = events, SelectedIndex = 0, MinWidth = 180 };
+        var match = new TextBox { Header = "Which", PlaceholderText = "vlc.exe, 2, DELL or 20:00", Width = 170 };
+        var minutes = new NumberBox { Header = "Minutes away", Value = 10, Minimum = 1, Maximum = 1440, Width = 120,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
+        var feature = new ComboBox { Header = "Run", ItemsSource = ViewModel.Features.Select(f => f.Name).ToArray(), MinWidth = 160,
+            PlaceholderText = "A saved feature" };
+        var add = new Button { Content = "Add trigger", VerticalAlignment = VerticalAlignment.Bottom };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(add, "AddTrigger");
+        void Shape()
+        {
+            string e = when.SelectedItem as string ?? "";
+            minutes.Visibility = e is "idle" or "back" ? Visibility.Visible : Visibility.Collapsed;
+            match.Visibility = e is "app-in-front" or "app-left" or "at-time" or "display-connected" or "display-disconnected"
+                ? Visibility.Visible : Visibility.Collapsed;
+            match.PlaceholderText = e switch { "at-time" => "20:00", "app-in-front" or "app-left" => "vlc.exe", _ => "Any display, or 2, or DELL" };
+        }
+        when.SelectionChanged += (_, _) => Shape();
+        Shape();
+        add.Click += async (_, _) =>
+        {
+            var args = new System.Text.Json.Nodes.JsonObject
+            {
+                ["event"] = when.SelectedItem as string ?? "", ["feature"] = feature.SelectedItem as string ?? "", ["match"] = match.Text.Trim(),
+            };
+            if (minutes.Visibility == Visibility.Visible && !double.IsNaN(minutes.Value)) args["minutes"] = (int)minutes.Value;
+            var added = await TriggerCommand("add", args);
+            await FillTriggersAsync(added["ok"]?.GetValue<bool>() == true ? null : added["error"]?["message"]?.ToString());
+        };
+        var form = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        foreach (UIElement e in new UIElement[] { when, match, minutes, feature, add }) form.Children.Add(e);
+        TriggerRows.Children.Add(new ScrollViewer { Content = form, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)

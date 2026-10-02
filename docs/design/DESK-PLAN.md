@@ -109,6 +109,10 @@ taskbar implementation, FancyZones (PowerToys does it).
 
 ## 6. Triggers run features
 
+**Done**: `Trigger` (Core), `TriggerService` (engine), `triggers` commands and
+the Hotkeys page. Preset app rules stay as they are while presets are behind
+the beta gate; folding them into triggers comes with lifting it.
+
 Custom features (named step lists) exist; app rules exist for presets.
 Generalise once: a trigger is an event plus a feature to run.
 

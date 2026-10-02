@@ -121,7 +121,8 @@ internal static class Program
                                                    Color.WindowsBrightnessBridge brightnessBridge,
                                                    Color.AmbientSync ambient,
                                                    Placement.PinService pins,
-                                                   Placement.PlacementService placement)
+                                                   Placement.PlacementService placement,
+                                                   Shell.TriggerService triggers)
     {
         Directory.CreateDirectory(SettingsStore.Directory);
 
@@ -148,6 +149,7 @@ internal static class Program
                     tray.Update(reloaded);
                     brightnessBridge.Update(reloaded);
                     ambient.Update(reloaded);
+                    triggers.Update(reloaded);
                     pins.Update(reloaded);
                     placement.Update(reloaded);
                 }
@@ -647,7 +649,9 @@ internal static class Program
             using var ambient = new Color.AmbientSync(settings);
             Phase("ambient");
 
-            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys, focus, power, tray, brightnessBridge, ambient, pins, placement);
+            // When this happens, run that feature. Asleep while no trigger needs looking at.
+            using var triggers = new Shell.TriggerService(settings);
+            using FileSystemWatcher watcher = WatchSettings(manager, nightLight, appRules, hotkeys, focus, power, tray, brightnessBridge, ambient, pins, placement, triggers);
             // One line per start (beta and test), so a slow phase shows in the log and not only in perfcheck.
             if (DispCtrl.Core.BuildInfo.Diagnostics)
                 using (var self = System.Diagnostics.Process.GetCurrentProcess())

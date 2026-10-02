@@ -16,6 +16,7 @@ internal static class DeskChecks
         Identity(check);
         Adoption(check);
         Profiles(check);
+        Triggers(check);
     }
 
     private static void Arrangements(Action<bool, string> check)
@@ -153,5 +154,35 @@ internal static class DeskChecks
         check(kept.ApplyWhenConnected && kept.Monitors.Count == 2 && kept.Monitors["SDC-4154-NEW"].Label == "fresh",
             "updating a desk profile keeps it one, and updates the display under its new token");
         check(PresetStore.Parse(PresetStore.ToJson(home)).ApplyWhenConnected, "the desk switch survives the file");
+    }
+
+    private static void Triggers(Action<bool, string> check)
+    {
+        var features = new List<CustomFeature> { new() { Name = "Movie", Steps = ["wait 0"] } };
+        var app = new Trigger { Event = TriggerEvent.AppInFront, Match = "VLC.exe", Feature = "movie" };
+        check(app.Problem(features) is null && app.MatchesApp("vlc") && app.MatchesApp("vlc.EXE") && !app.MatchesApp("vlcx") && !app.MatchesApp(null),
+            "an app trigger matches its executable with or without .exe, in any case, and names an existing feature");
+        check(new Trigger { Event = TriggerEvent.AppInFront, Feature = "Movie" }.Problem(features) is not null
+            && new Trigger { Event = TriggerEvent.Locked, Feature = "Nothing" }.Problem(features) is not null
+            && new Trigger { Event = TriggerEvent.AtTime, Match = "25:00", Feature = "Movie" }.Problem(features) is not null
+            && new Trigger { Event = TriggerEvent.Idle, Minutes = 0, Feature = "Movie" }.Problem(features) is not null,
+            "a trigger that cannot run is refused: no app, no such feature, an impossible time, no time away");
+
+        var any = new Trigger { Event = TriggerEvent.DisplayConnected, Feature = "Movie" };
+        var dell = new Trigger { Event = TriggerEvent.DisplayConnected, Match = "DELL", Feature = "Movie" };
+        var second = new Trigger { Event = TriggerEvent.DisplayConnected, Match = "2", Feature = "Movie" };
+        check(any.MatchesDisplay("SDC-4154-X", "Internal", 1) && dell.MatchesDisplay("DEL-A234-3QQQ2X3", "DELL U2424H", 2)
+            && dell.MatchesDisplay("DEL-A234-3QQQ2X3", "", 0) == false && second.MatchesDisplay("X", "Y", 2) && !second.MatchesDisplay("X", "Y", 0)
+            && new Trigger { Match = "DEL-A234", Feature = "Movie" }.MatchesDisplay("DEL-A234-3QQQ2X3", "", 0),
+            "a display trigger matches any display, a name, a number or a model token");
+
+        var evening = new Trigger { Event = TriggerEvent.AtTime, Match = "20:00", Feature = "Movie" };
+        DateTime day = new(2026, 10, 2);
+        check(evening.TimeBetween(day.AddHours(19.99), day.AddHours(20.01)) && !evening.TimeBetween(day.AddHours(20), day.AddHours(21))
+            && !evening.TimeBetween(day.AddHours(18), day.AddHours(19)),
+            "a daily time fires once, when a look passes it, and not again in the same minute");
+        var midnight = new Trigger { Event = TriggerEvent.AtTime, Match = "0:00", Feature = "Movie" };
+        check(midnight.TimeBetween(day.AddHours(23.99), day.AddDays(1).AddMinutes(0.5)),
+            "a time just after midnight is caught by a look that crosses the day");
     }
 }

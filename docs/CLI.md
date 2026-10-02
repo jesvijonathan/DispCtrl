@@ -256,3 +256,22 @@ Windows' own `reg.exe`; per-user ones (`dynamic-lock`, `quiet-lock-screen`) do
 not. The first change records the previous values, which `undo` writes back.
 On a computer joined to a domain or Entra ID, or enrolled in device
 management, `machine get` says so: the organisation may set these itself.
+
+## Triggers
+
+```
+dispctrl triggers add --event app-in-front --match vlc.exe --feature Movie
+dispctrl triggers add --event display-connected --match DELL --feature Desk
+dispctrl triggers add --event idle --minutes 15 --feature "Lights down"
+dispctrl triggers add --event at-time --match 22:30 --feature Night
+dispctrl triggers list | set --index 2 --enabled off | remove --index 2
+```
+
+A trigger runs a custom feature when its event happens, once per change: an
+app coming to the front runs it once, not every second it stays there, and
+the engine's first look after starting records how things are and runs
+nothing. Events: `display-connected`, `display-disconnected` (`--match` a
+number, a name or a model; empty for any), `app-in-front`, `app-left`,
+`idle`, `back` (`--minutes`), `locked`, `unlocked`, `on-battery`,
+`on-power`, `resumed`, `at-time`. A trigger naming a feature that does not
+exist is refused when it is saved.

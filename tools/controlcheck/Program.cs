@@ -499,6 +499,18 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
         "a switch is validated before anything asks for administrator rights");
     Check(service.Execute(Request("machine.undo", new() { ["switch"] = "sharp-sign-in" }))["exitCode"]!.GetValue<int>() == 1,
         "undo refuses a switch DispCtrl never changed");
+    service.Execute(Request("features.add", new() { ["name"] = "Trigger target", ["steps"] = "wait 0" }));
+    var noFeature = service.Execute(Request("triggers.add", new() { ["event"] = "app-in-front", ["match"] = "vlc.exe", ["feature"] = "No such feature" }));
+    var addedTrigger = service.Execute(Request("triggers.add", new() { ["event"] = "app-in-front", ["match"] = "vlc.exe", ["feature"] = "trigger target" }));
+    var listedTriggers = service.Execute(Request("triggers.list"));
+    var disabledTrigger = service.Execute(Request("triggers.set", new() { ["index"] = 1, ["enabled"] = false }));
+    Check(noFeature["exitCode"]!.GetValue<int>() == 2 && addedTrigger["ok"]!.GetValue<bool>()
+        && listedTriggers["data"]!["triggers"]!.AsArray().Single()!["event"]!.GetValue<string>() == "app-in-front"
+        && listedTriggers["data"]!["events"]!.AsArray().Count == Enum.GetValues<TriggerEvent>().Length
+        && disabledTrigger["ok"]!.GetValue<bool>() && !SettingsStore.Load().Triggers[0].Enabled
+        && service.Execute(Request("triggers.remove", new() { ["index"] = 1 }))["ok"]!.GetValue<bool>() && SettingsStore.Load().Triggers.Count == 0,
+        "triggers are added, listed, switched off and removed, and one naming a missing feature is refused");
+    service.Execute(Request("features.remove", new() { ["name"] = "Trigger target" }));
     if (DispCtrl.Core.Displays.DisplayRegistry.Enumerate().FirstOrDefault() is { } ownDisplay)
     {
         var own = service.Execute(Request("oled.set", new() { ["monitor"] = "1", ["idleMinutes"] = 7, ["thirdStageBacklight"] = false }));

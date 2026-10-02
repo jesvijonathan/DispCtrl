@@ -52,6 +52,9 @@ public sealed class DispCtrlSettings
     /// </remarks>
     public List<CustomFeature> Features { get; set; } = [];
 
+    /// <summary>When this happens, run that feature: see <see cref="Trigger"/>.</summary>
+    public List<Trigger> Triggers { get; set; } = [];
+
     /// <summary>
     /// Every DispCtrl setting back to its default: the whole desk, every
     /// monitor, and the shortcuts, which return to the default set.

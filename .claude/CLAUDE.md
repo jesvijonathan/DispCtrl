@@ -368,6 +368,18 @@ event carries no data; the control broker separately handles structured requests
   applies live. `Shell_NotifyIconGetRect` cannot tell you whether it worked: a
   promoted icon and the `^` it replaced report the same rectangle. Screenshot.
 
+### Triggers
+
+`settings.Triggers`: an event and a custom feature to run. `TriggerService`
+(engine) hears displays arriving and leaving from the settled change, and
+lock, unlock and resume from `Shell.SessionEvents`, which the focus thread's
+window raises - one session registration in the engine, not one per service.
+The rest (app in front, away, mains power, a time) is one thread that looks
+only as often as the triggers in use need and otherwise waits on settings.
+Edge-triggered: the first look records state and runs nothing. A feature
+still running is not started again. Verified: an at-time trigger fired its
+feature through the running engine at hh:mm:00.13.
+
 ### Turn off displays
 
 "Off" to the eye: the overlay OLED care rests with, at `DisplaysOffPercent`

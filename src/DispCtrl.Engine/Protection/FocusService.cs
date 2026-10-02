@@ -454,6 +454,7 @@ internal sealed unsafe partial class FocusService : IDisposable
                 if (message == 0x2B1 && wparam is 7 or 8) // WM_WTSSESSION_CHANGE: lock, unlock
                 {
                     self._locked = wparam == 7;
+                    Shell.SessionEvents.Raise(wparam == 7 ? TriggerEvent.Locked : TriggerEvent.Unlocked);
                     self.Tick();
                     return 0;
                 }
@@ -462,7 +463,7 @@ internal sealed unsafe partial class FocusService : IDisposable
                     self._suspended = wparam == 4;
                     // Monitors enumerate again on resume, and one unplugged
                     // while asleep sends no display change of its own.
-                    if (wparam is 7 or 0x12) Color.DisplayChanges.Raise();
+                    if (wparam is 7 or 0x12) { Color.DisplayChanges.Raise(); Shell.SessionEvents.Raise(TriggerEvent.Resumed); }
                     self.ForegroundChanged();
                     self.Tick();
                 }

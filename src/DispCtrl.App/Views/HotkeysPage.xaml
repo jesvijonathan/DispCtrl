@@ -194,6 +194,14 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
+      <TextBlock Text="Triggers" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,24,0,4"/>
+      <TextBlock Text="When something happens, run a feature: a display connected or disconnected, an app coming to the front or leaving it, being away and coming back, locking, power, waking, a time of day. The engine runs them."
+                 Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="0,0,0,8"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <!-- Built in code from triggers list, like the company switches: one
+           place, the control API, says what a trigger is and whether it can run. -->
+      <StackPanel x:Name="TriggerRows" Spacing="8"/>
+
       <!-- What Windows already does, so nobody binds over it or looks for it here. -->
       <TextBlock Text="Windows' own display shortcuts" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,24,0,4"/>
       <TextBlock Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="0,0,0,8"

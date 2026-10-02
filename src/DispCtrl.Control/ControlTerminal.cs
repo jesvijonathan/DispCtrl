@@ -8,7 +8,7 @@ namespace DispCtrl.Control;
 
 public static class ControlTerminal
 {
-    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient", "pin", "placement", "ddc", "update", "features", "machine"];
+    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient", "pin", "placement", "ddc", "update", "features", "machine", "triggers"];
     public static bool Handles(string[] args) => args.Length > 0 && (Roots.Contains(args[0])
         || args[0] == "nightlight" && args.Length > 1 && args[1] is "get" or "set" or "reset"
         || args[0] == "topology" && args.Length > 1 && args[1] is "get" or "set");
@@ -34,6 +34,11 @@ public static class ControlTerminal
       machine set SWITCH on|off|MINUTES|PICTURE   no-ctrl-alt-del, lock-screen-picture, no-lock-screen, sharp-sign-in,
                                             lock-after, dynamic-lock, quiet-lock-screen (machine-wide ones ask for admin)
       machine undo SWITCH                   Put back what Windows had before DispCtrl changed it
+      triggers list                         When this happens, run that feature
+      triggers add --event EVENT --feature NAME [--match vlc.exe|2|20:00] [--minutes 10]
+                                            display-connected, display-disconnected, app-in-front, app-left, idle, back,
+                                            locked, unlocked, on-battery, on-power, resumed, at-time
+      triggers set --index N [--enabled off] [...]   triggers remove --index N
 
     Device library (docs/DEVICE-LIBRARY.md)
       devices list                          Every monitor model seen here, and what is known of it
