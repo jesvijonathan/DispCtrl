@@ -177,6 +177,11 @@ ShellChecks.Run(Check);
 SettingsChecks.Run(Check);
 WindowChecks.Run(Check);
 DeskChecks.Run(Check);
+// Every preset check runs before any failure is reported, so one run lists them all.
+var presetFailures = new List<string>();
+PresetModelChecks.Run((ok, name) => { if (ok) Check(true, name); else presetFailures.Add(name); });
+foreach (string failure in presetFailures) Console.WriteLine("FAIL " + failure);
+Check(presetFailures.Count == 0, $"every preset model check passes ({presetFailures.Count} failed)");
 var screen = new DispCtrl.Core.Displays.DisplayRect(0, 0, 1920, 1080);
 var active = new DispCtrl.Core.Displays.DisplayRect(500, 100, 1400, 900);
 var cut = DispCtrl.Core.Protection.FocusGeometry.Intersect(screen, active);

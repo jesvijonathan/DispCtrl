@@ -45,7 +45,9 @@ public sealed partial class ControlService
                 if (dryRun) return new JsonObject { ["state"] = "validated", ["name"] = name };
                 DispCtrlSettings settings = SettingsStore.Load();
                 PresetResult result = PresetService.Apply(existing!, Resolve(null), settings);
-                SettingsStore.Save(settings);
+                // Only what the preset owns: the apply takes seconds, and the
+                // engine or the app may have saved meanwhile.
+                if (result.Attempted) SettingsStore.Save(PresetSettings.Merge(existing!, settings, SettingsStore.Load()));
                 return new JsonObject
                 {
                     ["state"] = result.Ok ? "applied" : "partial", ["name"] = name,

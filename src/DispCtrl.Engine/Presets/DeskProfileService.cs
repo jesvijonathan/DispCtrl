@@ -32,6 +32,7 @@ internal sealed class DeskProfileService : IDisposable
     private readonly Lock _gate = new();
     private long _quietUntil;
     private int _working;
+    private int _again;
     private bool _disposed;
 
     public DeskProfileService(IReadOnlyList<DisplayInfo> attached)
@@ -46,9 +47,19 @@ internal sealed class DeskProfileService : IDisposable
         _ = Task.Run(() => Consider(change.Displays, "displays changed"));
     }
 
+    /// <remarks>
+    /// One at a time. A change heard while a profile is being applied is not
+    /// dropped: it marks the desk to be looked at again once that finishes,
+    /// with the displays attached then - a quick plug and unplug used to leave
+    /// the final desk unconsidered until the next change.
+    /// </remarks>
     private void Consider(IReadOnlyList<DisplayInfo> displays, string why)
     {
-        if (Interlocked.Exchange(ref _working, 1) != 0) return;
+        if (Interlocked.Exchange(ref _working, 1) != 0)
+        {
+            Volatile.Write(ref _again, 1);
+            return;
+        }
         try
         {
             lock (_gate) if (_disposed) return;
@@ -57,6 +68,7 @@ internal sealed class DeskProfileService : IDisposable
 
             DispCtrlSettings settings = SettingsStore.Load();
             if (settings.Global.LastDesk == desk) return;
+            string? before = settings.Global.LastDesk;
             settings.Global.LastDesk = desk;
             SettingsStore.Save(settings);
             if (Environment.TickCount64 < Volatile.Read(ref _quietUntil)) return;
@@ -68,12 +80,22 @@ internal sealed class DeskProfileService : IDisposable
             PresetResult result = PresetService.Apply(due, DisplayRegistry.Enumerate(), settings);
             Volatile.Write(ref _quietUntil, Environment.TickCount64 + (long)QuietAfterApply.TotalMilliseconds);
             foreach (string note in result.Notes) Log.Write($"  {note}");
-            if (!result.Attempted) return;
+            if (!result.Attempted)
+            {
+                // Refused before anything changed - another preset was applying.
+                // The desk is forgotten again so one retry, shortly, still finds it new.
+                DispCtrlSettings now = SettingsStore.Load();
+                if (now.Global.LastDesk == desk) { now.Global.LastDesk = before; SettingsStore.Save(now); }
+                Volatile.Write(ref _quietUntil, 0);
+                _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(_ => Consider(DisplayRegistry.Enumerate(), "retry"), TaskScheduler.Default);
+                return;
+            }
             SettingsStore.Save(PresetSettings.Merge(due, settings, SettingsStore.Load()));
             Log.Write($"desk profile: '{due.Name}' {(result.Ok ? "applied" : "not fully applied")}");
         }
         catch (Exception ex) { Log.Write($"desk profile failed: {ex.Message}"); }
         finally { Volatile.Write(ref _working, 0); }
+        if (Interlocked.Exchange(ref _again, 0) != 0) Consider(DisplayRegistry.Enumerate(), "displays changed while applying");
     }
 
     public void Dispose()

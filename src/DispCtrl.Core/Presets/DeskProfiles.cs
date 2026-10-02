@@ -47,7 +47,9 @@ public static class DeskProfiles
     /// <summary>Whether a preset describes exactly the desk attached: a whole-desk capture of these displays.</summary>
     public static bool Covers(Preset preset, IReadOnlyCollection<string> attached, DispCtrlSettings settings)
     {
-        if (!preset.IncludeLayout || preset.Monitors.Count != attached.Count) return false;
+        // Never the empty desk: with no display enumerated - lid shut, no
+        // monitor, a remote session - there is no desk to arrange.
+        if (!preset.IncludeLayout || attached.Count == 0 || preset.Monitors.Count != attached.Count) return false;
         var saved = preset.Monitors.Keys.Select(t => Current(t, settings)).ToHashSet(StringComparer.Ordinal);
         return saved.SetEquals(attached);
     }

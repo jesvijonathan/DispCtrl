@@ -158,7 +158,11 @@ public static class PresetService
                 ScalePercent = scaling.Supported ? scaling.Current : 0,
                 OrientationDegrees = d.OrientationDegrees,
                 Hdr = hdr.Enabled,
-                Brightness = brightness.Supported ? (int)brightness.Current : -1,
+                // A percentage of the monitor's own range, as every brightness
+                // slider shows it. The raw value it was before fails validation
+                // on a monitor whose range is not 0 to 100, and on the usual
+                // one the two are the same number.
+                Brightness = brightness.Supported ? brightness.Percent : -1,
                 // Not a file that is already gone: wallpaper rotators (ASUS's OLED
                 // shifter on this laptop) report a file they replace, and a preset
                 // holding it could never be fully restored - a launch's way back
@@ -495,7 +499,9 @@ public static class PresetService
 
             if (m.Brightness < 0) continue;
 
-            if (!Brightness.Write(d, (uint)m.Brightness))
+            BrightnessRange range = Brightness.Read(d);
+            if (!range.Supported) { notes.Add($"{d.Label}: reports no brightness control."); continue; }
+            if (!Brightness.Write(d, range.FromPercent(m.Brightness)))
                 notes.Add($"{d.Label}: brightness could not be set.");
         }
     }

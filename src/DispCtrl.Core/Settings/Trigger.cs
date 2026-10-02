@@ -75,8 +75,7 @@ public sealed class Trigger
     public bool MatchesApp(string? image)
     {
         if (string.IsNullOrEmpty(image)) return false;
-        static string Stem(string s) => s.Trim().EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? s.Trim()[..^4] : s.Trim();
-        return Stem(image).Equals(Stem(Match), StringComparison.OrdinalIgnoreCase);
+        return AppRule.ProgramName(image).Equals(AppRule.ProgramName(Match), StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Whether a display is the one this trigger is about: any, when it names none.</summary>

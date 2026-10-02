@@ -3,6 +3,13 @@ using DispCtrl.Core.Settings;
 namespace DispCtrl.Core.Presets;
 
 /// <summary>Commit only preset-owned fields into the latest settings snapshot.</summary>
+/// <remarks>
+/// Field by field, never an object at a time: night light was assigned whole,
+/// so a change made elsewhere while a preset applied - following Windows'
+/// night light, the theme schedule's bookkeeping - was overwritten with the
+/// copy loaded before, and the two settings objects then shared one night
+/// light, so a later write to either changed both.
+/// </remarks>
 public static class PresetSettings
 {
     public static DispCtrlSettings Merge(Preset preset, DispCtrlSettings applied, DispCtrlSettings latest)
@@ -13,7 +20,14 @@ public static class PresetSettings
             to.UnisonBrightness = from.UnisonBrightness;
             to.UnisonLevel = from.UnisonLevel;
             to.UnisonCalibrated = from.UnisonCalibrated;
-            to.NightLight = from.NightLight;
+            NightLightSettings night = from.NightLight, into = to.NightLight;
+            into.Enabled = night.Enabled;
+            into.Strength = night.Strength;
+            into.Unison = night.Unison;
+            into.Calibrated = night.Calibrated;
+            into.Scheduled = night.Scheduled;
+            into.FromMinutes = night.FromMinutes;
+            into.ToMinutes = night.ToMinutes;
             if (preset.Global.Taskbar is not null)
             {
                 to.HideDelayMs = from.HideDelayMs;

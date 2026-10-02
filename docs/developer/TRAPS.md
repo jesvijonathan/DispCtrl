@@ -452,6 +452,31 @@ Every one of these was a real bug. Do not reintroduce them.
   them back into prose for the command line.
 - Brightness has a 2-point tolerance: DDC/CI rounds, and without it a preset is
   permanently and uselessly dirty.
+- **Merge field by field, and never share an object.** `PresetSettings.Merge`
+  assigned night light whole: a change saved elsewhere during an apply
+  (following Windows, the theme schedule) was lost, and the two settings
+  objects then shared one night light. Every caller that applies must save
+  through the merge - `preset apply` from the command line saved the whole
+  stale copy, and the engine's changes made during the apply went with it.
+- **Brightness is a percentage of the monitor's range** (`BrightnessRange.Percent`,
+  written back with `FromPercent`). It was the raw value, which fails the 0-100
+  validation on a monitor whose range is different, so its preset could not
+  be saved.
+- **A preset name is a file name.** Device names (`CON`, `NUL`, `COM1`...) get an
+  underscore, since Windows 10 treats `CON.json` as a device, and stems are cut
+  to 100 characters - a 300-character name failed to save.
+- **A copy shares nothing**, saved windows included: the store caches presets
+  and hands out copies, and a shared window list let one caller edit another's.
+- **No display is not a desk.** A preset with no monitors matched an empty set,
+  so a desk profile could fire with the lid shut and no monitor attached.
+- **A desk change heard mid-apply is looked at again**, and an apply refused
+  because another preset was applying is retried once: the desk was recorded
+  before applying, so both used to leave it unconsidered until the next change.
+- **App rules and triggers take a pasted path.** `AppRule.ProgramName` strips
+  quotes, the folder and `.exe`; a rule written as `"C:\Games\game.exe"` never
+  matched.
+- `PresetModelChecks` (core) and `PresetStoreChecks` (control) hold all of this;
+  each lists every failure in one run rather than stopping at the first.
 - Identity fields (model, serial, connector, physical size, DPI, colour profile)
   are recorded and never applied. They make a shared file readable. Matching is
   on the token alone.

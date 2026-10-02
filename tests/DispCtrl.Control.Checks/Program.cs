@@ -26,6 +26,10 @@ try
 {
     Check(SettingsStore.Directory == scratch, "test settings are isolated");
     DeviceMappingChecks.Run(Check);
+    var presetFailures = new List<string>();
+    PresetStoreChecks.Run((ok, name) => { if (ok) Check(true, name); else presetFailures.Add(name); });
+    foreach (string failure in presetFailures) Console.WriteLine("FAIL " + failure);
+    Check(presetFailures.Count == 0, $"every preset store and command check passes ({presetFailures.Count} failed)");
     using (var entered = new ManualResetEventSlim())
     using (var release = new ManualResetEventSlim())
     using (var queue = new DispCtrl.Engine.Input.HotkeyWorkQueue(_ => { }))

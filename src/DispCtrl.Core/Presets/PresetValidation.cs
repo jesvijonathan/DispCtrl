@@ -25,6 +25,10 @@ public static class PresetValidation
                 "Taskbar polling intervals must be positive.");
         }
         Require(p.Monitors!.Values.Count(m => m is not null && m.Primary) <= 1, "Only one display can be primary.");
+        foreach (PresetWindow? w in p.Windows ?? [])
+            Require(w is not null && !string.IsNullOrWhiteSpace(w.Process) && w.Spot is { Width: > 0, Height: > 0 }
+                && !string.IsNullOrWhiteSpace(w.Spot.Token),
+                "Each saved window needs its program, its display and a size.");
         foreach (var (token, m) in p.Monitors!)
         {
             Require(!string.IsNullOrWhiteSpace(token) && m is not null, "Each monitor needs a token and state.");

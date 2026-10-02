@@ -705,11 +705,21 @@ public sealed class AppRule
     {
         if (!Enabled || string.IsNullOrWhiteSpace(Process)) return false;
 
-        string want = Process.Trim();
-        if (want.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-            want = want[..^4];
+        return string.Equals(ProgramName(Process), ProgramName(imageName), StringComparison.OrdinalIgnoreCase);
+    }
 
-        return string.Equals(want, imageName, StringComparison.OrdinalIgnoreCase);
+    /// <summary>A program's name as Windows reports a process: no folder, no quotes, no .exe.</summary>
+    /// <remarks>
+    /// People paste the full path from Explorer or a shortcut, often quoted;
+    /// a rule written that way never matched, because only the bare name was
+    /// compared with the running program's.
+    /// </remarks>
+    public static string ProgramName(string text)
+    {
+        string name = text.Trim().Trim('"').Trim();
+        int slash = name.LastIndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '\\']);
+        if (slash >= 0) name = name[(slash + 1)..];
+        return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name;
     }
 }
 

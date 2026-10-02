@@ -191,6 +191,9 @@ public static class PresetStore
     /// The name is the file stem, so it has to survive the filesystem. Invalid
     /// characters become underscores rather than being dropped, which keeps two
     /// names that differ only in punctuation from collapsing onto one file.
+    /// Device names get an underscore in front, and the stem is capped in
+    /// length; a preset read back is named after its file, so such a name
+    /// shows as it was stored.
     /// </remarks>
     private static string FileName(string name)
     {
@@ -201,6 +204,23 @@ public static class PresetStore
             if (Array.IndexOf(invalid, chars[i]) >= 0) chars[i] = '_';
 
         string stem = new string(chars).Trim();
-        return (stem.Length == 0 ? "Untitled" : stem) + ".json";
+        if (stem.Length == 0) stem = "Untitled";
+        // Cut to a length every Windows API takes inside the settings folder,
+        // however deep that is: a 300-character name failed to save at all.
+        if (stem.Length > MaxStem) stem = stem[..MaxStem].TrimEnd();
+        // CON, NUL, COM1 and the rest name devices, with or without an
+        // extension, on Windows 10: "CON.json" is not a file there.
+        string device = stem.Split('.')[0].TrimEnd();
+        if (ReservedNames.Contains(device)) stem = "_" + stem;
+        return stem + ".json";
     }
+
+    private const int MaxStem = 100;
+
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM¹", "COM²", "COM³",
+        "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "LPT¹", "LPT²", "LPT³",
+    };
 }

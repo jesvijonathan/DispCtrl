@@ -33,7 +33,7 @@ public sealed class Preset
         copy.Global = Global.Copy();
         copy.CaptureNotes = [.. CaptureNotes];
         copy.Monitors = Monitors.ToDictionary(pair => pair.Key, pair => pair.Value.Copy());
-        copy.Windows = Windows is null ? null : [.. Windows];
+        copy.Windows = Windows?.Select(w => new PresetWindow { Process = w.Process, Title = w.Title, Spot = w.Spot }).ToList();
         return copy;
     }
 
