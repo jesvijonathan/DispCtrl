@@ -96,6 +96,35 @@ public static unsafe class WindowMover
         return Place(hwnd, WindowGeometry.Carry(frame, from.WorkArea, to.WorkArea, scale), WindowShow.Normal, to);
     }
 
+    /// <summary>Stretches a window over the work areas of several displays, as one frame.</summary>
+    /// <remarks>
+    /// DisplayFusion's "span": a spreadsheet or a timeline across two screens.
+    /// The frame is the rectangle around the displays' work areas, so two side
+    /// by side give one wide window; a desk that is not a rectangle leaves part
+    /// of it off-screen, which is what spanning such a desk means. A maximized
+    /// window is restored first - maximized, it would only fill one display.
+    /// </remarks>
+    public static bool Span(nint hwnd, IReadOnlyList<DisplayInfo> onto)
+    {
+        if (onto.Count == 0) return false;
+        DisplayRect union = onto[0].WorkArea;
+        foreach (DisplayInfo d in onto.Skip(1))
+            union = new DisplayRect(Math.Min(union.Left, d.WorkArea.Left), Math.Min(union.Top, d.WorkArea.Top),
+                Math.Max(union.Right, d.WorkArea.Right), Math.Max(union.Bottom, d.WorkArea.Bottom));
+        // Workspace coordinates are per display; the one at the frame's corner is the one it is placed against.
+        DisplayInfo anchor = onto.FirstOrDefault(d => d.WorkArea.Contains(union.Left, union.Top)) ?? onto[0];
+        return Place(hwnd, union, WindowShow.Normal, anchor);
+    }
+
+    /// <summary>The display after (or before) <paramref name="current"/> in the order the app numbers them, wrapping round.</summary>
+    public static DisplayInfo Neighbour(IReadOnlyList<DisplayInfo> ordered, DisplayInfo current, bool next)
+    {
+        int at = -1;
+        for (int i = 0; i < ordered.Count; i++) if (ordered[i].Key == current.Key) { at = i; break; }
+        if (at < 0) return ordered[0];
+        return ordered[((next ? at + 1 : at - 1) + ordered.Count) % ordered.Count];
+    }
+
     /// <summary>Makes a borderless fullscreen window fill another display.</summary>
     private static bool PlaceFullscreen(nint hwnd, DisplayInfo to)
     {

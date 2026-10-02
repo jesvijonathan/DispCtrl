@@ -253,14 +253,14 @@ ship. The app's **Devices** page sends the same
 ### Hotkeys
 
 Global shortcuts live in `settings.Hotkeys` and are registered by the **engine**,
-which also carries them out: 41 actions, from unison and night light to focus,
+which also carries them out: 45 actions, from unison and night light to focus,
 OLED care, keep awake, taskbar, contrast, pinning, gathering, the quick panel,
 the four Win+P arrangements (`DisplayMode`, carrying `Mode`), and two that run
 whatever somebody wrote (`RunCommand` through `dispctrl.exe`, `OpenProgram`
 through the shell, both carrying `Command`) — the same two kinds a custom quick
 panel tile has, run the same way so the words mean one thing. A new desk is
-offered twenty-one defaults (`Hotkey.OfferDefaults`), eight enabled: Ctrl+Alt with
-Page Up/Down, N, D, L, Backspace, P (pin) and G (gather). Thirteen more are configured but disabled,
+offered twenty-four defaults (`Hotkey.OfferDefaults`), eight enabled: Ctrl+Alt with
+Page Up/Down, N, D, L, Backspace, P (pin) and G (gather). Sixteen more are configured but disabled - the window moves (Ctrl+Alt+], [ and S, version 7) among them -
 including Ctrl+Alt+1 to 4 for extend, duplicate, PC screen only and second
 screen only — off, because each reconfigures the display stack and a mistyped
 digit is expensive. The defaults are

@@ -154,6 +154,24 @@ internal static class WindowChecks
         check(Hotkey.OfferDefaults(taken) == false, "the offer is made once");
         check(new Hotkey { Action = HotkeyAction.GatherWindows, Display = 2 }.DescribeAction().Contains("display 2"),
             "a gather shortcut says which display it gathers onto");
+
+        var six = new DispCtrlSettings { Hotkeys = Hotkey.Defaults().Where(h => h.Action is not
+            (HotkeyAction.MoveWindowNext or HotkeyAction.MoveWindowPrevious or HotkeyAction.SpanWindow)).ToList() };
+        six.Global.HotkeyDefaultsVersion = 6;
+        check(Hotkey.OfferDefaults(six)
+            && six.Hotkeys.Where(h => h.Action is HotkeyAction.MoveWindowNext or HotkeyAction.MoveWindowPrevious or HotkeyAction.SpanWindow)
+                .Count(h => !h.Enabled) == 3,
+            "a desk set up before version 7 is offered the window moves, switched off");
+        check(new Hotkey { Key = 0xDD, Modifiers = 3, Action = HotkeyAction.MoveWindowNext }.Describe().Contains("]"),
+            "the bracket keys have names");
+
+        DisplayInfo One(string serial, int left) => Fake(new DisplayRect(left, 0, left + 1920, 1080), new DisplayRect(left, 0, left + 1920, 1032))
+            with { Key = new DisplayKey(@"\?\DISPLAY#TST0001#" + serial, "TST-0001", serial) };
+        List<DisplayInfo> row = [One("A", 0), One("B", 1920), One("C", 3840)];
+        check(DispCtrl.Display.Placement.WindowMover.Neighbour(row, row[1], true).Key == row[2].Key
+            && DispCtrl.Display.Placement.WindowMover.Neighbour(row, row[2], true).Key == row[0].Key
+            && DispCtrl.Display.Placement.WindowMover.Neighbour(row, row[0], false).Key == row[2].Key,
+            "next and previous display wrap round the row");
     }
 
     private static void Panel(Action<bool, string> check)

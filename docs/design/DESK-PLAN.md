@@ -91,6 +91,11 @@ Stages today: dim at N minutes, dim further at M. Add stage 3 at K minutes:
 
 ## 5. Window management (DisplayFusion), where displays matter
 
+**Done**, but for window layout per desk: `placement move --to next|previous|N`
+and `placement span`, with the window in front by default, and four hotkey
+actions (defaults version 7, off). Not tested live on two displays here: the
+desk had only the laptop attached.
+
 Already: pin on top, gather, put windows back after replug, new windows on
 the display in use. Add, as hotkey actions and panel tiles, not new pages:
 

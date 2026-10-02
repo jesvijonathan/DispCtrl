@@ -379,6 +379,30 @@ internal sealed class HotkeyService : IDisposable
                 break;
             }
 
+            case HotkeyAction.MoveWindowNext:
+            case HotkeyAction.MoveWindowPrevious:
+            case HotkeyAction.MoveWindowTo:
+            case HotkeyAction.SpanWindow:
+            {
+                // Through the same request the command line makes, so a shortcut
+                // and dispctrl placement move are one behaviour.
+                var args = new System.Text.Json.Nodes.JsonObject();
+                string command = hotkey.Action == HotkeyAction.SpanWindow ? "placement.span" : "placement.move";
+                if (hotkey.Action == HotkeyAction.SpanWindow) args["displays"] = "all";
+                else args["to"] = hotkey.Action switch
+                {
+                    HotkeyAction.MoveWindowNext => "next",
+                    HotkeyAction.MoveWindowPrevious => "previous",
+                    _ => hotkey.Display > 0 ? hotkey.Display.ToString(System.Globalization.CultureInfo.InvariantCulture) : "next",
+                };
+                System.Text.Json.Nodes.JsonObject result = new DispCtrl.Control.ControlService().Execute(new System.Text.Json.Nodes.JsonObject
+                {
+                    ["version"] = 1, ["command"] = command, ["args"] = args,
+                });
+                if (result["ok"]?.GetValue<bool>() != true) Log.Write($"hotkey: {hotkey.DescribeAction()}: {result["error"]?["message"]}");
+                break;
+            }
+
             case HotkeyAction.UnpinAllWindows:
                 Log.Write($"hotkey: {Display.Placement.WindowPins.UnpinAll()} window(s) unpinned");
                 break;

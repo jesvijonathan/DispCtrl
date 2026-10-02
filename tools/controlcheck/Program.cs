@@ -315,10 +315,11 @@ try
         "upgrading hotkeys keeps existing bindings, offers new actions once, and only Turn off displays, Restore, Pin and Gather switched on");
     var fromThree = new DispCtrlSettings();
     fromThree.Global.HotkeyDefaultsVersion = 3;
-    Check(Hotkey.OfferDefaults(fromThree) && fromThree.Hotkeys.Count == 7 && fromThree.Hotkeys[0].Action == HotkeyAction.RestoreDisplays
+    Check(Hotkey.OfferDefaults(fromThree) && fromThree.Hotkeys.Count == 10 && fromThree.Hotkeys[0].Action == HotkeyAction.RestoreDisplays
         && fromThree.Hotkeys.All(h => h.Enabled == h.Action is HotkeyAction.RestoreDisplays or HotkeyAction.PinWindow or HotkeyAction.GatherWindows)
-        && fromThree.Hotkeys.Count(h => h.Action == HotkeyAction.DisplayMode) == 4,
-        "a desk on version 3 is offered restore, pin and gather switched on, and the four display modes switched off");
+        && fromThree.Hotkeys.Count(h => h.Action == HotkeyAction.DisplayMode) == 4
+        && fromThree.Hotkeys.Count(h => h.Action is HotkeyAction.MoveWindowNext or HotkeyAction.MoveWindowPrevious or HotkeyAction.SpanWindow) == 3,
+        "a desk on version 3 is offered restore, pin and gather switched on, and the display modes and window moves switched off");
     var messy = new DispCtrlSettings();
     messy.Global.Awake.DisplaysOffUtc = DateTimeOffset.UtcNow;
     messy.Global.Focus.Enabled = messy.Global.NightLight.Enabled = messy.Global.OledCare.Enabled = true;
@@ -354,7 +355,7 @@ try
     var fromTwo = new DispCtrlSettings();
     fromTwo.Global.HotkeyDefaultsVersion = 2;
     fromTwo.Hotkeys.Add(new Hotkey { Modifiers = 3, Key = 'L', Action = HotkeyAction.Identify });
-    Check(Hotkey.OfferDefaults(fromTwo) && fromTwo.Hotkeys.Count == 8
+    Check(Hotkey.OfferDefaults(fromTwo) && fromTwo.Hotkeys.Count == 11
         && !fromTwo.Hotkeys.Any(h => h.Action == HotkeyAction.DisplaysOffToggle)
         && fromTwo.Hotkeys.Any(h => h.Action == HotkeyAction.RestoreDisplays),
         "a version 3 default is never offered over a combination something else holds, nor are version 2's again");

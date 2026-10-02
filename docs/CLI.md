@@ -63,7 +63,7 @@ Open GitHub issue; submission always happens in the browser.
 | Shared policies | `focus`, `oled`, `awake`, `nightlight`, `taskbar`, `tray`, `pin`, `placement` each support `get/set/reset` |
 | Unison | `unison get/set`: enabled, level, calibrated, follow-windows; per display `--include on\|off`, `--floor`, `--ceiling` |
 | Windows on top | `pin list`, `pin on\|off\|toggle --window W` (a handle from `pin list`, an app's name or part of a title; the window in front without it), `pin off --all`; border and dimming options through `pin set` |
-| Moving windows | `placement gather --to N\|active [--from N]`, `placement move --window W --to N\|active`; putting windows back and new-window placement through `placement set` |
+| Moving windows | `placement gather --to N\|active [--from N]`, `placement move [--window W] --to N\|next\|previous\|active`, `placement span [--window W] [--displays all\|1,2]` (the window in front when none is named); putting windows back and new-window placement through `placement set` |
 | DDC/CI crash guard and probe | `ddc get`, `ddc set --guard on\|off`, `ddc allow --monitor ID\|--model KEY`, `ddc probe --monitor ID [--save\|--clear]` |
 | Ambient light | `ambient get/set/reset`, `ambient capture --as dark\|bright`, `ambient forget` |
 | Windows preferences | auto-hide, transparency, small buttons, alignment, combining, task view, widgets, badges, flashing, desktop corner, VRR, adaptive brightness, auto-rotation, dark mode, remember window locations, minimize on disconnect |

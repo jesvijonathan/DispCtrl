@@ -152,15 +152,17 @@ public sealed partial class ControlService
             {
                 if (args.Any(p => p.Key is not ("window" or "to" or "dryRun")))
                     throw new ArgumentException("placement move takes --window and --to.");
-                string named = args["window"]?.ToString() ?? throw new ArgumentException("Which window? --window (a handle from pin list, an app's name, or part of a title).");
-                AppWindow window = WindowPins.Find(named) ?? throw new ArgumentException($"No open window matches '{named}'. See pin list.");
+                AppWindow window = WindowNamed(args);
                 List<DisplayInfo> displays = Resolve(null);
                 PlacementSettings placement = SettingsStore.Load().Global.Placement;
-                string to = args["to"]?.ToString() ?? throw new ArgumentException("Onto which display? --to 2, or --to active.");
-                DisplayInfo target = to is "active" or "pointer"
-                    ? WindowMover.Active(placement, displays) ?? throw new InvalidOperationException("No display is in use.")
-                    : Resolve(to, false).Single();
+                string to = args["to"]?.ToString() ?? throw new ArgumentException("Onto which display? --to 2, next, previous or active.");
                 DisplayInfo from = AppWindows.DisplayOf(window.Handle, displays) ?? throw new InvalidOperationException("That window is on no display.");
+                DisplayInfo target = to switch
+                {
+                    "active" or "pointer" => WindowMover.Active(placement, displays) ?? throw new InvalidOperationException("No display is in use."),
+                    "next" or "previous" => WindowMover.Neighbour(displays, from, to == "next"),
+                    _ => Resolve(to, false).Single(),
+                };
                 if (from.Key == target.Key) return new JsonObject { ["state"] = "unchanged", ["window"] = Describe(window) };
                 if (dryRun) return new JsonObject { ["state"] = "validated", ["window"] = Describe(window), ["to"] = target.Token };
                 if (!WindowMover.Move(window.Handle, from, target, placement.KeepSize))
@@ -168,9 +170,34 @@ public sealed partial class ControlService
                 return new JsonObject { ["state"] = "moved", ["window"] = Describe(AppWindows.Describe(window.Handle) ?? window),
                     ["to"] = displays.FindIndex(d => d.Key == target.Key) + 1 };
             }
+            case "span":
+            {
+                if (args.Any(p => p.Key is not ("window" or "displays" or "dryRun")))
+                    throw new ArgumentException("placement span takes --window and --displays (all, or a list: 1,2).");
+                AppWindow window = WindowNamed(args);
+                string which = args["displays"]?.ToString() ?? "all";
+                List<DisplayInfo> onto = which == "all" ? Resolve(null)
+                    : [.. which.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).SelectMany(d => Resolve(d, false)).DistinctBy(d => d.Key)];
+                if (onto.Count < 2) throw new ArgumentException("Spanning needs two displays or more.");
+                if (dryRun) return new JsonObject { ["state"] = "validated", ["window"] = Describe(window), ["displays"] = onto.Count };
+                if (!WindowMover.Span(window.Handle, onto))
+                    throw new InvalidOperationException($"Windows refused to move {window.Title}: it may be running as administrator.");
+                return new JsonObject { ["state"] = "spanned", ["window"] = Describe(AppWindows.Describe(window.Handle) ?? window), ["displays"] = onto.Count };
+            }
             default:
-                throw new ArgumentException("placement get|set|reset|gather|move.");
+                throw new ArgumentException("placement get|set|reset|gather|move|span.");
         }
+    }
+
+    /// <summary>The window <c>--window</c> names, or the window in front when it names none (or says "active").</summary>
+    /// <remarks>What a shortcut moves: whatever has the keyboard when the keys are pressed.</remarks>
+    private static AppWindow WindowNamed(JsonObject args)
+    {
+        string? named = args["window"]?.ToString();
+        if (named is null or "active")
+            return AppWindows.Describe(WindowPins.Foreground()) is { } front && AppWindows.IsCandidate(front.Handle)
+                ? front : throw new InvalidOperationException("No ordinary window is in front to move. Name one with --window.");
+        return WindowPins.Find(named) ?? throw new ArgumentException($"No open window matches '{named}'. See pin list.");
     }
 
     /// <summary>Windows' own window memory handed over or back, and the bookkeeping saved.</summary>

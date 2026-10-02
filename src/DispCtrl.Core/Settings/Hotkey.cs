@@ -71,6 +71,18 @@ public enum HotkeyAction
 
     /// <summary>Runs the custom feature named in <see cref="Hotkey.Feature"/>.</summary>
     RunFeature,
+
+    /// <summary>Moves the window in front to the next display, keeping its place and size there.</summary>
+    MoveWindowNext,
+
+    /// <summary>Moves the window in front to the previous display.</summary>
+    MoveWindowPrevious,
+
+    /// <summary>Moves the window in front to display <see cref="Hotkey.Display"/>.</summary>
+    MoveWindowTo,
+
+    /// <summary>Stretches the window in front across every display.</summary>
+    SpanWindow,
 }
 
 /// <summary>One global keyboard shortcut.</summary>
@@ -157,7 +169,8 @@ public sealed class Hotkey
         HotkeyAction.ContrastUp or HotkeyAction.ContrastDown or HotkeyAction.NextInput
         or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown or HotkeyAction.MuteToggle
         or HotkeyAction.DisplayMode or HotkeyAction.MakePrimary or HotkeyAction.HdrToggle
-        or HotkeyAction.GatherWindows or HotkeyAction.RunCommand or HotkeyAction.OpenProgram;
+        or HotkeyAction.GatherWindows or HotkeyAction.RunCommand or HotkeyAction.OpenProgram
+        or HotkeyAction.MoveWindowNext or HotkeyAction.MoveWindowPrevious or HotkeyAction.MoveWindowTo or HotkeyAction.SpanWindow;
 
     /// <summary>
     /// The value a control action asks for, in the words <c>display control --value</c>
@@ -292,6 +305,9 @@ public sealed class Hotkey
             new() { Modifiers = CtrlAlt, Key = '2', Action = HotkeyAction.DisplayMode, Mode = "Duplicate", Enabled = false },
             new() { Modifiers = CtrlAlt, Key = '3', Action = HotkeyAction.DisplayMode, Mode = "InternalOnly", Enabled = false },
             new() { Modifiers = CtrlAlt, Key = '4', Action = HotkeyAction.DisplayMode, Mode = "ExternalOnly", Enabled = false },
+            new() { Modifiers = CtrlAlt, Key = 0xDD, Action = HotkeyAction.MoveWindowNext, Enabled = false },      // ]
+            new() { Modifiers = CtrlAlt, Key = 0xDB, Action = HotkeyAction.MoveWindowPrevious, Enabled = false },  // [
+            new() { Modifiers = CtrlAlt, Key = 'S', Action = HotkeyAction.SpanWindow, Enabled = false },
         ];
     }
 
@@ -312,7 +328,7 @@ public sealed class Hotkey
     }
 
     /// <summary>The defaults version this build offers; see <see cref="OfferDefaults"/>.</summary>
-    public const int DefaultsVersion = 6;
+    public const int DefaultsVersion = 7;
 
     /// <summary>Actions a defaults version added, offered to desks set up before it.</summary>
     private static readonly HotkeyAction[] AddedInVersion2 =
@@ -343,6 +359,17 @@ public sealed class Hotkey
     /// seconds of black screen - and a mistyped digit is an expensive accident.
     /// </summary>
     private static readonly HotkeyAction[] AddedInVersion6 = [HotkeyAction.DisplayMode];
+
+    /// <summary>
+    /// Added in version 7, switched off: moving the window in front to the
+    /// next or previous display (Ctrl+Alt+] and [) and spanning it (Ctrl+Alt+S).
+    /// Windows' Win+Shift+arrows already move a window between displays; these
+    /// carry its place and size in proportion across displays at different
+    /// scales, which is why they are here, and they are off so a desk that
+    /// never asked for them gains nothing.
+    /// </summary>
+    private static readonly HotkeyAction[] AddedInVersion7 =
+        [HotkeyAction.MoveWindowNext, HotkeyAction.MoveWindowPrevious, HotkeyAction.SpanWindow];
 
     /// <summary>
     /// Adds the defaults once, to a desk that has never been offered them, and
@@ -376,6 +403,7 @@ public sealed class Hotkey
             else if (from < 4 && AddedInVersion4.Contains(d.Action)) settings.Hotkeys.Add(d);
             else if (from < 5 && AddedInVersion5.Contains(d.Action)) settings.Hotkeys.Add(d);
             else if (from < 6 && AddedInVersion6.Contains(d.Action)) settings.Hotkeys.Add(d);
+            else if (from < 7 && AddedInVersion7.Contains(d.Action)) settings.Hotkeys.Add(d);
         }
         g.HotkeyDefaultsOffered = true;
         g.HotkeyDefaultsVersion = DefaultsVersion;
@@ -438,6 +466,10 @@ public sealed class Hotkey
             HotkeyAction.ControlUp => $"{Control} up {Step} on {where}",
             HotkeyAction.ControlDown => $"{Control} down {Step} on {where}",
             HotkeyAction.RunFeature => $"Run the feature “{Feature}”",
+            HotkeyAction.MoveWindowNext => "Move the window in front to the next display",
+            HotkeyAction.MoveWindowPrevious => "Move the window in front to the previous display",
+            HotkeyAction.MoveWindowTo => $"Move the window in front to display {Display}",
+            HotkeyAction.SpanWindow => Display == 0 ? "Stretch the window in front across every display" : $"Stretch the window in front across displays {Display} and the next",
             _ => Action.ToString(),
         };
     }
@@ -478,6 +510,8 @@ public sealed class Hotkey
         0x08 => "Backspace",
         0xBB => "Plus",
         0xBD => "Minus",
+        0xDB => "[",
+        0xDD => "]",
         0xAE => "Volume Down",
         0xAF => "Volume Up",
         _ => $"Key {key}",

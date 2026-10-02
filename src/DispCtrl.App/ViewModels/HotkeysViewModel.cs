@@ -68,6 +68,10 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         (HotkeyAction.PinWindow, "Pin the active window on top, or unpin it"),
         (HotkeyAction.UnpinAllWindows, "Unpin every pinned window"),
         (HotkeyAction.GatherWindows, "Gather every window onto one display"),
+        (HotkeyAction.MoveWindowNext, "Move the window in front to the next display"),
+        (HotkeyAction.MoveWindowPrevious, "Move the window in front to the previous display"),
+        (HotkeyAction.MoveWindowTo, "Move the window in front to a display"),
+        (HotkeyAction.SpanWindow, "Stretch the window in front across every display"),
         (HotkeyAction.ReturnWindowsToggle, "Put windows back on or off"),
         (HotkeyAction.NewWindowsToggle, "Open new windows on the display in use"),
         (HotkeyAction.RunCommand, "Run a dispctrl command"),
@@ -255,15 +259,18 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         HotkeyAction.BrightnessUp or HotkeyAction.BrightnessDown or HotkeyAction.NextInput
         or HotkeyAction.SetControl or HotkeyAction.NextControlValue or HotkeyAction.PreviousControlValue
         or HotkeyAction.ControlUp or HotkeyAction.ControlDown
-        or HotkeyAction.ContrastUp or HotkeyAction.ContrastDown or HotkeyAction.GatherWindows
+        or HotkeyAction.ContrastUp or HotkeyAction.ContrastDown or HotkeyAction.GatherWindows or HotkeyAction.MoveWindowTo
         or HotkeyAction.SoftwareDimUp or HotkeyAction.SoftwareDimDown or HotkeyAction.MakePrimary
         or HotkeyAction.HdrToggle or HotkeyAction.VolumeUp or HotkeyAction.VolumeDown or HotkeyAction.MuteToggle
         ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>What 0 means for this action: every display, or for gathering the one in use.</summary>
-    public string DisplayHint => Hotkey.Action is HotkeyAction.GatherWindows or HotkeyAction.MakePrimary
-        ? "The number shown by Identify; 0 for the display in use, as chosen on the Displays page."
-        : "The number shown by Identify; 0 for every display.";
+    public string DisplayHint => Hotkey.Action switch
+    {
+        HotkeyAction.GatherWindows or HotkeyAction.MakePrimary => "The number shown by Identify; 0 for the display in use, as chosen on the Displays page.",
+        HotkeyAction.MoveWindowTo => "The number shown by Identify; 0 for the next display.",
+        _ => "The number shown by Identify; 0 for every display.",
+    };
 
     public double DisplayNumber
     {
