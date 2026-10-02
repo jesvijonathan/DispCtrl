@@ -83,9 +83,40 @@ dispctrl settings get --path /hotkeys
 
 `settings export` captures saved settings, identities and policy values; it does
 not read current hardware brightness or Windows preferences. The app's current
-configuration export includes hardware state. Named presets and automatic preset
-application remain disabled. Legacy flat commands remain available but do not
-all use the versioned result format or shared broker yet.
+configuration export includes hardware state.
+
+## Presets and short forms
+
+Presets and desk profiles (Beta) are control commands like the rest:
+
+```powershell
+dispctrl preset list
+dispctrl preset save Evening            # the desk now, windows included
+dispctrl preset apply Evening
+dispctrl preset desk Evening on         # apply by itself when exactly its displays connect
+dispctrl preset delete Evening
+dispctrl preset launch Gaming steam.exe --wait-for game.exe   # apply, run, put the desk back
+```
+
+`preset launch` runs in the calling process, not the broker: it waits as long
+as the program runs, which no request with a timeout can.
+
+The first command line's verbs still work, as short forms of control commands
+(`LegacyCommands`): the words are rewritten and run through the same service,
+so they answer in the same envelope, through the broker when the engine runs.
+`--display N` becomes `--monitor N`, and without one a command reads or changes
+every display.
+
+| Short form | Runs |
+|---|---|
+| `brightness [N\|+N\|-N]` | `display get --hardware`, `display set --brightness N` or `--brightness-by N` |
+| `dim [N]` | `display set --dim N` |
+| `contrast`, `volume`, `sharpness [N]` | `display control --name 0x12\|0x62\|0x87 [--value N]` |
+| `input [NAME]`, `power on\|standby\|off`, `vcp CODE [N]` | `display control` on `0x60`, `0xD6`, or the code |
+| `unison [on\|off\|N]`, `nightlight [on\|off\|N] [--from --to]` | `unison set`, `nightlight set` |
+| `topology extend`, `resolution WxH`, `refresh HZ`, `primary N` | `topology set`, `display set` |
+| `enable\|disable N` | `settings set --path hideTaskbar` on that display |
+| `contribute [--open]` | `devices contribute` |
 
 Every control in the app, page by page, and its command:
 [CLI-COVERAGE.md](CLI-COVERAGE.md). The device library - naming the codes

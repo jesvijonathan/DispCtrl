@@ -33,7 +33,8 @@ public sealed partial class ControlService
         "features.list", "features.get", "features.add", "features.set", "features.remove", "features.run",
         "update.get", "update.check", "update.set", "update.skip", "update.reset",
         "machine.get", "machine.set", "machine.undo",
-        "triggers.list", "triggers.get", "triggers.add", "triggers.set", "triggers.remove"];
+        "triggers.list", "triggers.get", "triggers.add", "triggers.set", "triggers.remove",
+        "preset.list", "preset.save", "preset.apply", "preset.delete", "preset.desk"];
 
     public JsonObject Execute(JsonObject request)
     {
@@ -66,6 +67,7 @@ public sealed partial class ControlService
                 || command is "settings.import" or "machine.undo" or "oled.rest" or "restore.now" or "restore.undo" or "awake.displays-off" or "apply" or "display.factory-reset" or "display.reset"
                 or "hotkeys.add" or "hotkeys.remove" or "ambient.capture" or "ambient.forget" or "features.add" or "features.remove" or "triggers.add" or "triggers.remove"
                 or "devices.map" or "devices.unmap" or "devices.link" or "devices.panel"
+                or "preset.save" or "preset.apply" or "preset.delete" or "preset.desk"
                 || command == "display.control" && args.ContainsKey("value");
             using var gate = new Mutex(false, @"Local\DispCtrl.Control.Operations");
             bool held;
@@ -123,6 +125,7 @@ public sealed partial class ControlService
         if (command.StartsWith("update.", StringComparison.Ordinal)) return UpdateCommand(command[7..], args);
         if (command.StartsWith("machine.", StringComparison.Ordinal)) return MachineCommand(command[8..], args);
         if (command.StartsWith("triggers.", StringComparison.Ordinal)) return TriggersCommand(command[9..], args);
+        if (command.StartsWith("preset.", StringComparison.Ordinal)) return PresetCommand(command[7..], args);
         if (command == "gamma.get")
         {
             var state = GammaRange.Read();

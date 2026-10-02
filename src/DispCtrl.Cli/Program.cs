@@ -1,84 +1,18 @@
-using DispCtrl.Core.Displays;
-using DispCtrl.Core.Settings;
-using DispCtrl.Display.Cli;
+using DispCtrl.Control;
 
 // Console front end. The engine owns the resident work; everything a script
 // wants to ask for is here, in a process that blocks the shell and returns a
-// meaningful exit code.
-if (args.Length == 0 || args[0] is "help" or "--help" or "-h")
+// meaningful exit code. Every command, the old short verbs included, goes
+// through the control terminal and so through the same service the app and
+// the engine's broker use.
+if (args.Length == 0 || args[0] is "help" or "--help" or "-h" or "/?")
 {
-    Console.WriteLine(DispCtrl.Control.ControlTerminal.Help);
-    return 0;
-}
-if (DispCtrl.Control.ControlTerminal.Handles(args)) return await DispCtrl.Control.ControlTerminal.RunAsync(args);
-
-string verb = args[0].ToLowerInvariant();
-string[] rest = args.Length > 1 ? args[1..] : [];
-
-return verb switch
-{
-    "help" or "--help" or "-h" or "/?" => CommandLine.Usage(null),
-    "displays" or "list" => ListDisplays(),
-    "enable" => SetHide(rest, true),
-    "disable" => SetHide(rest, false),
-    _ => CommandLine.Run(verb, rest),
-};
-
-static int ListDisplays()
-{
-    List<DisplayInfo> displays = CommandLine.Sorted();
-    if (displays.Count == 0)
-    {
-        Console.Error.WriteLine("no displays resolved");
-        return 1;
-    }
-
-    DispCtrlSettings settings = SettingsStore.Load();
-
-    for (int i = 0; i < displays.Count; i++)
-    {
-        DisplayInfo d = displays[i];
-        MonitorSettings m = settings.For(d.Token);
-
-        Console.WriteLine($"{i + 1}. {d.Label}");
-        Console.WriteLine($"     {d.Bounds.Width} x {d.Bounds.Height} @ {d.RefreshHz} Hz"
-            + $"  ·  {d.Scale * 100:0}%  ·  {d.Connector}{(d.IsPrimary ? "  ·  main" : "")}");
-        Console.WriteLine($"     token {d.Token}{(m.HideTaskbar ? "  ·  taskbar hidden" : "")}");
-    }
-
+    Console.WriteLine(ControlTerminal.Help);
     return 0;
 }
 
-static int SetHide(string[] args, bool hide)
-{
-    if (args.Length == 0)
-    {
-        Console.Error.WriteLine($"{(hide ? "enable" : "disable")} needs a display number or token");
-        return 2;
-    }
+if (args[0] is "displays" && args.Length == 1) args = ["displays", "list"];
+if (ControlTerminal.Handles(args)) return await ControlTerminal.RunAsync(args);
 
-    List<DisplayInfo> targets = CommandLine.Resolve(args[0], out string? error);
-    if (error is not null)
-    {
-        Console.Error.WriteLine(error);
-        return 1;
-    }
-
-    DispCtrlSettings settings = SettingsStore.Load();
-    foreach (DisplayInfo d in targets)
-    {
-        if (d.IsPrimary && hide)
-        {
-            Console.Error.WriteLine(
-                $"{d.Label} is the main display. Explorer restores its taskbar immediately; "
-                + "use Windows' own auto-hide there instead.");
-            return 1;
-        }
-
-        settings.For(d.Token).HideTaskbar = hide;
-        Console.WriteLine($"{d.Label}: taskbar {(hide ? "hidden" : "shown")}");
-    }
-
-    SettingsStore.Save(settings);
-    return 0;
-}
+Console.Error.WriteLine($"Unknown command: {args[0]}. 'dispctrl help' lists them.");
+return 2;

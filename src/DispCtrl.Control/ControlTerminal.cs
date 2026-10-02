@@ -2,18 +2,29 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DispCtrl.Control;
+using DispCtrl.Core;
 using DispCtrl.Core.Settings;
 
 namespace DispCtrl.Control;
 
 public static class ControlTerminal
 {
-    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient", "pin", "placement", "ddc", "update", "features", "machine", "triggers"];
-    public static bool Handles(string[] args) => args.Length > 0 && (Roots.Contains(args[0])
-        || args[0] == "nightlight" && args.Length > 1 && args[1] is "get" or "set" or "reset"
-        || args[0] == "topology" && args.Length > 1 && args[1] is "get" or "set");
+    private static readonly HashSet<string> Roots = ["commands", "status", "diagnostics", "report", "display", "displays", "settings", "focus", "oled", "awake", "taskbar", "tray", "windows", "engine", "apply", "watch", "request", "scripts", "unison", "startup", "gamma", "devices", "hotkeys", "maintenance", "restore", "ambient", "pin", "placement", "ddc", "update", "features", "machine", "triggers", "preset"];
+    /// <summary>Whether the words are a command: a control root, or one of the old verbs it still answers to.</summary>
+    public static bool Handles(string[] args)
+    {
+        if (args.Length == 0) return false;
+        if (Roots.Contains(args[0]) || args[0] is "nightlight" or "topology") return true;
+        try { return LegacyCommands.Translate(args) is not null; }
+        catch (ArgumentException) { return true; }   // an old verb asked wrongly: RunAsync says how
+    }
 
-    public const string Help = """
+    /// <summary>Every command, with the preset ones only in a build that has presets.</summary>
+    public static string Help => (FeatureFlags.Presets ? Commands
+        : string.Join('\n', Commands.Split('\n').Where(line => !line.TrimStart().StartsWith("preset", StringComparison.Ordinal))))
+        + "\n\n" + LegacyCommands.Help;
+
+    private const string Commands = """
     DispCtrl control API v1
       displays list                         Connected monitors and stable identities
       display get [--hardware]              Current state; hardware reads are opt-in
@@ -126,7 +137,6 @@ public static class ControlTerminal
     Diagnostics go to stderr.
     Exit codes: 0 success, 1 failed/partial, 2 invalid request, 4 timeout, 130 cancelled.
     Use DISPCTRL_DATA_DIR for an isolated absolute configuration directory.
-    Existing flat commands (brightness, contrast, vcp, etc.) remain supported.
     """;
 
     public static async Task<int> RunAsync(string[] words)
@@ -136,6 +146,8 @@ public static class ControlTerminal
         Console.CancelKeyPress += handler;
         try
         {
+            if (words.Length > 1 && words[0] == "preset" && words[1] == "launch") return PresetLauncher.Run(words[2..]);
+            if (!Roots.Contains(words.FirstOrDefault() ?? "") && LegacyCommands.Translate(words) is { } translated) words = translated;
             var options = Parse(words, out List<string> positional);
             bool json = RemoveFlag(options, "json"), local = RemoveFlag(options, "local");
             // A person at a terminal gets tables and sentences; a pipe, a
@@ -157,6 +169,8 @@ public static class ControlTerminal
                 "features" when action is "run" or "remove" or "add" or "set" => 3,
                 "machine" when action == "set" => 4,
                 "machine" when action == "undo" => 3,
+                "preset" when action == "desk" => 4,
+                "preset" when action is "save" or "apply" or "delete" => 3,
                 _ => 2,
             };
             if (positional.Count > maximum) throw new ArgumentException("Unexpected positional argument: " + positional[maximum]);
@@ -164,6 +178,18 @@ public static class ControlTerminal
             {
                 if (options.ContainsKey("name")) throw new ArgumentException("Name the feature once: features run Gaming, or --name Gaming.");
                 options["name"] = positional[2];
+            }
+            if (root == "preset" && positional.Count > 2)
+            {
+                if (options.ContainsKey("name")) throw new ArgumentException("Name the preset once: preset apply Evening.");
+                options["name"] = positional[2];
+                if (positional.Count > 3)
+                    options["enabled"] = positional[3].ToLowerInvariant() switch
+                    {
+                        "on" or "true" => true,
+                        "off" or "false" => false,
+                        _ => throw new ArgumentException("preset desk NAME on|off"),
+                    };
             }
             if (root == "machine" && positional.Count > 2)
             {

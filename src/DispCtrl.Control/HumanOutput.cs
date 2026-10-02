@@ -111,7 +111,7 @@ internal static class HumanOutput
     private static readonly HashSet<string> Hidden = new(StringComparer.Ordinal) { "revision", "settingsRevision" };
 
     private static readonly HashSet<string> Later = new(StringComparer.Ordinal)
-        { "x", "y", "physicalWidthMm", "physicalHeightMm", "firstSeen", "id", "alias", "history" };
+        { "x", "y", "physicalWidthMm", "physicalHeightMm", "firstSeen", "id", "alias", "history", "wallpaper" };
 
     private static JsonObject Merge(JsonObject row)
     {
@@ -121,6 +121,17 @@ internal static class HumanOutput
         {
             if (key == "height") continue;
             if (key == "width") { merged["resolution"] = Scalar(w) + "x" + Scalar(h); continue; }
+            // A display read with --hardware: its level, not a JSON fragment.
+            if (key == "brightness" && value is JsonObject level)
+            {
+                merged[key] = level["supported"]?.GetValue<bool>() == true ? Scalar(level["percent"]) + "%" : "none";
+                continue;
+            }
+            if (key == "hdr" && value is JsonObject hdr)
+            {
+                merged[key] = hdr["supported"]?.GetValue<bool>() != true ? "none" : hdr["enabled"]?.GetValue<bool>() == true ? "on" : "off";
+                continue;
+            }
             merged[key] = value?.DeepClone();
         }
         return merged;

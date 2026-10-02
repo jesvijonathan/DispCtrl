@@ -122,8 +122,10 @@ Start-Process ".\src\DispCtrl.Engine\bin\Release\net10.0-windows10.0.26100.0\win
 Explorer by UIPI and its command pipe from every unelevated client. The one
 machine-wide write, the gamma clamp, asks for elevation itself.
 
-Engine CLI: `displays`, `enable <n>`, `disable <n>`, `status`, `run [--for <s>]
-[--trace]`, `stop`.
+Engine CLI: `status`, `run [--for <s>] [--trace]`, `stop`. Every other word
+(displays, brightness, preset ...) goes to the same control terminal as
+`dispctrl`; there is one command line (`DispCtrl.Control`), and the first one's
+verbs are short forms rewritten by `LegacyCommands`.
 
 `dispctrl.exe` is the scriptable front end — `dispctrl help` lists everything. It is a
 **console** subsystem app, unlike the engine: a WinExe does not block the shell

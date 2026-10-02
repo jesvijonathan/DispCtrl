@@ -190,20 +190,7 @@ if (!DispCtrl.Core.FeatureFlags.Presets)
     Check(!disabled.Ok && !disabled.Attempted, "stable build refuses preset application before hardware access");
     Check(before == System.Text.Json.JsonSerializer.Serialize(settings, SettingsJsonContext.Default.DispCtrlSettings),
         "disabled preset application leaves settings intact");
-    foreach (string verb in new[] { "list", "apply", "save", "delete" })
-        Check(DispCtrl.Display.Cli.CommandLine.Run("preset", [verb, "Disabled feature check"]) == 1,
-            $"stable CLI refuses preset {verb}");
     Check(DispCtrl.Display.Reports.DisplayReport.Presets().Length == 0, "stable reports omit saved presets");
-    using var help = new StringWriter();
-    TextWriter previousOutput = Console.Out;
-    try
-    {
-        Console.SetOut(help);
-        DispCtrl.Display.Cli.CommandLine.Usage(null);
-    }
-    finally { Console.SetOut(previousOutput); }
-    Check(!help.ToString().Contains("preset", StringComparison.OrdinalIgnoreCase),
-        "stable CLI help omits presets");
 }
 Console.WriteLine($"{passed} checks passed.");
 

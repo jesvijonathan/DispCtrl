@@ -1,6 +1,5 @@
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
-using DispCtrl.Display.Cli;
 using DispCtrl.Display.Ddc;
 using DispCtrl.Display.Light;
 using DispCtrl.Display.Reports;
@@ -50,7 +49,9 @@ internal static class Program
 
         if (args.Length > 0 && args[0] == "control")
             return DispCtrl.Control.ControlTerminal.RunAsync(args[1..]).GetAwaiter().GetResult();
-        if (args.Length > 0 && args[0] is not ("status" or "displays") && DispCtrl.Control.ControlTerminal.Handles(args))
+        // Display commands are dispctrl's; the engine answers them the same way
+        // for a script that still calls it, through the one control terminal.
+        if (args.Length > 0 && args[0] != "status" && DispCtrl.Control.ControlTerminal.Handles(args))
             return DispCtrl.Control.ControlTerminal.RunAsync(args).GetAwaiter().GetResult();
 
         string command = args.Length > 0 ? args[0].ToLowerInvariant() : "run";
@@ -58,22 +59,14 @@ internal static class Program
 
         return command switch
         {
-            "displays" or "list" => ListDisplays(),
-            "enable" => SetHide(arg, true),
-            "disable" => SetHide(arg, false),
             "status" => Status(),
             // No arguments at all is the packaged startup task, which cannot pass any.
             "run" => Run(ParseDuration(args), HasFlag(args, "--trace"),
                 args.Length == 0 || HasFlag(args, DispCtrl.Display.Shell.StartupIntegration.SignInArgument)),
             "stop" => Stop(),
             "help" or "--help" or "-h" or "/?" => Usage(0),
-
-            // Everything else is a display command. Kept in one place rather
-            // than spread through this switch: they share targeting, output and
-            // exit-code conventions that only make sense together.
-            _ => CommandLine.Run(command, args.Length > 1 ? args[1..] : []),
-        };
-    }
+            _ => Usage(2, $"unknown command: {command}"),
+        };    }
 
     /// <summary>
     /// Attaches to the launching console, if there is one, so a WinExe can
@@ -240,82 +233,24 @@ internal static class Program
         TextWriter w = code == 0 ? Console.Out : Console.Error;
         if (error is not null) w.WriteLine(error);
         w.WriteLine("""
-            DispCtrl
+            DispCtrl engine
 
-            Engine
-              displays              list attached monitors
-              status                show what is configured
-              enable  <n|token>     hide the taskbar on that monitor
-              disable <n|token>     stop hiding it
               run [--for <s>]       run the engine (Ctrl+C restores everything)
               stop                  ask a running engine to restore and exit
-
-            Brightness and colour
-              brightness [<n>|+n|-n]   read or set; an offset is relative
-              dim [<n>]                software dimming, for panels with no control
-              unison [on|off|<n>]      one level across every display
-              nightlight [on|off|<n>] [--from 20:00 --to 07:00] [--no-schedule]
-
-            The monitor's own settings
-              contrast [<n>]           ─┐
-              volume [<n>]              │ whatever the monitor reports
-              sharpness [<n>]          ─┘
-              input [<name>]           switch source, by name: "HDMI 1"
-              power <on|standby|off>   the monitor's own power state
-              vcp <code> [<value>]     any allow-listed VCP code, e.g. vcp 0x14
-
-            Layout
-              topology <extend|duplicate|internal|external>
-              resolution [<WxH>]
-              refresh [<hz>]
-              primary [<n|token>]
-
-            Diagnostics
-              report                write the display report and print its path
-
-            Every display command takes --display <n|token> or --all.
-            Without one it reads rather than writes, and reports every display.
-            <n> is the number shown by `displays`: built-in first, then left to
-            right, the same numbering the panel uses.
-
-            Exit codes: 0 done, 1 refused, 2 asked wrongly.
+              status                show what is configured
 
             --for <s> runs for that many seconds then restores by itself,
             which is the safe way to trial a configuration.
+
+            Display commands (displays, brightness, input, preset ...) are
+            dispctrl's; the engine passes them to the same control terminal.
+            dispctrl help lists them all.
             """);
         return code;
     }
 
     // ------------------------------------------------------------- commands --
 
-    private static int ListDisplays()
-    {
-        List<DisplayInfo> displays = DisplayRegistry.Enumerate();
-        if (displays.Count == 0)
-        {
-            Console.Error.WriteLine("no displays resolved");
-            return 1;
-        }
-
-        DispCtrlSettings settings = SettingsStore.Load();
-
-        for (int i = 0; i < displays.Count; i++)
-        {
-            DisplayInfo d = displays[i];
-            string token = d.Token;
-            bool hiding = settings.Monitors.TryGetValue(token, out MonitorSettings? ms) && ms.HideTaskbar;
-
-            Console.WriteLine($"[{i + 1}] {d.Label} {(d.IsPrimary ? "(primary)" : "(secondary)")}");
-            Console.WriteLine($"    {d.Bounds.Width}x{d.Bounds.Height} @ {d.RefreshHz}Hz, {d.Scale * 100:0}% scaling, {d.Connector}");
-            Console.WriteLine($"    brightness  : {(d.IsInternal ? "WMI (internal panel, no DDC/CI)" : "DDC/CI")}");
-            Console.WriteLine($"    work area   : {d.WorkArea}{(d.WorkArea == d.Bounds ? "  (full - no bar reserved)" : "")}");
-            Console.WriteLine($"    taskbar     : {(hiding ? "HIDDEN by DispCtrl" : "normal")}");
-            Console.WriteLine($"    settings key: {token}");
-            Console.WriteLine();
-        }
-
-        return 0;
-    }
 
     private static int Status()
     {
@@ -327,7 +262,7 @@ internal static class Program
         if (settings.Monitors.Count == 0)
         {
             Console.WriteLine("nothing configured yet.");
-            Console.WriteLine("run `displays` to see your monitors, then `enable <n>`.");
+            Console.WriteLine("run `dispctrl displays` to see your monitors, then `dispctrl enable <n>`.");
             return 0;
         }
 
@@ -345,56 +280,6 @@ internal static class Program
         return 0;
     }
 
-    private static int SetHide(string? selector, bool hide)
-    {
-        if (string.IsNullOrWhiteSpace(selector))
-            return Usage(2, "which monitor? pass the number from `displays`.");
-
-        List<DisplayInfo> displays = DisplayRegistry.Enumerate();
-        DisplayInfo? target = Select(displays, selector);
-        if (target is null)
-            return Usage(2, $"no monitor matches '{selector}'.");
-
-        DispCtrlSettings settings = SettingsStore.Load();
-        string token = target.Token;
-
-        MonitorSettings ms = settings.For(token);
-        ms.HideTaskbar = hide;
-        ms.Label = target.Label;
-        SettingsStore.Save(settings);
-
-        Console.WriteLine($"{(hide ? "hiding" : "no longer hiding")} the taskbar on {target.Label}.");
-
-        if (hide && target.IsPrimary)
-        {
-            // Measured, not guessed: SetWindowPos on Shell_TrayWnd reports
-            // success and explorer restores it within ~120ms. Saying so here
-            // beats letting the user wonder why nothing happens.
-            Console.WriteLine();
-            Console.WriteLine("warning: this is your PRIMARY monitor, and Windows will not allow it.");
-            Console.WriteLine("  Explorer actively restores the primary taskbar, so it snaps straight");
-            Console.WriteLine("  back. Only secondary monitors' taskbars can be moved from outside");
-            Console.WriteLine("  explorer. The engine will detect this and stop trying.");
-            Console.WriteLine();
-            Console.WriteLine("  To hide this one instead, make a different display primary in");
-            Console.WriteLine("  Settings > System > Display, then enable it here.");
-        }
-
-        Console.WriteLine(hide
-            ? "run `run` to start the engine."
-            : "restart the engine for this to take effect.");
-        return 0;
-    }
-
-    /// <summary>Resolves a 1-based index or a settings token to a display.</summary>
-    private static DisplayInfo? Select(List<DisplayInfo> displays, string selector)
-    {
-        if (int.TryParse(selector, out int index))
-            return index >= 1 && index <= displays.Count ? displays[index - 1] : null;
-
-        return displays.Find(d =>
-            string.Equals(d.Token, selector, StringComparison.OrdinalIgnoreCase));
-    }
 
     /// <summary>What the engine starts besides itself, once its own work is running.</summary>
     /// <remarks>

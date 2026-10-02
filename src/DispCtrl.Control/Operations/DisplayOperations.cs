@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using DispCtrl.Core.Color;
 using DispCtrl.Core.Devices;
 using DispCtrl.Core.Displays;
 using DispCtrl.Core.Settings;
@@ -72,6 +73,7 @@ public sealed partial class ControlService
                 entry["width"] = d.Bounds.Width; entry["height"] = d.Bounds.Height;
                 entry["x"] = d.Bounds.Left; entry["y"] = d.Bounds.Top; entry["refreshHz"] = d.RefreshHz;
                 entry["primary"] = d.IsPrimary; entry["scalePercent"] = d.Scale * 100;
+                entry["softwareBrightness"] = SettingsStore.Load().SoftwareBrightnessFor(d.Token);
                 if (Flag(args, "hardware"))
                 {
                     var brightness = Brightness.Read(d); var hdr = AdvancedDisplay.ReadHdr(d);
@@ -91,7 +93,7 @@ public sealed partial class ControlService
 
     private static List<Step> PlanDisplay(JsonObject args)
     {
-        string[] supported = ["monitor", "dryRun", "brightness", "resolution", "refresh", "orientation", "primary", "x", "y", "scale",
+        string[] supported = ["monitor", "dryRun", "brightness", "brightnessBy", "dim", "resolution", "refresh", "orientation", "primary", "x", "y", "scale",
             "hdr", "contrast", "volume", "sharpness", "redGain", "greenGain", "blueGain", "colorPreset", "input", "power", "wallpaper", "vcpCode", "vcpValue",
             "controls"];
         foreach (var pair in args) if (!supported.Contains(pair.Key)) throw new ArgumentException("Unknown display option: " + pair.Key);
@@ -100,6 +102,7 @@ public sealed partial class ControlService
         if (targets.Count == 0) throw new ArgumentException("No monitors are connected.");
         if (args.ContainsKey("primary") && targets.Count != 1) throw new ArgumentException("Choose exactly one primary monitor.");
         if (args.ContainsKey("x") != args.ContainsKey("y")) throw new ArgumentException("Specify both --x and --y.");
+        if (args.ContainsKey("brightness") && args.ContainsKey("brightnessBy")) throw new ArgumentException("Give --brightness or --brightness-by, not both.");
         if (args.ContainsKey("vcpCode") != args.ContainsKey("vcpValue")) throw new ArgumentException("Specify both --vcp-code and --vcp-value.");
         foreach (DisplayInfo initial in targets)
         {
@@ -171,6 +174,34 @@ public sealed partial class ControlService
                     if (!Brightness.Write(d, planned.FromPercent(level))) return false;
                     var observed = Brightness.Read(d);
                     return observed.Supported && Math.Abs(observed.Percent - level) <= 2;
+                });
+            }
+            if (args.ContainsKey("brightnessBy"))
+            {
+                // A nudge from where each display is, which is what a hotkey or a
+                // script almost always wants: "a bit brighter", not a number.
+                int by = Integer(args, "brightnessBy", -100, 100);
+                BrightnessRange planned = Brightness.Read(initial);
+                if (!planned.Supported) throw new ArgumentException("Brightness is not supported on " + initial.Label);
+                int level = Math.Clamp(planned.Percent + by, 0, 100);
+                Add(60, "brightness", () =>
+                {
+                    var d = Live();
+                    if (!Brightness.Write(d, planned.FromPercent(level))) return false;
+                    var observed = Brightness.Read(d);
+                    return observed.Supported && Math.Abs(observed.Percent - level) <= 2;
+                });
+            }
+            if (args.ContainsKey("dim"))
+            {
+                // Software dimming is a setting the engine applies, not a write here.
+                int dim = Integer(args, "dim", NightLight.MinimumDim, 100);
+                Add(70, "software brightness", () =>
+                {
+                    DispCtrlSettings settings = SettingsStore.Load();
+                    settings.For(token).SoftwareBrightness = dim;
+                    SettingsStore.Save(settings);
+                    return true;
                 });
             }
             if (Text(args, "wallpaper") is { } image)

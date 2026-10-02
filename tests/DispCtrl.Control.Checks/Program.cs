@@ -516,7 +516,7 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
     if (DispCtrl.Core.Displays.DisplayRegistry.Enumerate().FirstOrDefault() is { } ownDisplay)
     {
         var own = service.Execute(Request("oled.set", new() { ["monitor"] = "1", ["idleMinutes"] = 7, ["thirdStageBacklight"] = false }));
-        string ownToken = DispCtrl.Display.Cli.CommandLine.Sorted()[0].Token;
+        string ownToken = ControlService.Resolve(null)[0].Token;
         var stored = SettingsStore.Load().For(ownToken).OledCare;
         var common = service.Execute(Request("oled.set", new() { ["monitor"] = "1", ["idleMinutes"] = "common" }));
         Check(own["ok"]!.GetValue<bool>() && stored is { IdleMinutes: 7, ThirdStageBacklight: false }
@@ -958,6 +958,40 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
             "a null hand-edited feature list cannot crash the app");
     }
     finally { File.WriteAllText(SettingsStore.Path_, intactSettings); }
+
+    // The first command line's verbs are words for control commands now, not a second implementation.
+    string Words(params string[] old) => string.Join(' ', LegacyCommands.Translate(old) ?? ["(none)"]);
+    Check(Words("brightness", "-10", "--all") == "display set --monitor all --brightness-by -10"
+        && Words("brightness", "+5", "--display", "2") == "display set --monitor 2 --brightness-by 5"
+        && Words("brightness", "60", "--display=1") == "display set --monitor 1 --brightness 60"
+        && Words("brightness") == "display get --monitor all --hardware",
+        "old brightness verbs: a signed number is a step, a plain one a level, no display means every display");
+    Check(Words("input", "DisplayPort 1", "--display", "2") == "display control --monitor 2 --name 0x60 --value DisplayPort 1"
+        && Words("contrast", "+5", "-d", "2") == "display control --monitor 2 --name 0x12 --value +5"
+        && Words("power", "off") == "display control --monitor all --name 0xD6 --value 4"
+        && Words("vcp", "0x14", "5", "--display", "2") == "display control --monitor 2 --name 0x14 --value 5",
+        "old monitor-control verbs become display control on the code they always meant");
+    Check(Words("nightlight", "60", "--from", "20:00", "--to", "07:00")
+            == "nightlight set --enabled on --strength 60 --scheduled on --from-minutes 1200 --to-minutes 420"
+        && Words("nightlight", "set", "--enabled", "on") == "(none)" && Words("topology", "clone") == "topology set --mode duplicate"
+        && Words("unison", "40") == "unison set --enabled on --level 40" && Words("enable", "2") == "settings set --monitor 2 --path hideTaskbar --value true"
+        && Words("primary", "2") == "display set --monitor 2 --primary on" && Words("dim", "50", "--json") == "display set --monitor all --dim 50 --json",
+        "old settings and layout verbs translate, and control commands of the same name pass through untouched");
+    bool verbRefused;
+    try { LegacyCommands.Translate(["enable"]); verbRefused = false; } catch (ArgumentException) { verbRefused = true; }
+    Check(verbRefused && ControlTerminal.Handles(["enable"]) && !ControlTerminal.Handles(["no-such-verb"]),
+        "an old verb asked wrongly is still the terminal's to refuse, and an unknown word is nobody's");
+    var noPresets = service.Execute(Request("preset.list"));
+    var missingPreset = service.Execute(Request("preset.apply", new() { ["name"] = "No such preset" }));
+    if (DispCtrl.Core.FeatureFlags.Presets)
+        Check(noPresets["ok"]!.GetValue<bool>() && noPresets["data"]!["presets"]!.AsArray().Count == 0
+            && missingPreset["exitCode"]!.GetValue<int>() == 1 && ControlTerminal.Help.Contains("preset launch", StringComparison.Ordinal),
+            "presets are control commands: an empty list, a missing preset refused, and launch in the help");
+    else
+        Check(new[] { "list", "apply", "save", "delete", "desk" }.All(verb =>
+                service.Execute(Request("preset." + verb, verb == "list" ? null : new() { ["name"] = "Disabled feature check" }))["exitCode"]!.GetValue<int>() == 1)
+            && !ControlTerminal.Help.Contains("preset", StringComparison.OrdinalIgnoreCase),
+            "a build without presets refuses every preset command and leaves them out of the help");
     Console.WriteLine($"{checks} control checks passed.");
 }
 finally
