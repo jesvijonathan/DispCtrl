@@ -25,9 +25,9 @@
     "DEL-D146": {"name":"Dell P2723DE","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T17:28:24Z","extends":[]},
     "GSM-0001": {"name":"LG Electronics LG TV","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-25T07:18:28Z","extends":[]},
     "GSM-5BF7": {"name":"LG ULTRAWIDE","record":true,"codes":11,"panel":"LCD (TFT)","writable":7,"reports":1,"added":"2026-09-27T12:02:22Z","extends":[]},
-    "GSM-5C89": {"name":"LG Electronics FALCON","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":1,"added":"2026-09-24T16:35:53Z","extends":[]},
+    "GSM-5C89": {"name":"LG Electronics FALCON","record":true,"codes":0,"panel":"LCD (TFT)","writable":0,"reports":2,"added":"2026-09-24T16:35:53Z","extends":[]},
     "GSM-82CD": {"name":"LG Electronics LG TV SSCR2","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-25T07:20:47Z","extends":[]},
     "SDC-4154": {"name":"Samsung Display 14.0 inch 2880 x 1800 panel","record":true,"codes":0,"panel":"OLED","writable":0,"reports":0,"added":"2026-09-24T16:10:30Z","extends":[]},
-    "TMX-1400": {"name":"TMX TL140BDXP01-0","record":true,"codes":0,"panel":null,"writable":0,"reports":1,"added":"2026-09-24T16:35:53Z","extends":[]}
+    "TMX-1400": {"name":"TMX TL140BDXP01-0","record":true,"codes":0,"panel":null,"writable":0,"reports":2,"added":"2026-09-24T16:35:53Z","extends":[]}
   }
 }
