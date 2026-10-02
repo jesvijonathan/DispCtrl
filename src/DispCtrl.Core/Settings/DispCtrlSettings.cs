@@ -342,6 +342,14 @@ public sealed class GlobalSettings
     /// <remarks>Bookkeeping, like the hotkey offers: Reset all leaves it, so a reset never re-promotes an icon the person moved.</remarks>
     public List<string> TrayPromotedFor { get; set; } = [];
 
+    /// <summary>The set of displays the engine last saw settle, as <c>DeskProfiles.Fingerprint</c>.</summary>
+    /// <remarks>
+    /// Bookkeeping, so a desk profile applies when the desk changes - a dock
+    /// plugged in, a sign-in at another desk - and not on every engine start
+    /// or every mode change on the same desk.
+    /// </remarks>
+    public string? LastDesk { get; set; }
+
     /// <summary>Whether the Store package's sign-in task has been switched on once, by default.</summary>
     /// <remarks>
     /// Once only, like the tray promotion: after that, starting at sign-in is

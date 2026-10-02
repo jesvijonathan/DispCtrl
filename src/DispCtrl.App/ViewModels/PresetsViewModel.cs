@@ -306,8 +306,28 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             Raise(nameof(ExistingVisibility));
             Raise(nameof(ActionVisibility));
             Raise(nameof(SaveButtonText));
+            Raise(nameof(DeskProfile));
+            Raise(nameof(DeskProfileAvailable));
         }
     }
+
+    /// <summary>Whether the selected preset applies by itself when its desk is connected.</summary>
+    /// <remarks>Written only on a real change: the switch writes its value back as it is realised.</remarks>
+    public bool DeskProfile
+    {
+        get => Current?.ApplyWhenConnected == true;
+        set
+        {
+            if (Current is not { IncludeLayout: true } preset || preset.ApplyWhenConnected == value) return;
+            preset.ApplyWhenConnected = value;
+            PresetStore.Save(preset);
+            Raise();
+            Raise(nameof(Details));
+        }
+    }
+
+    /// <summary>Only a preset that restores the layout names a whole desk.</summary>
+    public bool DeskProfileAvailable => Current?.IncludeLayout == true;
 
     private Preset? Current => _selected is not null && _selected != NewEntry
         && _byName.TryGetValue(_selected, out Preset? preset) ? preset : null;
@@ -494,7 +514,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
 
         // The description belongs to the preset, not to the desk, so it
         // survives a re-capture.
-        fresh = PresetValidation.RetainScope(fresh, preset);
+        fresh = PresetValidation.RetainScope(fresh, preset, _settings);
 
         PresetStore.Save(fresh);
         Reload();
@@ -707,6 +727,7 @@ public sealed class PresetsViewModel : INotifyPropertyChanged
             string scope = preset.IncludeGlobal ? "Whole desk" : "Selected displays only";
             string notes = preset.CaptureNotes.Count == 0 ? "" : "\nCapture notes: " + string.Join("; ", preset.CaptureNotes);
             return scope + (preset.IncludeLayout ? " · restores layout" : " · keeps the current layout")
+                + (preset.ApplyWhenConnected ? " · applies by itself when these displays are connected" : "")
                 + "\n" + string.Join("\n", lines) + notes;
         }
     }

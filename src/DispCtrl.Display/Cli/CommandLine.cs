@@ -512,7 +512,7 @@ public static class CommandLine
         if (!DispCtrl.Core.FeatureFlags.Presets)
             return Fail("Presets are an unavailable beta feature in this build.");
         string? action = Positional(args);
-        if (action is null) return Usage("preset needs list, apply, save or delete");
+        if (action is null) return Usage("preset needs list, apply, save, delete, desk or launch");
 
         List<Preset> presets = PresetStore.Load();
 
@@ -521,16 +521,19 @@ public static class CommandLine
             case "list":
                 if (presets.Count == 0) Console.WriteLine("no presets");
                 foreach (Preset p in presets)
-                    Console.WriteLine($"{p.Name}  ({p.Monitors.Count} display(s), saved {p.SavedUtc.LocalDateTime:yyyy-MM-dd HH:mm})");
+                    Console.WriteLine($"{p.Name}  ({p.Monitors.Count} display(s), saved {p.SavedUtc.LocalDateTime:yyyy-MM-dd HH:mm})"
+                        + (p.ApplyWhenConnected ? "  - applies when its desk is connected" : ""));
                 return 0;
 
             case "apply":
             case "save":
             case "delete":
+            case "desk":
+            case "launch":
                 break;
 
             default:
-                return Usage($"'{action}' is not list, apply, save or delete");
+                return Usage($"'{action}' is not list, apply, save, delete, desk or launch");
         }
 
         var rest = new List<string>(args);
@@ -565,12 +568,33 @@ public static class CommandLine
                 // Keep the scope a preset already had; overwriting it with the
                 // defaults would quietly widen what an existing preset controls.
                 Preset? existing = PresetStore.Read(PresetStore.PathFor(name));
-
+                if (existing is not null) fresh = PresetValidation.RetainScope(fresh, existing, settings);
 
                 PresetStore.Save(fresh);
                 Console.WriteLine($"saved '{name}'");
                 return 0;
             }
+
+            case "desk":
+            {
+                // preset desk NAME on|off: apply by itself when exactly its displays are attached.
+                Preset? preset = PresetStore.Read(PresetStore.PathFor(name));
+                if (preset is null) return Fail($"there is no preset called '{name}'");
+                rest.Remove(name);
+                string? state = Positional([.. rest])?.ToLowerInvariant();
+                if (state is not ("on" or "off")) return Usage("preset desk needs a name and on or off");
+                if (state == "on" && !preset.IncludeLayout)
+                    return Fail($"'{name}' does not hold a layout, so it describes no desk. Save it as a whole-desk preset.");
+                preset.ApplyWhenConnected = state == "on";
+                PresetStore.Save(preset);
+                Console.WriteLine(preset.ApplyWhenConnected
+                    ? $"'{name}' will apply when its {preset.Monitors.Count} display(s), and no others, are connected"
+                    : $"'{name}' no longer applies by itself");
+                return 0;
+            }
+
+            case "launch":
+                return Launch(name, rest, displays, settings);
 
             default:
                 if (!PresetStore.Exists(name)) return Fail($"there is no preset called '{name}'");
@@ -578,6 +602,87 @@ public static class CommandLine
                 PresetStore.Delete(name);
                 Console.WriteLine($"deleted '{name}'");
                 return 0;
+        }
+    }
+
+    /// <summary>
+    /// <c>preset launch NAME PROGRAM [ARGS...] [--wait-for PROCESS] [--keep]</c>:
+    /// applies the preset, starts the program, and puts the desk back as it was
+    /// when the program exits.
+    /// </summary>
+    /// <remarks>
+    /// DisplayMagician's shortcut, the reason most people use it: a game on the
+    /// TV at 4K with HDR, then the desk back. What is put back is a capture
+    /// taken just before, limited to what the preset changes, so nothing it
+    /// leaves alone is touched on the way out. A launcher (Steam, a game's own
+    /// updater) exits as soon as it has started the real thing; <c>--wait-for</c>
+    /// names the process to wait for instead, up to two minutes for it to appear.
+    /// </remarks>
+    private static int Launch(string name, List<string> rest, List<DisplayInfo> displays, DispCtrlSettings settings)
+    {
+        Preset? preset = PresetStore.Read(PresetStore.PathFor(name));
+        if (preset is null) return Fail($"there is no preset called '{name}'");
+        string[] tail = [.. rest];
+        string? waitFor = Option(tail, "--wait-for");
+        bool keep = tail.Any(a => a.Equals("--keep", StringComparison.OrdinalIgnoreCase));
+        var words = new List<string>();
+        for (int i = 0; i < tail.Length; i++)
+        {
+            if (tail[i].Equals("--wait-for", StringComparison.OrdinalIgnoreCase)) { i++; continue; }
+            if (tail[i].Equals("--keep", StringComparison.OrdinalIgnoreCase)) continue;
+            words.Add(tail[i]);
+        }
+        words.Remove(name);
+        if (words.Count == 0) return Usage("preset launch needs a preset and a program");
+        string program = words[0];
+
+        Preset before = PresetValidation.RetainScope(PresetService.Capture("Before " + name, displays, settings), preset, settings);
+        PresetResult applied = PresetService.Apply(preset, displays, settings);
+        SettingsStore.Save(PresetSettings.Merge(preset, settings, SettingsStore.Load()));
+        foreach (string note in applied.Notes) Console.Error.WriteLine(note);
+        if (!applied.Attempted) return Fail($"'{name}' could not be applied; {program} was not started");
+
+        int exit;
+        try
+        {
+            var start = new System.Diagnostics.ProcessStartInfo(program) { UseShellExecute = true };
+            foreach (string word in words.Skip(1)) start.ArgumentList.Add(word);
+            using var process = System.Diagnostics.Process.Start(start);
+            Console.WriteLine($"applied '{name}', started {program}{(keep ? "" : "; the desk comes back when it exits")}");
+            if (keep) return 0;
+            process?.WaitForExit();
+            if (waitFor is not null) WaitForProcess(waitFor);
+            exit = 0;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Console.Error.WriteLine($"{program} did not start: {ex.Message}");
+            exit = 1;
+        }
+
+        DispCtrlSettings now = SettingsStore.Load();
+        PresetResult restored = PresetService.Apply(before, Sorted(), now);
+        SettingsStore.Save(PresetSettings.Merge(before, now, SettingsStore.Load()));
+        foreach (string note in restored.Notes) Console.Error.WriteLine(note);
+        Console.WriteLine(restored.Ok ? "the desk is back as it was" : "the desk was not fully put back");
+        return restored.Ok ? exit : 1;
+    }
+
+    /// <summary>Waits for a named process to appear (two minutes at most), then for every instance of it to exit.</summary>
+    private static void WaitForProcess(string image)
+    {
+        string stem = Path.GetFileNameWithoutExtension(image);
+        var appear = System.Diagnostics.Stopwatch.StartNew();
+        while (System.Diagnostics.Process.GetProcessesByName(stem).Length == 0)
+        {
+            if (appear.Elapsed > TimeSpan.FromMinutes(2)) return;
+            Thread.Sleep(1000);
+        }
+        while (true)
+        {
+            System.Diagnostics.Process[] running = System.Diagnostics.Process.GetProcessesByName(stem);
+            if (running.Length == 0) return;
+            foreach (var p in running) using (p) p.WaitForExit();
         }
     }
 

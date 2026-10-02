@@ -146,7 +146,11 @@ public static class PresetService
                 OrientationDegrees = d.OrientationDegrees,
                 Hdr = hdr.Enabled,
                 Brightness = brightness.Supported ? (int)brightness.Current : -1,
-                WallpaperPath = Wallpaper.Read(d),
+                // Not a file that is already gone: wallpaper rotators (ASUS's OLED
+                // shifter on this laptop) report a file they replace, and a preset
+                // holding it could never be fully restored - a launch's way back
+                // reported the desk "not fully put back" for that alone.
+                WallpaperPath = Wallpaper.Read(d) is { } wallpaper && File.Exists(wallpaper) ? wallpaper : null,
                 MonitorControls = CaptureMonitorControls(d, useCache),
             };
     }
@@ -268,7 +272,8 @@ public static class PresetService
         catch (AbandonedMutexException) { acquired = true; }
         if (!acquired) return PresetResult.Nothing("Another preset is being applied. Try again when it finishes.");
         InvalidateHardware();
-        try { return ApplyCore(preset, settings); }
+        // A preset saved before a monitor's token changed still names it.
+        try { return ApplyCore(DeskProfiles.WithCurrentTokens(preset, settings), settings); }
         catch (Exception ex) { return new PresetResult(false, [$"Preset application stopped: {ex.Message}"]); }
         finally { InvalidateHardware(); gate.ReleaseMutex(); }
     }

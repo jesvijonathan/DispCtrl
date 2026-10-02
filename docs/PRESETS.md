@@ -44,6 +44,41 @@ This is a structural example, not a complete display snapshot. Start by capturin
 
 Export sends the JSON file. Import preserves existing presets by choosing a numbered name on collision. On another machine, **Map displays** explicitly assigns saved monitor identities to attached monitors; targets must be unique. No monitor is automatically substituted by a similar name. Review resolutions, hardware controls and wallpaper paths before applying on different hardware. Unsupported values are reported by Apply.
 
+## Desk profiles
+
+A whole-desk preset that restores the layout describes a desk: the displays it
+lists. Switch on **Apply when this desk is connected** (or `dispctrl preset desk
+NAME on`) and the engine applies it by itself when exactly those displays are
+attached - a dock plugged in, signing in at another desk. Exactly: one display
+more or fewer is a different desk. When several marked presets describe the
+same desk, the first by name applies.
+
+The engine looks when the set of displays settles after a change, and at
+start only when the desk differs from the last one it saw (`global.lastDesk`),
+so restarting the engine on the same desk changes nothing. Applying a preset
+changes the display stack again; that is the same desk and is ignored, and for
+20 seconds after an apply no other profile is applied, so two profiles cannot
+take turns. A preset naming a display by a token it had before
+(`monitors.*.formerTokens`) still finds it.
+
+## Launch with a preset
+
+```
+dispctrl preset launch Movie "C:\Program Files\VideoLAN\VLC\vlc.exe" film.mkv
+dispctrl preset launch "TV gaming" steam://rungameid/1091500 --wait-for Cyberpunk2077.exe
+```
+
+Applies the preset, starts the program and waits; when it exits, the desk is
+put back as it was, limited to what the preset changes. A launcher that exits
+once it has started the real program (Steam, an updater) needs `--wait-for`
+with the real program's name, which is waited for up to two minutes to appear
+and then until it exits. `--keep` applies and starts without waiting or putting
+anything back.
+
+A wallpaper file that no longer exists when captured is not recorded: wallpaper
+rotators report a file they have since replaced, and a preset holding one could
+never be fully restored.
+
 ## App rules
 
 Rules match an executable basename, with or without `.exe`, case-insensitively. Choose an existing preset, an activation delay (0.5–60 seconds), and whether to restore the previous setup after leaving the app. New rules default to restoring the previous setup. Alternatively choose a named return preset, or leave it blank to keep the applied setup. First matching enabled rule wins.

@@ -78,7 +78,7 @@ internal sealed class AppRuleService : IDisposable
             }
             var displays = DisplayRegistry.Enumerate();
             Preset? previous = match.RestorePrevious
-                ? PresetValidation.RetainScope(PresetService.Capture("Before app rule", displays, settings), target) : null;
+                ? PresetValidation.RetainScope(PresetService.Capture("Before app rule", displays, settings), target, settings) : null;
             PresetResult result = PresetService.Apply(target, displays, settings);
             LogResult(target.Name, result);
             if (!result.Attempted)

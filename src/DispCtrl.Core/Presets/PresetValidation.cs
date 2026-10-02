@@ -48,15 +48,23 @@ public static class PresetValidation
     }
 
     /// <summary>Retains a saved scope during re-capture, including disconnected monitors.</summary>
-    public static Preset RetainScope(Preset fresh, Preset saved)
+    /// <param name="settings">
+    /// When given, a monitor the preset names by a former token counts as the
+    /// same monitor under its current one, so recapturing updates it rather
+    /// than keeping the stale state beside a fresh copy.
+    /// </param>
+    public static Preset RetainScope(Preset fresh, Preset saved, Settings.DispCtrlSettings? settings = null)
     {
         fresh.IncludeGlobal = saved.IncludeGlobal;
         fresh.IncludeLayout = saved.IncludeLayout;
+        fresh.ApplyWhenConnected = saved.ApplyWhenConnected;
         fresh.Description = saved.Description;
         if (!saved.IncludeGlobal) fresh.Global = saved.Global;
+        var savedMonitors = settings is null ? saved.Monitors
+            : saved.Monitors.ToDictionary(p => DeskProfiles.Current(p.Key, settings), p => p.Value);
         foreach (string token in fresh.Monitors.Keys.ToList())
-            if (!saved.Monitors.ContainsKey(token)) fresh.Monitors.Remove(token);
-        foreach (var (token, state) in saved.Monitors)
+            if (!savedMonitors.ContainsKey(token)) fresh.Monitors.Remove(token);
+        foreach (var (token, state) in savedMonitors)
             if (!fresh.Monitors.ContainsKey(token)) fresh.Monitors[token] = state;
         return fresh;
     }

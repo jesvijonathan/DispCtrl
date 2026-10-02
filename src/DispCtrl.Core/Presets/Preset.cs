@@ -42,6 +42,14 @@ public sealed class Preset
     /// <summary>Restore topology, positions and primary display.</summary>
     public bool IncludeLayout { get; set; } = true;
 
+    /// <summary>Apply by itself when exactly this preset's displays are attached.</summary>
+    /// <remarks>
+    /// A desk profile: see <see cref="DeskProfiles"/>. Only a whole-desk
+    /// preset can be one, since the displays it lists are the desk. Off by
+    /// default, so a preset never starts changing the desk on its own.
+    /// </remarks>
+    public bool ApplyWhenConnected { get; set; }
+
     /// <summary>Read failures or values that could not be captured.</summary>
     public List<string> CaptureNotes { get; set; } = [];
 

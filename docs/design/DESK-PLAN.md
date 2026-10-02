@@ -23,6 +23,10 @@ Top), `../refs/Monitorian`, `../refs/twinkle-tray`.
 
 ## 2. Desk profiles - finish Presets, do not add a second concept
 
+**Done** (behind the presets beta gate): recognised by monitor set, applied on
+connect by the engine, `preset launch` with `--wait-for`, former tokens
+resolved. Lifting the gate is the owner's call.
+
 DisplayMagician's whole product is a saved desk applied on demand. DispCtrl
 already has it, shelved: presets capture topology, modes, scaling, HDR,
 brightness, warmth, calibration, wallpaper, taskbar, VRR and DDC/CI controls,

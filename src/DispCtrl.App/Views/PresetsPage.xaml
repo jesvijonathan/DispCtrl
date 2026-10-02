@@ -47,6 +47,13 @@
             <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.ExistingVisibility, Mode=OneWay}">
               <TextBlock Text="{x:Bind ViewModel.Details, Mode=OneWay}" TextWrapping="Wrap"
                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <ToggleSwitch Header="Apply when this desk is connected"
+                            OnContent="When exactly these displays are connected, this preset applies by itself"
+                            OffContent="Off"
+                            IsOn="{x:Bind ViewModel.DeskProfile, Mode=TwoWay}"
+                            IsEnabled="{x:Bind ViewModel.DeskProfileAvailable, Mode=OneWay}"
+                            AutomationProperties.Name="PresetDeskProfile"
+                            ToolTipService.ToolTip="A desk profile: plug in this set of displays - a dock, another desk - and the preset applies. Only a whole-desk preset that restores the layout can be one."/>
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <views:PresetChanges/>
                 <Button Content="Update from displays" Click="OnSave"/>

@@ -1,4 +1,5 @@
 using DispCtrl.Core.Displays;
+using DispCtrl.Core.Presets;
 using DispCtrl.Core.Settings;
 using Panel = DispCtrl.Core.Displays.ArrangementSolver.Panel;
 
@@ -14,6 +15,7 @@ internal static class DeskChecks
         Arrangements(check);
         Identity(check);
         Adoption(check);
+        Profiles(check);
     }
 
     private static void Arrangements(Action<bool, string> check)
@@ -114,5 +116,42 @@ internal static class DeskChecks
         check(MonitorAdoption.Adopt(twins, [("ACR-0001-11111111", "ACR-0001"), ("ACR-0001-22222222", "ACR-0001")]).Count == 0
             && twins.Monitors.ContainsKey("ACR-0001-AAAAAAAA"),
             "two identical serial-less monitors arriving together adopt nothing rather than guess");
+    }
+
+    private static void Profiles(Action<bool, string> check)
+    {
+        check(DeskProfiles.Fingerprint(["B", "A", "B"]) == DeskProfiles.Fingerprint(["A", "B"]),
+            "a desk is the same set of displays whatever order they were found in");
+
+        var settings = new DispCtrlSettings();
+        settings.For("SDC-4154-NEW").FormerTokens.Add("SDC-4154-OLD");
+        settings.For("DEL-A234-3QQQ2X3");
+        Preset Desk(string name, bool marked, params string[] tokens)
+        {
+            var p = new Preset { Name = name, ApplyWhenConnected = marked };
+            foreach (string t in tokens) p.Monitors[t] = new PresetMonitor { Label = t };
+            return p;
+        }
+        string[] docked = ["SDC-4154-NEW", "DEL-A234-3QQQ2X3"];
+        Preset home = Desk("Home", true, "SDC-4154-OLD", "DEL-A234-3QQQ2X3");
+        check(DeskProfiles.Covers(home, docked, settings),
+            "a preset saved before the laptop's token changed still recognises its desk");
+        check(!DeskProfiles.Covers(home, ["SDC-4154-NEW"], settings) && !DeskProfiles.Covers(home, [.. docked, "GSM-0001-AAAA"], settings),
+            "a desk is exactly its displays, no fewer and no more");
+        var monitorOnly = Desk("Laptop only", true, "SDC-4154-NEW", "DEL-A234-3QQQ2X3");
+        monitorOnly.IncludeLayout = false;
+        check(DeskProfiles.Due([Desk("Unmarked", false, docked), monitorOnly, home, Desk("Another", true, docked)], docked, settings)?.Name == "Another",
+            "the desk's marked whole-desk preset applies, the first by name; unmarked and monitor-only ones never do");
+        check(DeskProfiles.Due([Desk("Unmarked", false, docked)], docked, settings) is null, "nothing applies by itself unless marked");
+
+        Preset renamed = DeskProfiles.WithCurrentTokens(home, settings);
+        check(renamed.Monitors.ContainsKey("SDC-4154-NEW") && home.Monitors.ContainsKey("SDC-4154-OLD"),
+            "applying renames former tokens in a copy, leaving the saved preset as it was");
+        Preset fresh = Desk("Home", false, docked);
+        fresh.Monitors["SDC-4154-NEW"].Label = "fresh";
+        Preset kept = PresetValidation.RetainScope(fresh, home, settings);
+        check(kept.ApplyWhenConnected && kept.Monitors.Count == 2 && kept.Monitors["SDC-4154-NEW"].Label == "fresh",
+            "updating a desk profile keeps it one, and updates the display under its new token");
+        check(PresetStore.Parse(PresetStore.ToJson(home)).ApplyWhenConnected, "the desk switch survives the file");
     }
 }

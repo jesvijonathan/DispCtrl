@@ -603,6 +603,9 @@ internal static class Program
             // without this the next reload would undo half of what it did.
             using var appRules = DispCtrl.Core.FeatureFlags.Presets
                 ? new AppRuleService(settings, SettingsStore.Save) : null;
+            // Desk profiles: presets that apply when their set of displays is
+            // attached. With presets, and only with them.
+            using var desks = DispCtrl.Core.FeatureFlags.Presets ? new DeskProfileService(attached) : null;
 
             if (Hotkey.OfferDefaults(settings)) SettingsStore.Save(settings);
             using var hotkeys = new HotkeyService(settings, SettingsStore.Save);
