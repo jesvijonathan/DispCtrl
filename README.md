@@ -109,23 +109,16 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 </tr>
 </table>
 
-**[Every feature, page by page](docs/FEATURES.md)** · [every setting](docs/SETTINGS.md) · [every command](docs/CLI.md)
+**More:** [all features](docs/FEATURES.md) · [settings](docs/SETTINGS.md) · [command line](docs/CLI.md)
 
 ## Install
 
-| Where | How |
-|---|---|
-| **Microsoft Store** | [**Get DispCtrl from the Microsoft Store**](https://apps.microsoft.com/detail/9PNQWKNRGVR0). Installs and updates itself. |
-| **winget** | `winget install 9PNQWKNRGVR0 --source msstore` |
-| **GitHub** | [**The latest release**](https://github.com/jesvijonathan/DispCtrl/releases/latest), as one of the files below |
+- **Microsoft Store**, which keeps it updated: [get DispCtrl](https://apps.microsoft.com/detail/9PNQWKNRGVR0), or `winget install 9PNQWKNRGVR0 --source msstore`
+- **Installer**: `...-setup.exe` from the [latest release](https://github.com/jesvijonathan/DispCtrl/releases/latest). No administrator rights, starts at sign-in, keeps your settings when it updates.
+- **Portable**: `...-portable.zip`. Unzip anywhere and run `DispCtrl.App.exe`.
+- **Command line only**: `...-cli.zip`, for scripts.
 
-| File | Size | What you get |
-|---|---|---|
-| **`...-setup.exe`** (recommended) | ~30 MB | Installs for you alone, without administrator rights, or for everybody on the PC. Starts at sign-in, adds a desktop shortcut and `dispctrl` to your `PATH`, updates in place and keeps your settings. |
-| `...-portable.zip` | ~46 MB | Unzip anywhere and run `DispCtrl.App.exe`. Nothing is installed. |
-| `...-cli.zip` | ~19 MB | `dispctrl.exe` and the engine, without the window: for scripts and servers. |
-
-Windows 11, x64. Every download carries its own trimmed copy of .NET and the Windows App SDK, so nothing else needs installing. Settings live in `%LOCALAPPDATA%\DispCtrl`. Uninstalling stops the engine cleanly, puts back any taskbar it hid, and asks whether to keep your settings. Each release lists its SHA-256 checksums in `SHA256SUMS.txt`; unsigned builds may meet SmartScreen.
+Windows 11, x64; nothing else to install. Settings live in `%LOCALAPPDATA%\DispCtrl`.
 
 ## Getting started
 
