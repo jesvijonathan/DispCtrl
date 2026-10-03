@@ -250,12 +250,53 @@ internal sealed partial class QuickPanelContent
     /// </remarks>
     private void SimpleBrightness()
     {
+        if (_panel.Density != QuickPanelDensity.Spacious) { DenseBrightness(); return; }
         StackPanel target = Foldable("simpleBrightness", SectionHeader("Brightness"));
         target.Spacing = 10;
         Metrics full = _m;
         _m = _m with { SliderLabels = false };
         try { SimpleRows(target, "QuickSimple"); }
         finally { _m = full; }
+        if (target.Children.Count == 0) target.Children.Add(Note("Waiting for the displays to answer."));
+    }
+
+    /// <summary>
+    /// The Brightness section in the full panel at Compact and Comfortable:
+    /// the panel's ordinary slider rows, a name above each, so it sits with
+    /// the rows around it. Spacious, and Simple mode, keep the large sliders.
+    /// </summary>
+    private void DenseBrightness()
+    {
+        ToggleSwitch? unisonSwitch = _vm.SeveralDisplays
+            ? HeaderSwitch(() => _vm.UnisonBrightness, v => _vm.UnisonBrightness = v,
+                nameof(MainViewModel.UnisonBrightness), "QuickSimpleUnisonSwitch", "Unison brightness: one slider for every display.")
+            : null;
+        StackPanel target = Foldable("simpleBrightness", SectionHeader("Brightness"), unisonSwitch);
+        if (_vm.SeveralDisplays)
+        {
+            target.Children.Add(SliderRow("", "All displays", _vm.UnisonLevel, _vm.UnisonMinimum, 100,
+                v => _vm.UnisonLevel = v, _vm, nameof(MainViewModel.UnisonLevel), () => _vm.UnisonLevel,
+                "QuickSimpleUnisonLevel", "%", null, null, true, out Slider unison));
+            void RefreshEnabled() => unison.IsEnabled = _vm.UnisonBrightness && !_vm.Calibrating;
+            RefreshEnabled();
+            Watch(_vm, nameof(MainViewModel.UnisonBrightness), RefreshEnabled);
+            Watch(_vm, nameof(MainViewModel.Calibrating), RefreshEnabled);
+        }
+        foreach (DisplayViewModel display in _vm.Displays)
+        {
+            if (!_panel.Shows(display.Token)) continue;
+            if (display.UsesSoftwareBrightness)
+                target.Children.Add(SliderRow("", display.Name, display.SoftwareBrightness, display.SoftwareBrightnessMinimum, 100,
+                    v => display.SoftwareBrightness = v, display, nameof(DisplayViewModel.SoftwareBrightness), () => display.SoftwareBrightness,
+                    $"Brightness {display.Number}", "%", null, null, true, out _));
+            else if (display.BrightnessSupported)
+                target.Children.Add(SliderRow("", display.Name, display.BrightnessPercent, 0, 100,
+                    v => display.BrightnessPercent = (int)Math.Round(v), display, nameof(DisplayViewModel.BrightnessPercent), () => display.BrightnessPercent,
+                    $"Brightness {display.Number}", "%", null, null, true, out _));
+            else
+                // Brightness arrives seconds after start on a DDC/CI monitor.
+                Watch(display, nameof(DisplayViewModel.BrightnessSupported), _rebuild);
+        }
         if (target.Children.Count == 0) target.Children.Add(Note("Waiting for the displays to answer."));
     }
 
@@ -288,6 +329,16 @@ internal sealed partial class QuickPanelContent
             if (!_panel.Shows(display.Token)) continue;
             if (!any) { if (target.Children.Count > 0) target.Children.Add(Divider()); any = true; }
 
+            if (display.UsesSoftwareBrightness)
+            {
+                // No control of its own (a virtual display), or set to dim in
+                // software: its software level is its brightness here.
+                target.Children.Add(SimpleSlider(display.Name, display.SoftwareBrightness, display.SoftwareBrightnessMinimum,
+                    v => display.SoftwareBrightness = v,
+                    display, nameof(DisplayViewModel.SoftwareBrightness), () => display.SoftwareBrightness,
+                    names == "Quick" ? $"Brightness {display.Number}" : $"{names}Brightness {display.Number}", null, out _));
+                continue;
+            }
             if (!display.BrightnessSupported)
             {
                 // Brightness arrives seconds after start on a DDC/CI monitor.
@@ -595,9 +646,19 @@ internal sealed partial class QuickPanelContent
 
         Show(_panel.IsCollapsed(key));
 
+        bool animated = false;
         void Toggle(object sender, RoutedEventArgs e)
         {
             bool folded = body.Visibility == Visibility.Visible;
+            // Attached on the first fold by hand, not as the panel is built:
+            // an implicit animation also plays when an element first shows,
+            // and every section would slide in on every rebuild.
+            bool wanted = _panel.Animate && new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
+            if (wanted != animated)
+            {
+                if (wanted) FoldAnimation.Attach(body); else FoldAnimation.Detach(body);
+                animated = wanted;
+            }
             Show(folded);
             _vm.SetQuickPanelCollapsed(key, folded);
         }

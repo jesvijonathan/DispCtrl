@@ -220,8 +220,8 @@
           <FontIcon Glyph="&#xE8A7;"/>
         </tk:SettingsExpander.HeaderIcon>
         <tk:SettingsExpander.Items>
-          <tk:SettingsCard Header="Animate opening and closing"
-                           Description="Rises from the taskbar and sinks back into it, as Windows' own flyouts do. Off here, or with Windows' animation effects off, it simply appears.">
+          <tk:SettingsCard Header="Animations"
+                           Description="The panel rises from the taskbar and sinks back into it, as Windows' own flyouts do, and its sections fade as they open and fold. The compositor plays them, so they cost nothing while nothing moves. Off here, or with Windows' animation effects off, everything simply appears.">
             <ToggleSwitch IsOn="{x:Bind ViewModel.QuickPanelAnimate, Mode=TwoWay}"
                           AutomationProperties.Name="QuickPanelAnimate"/>
           </tk:SettingsCard>

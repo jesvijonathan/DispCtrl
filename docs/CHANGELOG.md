@@ -58,6 +58,9 @@ using DispCtrl, not for people reading the diff.
 - With PowerToys FancyZones set to move new windows to their last zone, "Open new windows on the display in use" leaves new windows to it instead of both moving them.
 - Settings shows the memory the engine uses on its own (about 16 MB) rather than its working set, which counted the libraries every process shares; About shows the size on disk, DispCtrl itself against the runtimes it carries.
 - `DispCtrl.App.exe --page brightness` (or displays, care, windows, taskbar, presets, quickpanel, hotkeys, devices, misc, settings, help, about) opens the window on that page.
+- The quick panel's sections fade and slide a little as they open and fold. The compositor plays it, so it costs nothing while nothing moves; the Animations switch on the Quick panel page, and Windows' animation effects, turn it off.
+- The full panel's Brightness section follows the panel's density: at Compact and Comfortable it uses the same rows as the rest of the panel, a name above each slider; Spacious keeps the large sliders, and Simple mode is unchanged.
+- Displays with no brightness control of their own (virtual displays, many TVs) get a brightness slider that dims in software, follow unison, and show in the quick panel; "Dim in software" on a display's card does the same for a monitor whose DDC/CI is off or unreliable.
 - New screenshots, demo and hero image throughout the README and the website.
 - Downloads are far smaller: the portable zip is about 46 MB (was 74), the command-line zip 19 MB (was 46) and the Store package 47 MB (was 78). The app, the engine and the command line now share one trimmed copy of .NET. The background engine also uses less memory, about 48 MB instead of 73.
 - Importing a preset whose name is longer than a file name may be, when that name is taken, numbers it instead of failing as not a preset.
