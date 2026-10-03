@@ -5,26 +5,87 @@
   "extends": [],
   "controls": [
     {
+      "code": "0x14",
+      "name": "Color Temp",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "3",
+          "name": "Warm"
+        },
+        {
+          "value": "5",
+          "name": "Medium"
+        },
+        {
+          "value": "9",
+          "name": "Cool"
+        },
+        {
+          "value": "11",
+          "name": "Custom"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": ""
+    },
+    {
       "code": "0x15",
       "key": "picture-mode",
       "name": "Picture mode",
       "kind": "choice",
       "writable": true,
       "values": [
-        { "value": "0x01", "name": "Reader" },
-        { "value": "0x06", "name": "Color Weakness" },
-        { "value": "0x0B", "name": "Custom" },
-        { "value": "0x0E", "name": "Custom (Game)" },
-        { "value": "0x1A", "name": "Hidden 2" },
-        { "value": "0x1E", "name": "FPS" },
-        { "value": "0x1F", "name": "RTS" },
-        { "value": "0x20", "name": "Photo" },
-        { "value": "0x27", "name": "HDR Effect" },
-        { "value": "0x31", "name": "Vivid" }
+        {
+          "value": "0x01",
+          "name": "Reader"
+        },
+        {
+          "value": "0x06",
+          "name": "Color Weakness"
+        },
+        {
+          "value": "0x0B",
+          "name": "Custom"
+        },
+        {
+          "value": "0x0E",
+          "name": "Custom (Game)"
+        },
+        {
+          "value": "0x1A",
+          "name": "Hidden 2"
+        },
+        {
+          "value": "0x1E",
+          "name": "FPS"
+        },
+        {
+          "value": "0x1F",
+          "name": "RTS"
+        },
+        {
+          "value": "0x20",
+          "name": "Photo"
+        },
+        {
+          "value": "0x27",
+          "name": "HDR Effect"
+        },
+        {
+          "value": "0x31",
+          "name": "Vivid"
+        }
       ],
       "confidence": "observed",
-      "sources": [ "GSM-5BF7" ],
-      "notes": "Read back on this model. Its capabilities list 15(01 06 11 13 14 28 29 32 48) is stale LG firmware text; ddccontrol-db shows the same wire values for Reader, Custom, Color Weakness, FPS, RTS and HDR Effect on other LG models. Custom (Game), Photo and Vivid are named from the owner's menu (#29). Hidden 2 behaves as Custom but loads Custom's defaults, not the owner's settings."
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": "Read back on this model. Its capabilities list 15(01 06 11 13 14 28 29 32 48) is stale LG firmware text; ddccontrol-db shows the same wire values for Reader, Custom, Color Weakness, FPS, RTS and HDR Effect on other LG models. Custom (Game), Photo and Vivid are named from the owner\u0027s menu (#29). Hidden 2 behaves as Custom but loads Custom\u0027s defaults, not the owner\u0027s settings."
     },
     {
       "code": "0x60",
@@ -32,15 +93,80 @@
       "name": "Input source",
       "kind": "choice",
       "writable": true,
-      "ddcWrite": { "sourceAddress": "0x50", "code": "0xF4" },
+      "ddcWrite": {
+        "sourceAddress": "0x50",
+        "code": "0xF4"
+      },
       "values": [
-        { "value": "0x90", "name": "HDMI 1" },
-        { "value": "0xD0", "name": "DisplayPort 1" },
-        { "value": "0xD1", "name": "USB-C" }
+        {
+          "value": "0x90",
+          "name": "HDMI 1"
+        },
+        {
+          "value": "0xD0",
+          "name": "DisplayPort 1"
+        },
+        {
+          "value": "0xD1",
+          "name": "USB-C"
+        }
       ],
       "confidence": "verified",
-      "sources": [ "GSM-5BF7" ],
-      "notes": "Standard 0x60 writes do not switch this model. LG alternate input (source 0x50, VCP 0xF4) confirmed on the reporter's 29U531A in the ddcutil wiki page Switching input source on LG monitors. One HDMI port."
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": "Standard 0x60 writes do not switch this model. LG alternate input (source 0x50, VCP 0xF4) confirmed on the reporter\u0027s 29U531A in the ddcutil wiki page Switching input source on LG monitors. One HDMI port."
+    },
+    {
+      "code": "0x72",
+      "name": "Gamma",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "25600",
+          "name": "Mode 1"
+        },
+        {
+          "value": "30720",
+          "name": "Mode 2"
+        },
+        {
+          "value": "35840",
+          "name": "Mode 3"
+        },
+        {
+          "value": "40960",
+          "name": "Mode 4"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": "todo:mapping these to actual gamma values"
+    },
+    {
+      "code": "0xD6",
+      "key": "power-mode",
+      "name": "Power mode",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x01",
+          "name": "On"
+        },
+        {
+          "value": "0x04",
+          "name": "Off (soft)"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": "Switched off with 0x04, this model flashes black and green with no backlight and does not wake until it is unplugged (#30). DispCtrl does not switch it off; Turn off displays blacks it out instead."
     },
     {
       "code": "0xEB",
@@ -49,12 +175,22 @@
       "kind": "choice",
       "writable": true,
       "values": [
-        { "value": "0x00", "name": "Off" },
-        { "value": "0x01", "name": "On" }
+        {
+          "value": "0x00",
+          "name": "Off"
+        },
+        {
+          "value": "0x01",
+          "name": "On"
+        }
       ],
       "confidence": "observed",
-      "sources": [ "GSM-5BF7", "GSM-5B7F", "GSM-7750" ],
-      "notes": "On locks the monitor's own menu; set Off over DDC/CI to unlock it."
+      "sources": [
+        "GSM-5BF7",
+        "GSM-5B7F",
+        "GSM-7750"
+      ],
+      "notes": "On locks the monitor\u0027s own menu; set Off over DDC/CI to unlock it."
     },
     {
       "code": "0xF5",
@@ -63,13 +199,29 @@
       "kind": "choice",
       "writable": true,
       "values": [
-        { "value": "0x01", "name": "Full Wide" },
-        { "value": "0x02", "name": "Original" },
-        { "value": "0x03", "name": "Cinema 1" },
-        { "value": "0x04", "name": "Cinema 2" }
+        {
+          "value": "0x01",
+          "name": "Full Wide"
+        },
+        {
+          "value": "0x02",
+          "name": "Original"
+        },
+        {
+          "value": "0x03",
+          "name": "Cinema 1"
+        },
+        {
+          "value": "0x04",
+          "name": "Cinema 2"
+        }
       ],
       "confidence": "observed",
-      "sources": [ "GSM-5BF7", "GSM-59F1", "GSM-7750" ],
+      "sources": [
+        "GSM-5BF7",
+        "GSM-59F1",
+        "GSM-7750"
+      ],
       "notes": "Full Wide stretches to 21:9, Cinema 1 crops to 21:9. 0x01 and 0x02 match ddccontrol-db for other LG models."
     },
     {
@@ -79,13 +231,25 @@
       "kind": "choice",
       "writable": true,
       "values": [
-        { "value": "0x00", "name": "Off" },
-        { "value": "0x01", "name": "Low" },
-        { "value": "0x02", "name": "High" }
+        {
+          "value": "0x00",
+          "name": "Off"
+        },
+        {
+          "value": "0x01",
+          "name": "Low"
+        },
+        {
+          "value": "0x02",
+          "name": "High"
+        }
       ],
       "confidence": "observed",
-      "sources": [ "GSM-5BF7", "GSM-5B7F", "GSM-7750" ],
-      "notes": null
+      "sources": [
+        "GSM-5BF7",
+        "GSM-5B7F",
+        "GSM-7750"
+      ]
     },
     {
       "code": "0xF7",
@@ -94,14 +258,30 @@
       "kind": "choice",
       "writable": true,
       "values": [
-        { "value": "0x00", "name": "Off" },
-        { "value": "0x01", "name": "Faster" },
-        { "value": "0x02", "name": "Fast" },
-        { "value": "0x03", "name": "Normal" }
+        {
+          "value": "0x00",
+          "name": "Off"
+        },
+        {
+          "value": "0x01",
+          "name": "Faster"
+        },
+        {
+          "value": "0x02",
+          "name": "Fast"
+        },
+        {
+          "value": "0x03",
+          "name": "Normal"
+        }
       ],
       "confidence": "observed",
-      "sources": [ "GSM-5BF7", "GSM-5B7F", "GSM-7750" ],
-      "notes": "Names as in LG's menu; ddccontrol-db labels the same values High, Middle and Low on other LG models."
+      "sources": [
+        "GSM-5BF7",
+        "GSM-5B7F",
+        "GSM-7750"
+      ],
+      "notes": "Names as in LG\u0027s menu; ddccontrol-db labels the same values High, Middle and Low on other LG models."
     },
     {
       "code": "0xF8",
@@ -110,11 +290,20 @@
       "kind": "choice",
       "writable": false,
       "values": [
-        { "value": "0x00", "name": "Off" },
-        { "value": "0x01", "name": "On" }
+        {
+          "value": "0x00",
+          "name": "Off"
+        },
+        {
+          "value": "0x01",
+          "name": "On"
+        }
       ],
       "confidence": "observed",
-      "sources": [ "GSM-5B7F", "GSM-59F1" ],
+      "sources": [
+        "GSM-5B7F",
+        "GSM-59F1"
+      ],
       "notes": "From LG models that list the same F8(00 01); not yet confirmed on this one. Some LG models use 0x02 Basic and 0x03 Extended instead."
     },
     {
@@ -127,7 +316,10 @@
       "writeScale": 5,
       "values": [],
       "confidence": "observed",
-      "sources": [ "GSM-5BF7", "GSM-5B7F" ],
+      "sources": [
+        "GSM-5BF7",
+        "GSM-5B7F"
+      ],
       "notes": "The menu and the value read back go 0 to 100 in steps of 5; a write takes 0 to 20, so values are sent divided by 5 (#29, from the owner of this model)."
     },
     {
@@ -137,12 +329,20 @@
       "kind": "choice",
       "writable": false,
       "values": [
-        { "value": "0x00", "name": "On" },
-        { "value": "0x02", "name": "Off" }
+        {
+          "value": "0x00",
+          "name": "On"
+        },
+        {
+          "value": "0x02",
+          "name": "Off"
+        }
       ],
       "confidence": "observed",
-      "sources": [ "GSM-5BF7" ],
-      "notes": "Reported by the contributor, but not in this model's capabilities string, so DispCtrl does not offer it."
+      "sources": [
+        "GSM-5BF7"
+      ],
+      "notes": "Reported by the contributor, but not in this model\u0027s capabilities string, so DispCtrl does not offer it."
     },
     {
       "code": "0xFD",
@@ -151,11 +351,20 @@
       "kind": "choice",
       "writable": false,
       "values": [
-        { "value": "0x00", "name": "Off" },
-        { "value": "0x01", "name": "On" }
+        {
+          "value": "0x00",
+          "name": "Off"
+        },
+        {
+          "value": "0x01",
+          "name": "On"
+        }
       ],
       "confidence": "observed",
-      "sources": [ "GSM-5807", "GSM-4E3A" ],
+      "sources": [
+        "GSM-5807",
+        "GSM-4E3A"
+      ],
       "notes": "From older LG models with the same FD(00 01); not yet confirmed on this one."
     },
     {
@@ -165,27 +374,24 @@
       "kind": "choice",
       "writable": false,
       "values": [
-        { "value": "0x00", "name": "Mode 1" },
-        { "value": "0x01", "name": "Mode 2" },
-        { "value": "0x02", "name": "Mode 3" }
+        {
+          "value": "0x00",
+          "name": "Mode 1"
+        },
+        {
+          "value": "0x01",
+          "name": "Mode 2"
+        },
+        {
+          "value": "0x02",
+          "name": "Mode 3"
+        }
       ],
       "confidence": "observed",
-      "sources": [ "GSM-5BF7" ],
+      "sources": [
+        "GSM-5BF7"
+      ],
       "notes": "Discrete modes per FE(00 01 02), not a range. The menu calls them Mode 1, Mode 2 and so on (#29); that 0x00 is Mode 1 is assumed from the order and not yet confirmed, so it stays read-only."
-    },
-    {
-      "code": "0xD6",
-      "key": "power-mode",
-      "name": "Power mode",
-      "kind": "choice",
-      "writable": false,
-      "values": [
-        { "value": "0x01", "name": "On" },
-        { "value": "0x04", "name": "Off (soft)" }
-      ],
-      "confidence": "observed",
-      "sources": [ "GSM-5BF7" ],
-      "notes": "Switched off with 0x04, this model flashes black and green with no backlight and does not wake until it is unplugged (#30). DispCtrl does not switch it off; Turn off displays blacks it out instead."
     }
   ]
 }
