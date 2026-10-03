@@ -55,6 +55,26 @@ jobs:
         # runner already) over every script, including script injection.
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
 
+  linux:
+    # build.sh on a clean Linux machine: everything but the WinUI app builds,
+    # and the hardware-free checks run. A path read with Linux's Path rules
+    # once failed here and nowhere else.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Build and test with build.sh
+        run: |
+          ./build.sh build
+          ./build.sh test
+
   windows:
     runs-on: windows-latest
     timeout-minutes: 45
