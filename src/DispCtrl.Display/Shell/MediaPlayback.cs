@@ -102,8 +102,10 @@ public static class MediaPlayback
             if (under > 0) family = family[..under];
             return family[(family.LastIndexOf('.') + 1)..];
         }
-        if (id.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) id = Path.GetFileNameWithoutExtension(id);
-        else if (id.Contains('\\')) id = Path.GetFileNameWithoutExtension(id);
+        // A path is a Windows path whatever runs this: split on either slash by
+        // hand, since Path on Linux knows only '/', and the checks run there.
+        id = id[(id.LastIndexOfAny(['\\', '/']) + 1)..];
+        if (id.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) id = id[..^4];
         // Firefox registers a 16-hex-digit hash of its install folder.
         if (id.Length == 16 && id.All(Uri.IsHexDigit)) return "firefox";
         return id.Equals("MSEdge", StringComparison.OrdinalIgnoreCase) ? "msedge" : id;
