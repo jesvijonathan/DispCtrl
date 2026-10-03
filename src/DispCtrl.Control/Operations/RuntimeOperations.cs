@@ -101,8 +101,9 @@ public sealed partial class ControlService
             {
                 if (!settings.For(d.Token).InUnison) continue;
                 var read = Brightness.Read(d);
-                if (!read.Supported) continue;
                 var monitor = settings.For(d.Token);
+                // No control of its own: unison dims it in software (UnisonResume.SoftwareLevel).
+                if (!read.Supported || monitor.SoftwareDimming) { monitor.SoftwareBrightness = UnisonResume.SoftwareLevel(global.UnisonLevel); continue; }
                 if (monitor.BrightnessBaseline <= 0)
                     monitor.BrightnessBaseline = UnisonResume.Enable(global.UnisonLevel, [read.Percent], [monitor.BrightnessBaseline], 0).Baselines[0];
                 // The built-in panel too, within its own range, including while

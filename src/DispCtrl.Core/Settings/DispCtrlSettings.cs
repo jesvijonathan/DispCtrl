@@ -821,6 +821,15 @@ public sealed class MonitorSettings
     /// </remarks>
     public int SoftwareBrightness { get; set; } = 100;
 
+    /// <summary>Dim this display in software even though it has brightness control of its own.</summary>
+    /// <remarks>
+    /// For a monitor whose DDC/CI is off, slow or unreliable: its brightness
+    /// slider, unison and the quick panel then move <see cref="SoftwareBrightness"/>
+    /// instead of the backlight. A display with no control of its own is dimmed
+    /// in software anyway; this is for one that has it.
+    /// </remarks>
+    public bool SoftwareDimming { get; set; }
+
     /// <summary>
     /// Whether this panel is OLED, and where that was decided.
     /// </summary>

@@ -35,6 +35,10 @@ internal static class SettingsChecks
         check(!panel.IsCollapsed("display:DEL-A234-X") && panel.Expanded.Contains("display:DEL-A234-X") && !panel.Collapsed.Contains("display:DEL-A234-X"),
             "a display block somebody opens is remembered as opened");
 
+        check(UnisonResume.SoftwareLevel(60) == 60 && UnisonResume.SoftwareLevel(0) == DispCtrl.Core.Color.NightLight.MinimumDim
+                && UnisonResume.SoftwareLevel(140) == 100 && !new MonitorSettings().SoftwareDimming,
+            "unison dims a display with no control of its own in software, never below the readable floor; dimming in software is off by default");
+
         // The request for support: never on a first run, ended by a star or a
         // donation, asked once more after a close, and never after a second.
         var start = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);

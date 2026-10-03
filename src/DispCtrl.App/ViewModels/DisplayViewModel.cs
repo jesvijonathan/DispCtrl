@@ -470,6 +470,35 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
 
     public bool BrightnessSupported => _brightness.Supported;
 
+    /// <summary>Brightness moves the signal, not the backlight: no control of its own, or <see cref="SoftwareDimming"/>.</summary>
+    public bool UsesSoftwareBrightness => _brightnessLoaded.Task.IsCompleted && (!_brightness.Supported || _settings.SoftwareDimming);
+
+    /// <summary>Dim in software although the monitor has its own brightness control.</summary>
+    public bool SoftwareDimming
+    {
+        get => _settings.SoftwareDimming;
+        set
+        {
+            if (_settings.SoftwareDimming == value) return;
+            _settings.SoftwareDimming = value;
+            // Switched off, nothing stays dimmed that the backlight now answers for.
+            if (!value) _settings.SoftwareBrightness = 100;
+            _persist();
+            Raise();
+            Raise(nameof(UsesSoftwareBrightness));
+            Raise(nameof(BrightnessVisibility));
+            Raise(nameof(SoftwareBrightnessVisibility));
+            Raise(nameof(SoftwareBrightness));
+            Raise(nameof(SoftwareBrightnessText));
+        }
+    }
+
+    public string SoftwareDimmingAutomationName => $"Dim in software {Number}";
+
+    /// <summary>The switch is only a choice where there is a backlight to choose against.</summary>
+    public Visibility SoftwareDimmingVisibility =>
+        _brightness.Supported ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>
     /// Whether the last read came back empty: no brightness, or an external
     /// monitor that listed no controls - what a DDC/CI channel not up yet looks like.
@@ -477,7 +506,11 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     public bool AnsweredNothing => !BrightnessSupported || (!IsInternalPanel && _reportedControls == 0);
 
     public Visibility BrightnessVisibility =>
-        _brightness.Supported ? Visibility.Visible : Visibility.Collapsed;
+        _brightness.Supported && !_settings.SoftwareDimming ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Unison moves a display by its backlight or, with none, by software dimming.</summary>
+    public Visibility InUnisonVisibility =>
+        _brightness.Supported || _brightnessLoaded.Task.IsCompleted ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility NoBrightnessVisibility =>
         _brightness.Supported ? Visibility.Collapsed : Visibility.Visible;
@@ -532,6 +565,9 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
             Raise(nameof(BrightnessVisibility));
             Raise(nameof(NoBrightnessVisibility));
             Raise(nameof(SoftwareBrightnessVisibility));
+            Raise(nameof(InUnisonVisibility));
+            Raise(nameof(UsesSoftwareBrightness));
+            Raise(nameof(SoftwareDimmingVisibility));
             Raise(nameof(BrightnessPercent));
 
             // Only now can a change be attributed to the user.
@@ -1631,7 +1667,16 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         // one is adjusted — which looks exactly like unison only working on the
         // built-in panel.
         await BrightnessReady.ConfigureAwait(true);
-        if (!_brightness.Supported || !_settings.InUnison) return;
+        if (!_settings.InUnison) return;
+        if (UsesSoftwareBrightness)
+        {
+            // No control of its own, or set to dim in software: unison dims the
+            // signal instead of skipping it.
+            SoftwareBrightness = UnisonResume.SoftwareLevel((int)Math.Round(factor * 100));
+            Raise(nameof(SoftwareBrightness));
+            Raise(nameof(SoftwareBrightnessText));
+            return;
+        }
 
         if (UsesBrightnessRange)
         {
@@ -1718,8 +1763,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// </para>
     /// </remarks>
     public Visibility SoftwareBrightnessVisibility =>
-        _brightnessLoaded.Task.IsCompleted && !_brightness.Supported
-            ? Visibility.Visible : Visibility.Collapsed;
+        UsesSoftwareBrightness ? Visibility.Visible : Visibility.Collapsed;
 
     public double SoftwareBrightness
     {

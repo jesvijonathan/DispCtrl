@@ -204,6 +204,7 @@ Generated from the settings themselves; `DispCtrl.Control.Checks` fails when a s
 | `/monitors/{monitor}/nightLightFloor` | none | number | Least warmth this display should reach when unison is calibrated. |
 | `/monitors/{monitor}/nightLightCeiling` | none | number | Most warmth this display should reach when unison is calibrated. |
 | `/monitors/{monitor}/softwareBrightness` | none | number | Brightness for panels with no hardware control, 10-100. |
+| `/monitors/{monitor}/softwareDimming` | off | on or off | Dim this display in software even though it has brightness control of its own: its slider, unison and the quick panel then move the software brightness instead of the backlight. |
 | `/monitors/{monitor}/isOled` | none | on or off | Whether this panel is OLED, and where that was decided. |
 | `/monitors/{monitor}/oledDetected` | none | on or off | Last reported panel technology, so the engine never polls DDC for protection. |
 | `/monitors/{monitor}/oledProtection` | none | on or off | Whether OLED idle care and screen rests reach this panel |

@@ -771,6 +771,14 @@ internal sealed partial class QuickPanelContent
         switch (id)
         {
             case "brightness":
+                // Dimmed in software - no control of its own, or set so - the
+                // signal's level is its brightness, and gets the row.
+                if (display.UsesSoftwareBrightness)
+                    return SliderRow(
+                        "\uE706", "Brightness", display.SoftwareBrightness, display.SoftwareBrightnessMinimum, 100,
+                        v => display.SoftwareBrightness = v,
+                        display, nameof(DisplayViewModel.SoftwareBrightness), () => display.SoftwareBrightness,
+                        $"Brightness {display.Number}", "%");
                 if (!display.BrightnessSupported) return null;
                 return SliderRow(
                     "\uE706", "Brightness", display.BrightnessPercent, 0, 100,
@@ -779,6 +787,8 @@ internal sealed partial class QuickPanelContent
                     $"Brightness {display.Number}", "%");
 
             case "dimming":
+                // Already the brightness row above: one slider, not two.
+                if (display.UsesSoftwareBrightness && _panel.IsShown(QuickPanelGroup.DisplayRows, "brightness")) return null;
                 return SliderRow(
                     "", "Dimming", display.SoftwareBrightness, display.SoftwareBrightnessMinimum, 100,
                     v => display.SoftwareBrightness = v,

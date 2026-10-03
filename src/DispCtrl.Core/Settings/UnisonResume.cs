@@ -21,6 +21,14 @@ namespace DispCtrl.Core.Settings;
 /// </remarks>
 public static class UnisonResume
 {
+    /// <summary>The software dimming a display with no brightness control of its own takes at a unison level.</summary>
+    /// <remarks>
+    /// A virtual display, many TVs: nothing to write, so unison dims the signal
+    /// instead. It used to skip them, and they stayed bright while the rest dimmed.
+    /// Floored where software dimming stops being readable.
+    /// </remarks>
+    public static int SoftwareLevel(int unisonLevel) => Math.Clamp(unisonLevel, Color.NightLight.MinimumDim, 100);
+
     /// <param name="level">The unison slider as it was left.</param>
     /// <param name="current">Each display's brightness now, 0-100.</param>
     /// <param name="baselines">Each display's recorded baseline, 0 when it has none.</param>

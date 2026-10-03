@@ -21,8 +21,13 @@ internal static class UnisonWriter
             // Left out of unison: its brightness is its own.
             if (!settings.For(d.Token).InUnison) continue;
             BrightnessRange range = Brightness.Read(d);
-            if (!range.Supported) continue;
             MonitorSettings m = settings.For(d.Token);
+            if (!range.Supported || m.SoftwareDimming)
+            {
+                int dim = UnisonResume.SoftwareLevel(settings.Global.UnisonLevel);
+                if (m.SoftwareBrightness != dim) { m.SoftwareBrightness = dim; changed = true; }
+                continue;
+            }
             if (!m.HasBrightnessRange && m.BrightnessBaseline <= 0)
             {
                 // Joins without a jump: a baseline worked back from where it is.

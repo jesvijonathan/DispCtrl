@@ -373,20 +373,40 @@
                 </tk:SettingsCard>
                 <!-- Power Display's "exclude from linked brightness". -->
                 <tk:SettingsCard Header="In unison" Description="{x:Bind InUnisonDescription, Mode=OneWay}"
-                                 Visibility="{x:Bind BrightnessVisibility, Mode=OneWay}">
+                                 Visibility="{x:Bind InUnisonVisibility, Mode=OneWay}">
                   <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE793;"/>
                   </tk:SettingsCard.HeaderIcon>
                   <ToggleSwitch IsOn="{x:Bind InUnison, Mode=TwoWay}" AutomationProperties.Name="{x:Bind InUnisonAutomationName}"/>
                 </tk:SettingsCard>
+                <tk:SettingsCard Header="Dim in software"
+                                 Description="Move this display's brightness by dimming the picture instead of its backlight: for a monitor whose DDC/CI is off or unreliable. The brightness slider, unison and the quick panel all follow it."
+                                 Visibility="{x:Bind SoftwareDimmingVisibility, Mode=OneWay}">
+                  <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE793;"/>
+                  </tk:SettingsCard.HeaderIcon>
+                  <ToggleSwitch IsOn="{x:Bind SoftwareDimming, Mode=TwoWay}" AutomationProperties.Name="{x:Bind SoftwareDimmingAutomationName}"/>
+                </tk:SettingsCard>
+                <!-- A display with no brightness control of its own - a virtual one,
+                     many TVs - is dimmed in software, and that slider is its
+                     brightness: it was folded under Advanced options while this
+                     row said "Unavailable". -->
                 <tk:SettingsCard Header="Brightness"
-                                 Description="This display does not report brightness control."
-                                 Visibility="{x:Bind NoBrightnessVisibility, Mode=OneWay}">
+                                 Description="{x:Bind SoftwareBrightnessDescription, Mode=OneWay}"
+                                 Visibility="{x:Bind SoftwareBrightnessVisibility, Mode=OneWay}">
                   <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE706;"/>
                   </tk:SettingsCard.HeaderIcon>
-                  <TextBlock Text="Unavailable" VerticalAlignment="Center"
-                             Foreground="{ThemeResource TextFillColorDisabledBrush}"/>
+                  <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Slider Value="{x:Bind SoftwareBrightness, Mode=TwoWay}"
+                            Minimum="{x:Bind SoftwareBrightnessMinimum, Mode=OneWay}"
+                            Maximum="100" StepFrequency="1"
+                            Width="220" VerticalAlignment="Center"
+                            AutomationProperties.Name="{x:Bind SoftwareBrightnessAutomationName}"/>
+                    <TextBlock Text="{x:Bind SoftwareBrightnessText, Mode=OneWay}"
+                               VerticalAlignment="Center" MinWidth="40"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                  </StackPanel>
                 </tk:SettingsCard>
                 <tk:SettingsCard Header="Night light"
                                  Description="{x:Bind NightLightStrengthText, Mode=OneWay}"
@@ -600,23 +620,7 @@
                 <!-- Only where the real thing is missing. On a panel with a
                      reachable backlight this would be strictly worse: the same
                      light, less contrast. -->
-                <tk:SettingsCard Header="Software brightness"
-                                 Description="{x:Bind SoftwareBrightnessDescription, Mode=OneWay}"
-                                 Visibility="{x:Bind Advanced(AdvancedFold.Open, SoftwareBrightnessVisibility), Mode=OneWay}">
-                  <tk:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE706;"/>
-                  </tk:SettingsCard.HeaderIcon>
-                  <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Slider Value="{x:Bind SoftwareBrightness, Mode=TwoWay}"
-                            Minimum="{x:Bind SoftwareBrightnessMinimum, Mode=OneWay}"
-                            Maximum="100" StepFrequency="1"
-                            Width="220" VerticalAlignment="Center"
-                            AutomationProperties.Name="{x:Bind SoftwareBrightnessAutomationName}"/>
-                    <TextBlock Text="{x:Bind SoftwareBrightnessText, Mode=OneWay}"
-                               VerticalAlignment="Center" MinWidth="40"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                  </StackPanel>
-                </tk:SettingsCard>
+
                 <!-- Windows settings, not the monitor's, but they act on this
                      panel and nothing else: the light sensor drives the
                      built-in backlight and the accelerometer turns the built-in
