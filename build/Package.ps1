@@ -99,8 +99,6 @@ try { & $MakeAppx pack /d $stage /p $package /o }
 finally { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
 if ($LASTEXITCODE -ne 0) { throw 'MSIX validation/packing failed.' }
 if ($Sign) { & "$PSScriptRoot/Sign.ps1" -Path $package }
-Get-FileHash -LiteralPath $package -Algorithm SHA256 | ForEach-Object {
-    "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))"
-} | Set-Content -LiteralPath (Join-Path $output 'MSIX-SHA256SUMS.txt') -Encoding ascii
+& "$PSScriptRoot/Checksums.ps1" -Directory $output -Path $package
 Write-Output "$(if ($Sign) { 'Signed' } else { 'Unsigned' }) MSIX: $package ($IdentityName, $Publisher)"
 return $package

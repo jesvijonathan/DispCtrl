@@ -151,9 +151,7 @@ try {
     foreach ($kind in @(@{ Folder = 'cli'; Zip = 'cli' }, @{ Folder = 'desktop'; Zip = 'portable' })) {
         Compress-Archive -Path (Join-Path $artifactRoot "$($kind.Folder)/*") -DestinationPath (Join-Path $artifactRoot "DispCtrl-$Version-$Channel-win-x64-$($kind.Zip).zip") -CompressionLevel Optimal
     }
-    Get-ChildItem -LiteralPath $artifactRoot -Filter '*.zip' | Get-FileHash -Algorithm SHA256 |
-        ForEach-Object { "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))" } |
-        Set-Content -LiteralPath (Join-Path $artifactRoot 'SHA256SUMS.txt') -Encoding ascii
+    & "$PSScriptRoot/Checksums.ps1" -Directory $artifactRoot -Path (Get-ChildItem -LiteralPath $artifactRoot -Filter '*.zip').FullName
     Write-Host "Artifacts: $artifactRoot"
     return $artifactRoot
 } finally { Pop-Location }

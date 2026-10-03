@@ -8,7 +8,7 @@
 | `DispCtrl-<v>-<channel>-win-x64-portable.zip` | `build/Publish.ps1` | portable use |
 | `DispCtrl-<v>-<channel>-win-x64-cli.zip` | `build/Publish.ps1` | `dispctrl.exe` and the engine, no window |
 | `DispCtrl-<v>.0-x64.msix` | `build/Package.ps1` (MakeAppx) | the Microsoft Store |
-| `SHA256SUMS.txt`, `SETUP-SHA256SUMS.txt`, `MSIX-SHA256SUMS.txt` | each script | checking a download; separate names so release assets do not collide |
+| `SHA256SUMS.txt` | each script adds its packages (`build/Checksums.ps1`) | checking any download: one file for all of them, sorted by name |
 
 Every one of them lands in a single folder, `artifacts/<channel>-<version>/`,
 beside the `cli` and `desktop` folders they were made from. Publish replaces

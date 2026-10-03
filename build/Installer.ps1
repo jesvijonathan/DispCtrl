@@ -40,8 +40,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
 $setup = Join-Path $OutputDirectory "DispCtrl-$Version-$Channel-win-x64-setup.exe"
 if (-not (Test-Path -LiteralPath $setup)) { throw "Inno Setup reported success but $setup is missing." }
 if ($Sign) { & "$PSScriptRoot/Sign.ps1" -Path $setup }
-Get-FileHash -LiteralPath $setup -Algorithm SHA256 | ForEach-Object {
-    "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))"
-} | Set-Content -LiteralPath (Join-Path $OutputDirectory 'SETUP-SHA256SUMS.txt') -Encoding ascii
+& "$PSScriptRoot/Checksums.ps1" -Directory $OutputDirectory -Path $setup
 Write-Output "Installer: $setup"
 return $setup
