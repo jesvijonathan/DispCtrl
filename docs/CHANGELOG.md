@@ -8,6 +8,8 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-03
+
 ### Added
 - Presets are switched on (still labelled Beta): save and apply the whole desk, apply automatically when a desk's displays connect, launch a program with a preset and get the desk back after, and per-app rules. They were built but left out of earlier releases.
 - Taskbar glass looks, as TranslucentTB offers them: blur, clear, opaque and acrylic, tinted with a colour of your own or Windows' accent colour, and the thin border along the taskbar's top shown or hidden. Off is Windows' normal taskbar. On the Taskbar page and `dispctrl taskbar set --look acrylic --accent on --border off`.
@@ -17,7 +19,7 @@ using DispCtrl, not for people reading the diff.
 - Move the window in front to the next, previous or a chosen display, keeping its place and size in proportion across displays at different scales, and stretch it across every display: shortcuts (offered switched off on Ctrl+Alt+], [ and S) and `dispctrl placement move --to next` / `placement span`.
 - Company laptop switches, under Settings and `dispctrl machine`: sign in without Ctrl+Alt+Del, your own lock screen picture, skip the lock screen, no blur behind the sign-in box, lock after inactivity, dynamic lock, and no tips on the lock screen. Each reads back what Windows has, asks for administrator permission only when a machine-wide one is changed, says when an organisation manages the computer, and can be put back as it was.
 - OLED care's third stage: after the dim stages a display goes black as if off, with its backlight down too, and "Keep the computer active" off lets Windows sleep and lock on its own timers once nobody is there. Each display can follow the common timing or have its own (rest after, dim level, when it turns off), from the OLED care list or `dispctrl oled set --monitor 2 --idle-minutes 10`; `common` puts a value back.
-- A Brightness section for the full quick panel: simple mode's sliders - all displays, then each one - as a section, to show in place of Unison brightness and Displays. Hidden until switched on from the Quick panel page.
+- A Brightness section for the full quick panel: all displays, then each one, with unison's switch in its header. A new panel opens on it; Unison brightness, with its Windows brightness switch, moves below Focus and starts folded. A panel arranged before keeps its own order.
 - A guided mapper for all monitor brands: scans list new codes, watching saves observations for contributions, and mapped choices, sliders and buttons appear on Displays. Mapping values have individual name fields and model/brand/all scopes.
 - Shortcuts for the four arrangements Win+P offers - extend, duplicate, PC screen only, second screen only - on Ctrl+Alt+1 to 4. Offered switched off, because each one reconfigures the display stack and a mistyped digit is an expensive accident.
 - Shortcuts for the rest of what DispCtrl does: follow the room's light, software dimming, monitor volume and mute, HDR, variable refresh rate, make a display the main one, put windows back, and open new windows on the display in use.
@@ -53,7 +55,7 @@ using DispCtrl, not for people reading the diff.
 - Discard on the preset banner now clears it. The app compared the desk with its settings from before the preset was applied, and counted differences no apply can put right: a layout that needs an unplugged display, a wallpaper whose file has gone, and a display's name, which the app itself rewrites.
 - `dispctrl awake set --mode on` and `--mode off` work, as the help said they would.
 - A pinned DispCtrl on the taskbar no longer shows a solid square behind its icon. The icon file had one 256 px image, which Explorer shrank badly for pinned items; it now carries every size Windows asks for with real transparency. The Store package gains the target-size "unplated" tile images the taskbar looks for, and a resources.pri that merges the app's own resources with them.
-- A new quick panel opens with only the brightness sections unfolded; every other section and each display's own block start folded.
+- A new quick panel opens with only Brightness unfolded; every other section and each display's own block start folded.
 - Parsec, spacedesk and other virtual displays, USB display adapters and Miracast are recognised and named as such (they showed as "Unknown").
 - With PowerToys FancyZones set to move new windows to their last zone, "Open new windows on the display in use" leaves new windows to it instead of both moving them.
 - Settings shows the memory the engine uses on its own (about 16 MB) rather than its working set, which counted the libraries every process shares; About shows the size on disk, DispCtrl itself against the runtimes it carries.
@@ -63,7 +65,11 @@ using DispCtrl, not for people reading the diff.
 - The quick panel's sections fade and slide a little as they open and fold. The compositor plays it, so it costs nothing while nothing moves; the Animations switch on the Quick panel page, and Windows' animation effects, turn it off.
 - The full panel's Brightness section follows the panel's density: at Compact and Comfortable it uses the same rows as the rest of the panel, a name above each slider; Spacious keeps the large sliders, and Simple mode is unchanged.
 - Displays with no brightness control of their own (virtual displays, many TVs) get a brightness slider that dims in software, follow unison, and show in the quick panel; "Dim in software" on a display's card does the same for a monitor whose DDC/CI is off or unreliable.
-- New screenshots, demo and hero image throughout the README and the website.
+- New screenshots, demo and hero image throughout the README and the website. The website shows the full and Simple quick panels in turn, and the first two rows of features with the rest a click away.
+- The quick panel rises and sinks evenly. It travels its whole height on curves made for flyouts that move a few dozen pixels, so its first frame jumped about 390 px and then crawled; every frame now moves under about 115 px, timed by the frames themselves.
+- When Explorer replaces the taskbar's background (auto-hide, a theme change), taskbar glass now builds its blur afresh instead of putting the previous one back.
+- `build.cmd` and `build.sh` moved into `build/`: run `build\build.cmd` or `./build/build.sh` from the repository root.
+- A settings save by another program within the same instant as DispCtrl's own, and of the same length, is no longer mistaken for DispCtrl's own and missed. The file's ID tells them apart where Windows offers it (Windows 11 24H2 and later).
 - Downloads are far smaller: the portable zip is about 46 MB (was 74), the command-line zip 19 MB (was 46) and the Store package 47 MB (was 78). The app, the engine and the command line now share one trimmed copy of .NET. The background engine also uses less memory, about 48 MB instead of 73.
 - Importing a preset whose name is longer than a file name may be, when that name is taken, numbers it instead of failing as not a preset.
 - Presets: applying one no longer undoes changes made elsewhere while it applies; a monitor whose brightness range is not 0 to 100 can be saved in a preset; very long names and names like CON save; a desk profile no longer applies with no display attached, and is not missed when the displays change while another preset applies; an app rule written as a program's full path matches it.
@@ -206,7 +212,8 @@ The first public release.
 - A per-user installer, portable and CLI zips, and an MSIX for the Microsoft
   Store.
 
-[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.2...v0.1.4
 [0.1.2]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.1...v0.1.2
