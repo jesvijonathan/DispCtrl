@@ -28,7 +28,7 @@ DispCtrl.slnx      src/, tests/, tools/ in one solution
 src/               DispCtrl.Core (no hardware writes) <- Display (hardware) <- Control
                    (command API) <- Engine, App, Cli; native/ (taskbar-glass helper)
 tests/             check suites, one console program each; exit code = failures
-tools/             devicecheck (device library, CI intake), perfcheck, scripts
+tools/             devicecheck (device library, CI intake), perfcheck, scripts, promo-video
 build/ devices/ docs/ site/
 ```
 

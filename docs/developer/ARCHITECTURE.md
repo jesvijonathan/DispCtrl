@@ -38,7 +38,7 @@ src/
   DispCtrl.Cli        dispctrl.exe, console subsystem: the control terminal, nothing else
   native/             the taskbar-glass helper Explorer loads (C++, MinGW)
 tests/                check suites, one console program each (tests/README.md)
-tools/                devicecheck (device library and intake), perfcheck, scripts
+tools/                devicecheck (device library and intake), perfcheck, scripts, promo-video (the release video; never packaged)
 build/                dev.ps1 behind build.cmd (at the root) and build.sh, packaging, the installer
 devices/              the reviewed device library, one folder per model
 docs/                 user documentation; developer/ for contributors; design/ notes
