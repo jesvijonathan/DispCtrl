@@ -311,6 +311,9 @@ try
     Check(olderSections.Take(3).Select(i => i.Id).SequenceEqual(["unison", "displays", "tiles"])
         && olderSections.Single(i => i.Id == "simpleBrightness") is { Visible: false },
         "a section an existing panel never listed reaches it hidden, keeping its order");
+    var arrangedBefore = new QuickPanelSettings { Sections = [new("unison", true), new("tiles", true)] };
+    Check(!arrangedBefore.IsCollapsed("unison") && folding.IsCollapsed("unison"),
+        "Unison starts folded only below a shown Brightness: a panel arranged before keeps its main slider open");
     folding.SetCollapsed("oledCare", true);
     Check(folding.IsCollapsed("oledCare") && folding.Expanded.Count == 0, "folding a default-folded section again leaves nothing stored");
     var fresh = new DispCtrlSettings();

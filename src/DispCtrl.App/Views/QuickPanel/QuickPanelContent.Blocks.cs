@@ -260,10 +260,12 @@ internal sealed partial class QuickPanelContent
     private FrameworkElement ComboRow(
         string label, ObservableCollection<string> options,
         Func<string?> read, Action<string> write,
-        INotifyPropertyChanged source, string property, string automationName)
+        INotifyPropertyChanged source, string property, string automationName, bool labelled = true)
     {
+        // Unlabelled where the section's own header already names it: a
+        // "Preset" label under the Presets header said the same thing twice.
         var grid = new Grid { Margin = new Thickness(0, 1, 0, 1), ColumnSpacing = 4 };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LabelWidth) });
+        if (labelled) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LabelWidth) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var box = new ComboBox
@@ -296,8 +298,11 @@ internal sealed partial class QuickPanelContent
         Watch(source, property, Sync);
         Watch(options, Sync);
 
-        Grid.SetColumn(box, 1);
-        grid.Children.Add(RowLabel(label));
+        if (labelled)
+        {
+            Grid.SetColumn(box, 1);
+            grid.Children.Add(RowLabel(label));
+        }
         grid.Children.Add(box);
         return grid;
     }

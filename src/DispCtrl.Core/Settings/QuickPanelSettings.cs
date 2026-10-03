@@ -171,7 +171,7 @@ public static class QuickPanelCatalog
         new("oledCare", "OLED care", "\uE7EF",
             "OLED idle protection's switch, how dim it goes and how soon.", true),
         new("presets", "Presets", "\uE768",
-            "Every saved preset as a button that applies it. Presets are still being built, so for now this is a placeholder.", true),
+            "Choose a saved preset and apply it, and see whether the displays still match it.", true),
         new("displayMode", "Display mode", "\uEBC6",
             "Extend, duplicate, or one screen only - the choices Win+P offers, one click each.", false),
         new("windows", "Windows", "\uE71D",
@@ -444,17 +444,19 @@ public sealed class QuickPanelSettings
     /// </remarks>
     /// <remarks>
     /// Everything but Brightness, since 2026-10-03 (the owner's call): a full
-    /// panel opened as a wall of rows. Unison has its own section further down
-    /// for its Windows brightness switch; Brightness carries its slider and
-    /// switch at the top. Each display's own block, keyed <c>display:</c> and its
-    /// token, starts folded too.
+    /// panel opened as a wall of rows. Each display's own block, keyed
+    /// <c>display:</c> and its token, starts folded too. Unison starts folded
+    /// only below a shown Brightness section, which carries its slider and
+    /// switch: a panel arranged before 0.2.0 has Unison first and no Brightness,
+    /// and folding it there hid the panel's main slider.
     /// </remarks>
     public static readonly string[] FoldedByDefault =
-        ["tiles", "displays", "unison", "oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets", "windows"];
+        ["tiles", "displays", "oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets", "windows"];
 
     /// <summary>Whether a section or a display's block starts folded until somebody opens it.</summary>
-    public static bool FoldsByDefault(string key) =>
-        FoldedByDefault.Contains(key) || key.StartsWith("display:", StringComparison.Ordinal);
+    public bool FoldsByDefault(string key) =>
+        FoldedByDefault.Contains(key) || key.StartsWith("display:", StringComparison.Ordinal)
+        || (key == "unison" && IsShown(QuickPanelGroup.Sections, "simpleBrightness"));
 
     public bool IsCollapsed(string key) =>
         Collapsed.Contains(key) || (FoldsByDefault(key) && !Expanded.Contains(key));

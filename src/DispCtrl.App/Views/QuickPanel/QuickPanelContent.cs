@@ -529,9 +529,14 @@ internal sealed partial class QuickPanelContent
 
     private void Presets()
     {
-        if (!_vm.PresetsEnabled || !_vm.Presets.Names.Any(n => n != PresetsViewModel.NewEntry))
+        if (!_vm.PresetsEnabled)
         {
             PresetsPlaceholder();
+            return;
+        }
+        if (!_vm.Presets.Names.Any(n => n != PresetsViewModel.NewEntry))
+        {
+            NoPresets();
             return;
         }
 
@@ -563,8 +568,8 @@ internal sealed partial class QuickPanelContent
         Watch(presets, nameof(PresetsViewModel.Selected), Enable);
         Watch(presets, nameof(PresetsViewModel.CanEdit), Enable);
 
-        FrameworkElement picker = ComboRow("Preset", names, () => presets.SelectedPreset?.Name,
-            chosen => presets.Selected = chosen, presets, nameof(PresetsViewModel.Selected), "QuickPresetPicker");
+        FrameworkElement picker = ComboRow("Choose a preset", names, () => presets.SelectedPreset?.Name,
+            chosen => presets.Selected = chosen, presets, nameof(PresetsViewModel.Selected), "QuickPresetPicker", labelled: false);
         var row = new Grid { ColumnSpacing = 6 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -580,8 +585,15 @@ internal sealed partial class QuickPanelContent
             Foreground = Res("TextFillColorSecondaryBrush"),
             TextWrapping = TextWrapping.Wrap,
         };
-        void Status() => status.Text = presets.SelectedPreset is null ? "Choose a preset to compare the displays with."
-            : presets.IsDirty ? presets.DriftTooltip.Replace(" Click to see them.", "").Replace(" Click to see it.", "") : "The displays match it.";
+        // Only when the desk has moved from the chosen preset. "The displays
+        // match it" under every opening stated the ordinary case, and "Choose a
+        // preset" repeated the picker's own placeholder.
+        void Status()
+        {
+            bool drifted = presets.SelectedPreset is not null && presets.IsDirty;
+            status.Text = drifted ? presets.DriftTooltip.Replace(" Click to see them.", "").Replace(" Click to see it.", "") : "";
+            status.Visibility = drifted ? Visibility.Visible : Visibility.Collapsed;
+        }
         Status();
         Watch(presets, nameof(PresetsViewModel.DriftTooltip), Status);
         Watch(presets, nameof(PresetsViewModel.Selected), Status);
@@ -591,8 +603,27 @@ internal sealed partial class QuickPanelContent
         body.Children.Add(status);
     }
 
+    /// <summary>Presets switched on, none saved yet: where to make one.</summary>
+    /// <remarks>
+    /// It showed the "Presets are coming" placeholder, untrue once presets
+    /// shipped. Rebuilt only when a real preset appears: the list is cleared and
+    /// refilled on every reload, and rebuilding on each of those would rebuild
+    /// the panel on every opening.
+    /// </remarks>
+    private void NoPresets()
+    {
+        StackPanel body = Foldable("presets", SectionHeader("Presets"));
+        body.Children.Add(Note("No presets yet. Save the whole desk as one on the Presets page, then apply it from here."));
+        var open = new HyperlinkButton { Content = "Open Presets", Padding = new Thickness(RowInset, 2, 4, 2) };
+        AutomationProperties.SetName(open, "QuickPresetsOpen");
+        open.Click += (_, _) => { _dismiss(); App.ShowMainWindow("presets"); };
+        body.Children.Add(open);
+        PresetsViewModel presets = _vm.Presets;
+        Watch(presets.Names, () => { if (presets.Names.Any(n => n != PresetsViewModel.NewEntry)) _rebuild(); });
+    }
+
     /// <summary>
-    /// Where presets will go, drawn but not yet usable.
+    /// Where presets will go, drawn but not yet usable: a build with presets switched off.
     /// </summary>
     /// <remarks>
     /// Greyed rather than left out, so the panel's shape does not change the day
