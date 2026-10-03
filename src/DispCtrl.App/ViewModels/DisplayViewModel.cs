@@ -2514,6 +2514,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         ConnectorKind.Vga => "VGA",
         ConnectorKind.Usb => "USB-C",
         ConnectorKind.Virtual => "Virtual",
+        ConnectorKind.Wireless => "Wireless",
         _ => "Unknown",
     };
 

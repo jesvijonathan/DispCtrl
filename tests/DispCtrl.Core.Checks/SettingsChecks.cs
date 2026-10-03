@@ -27,6 +27,14 @@ internal static class SettingsChecks
         merged = SettingsStore.MergeEdits(Json("""{"l":[1,2]}"""), Json("""{"l":[1,2,3]}"""), Json("""{"l":[9]}"""));
         check(JsonNode.DeepEquals(merged, Json("""{"l":[1,2,3]}""")), "a list is replaced whole, never interleaved");
 
+        var panel = new QuickPanelSettings();
+        check(!panel.IsCollapsed("unison") && !panel.IsCollapsed("simpleBrightness") && panel.IsCollapsed("tiles") && panel.IsCollapsed("displays")
+                && panel.IsCollapsed("display:DEL-A234-X") && panel.IsCollapsed("windows"),
+            "a new quick panel opens with only the brightness sections unfolded, each display's block folded");
+        panel.SetCollapsed("display:DEL-A234-X", false);
+        check(!panel.IsCollapsed("display:DEL-A234-X") && panel.Expanded.Contains("display:DEL-A234-X") && !panel.Collapsed.Contains("display:DEL-A234-X"),
+            "a display block somebody opens is remembered as opened");
+
         // The request for support: never on a first run, ended by a star or a
         // donation, asked once more after a close, and never after a second.
         var start = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);

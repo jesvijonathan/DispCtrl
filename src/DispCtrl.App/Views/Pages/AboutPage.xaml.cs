@@ -13,6 +13,27 @@ public sealed partial class AboutPage : Page
 
     public string Runtime => RuntimeInformation.FrameworkDescription;
 
+    /// <summary>The installed folder, and how much of it is DispCtrl itself rather than the runtimes it carries.</summary>
+    public string SizeOnDisk
+    {
+        get
+        {
+            try
+            {
+                long all = 0, own = 0;
+                foreach (FileInfo file in new DirectoryInfo(AppContext.BaseDirectory).EnumerateFiles("*", SearchOption.AllDirectories))
+                {
+                    all += file.Length;
+                    if (file.Name.StartsWith("DispCtrl", StringComparison.OrdinalIgnoreCase) || file.Name.StartsWith("dispctrl.", StringComparison.OrdinalIgnoreCase)
+                        || file.DirectoryName?.Contains("taskbar-glass", StringComparison.OrdinalIgnoreCase) == true)
+                        own += file.Length;
+                }
+                return $"DispCtrl itself is {own / 1048576.0:N0} MB; with the .NET and Windows App SDK runtimes it carries, {all / 1048576.0:N0} MB.";
+            }
+            catch (Exception) { return "Could not be measured."; }
+        }
+    }
+
     public string OsVersion => $"{Environment.OSVersion.Version} ({RuntimeInformation.OSArchitecture})";
 
     public AboutPage()

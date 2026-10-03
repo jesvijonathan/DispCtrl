@@ -83,6 +83,8 @@
       <TextBlock Text="Build" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,28,0,8"/>
       <tk:SettingsCard Header="Version" Description="{x:Bind Version}"/>
       <tk:SettingsCard Header="Runtime" Description="{x:Bind Runtime}"/>
+      <tk:SettingsCard Header="Size on disk" Description="{x:Bind SizeOnDisk}"
+                       ToolTipService.ToolTip="DispCtrl carries its own copy of .NET and the Windows App SDK, so it needs nothing else installed. Both are trimmed to what DispCtrl uses."/>
       <tk:SettingsCard Header="Windows" Description="{x:Bind OsVersion}"/>
       <tk:SettingsCard Header="Components" Description="Windows App SDK · Windows Community Toolkit · CsWin32"/>
     </StackPanel>

@@ -89,6 +89,15 @@ public static partial class DisplayIdentifier
     /// <summary><c>DWMWCP_DONOTROUND</c> — matches the opaque rectangular content.</summary>
     private const uint CornerSquare = 1;
 
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static partial nint GetWindowLongPtr(nint hwnd, int index);
+
+    [LibraryImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    private static partial nint SetWindowLongPtr(nint hwnd, int index, nint value);
+
+    private const int GwlExStyle = -20;
+    private const nint WsExToolWindow = 0x80, WsExNoActivate = 0x08000000;
+
     [LibraryImport("dwmapi.dll")]
     private static partial int DwmSetWindowAttribute(nint hwnd, uint attribute, ref uint value, uint size);
 
@@ -97,6 +106,12 @@ public static partial class DisplayIdentifier
         try
         {
             nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
+            // A tool window that never takes focus: what a marker is, and what
+            // every window feature - new-window placement, gathering, pins -
+            // already leaves alone. As an ordinary window, the engine's "open
+            // new windows on the display in use" moved every number, a moment
+            // after it appeared, to the display with the pointer.
+            _ = SetWindowLongPtr(hwnd, GwlExStyle, GetWindowLongPtr(hwnd, GwlExStyle) | WsExToolWindow | WsExNoActivate);
             uint preference = CornerSquare;
             _ = DwmSetWindowAttribute(hwnd, WindowCornerPreference, ref preference, sizeof(uint));
         }
@@ -189,7 +204,8 @@ public static partial class DisplayIdentifier
 
         app.Resize(new SizeInt32(width, height));
 
-        window.Activate();
+        // Shown, not activated: it must not take focus from what was in use.
+        app.Show(activateWindow: false);
         return window;
     }
 }

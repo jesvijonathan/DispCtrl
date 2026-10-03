@@ -388,8 +388,17 @@ public static class DisplayRegistry
             or DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY.DISPLAYCONFIG_OUTPUT_TECHNOLOGY_SVIDEO
             => ConnectorKind.Vga,
 
+        // INDIRECT_WIRED is a display behind a USB graphics adapter (DisplayLink and the like).
         DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY.DISPLAYCONFIG_OUTPUT_TECHNOLOGY_UDI_EXTERNAL
+            or DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY.DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INDIRECT_WIRED
             => ConnectorKind.Usb,
+
+        // Software displays and Miracast were "Unknown": the Virtual kind
+        // existed and nothing ever produced it.
+        DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY.DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INDIRECT_VIRTUAL
+            => ConnectorKind.Virtual,
+        DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY.DISPLAYCONFIG_OUTPUT_TECHNOLOGY_MIRACAST
+            => ConnectorKind.Wireless,
 
         _ => ConnectorKind.Unknown,
     };

@@ -340,8 +340,8 @@ Every one of these was a real bug. Do not reintroduce them.
   is hit-testable); a row-wide handle swallowed presses meant for the controls.
   Locking, now only on the Quick panel page and off by default, sets the title
   bar to an empty element, so the title stops dragging.
-- **Detail sections start folded** (`QuickPanelSettings.FoldedByDefault`: OLED,
-  focus, display mode, taskbar, night light). A separate `Expanded` list records
+- **Everything but brightness starts folded** (`QuickPanelSettings.FoldsByDefault`:
+  every section but Unison and Brightness, and each display's own block). A separate `Expanded` list records
   the ones opened, so a section added later still starts folded. Section bodies
   sit 8 DIP in from their header; each feature's rows are built once
   (`FocusRows`, `OledRows`, `NightLightRows`) and used by both its section and

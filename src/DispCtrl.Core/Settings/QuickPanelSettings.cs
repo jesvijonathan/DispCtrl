@@ -442,17 +442,27 @@ public sealed class QuickPanelSettings
     /// is there. A separate list of opened ones, rather than a default written
     /// into <see cref="Collapsed"/>, so a section added later still starts folded.
     /// </remarks>
-    public static readonly string[] FoldedByDefault = ["oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets", "windows"];
+    /// <remarks>
+    /// Everything but the two brightness sections, since 2026-10-03 (the
+    /// owner's call): a full panel opened as a wall of rows. Each display's own
+    /// block, keyed <c>display:</c> and its token, starts folded too.
+    /// </remarks>
+    public static readonly string[] FoldedByDefault =
+        ["tiles", "displays", "oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets", "windows"];
+
+    /// <summary>Whether a section or a display's block starts folded until somebody opens it.</summary>
+    public static bool FoldsByDefault(string key) =>
+        FoldedByDefault.Contains(key) || key.StartsWith("display:", StringComparison.Ordinal);
 
     public bool IsCollapsed(string key) =>
-        Collapsed.Contains(key) || (FoldedByDefault.Contains(key) && !Expanded.Contains(key));
+        Collapsed.Contains(key) || (FoldsByDefault(key) && !Expanded.Contains(key));
 
     /// <summary>Remembers a fold, in whichever list records a departure from the default.</summary>
     public void SetCollapsed(string key, bool collapsed)
     {
         Collapsed.Remove(key);
         Expanded.Remove(key);
-        bool byDefault = FoldedByDefault.Contains(key);
+        bool byDefault = FoldsByDefault(key);
         if (collapsed && !byDefault) Collapsed.Add(key);
         if (!collapsed && byDefault) Expanded.Add(key);
     }

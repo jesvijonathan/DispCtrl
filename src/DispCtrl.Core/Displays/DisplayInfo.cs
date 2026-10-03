@@ -24,7 +24,10 @@ public enum ConnectorKind
     Dvi,
     Vga,
     Usb,
+    /// <summary>A display a driver makes in software: Parsec, spacedesk, an IddCx virtual display.</summary>
     Virtual,
+    /// <summary>Miracast: a wireless display.</summary>
+    Wireless,
 }
 
 /// <summary>

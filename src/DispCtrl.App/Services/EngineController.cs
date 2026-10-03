@@ -51,7 +51,7 @@ public sealed partial class EngineController
             if (_handle == 0 || WaitForSingleObject(_handle, 0) == 0) { Forget(); Find(); }
             if (_handle == 0) return new EngineStatus(true, 0, 0);
             var counters = new MemoryCounters { Size = (uint)Marshal.SizeOf<MemoryCounters>() };
-            double mb = GetProcessMemoryInfo(_handle, ref counters, counters.Size) ? counters.WorkingSetSize / (1024.0 * 1024.0) : 0;
+            double mb = GetProcessMemoryInfo(_handle, ref counters, counters.Size) ? counters.PagefileUsage / (1024.0 * 1024.0) : 0;
             return new EngineStatus(true, _pid, mb);
         }
     }

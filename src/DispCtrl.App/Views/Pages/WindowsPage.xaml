@@ -180,7 +180,7 @@
             <ToggleSwitch IsOn="{x:Bind ViewModel.ReturnWindows, Mode=TwoWay}" AutomationProperties.Name="ReturnWindows"/>
           </tk:SettingsCard>
           <tk:SettingsCard Header="Open new windows on the display in use"
-                           Description="A window that opens on another display is moved to the one you are working on. Dialogs and fullscreen games are left alone.">
+                           Description="A window that opens on another display is moved to the one you are working on. Dialogs and fullscreen games are left alone, and so are new windows while PowerToys FancyZones is set to put them in their last zone.">
             <tk:SettingsCard.HeaderIcon>
               <FontIcon Glyph="&#xE8A7;"/>
             </tk:SettingsCard.HeaderIcon>

@@ -430,6 +430,11 @@ internal sealed unsafe partial class PlacementService : IDisposable
         PlacementSettings placement = _settings.Global.Placement;
         List<DisplayInfo> displays = DisplayRegistry.Enumerate();
         if (displays.Count < 2) return;
+        if (OtherWindowTools.FancyZonesPlacesNewWindows())
+        {
+            Log.Write("placement: FancyZones moves new windows to their last zone; leaving them to it");
+            return;
+        }
         DisplayInfo? target = WindowMover.Active(placement, displays);
         if (target is null) return;
         HashSet<string> excluded = placement.Exclusions();
@@ -439,6 +444,9 @@ internal sealed unsafe partial class PlacementService : IDisposable
             // not a game taking a whole display.
             if (AppWindows.Describe(window) is not { Show: WindowShow.Normal or WindowShow.Maximized } app) continue;
             if (app.Process.Length > 0 && excluded.Contains(app.Process)) continue;
+            // DispCtrl's own windows know where they belong: Identify's numbers
+            // were moved, every one, to the display with the pointer.
+            if (app.Process.StartsWith("DispCtrl", StringComparison.OrdinalIgnoreCase)) continue;
             if (AppWindows.IsFullscreen(window, app.Show, displays)) continue;
             DisplayInfo? on = AppWindows.DisplayOf(window, displays);
             if (on is null || on.Key == target.Key) continue;

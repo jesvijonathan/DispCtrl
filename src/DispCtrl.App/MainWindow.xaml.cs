@@ -257,21 +257,78 @@ public sealed partial class MainWindow : Window
         HideSupportSoon();
     }
 
-    /// <summary>Closed without either: said so, gently, and gone.</summary>
+    /// <summary>Closed without either: said so, a little sheepishly, and gone.</summary>
+    /// <remarks>
+    /// The owner asked for something goofy here rather than a plain line: the
+    /// dots type out one at a time while the text gives a small wobble, then
+    /// the rest of the sentence arrives and the banner fades. Skipped, like
+    /// every animation in DispCtrl, when Windows has animation effects off.
+    /// </remarks>
     private void OnSupportClose(object sender, RoutedEventArgs e)
     {
         ViewModel.SupportDeclined();
         SupportActions.Visibility = Visibility.Collapsed;
-        SupportText.Text = "Ok… maybe another time. Thanks for using DispCtrl.";
-        HideSupportSoon();
+        const string rest = " maybe another time. Thanks for using DispCtrl.";
+        if (!new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
+        {
+            SupportText.Text = "Ok…" + rest;
+            HideSupportSoon();
+            return;
+        }
+
+        var wobble = new Microsoft.UI.Xaml.Media.CompositeTransform();
+        SupportText.RenderTransformOrigin = new Windows.Foundation.Point(0, 0.5);
+        SupportText.RenderTransform = wobble;
+        string[] beats = ["Ok", "Ok.", "Ok..", "Ok…", "Ok…" + rest];
+        int beat = 0;
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(380);
+        timer.Tick += (_, _) =>
+        {
+            SupportText.Text = beats[beat];
+            Wobble(wobble, beat == beats.Length - 1 ? 0 : (beat % 2 == 0 ? -3 : 3));
+            if (++beat < beats.Length) return;
+            timer.Stop();
+            HideSupportSoon();
+        };
+        timer.Start();
+    }
+
+    private static void Wobble(Microsoft.UI.Xaml.Media.CompositeTransform target, double degrees)
+    {
+        var tilt = new DoubleAnimationUsingKeyFrames();
+        tilt.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(120), Value = degrees });
+        tilt.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(320), Value = 0,
+            EasingFunction = new ElasticEase { Oscillations = 1, Springiness = 4, EasingMode = EasingMode.EaseOut } });
+        var bounce = new DoubleAnimationUsingKeyFrames();
+        bounce.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(100), Value = -2 });
+        bounce.KeyFrames.Add(new EasingDoubleKeyFrame { KeyTime = TimeSpan.FromMilliseconds(300), Value = 0,
+            EasingFunction = new BounceEase { Bounces = 1, EasingMode = EasingMode.EaseOut } });
+        var board = new Storyboard();
+        Storyboard.SetTarget(tilt, target);
+        Storyboard.SetTargetProperty(tilt, "Rotation");
+        Storyboard.SetTarget(bounce, target);
+        Storyboard.SetTargetProperty(bounce, "TranslateY");
+        board.Children.Add(tilt);
+        board.Children.Add(bounce);
+        board.Begin();
     }
 
     private void HideSupportSoon()
     {
         var timer = DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromSeconds(4);
+        timer.Interval = TimeSpan.FromSeconds(3);
         timer.IsRepeating = false;
-        timer.Tick += (_, _) => SupportBanner.Visibility = Visibility.Collapsed;
+        timer.Tick += (_, _) =>
+        {
+            var fade = new DoubleAnimation { To = 0, Duration = TimeSpan.FromMilliseconds(400) };
+            var board = new Storyboard();
+            Storyboard.SetTarget(fade, SupportBanner);
+            Storyboard.SetTargetProperty(fade, "Opacity");
+            board.Children.Add(fade);
+            board.Completed += (_, _) => SupportBanner.Visibility = Visibility.Collapsed;
+            board.Begin();
+        };
         timer.Start();
     }
 

@@ -566,7 +566,10 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     public string EngineStateText => _status.Running ? "Running" : "Stopped";
 
     public string EngineDetailText => _status.Running
-        ? $"Process {_status.ProcessId}  ·  {_status.MemoryMb:N1} MB"
+        // Private memory, what the engine costs: the working set counted the
+        // runtime and Windows' own libraries every process shares (~73 MB
+        // against ~16 of its own), and read as DispCtrl being heavy.
+        ? $"Process {_status.ProcessId}  ·  {_status.MemoryMb:N0} MB of memory of its own"
         : _engine.EnginePath is null
             ? "Engine executable not found — build DispCtrl.Engine first."
             : "Taskbars are not being managed.";
