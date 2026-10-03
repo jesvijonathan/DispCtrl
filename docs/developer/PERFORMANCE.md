@@ -5,10 +5,10 @@ wake-ups, from a settings load to a tray click. Every number has a budget,
 and a run can be compared with an earlier one.
 
 ```
-build.cmd perf                          core, displays, engine, cli (reads only)
-build.cmd perf --all                    and ui, writes, restart
-build.cmd perf --suites ui --quick      one suite, fewer samples
-build.cmd perf --baseline artifacts\perf\latest.json
+build\build.cmd perf                          core, displays, engine, cli (reads only)
+build\build.cmd perf --all                    and ui, writes, restart
+build\build.cmd perf --suites ui --quick      one suite, fewer samples
+build\build.cmd perf --baseline artifacts\perf\latest.json
 ```
 
 Or `dotnet run --project tools/perfcheck -c Release -- <options>`. It measures

@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     One entry point for working on DispCtrl: check the machine, set it up, build,
-    test, run and package. Run with no command for a menu (build.cmd does that
+    test, run and package. Run with no command for a menu (build\build.cmd does that
     on a double-click).
 
 .EXAMPLE
@@ -148,7 +148,7 @@ function Write-Check([string]$name, $ok, [string]$detail, [string]$fix, [switch]
 function Invoke-Doctor {
     $t = Get-Tools
     Write-Host "`nDispCtrl developer check  ($repo)`n"
-    Write-Check 'Windows 11' ($t.windows.Build -ge 22000) "build $($t.windows.Build)" 'DispCtrl targets Windows 11; build.sh compiles the libraries elsewhere.'
+    Write-Check 'Windows 11' ($t.windows.Build -ge 22000) "build $($t.windows.Build)" 'DispCtrl targets Windows 11; build/build.sh compiles the libraries elsewhere.'
     Write-Check '.NET 10 SDK' ([bool]$t.sdk10) $(if ($t.sdk10) { $t.sdk10 } else { 'not found' }) 'dev.ps1 setup -Install, or https://dotnet.microsoft.com/download'
     Write-Check 'MinGW-w64 g++' ([bool]$t.cxx -or $options.skipNative) $(if ($t.cxx) { $t.cxx } elseif ($options.skipNative) { 'not needed: native helper off (-NoNative)' } else { 'not found' }) 'dev.ps1 setup -Install (WinLibs), or set DISPCTRL_CXX, or build with -NoNative'
     Write-Check 'PowerShell 7' ([bool]$t.pwsh) $(if ($t.pwsh) { $t.pwsh } else { 'not found' }) 'winget install Microsoft.PowerShell' -Optional

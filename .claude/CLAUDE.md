@@ -15,7 +15,7 @@ before touching it.
 | [HOW-IT-WORKS.md](../docs/developer/HOW-IT-WORKS.md) | Before changing a feature: hotkeys, quick panel, OLED care, displays off, ambient light, the way back, pinning and placement, the DDC/CI guard, updates |
 | [RUNNING.md](../docs/developer/RUNNING.md) | Building while the engine runs, the sign-in task, the CLI, shortcuts |
 | [VERIFYING.md](../docs/developer/VERIFYING.md) | The reference desk, the suites, UI Automation, what cannot be automated |
-| [DEVELOPING.md](../docs/developer/DEVELOPING.md), [RELEASING.md](../docs/developer/RELEASING.md) | `build.cmd` options; channels, packaging, workflows |
+| [DEVELOPING.md](../docs/developer/DEVELOPING.md), [RELEASING.md](../docs/developer/RELEASING.md) | `build\build.cmd` options; channels, packaging, workflows |
 | [docs/README.md](../docs/README.md) | Everything else, user guides and design notes included |
 
 When something is learned the hard way, add it to TRAPS.md or HOW-IT-WORKS.md
@@ -38,10 +38,10 @@ a project's root; a new subject gets a folder, never named after a type in it.
 ## Commands
 
 ```
-build.cmd build            stops the engine gracefully, builds CLI, engine, app, restarts it
-build.cmd test [-Hardware] Control, LgInput, Core, devicecheck [+ Hardware against the monitors]
-build.cmd perf             the performance suite; run before and after anything on a hot path
-dispctrl help              every command; the old verbs (brightness, input ...) are short forms
+build\build.cmd build              stops the engine gracefully, builds CLI, engine, app, restarts it
+build\build.cmd test [-Hardware]   Control, LgInput, Core, devicecheck [+ Hardware against the monitors]
+build\build.cmd perf               the performance suite; run before and after anything on a hot path
+dispctrl help                      every command; the old verbs (brightness, input ...) are short forms
 ```
 
 Judge a build by its exit code, never by grepping for `error`. Building the
@@ -64,7 +64,7 @@ covered at all.
   (`DISPCTRL_DATA_DIR`), and with "Replace Windows brightness" on, a write to the
   built-in panel moves unison - use a dry run.
 - **Never kill the engine.** Stop it gracefully (`DispCtrl.Engine.exe stop`, or
-  `build.cmd build` which does it); a killed engine strands a taskbar
+  `build\build.cmd build` which does it); a killed engine strands a taskbar
   off-screen. Only the app may be killed outright.
 - **Drive the UI by UI Automation names and patterns, never coordinate clicks**
   (one corrupted real settings). Prefer reading the UI through UIA to
@@ -93,9 +93,10 @@ covered at all.
   `CommandHelp` topic (`controlcheck` fails on an undocumented command) and
   the CHANGELOG's Unreleased section.
 - **Keep the repository root and the README lean** - the owner's rule. The
-  root holds only what tools require there (build entry points, solution,
-  `Directory.*`, `global.json`, `LICENSE`, `README.md`, dot-files); everything
-  else goes in a folder. The README is the front page: pitch, install,
+  root holds only what tools require there (the solution, `Directory.*`,
+  `global.json`, `LICENSE`, `README.md`, dot-files); everything else goes in a
+  folder, the build entry points included (`build/build.cmd`, `build/build.sh`,
+  since 0.2.0). The README is the front page: pitch, install,
   getting started, a short tour, links. Full references live under `docs/`
   (user guides at its top level, `docs/developer/` for contributors,
   `docs/design/` for reasoning) and are indexed in `docs/README.md`; never

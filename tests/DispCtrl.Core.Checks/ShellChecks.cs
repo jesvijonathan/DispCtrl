@@ -131,7 +131,7 @@ internal static class ShellChecks
         taught.Points.Clear();
         check(AmbientCurve.Level(0, taught) == 20 && AmbientCurve.Level(800, taught) == 90, "forgetting returns to the two ends");
 
-        // Windows paths and known folders; build.sh runs these checks on Linux too.
+        // Windows paths and known folders; build/build.sh runs these checks on Linux too.
         if (!OperatingSystem.IsWindows()) return;
         string packaged = @"{6D809377-6AF0-444B-8957-A3773F02200E}\WindowsApps\JustVStudio.DispCtrl_0.1.0.0_x64__x\DispCtrl.Engine.exe";
         check(string.Equals(TrayIconPromotion.Expand(packaged),

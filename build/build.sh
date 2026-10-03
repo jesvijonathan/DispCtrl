@@ -2,12 +2,12 @@
 # DispCtrl on Linux, macOS or WSL: compile everything that is not the WinUI
 # window, and run the checks that need no Windows API.
 #
-#   ./build.sh doctor      what is installed, what is missing
-#   ./build.sh setup       .NET 10 SDK into .tools/dotnet (no sudo); prints the
+#   ./build/build.sh doctor      what is installed, what is missing
+#   ./build/build.sh setup       .NET 10 SDK into .tools/dotnet (no sudo); prints the
 #                          package commands for anything else
-#   ./build.sh build       Core, Display, Control, CLI, engine and the checks
-#   ./build.sh test        DispCtrl.Core.Checks and devicecheck
-#   ./build.sh clean       bin/ and obj/ folders
+#   ./build/build.sh build       Core, Display, Control, CLI, engine and the checks
+#   ./build/build.sh test        DispCtrl.Core.Checks and devicecheck
+#   ./build/build.sh clean       bin/ and obj/ folders
 #
 # Options: -c Debug|Release (default Release), --native (build the taskbar-glass
 # helper with x86_64-w64-mingw32-g++; needs pwsh).
@@ -15,10 +15,10 @@
 # What cannot happen here, and why: the window (DispCtrl.App) needs the WinUI
 # XAML compiler, which loads Windows-only DLLs, and DispCtrl.Control.Checks, DispCtrl.Hardware.Checks
 # and every command that touches a display call Windows itself. Building the
-# installer and the MSIX needs Windows too. Use build.cmd there.
+# installer and the MSIX needs Windows too. Use build\build.cmd there.
 set -euo pipefail
 
-repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tools="$repo/.tools"
 command="${1:-help}"; [[ $# -gt 0 ]] && shift
 configuration=Release
@@ -48,12 +48,12 @@ check() { # name ok detail fix
 doctor() {
   echo "DispCtrl developer check ($repo)"; echo
   local s; s="$(sdk10 || true)"
-  check ".NET 10 SDK" "$([[ -n $s ]] && echo 1 || echo 0)" "${s:-not found}" "./build.sh setup"
+  check ".NET 10 SDK" "$([[ -n $s ]] && echo 1 || echo 0)" "${s:-not found}" "./build/build.sh setup"
   check "ICU" "$(has_icu && echo 1 || echo 0)" "$(has_icu && echo present || echo 'not found; .NET falls back to invariant mode')" "sudo apt install libicu-dev   (or: dnf install libicu, brew install icu4c)"
   local c; c="$(cxx)"
-  check "MinGW-w64 (optional)" "$([[ -n $c ]] && echo 1 || echo 0)" "${c:-not found; engine builds without the glass helper}" "sudo apt install g++-mingw-w64-x86-64-posix   (then ./build.sh build --native)"
+  check "MinGW-w64 (optional)" "$([[ -n $c ]] && echo 1 || echo 0)" "${c:-not found; engine builds without the glass helper}" "sudo apt install g++-mingw-w64-x86-64-posix   (then ./build/build.sh build --native)"
   check "pwsh (optional)" "$(have pwsh && echo 1 || echo 0)" "$(command -v pwsh || echo 'not found; needed only for --native')" "https://learn.microsoft.com/powershell/scripting/install/install-ubuntu"
-  echo; echo "The window, the installer, the MSIX and the hardware checks need Windows: use build.cmd there."
+  echo; echo "The window, the installer, the MSIX and the hardware checks need Windows: use build\build.cmd there."
 }
 
 setup() {
@@ -68,7 +68,7 @@ setup() {
 }
 
 dotnet_env() {
-  [[ -n "$(sdk10 || true)" ]] || { echo ".NET 10 SDK missing: ./build.sh setup" >&2; exit 1; }
+  [[ -n "$(sdk10 || true)" ]] || { echo ".NET 10 SDK missing: ./build/build.sh setup" >&2; exit 1; }
   # Without ICU the SDK aborts at start-up; DispCtrl itself runs invariant anyway.
   has_icu || export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 }
@@ -97,7 +97,7 @@ test_() {
   # Not "index --check": the index is regenerated after each merge, so a pull
   # request that adds a device is valid without it.
   dotnet run --project tools/devicecheck -c "$configuration" --property:EnableWindowsTargeting=true -- selftest
-  echo; echo "Passed. DispCtrl.Control.Checks and DispCtrl.Hardware.Checks call Windows display APIs: run them with build.cmd test."
+  echo; echo "Passed. DispCtrl.Control.Checks and DispCtrl.Hardware.Checks call Windows display APIs: run them with build\build.cmd test."
 }
 
 clean() {

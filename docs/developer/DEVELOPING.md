@@ -4,7 +4,7 @@ One script does the work on each system:
 
 | | Windows | Linux, macOS, WSL |
 |---|---|---|
-| Entry point | `build.cmd` (double-click for a menu), or `build/dev.ps1` | `./build.sh` |
+| Entry point | `build\build.cmd` (double-click for a menu), or `build/dev.ps1` | `./build/build.sh` |
 | Builds | everything | everything except the window |
 | Runs | the app, the engine, every check | the checks that need no Windows API |
 | Packages | zips, installer, MSIX | none |
@@ -14,13 +14,13 @@ One script does the work on each system:
 ```powershell
 git clone https://github.com/jesvijonathan/DispCtrl.git
 cd DispCtrl
-.\build.cmd setup -Install     # asks winget for .NET 10 and MinGW-w64 if missing
-.\build.cmd build
-.\build.cmd run engine         # tray icon, hotkeys, taskbar
-.\build.cmd run app            # the window
+.\build\build.cmd setup -Install     # asks winget for .NET 10 and MinGW-w64 if missing
+.\build\build.cmd build
+.\build\build.cmd run engine         # tray icon, hotkeys, taskbar
+.\build\build.cmd run app            # the window
 ```
 
-Or double-click `build.cmd` and choose from the menu. The menu shows the
+Or double-click `build\build.cmd` and choose from the menu. The menu shows the
 current options on its first line and can switch them.
 
 ### What `setup` does
@@ -46,7 +46,7 @@ WinLibs folder.
 ### Commands and options
 
 ```
-.\build.cmd doctor | setup [-Install] | build | test [-Hardware] | perf [--all|--quick|...] | run engine|app|panel|cli <args>
+.\build\build.cmd doctor | setup [-Install] | build | test [-Hardware] | perf [--all|--quick|...] | run engine|app|panel|cli <args>
             publish | installer | package | release | clean [-Yes] | options
 Options:    -Configuration Debug|Release   -Channel beta|stable|test   -Version 0.2.0
             -NoNative / -Native   -NoRestart   -Sign   -Rebuild   -Keep   -Open
@@ -150,9 +150,9 @@ Git repositories, without building packages or contacting GitHub.
 ## Linux, macOS and WSL
 
 ```bash
-./build.sh setup     # .NET 10 into .tools/dotnet, no sudo; prints what else to install
-./build.sh build     # Core, Display, Control, CLI, engine, and the checks
-./build.sh test      # DispCtrl.Core.Checks, devicecheck
+./build/build.sh setup     # .NET 10 into .tools/dotnet, no sudo; prints what else to install
+./build/build.sh build     # Core, Display, Control, CLI, engine, and the checks
+./build/build.sh test      # DispCtrl.Core.Checks, devicecheck
 ```
 
 Verified on WSL Ubuntu:
@@ -169,11 +169,11 @@ What needs Windows, and why:
   `QueryDisplayConfig`, DDC/CI, WMI.
 - **The installer and the MSIX.** Inno Setup and MakeAppx are Windows tools.
 
-Without ICU, the .NET SDK aborts at start-up. `build.sh` switches it to
+Without ICU, the .NET SDK aborts at start-up. `build/build.sh` switches it to
 invariant mode, which DispCtrl uses anyway. `sudo apt install libicu-dev` is
 the tidier fix.
 
-The engine's taskbar-glass helper is skipped by default. `./build.sh build
+The engine's taskbar-glass helper is skipped by default. `./build/build.sh build
 --native` builds it with `x86_64-w64-mingw32-g++` (package
 `g++-mingw-w64-x86-64-posix`) and `pwsh`. That path is wired up but has not
 been verified.
@@ -188,9 +188,9 @@ been verified.
 ## Before a pull request
 
 ```powershell
-.\build.cmd build
-.\build.cmd test -Hardware
-.\build.cmd perf --quick     # when the change touches settings, the panel, DDC/CI or an engine loop
+.\build\build.cmd build
+.\build\build.cmd test -Hardware
+.\build\build.cmd perf --quick     # when the change touches settings, the panel, DDC/CI or an engine loop
 ```
 
 Leave the desk as you found it: any brightness, night light or monitor setting

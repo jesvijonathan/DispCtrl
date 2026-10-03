@@ -181,7 +181,7 @@ namespace DispCtrl.PerfCheck
                 string path = Path.Combine(Repo, "src", project, "bin", configuration, "net10.0-windows10.0.26100.0", "win-x64", exe);
                 if (File.Exists(path)) return path;
             }
-            throw new FileNotFoundException($"{exe} is not built; run build.cmd build first.");
+            throw new FileNotFoundException($"{exe} is not built; run build\build.cmd build first.");
         }
 
         public Row Add(Row row) => Report.Add(row);

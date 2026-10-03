@@ -104,16 +104,16 @@ verification named beside them.
   folder, artifacts/<channel>-<version>, cleared first (it removed 1.9 GB of
   stale bundles here), MSIX staged in temp and deleted. dev.ps1 publish now
   stops and restarts the engine, which the tests' build otherwise collides with.
-- [x] Developer entry points: build.cmd / build/dev.ps1 (doctor, setup, build,
+- [x] Developer entry points: build\build.cmd / build/dev.ps1 (doctor, setup, build,
   test, run, publish, installer, package, release, clean, options, and a menu)
-  and build.sh for Linux/WSL. On this desk: doctor and setup found every tool
+  and build/build.sh for Linux/WSL. On this desk: doctor and setup found every tool
   and fetched a portable Inno Setup; build stopped the engine, built with the
   glass helper at the same revision, and restarted it through its task (the
   first run did not restart it - Process.Path is empty after exit - fixed);
   test passed all four checks. Script parses under Windows PowerShell 5.1.
   WSL Ubuntu, from a clean copy: setup installed .NET into .tools, build
   compiled everything but the app with the glass helper skipped, and
-  DispCtrl.Core.Checks and devicecheck passed. setup -Install (winget) and build.sh
+  DispCtrl.Core.Checks and devicecheck passed. setup -Install (winget) and build/build.sh
   --native are not exercised.
 - [x] Licence (MIT), README, CONTRIBUTING, SECURITY, code of conduct, changelog,
   issue forms, PR template, dependabot. README claims checked against the code:

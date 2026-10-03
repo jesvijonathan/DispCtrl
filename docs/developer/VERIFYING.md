@@ -45,7 +45,7 @@ It includes the redaction checks: the scrub in isolation, then end to end over
 the monitors actually attached - asserting that the text the app would publish
 carries none of their serials, device paths, or the account name.
 
-**Performance: `build.cmd perf`** (`tools/perfcheck`, guide in
+**Performance: `build\build.cmd perf`** (`tools/perfcheck`, guide in
 `docs/developer/PERFORMANCE.md`). Budgets per measurement, reports in `artifacts/perf/`,
 `--baseline` flags regressions. `--all` adds the ui, writes and restart suites,
 which drive the tray and panel and need the desk left alone. Measure CPU from
@@ -53,7 +53,7 @@ cycle counts and measure warm - both have produced wrong conclusions here.
 Run it before and after anything on a hot path.
 
 `DispCtrl.Hardware.Checks` needs monitors. The hardware-free suites, which CI and
-`build.sh test` run, are `DispCtrl.Control.Checks` (the command API against a scratch
+`build/build.sh test` run, are `DispCtrl.Control.Checks` (the command API against a scratch
 settings folder), `DispCtrl.Core.Checks` (parsing, geometry, the settings merge) and
 `devicecheck validate` / `selftest` (the device library and its intake).
 
@@ -62,15 +62,15 @@ settings folder), `DispCtrl.Core.Checks` (parsing, geometry, the settings merge)
 ## A virtual second display
 
 For two-display work on a one-screen machine - unison, the arrangement,
-gathering windows, screenshots - `build.cmd virtual-display add` adds a
+gathering windows, screenshots - `build\build.cmd virtual-display add` adds a
 virtual display; `status` shows it and `remove` takes the driver away again.
 Off unless asked for: nothing in build, test or release runs it.
 
 ```powershell
-.\build.cmd virtual-display add                  # driver defaults: "Virtual 24in", 1920x1080
+.\build\build.cmd virtual-display add                  # driver defaults: "Virtual 24in", 1920x1080
 .\tools\VirtualDisplay.ps1 add -Like DELA234 -Name "DELL U2424H" -Mode 1920x1080 -Refresh 120 -Side left
-.\build.cmd virtual-display status
-.\build.cmd virtual-display remove
+.\build\build.cmd virtual-display status
+.\build\build.cmd virtual-display remove
 ```
 
 - It is the open-source [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver)

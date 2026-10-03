@@ -47,7 +47,7 @@ jobs:
               site/*) want+=("area: site") ;;
               .github/*) want+=("area: ci") ;;
               docs/*|*.md) want+=("area: docs") ;;
-              build/*|tools/*|Directory.Build.*|Directory.Packages.props|*.slnx|build.cmd|build.sh|global.json) want+=("area: build") ;;
+              build/*|tools/*|Directory.Build.*|Directory.Packages.props|*.slnx|global.json) want+=("area: build") ;;
             esac
           done <<< "$files"
           if   [ "$lines" -lt 10 ];   then size="size: XS"
@@ -113,7 +113,7 @@ jobs:
             total=$((total + lines))
             # What builds, tests, ships or runs in CI.
             case "$path" in
-              .github/*|build/*|tools/*|tests/*|src/native/*|devices/schema/*|Directory.Build.*|Directory.Packages.props|.editorconfig|global.json|[Nn]u[Gg]et.[Cc]onfig|build.cmd|build.sh|\
+              .github/*|build/*|tools/*|tests/*|src/native/*|devices/schema/*|Directory.Build.*|Directory.Packages.props|.editorconfig|global.json|[Nn]u[Gg]et.[Cc]onfig|\
               *.csproj|*.props|*.targets|*.ps1|*.psm1|*.cmd|*.bat|*.sh|*.vbs|*.js|*.mjs|*.py|*.exe.config|*.manifest)
                 sensitive+=("$status $path") ;;
             esac

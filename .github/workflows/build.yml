@@ -56,7 +56,7 @@ jobs:
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
 
   linux:
-    # build.sh on a clean Linux machine: everything but the WinUI app builds,
+    # build/build.sh on a clean Linux machine: everything but the WinUI app builds,
     # and the hardware-free checks run. A path read with Linux's Path rules
     # once failed here and nowhere else.
     runs-on: ubuntu-latest
@@ -70,10 +70,10 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
-      - name: Build and test with build.sh
+      - name: Build and test with build/build.sh
         run: |
-          ./build.sh build
-          ./build.sh test
+          ./build/build.sh build
+          ./build/build.sh test
 
   windows:
     runs-on: windows-latest

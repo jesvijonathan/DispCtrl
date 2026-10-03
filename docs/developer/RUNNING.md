@@ -2,12 +2,12 @@
 
 The commands that work, and the order things have to happen in when the
 engine is running and holding its own files. [DEVELOPING.md](DEVELOPING.md)
-has every option of `build.cmd`; this is the operating manual around it.
+has every option of `build\build.cmd`; this is the operating manual around it.
 
 ## Commands
 
-Run everything from the repo root. `build.cmd` (Windows) and `build.sh`
-(Linux/WSL) wrap it all: `build.cmd build` stops the engine gracefully, builds
+Run everything from the repo root. `build\build.cmd` (Windows) and `build/build.sh`
+(Linux/WSL) wrap it all: `build\build.cmd build` stops the engine gracefully, builds
 the CLI, engine and app, and restarts the engine through its task; `test`,
 `perf` (the performance suite, never part of build or test), `run
 engine|app|panel|cli`, `release`, and `doctor`/`setup` for a new machine.

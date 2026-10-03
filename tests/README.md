@@ -18,15 +18,15 @@ parallelises or reorders them would break exactly those.
 Run them from the repository root:
 
 ```
-build.cmd test              Core, Control, LgInput, and devicecheck
-build.cmd test -Hardware    the same, plus Hardware
-./build.sh test             Core and devicecheck, on Linux, macOS or WSL
+build\build.cmd test              Core, Control, LgInput, and devicecheck
+build\build.cmd test -Hardware    the same, plus Hardware
+./build/build.sh test             Core and devicecheck, on Linux, macOS or WSL
 ```
 
 or one at a time with `dotnet run --project tests/<Suite> -c Release`.
 
 `tools/devicecheck` (the device library's validator and intake) and
-`tools/perfcheck` (the performance budgets, `build.cmd perf`) are tools rather
+`tools/perfcheck` (the performance budgets, `build\build.cmd perf`) are tools rather
 than suites: they also run in CI and by hand for other jobs.
 
 ## Adding a check

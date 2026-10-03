@@ -23,7 +23,7 @@ notes that covers what you are changing.
 | Guide | Contents |
 |---|---|
 | [Architecture](developer/ARCHITECTURE.md) | The projects, what each may do, state on disk, pages, conventions |
-| [Developing](developer/DEVELOPING.md) | Setting up a machine, `build.cmd` and `build.sh`, editors, before a pull request |
+| [Developing](developer/DEVELOPING.md) | Setting up a machine, `build\build.cmd` and `build/build.sh`, editors, before a pull request |
 | [Running against a live desk](developer/RUNNING.md) | Stopping and restarting the engine, the sign-in task, the CLI, shortcuts |
 | [How each feature works](developer/HOW-IT-WORKS.md) | Feature by feature: what it does to the hardware and why |
 | [Traps already paid for](developer/TRAPS.md) | Every mistake that has already cost a crash or a setting; do not repeat them |

@@ -41,7 +41,7 @@ _site/
 # Working notes, Store assets and session logs: kept locally, never committed.
 .notes/
 
-# Developer tools fetched by build/dev.ps1 and build.sh, and local choices.
+# Developer tools fetched by build/dev.ps1 and build/build.sh, and local choices.
 .tools/
 build/local.json
 
