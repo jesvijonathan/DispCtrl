@@ -14,16 +14,17 @@
         { "value": "0x01", "name": "Reader" },
         { "value": "0x06", "name": "Color Weakness" },
         { "value": "0x0B", "name": "Custom" },
-        { "value": "0x0E", "name": "Hidden 1" },
+        { "value": "0x0E", "name": "Custom (Game)" },
         { "value": "0x1A", "name": "Hidden 2" },
         { "value": "0x1E", "name": "FPS" },
         { "value": "0x1F", "name": "RTS" },
-        { "value": "0x20", "name": "Hidden 3" },
-        { "value": "0x27", "name": "HDR Effect" }
+        { "value": "0x20", "name": "Photo" },
+        { "value": "0x27", "name": "HDR Effect" },
+        { "value": "0x31", "name": "Vivid" }
       ],
       "confidence": "observed",
       "sources": [ "GSM-5BF7" ],
-      "notes": "Read back on this model. Its capabilities list 15(01 06 11 13 14 28 29 32 48) is stale LG firmware text; ddccontrol-db shows the same wire values for Reader, Custom, Color Weakness, FPS, RTS and HDR Effect on other LG models. Hidden 1-3 are not in the OSD."
+      "notes": "Read back on this model. Its capabilities list 15(01 06 11 13 14 28 29 32 48) is stale LG firmware text; ddccontrol-db shows the same wire values for Reader, Custom, Color Weakness, FPS, RTS and HDR Effect on other LG models. Custom (Game), Photo and Vivid are named from the owner's menu (#29). Hidden 2 behaves as Custom but loads Custom's defaults, not the owner's settings."
     },
     {
       "code": "0x60",
@@ -122,11 +123,12 @@
       "name": "Black Stabilizer",
       "kind": "range",
       "writable": true,
-      "maximum": 20,
+      "maximum": 100,
+      "writeScale": 5,
       "values": [],
       "confidence": "observed",
       "sources": [ "GSM-5BF7", "GSM-5B7F" ],
-      "notes": "Wire 0 to 20 is menu 0 to 100 in steps of 10 on the 27GL850 (ddccontrol-db); capped there."
+      "notes": "The menu and the value read back go 0 to 100 in steps of 5; a write takes 0 to 20, so values are sent divided by 5 (#29, from the owner of this model)."
     },
     {
       "code": "0xFA",
@@ -162,10 +164,28 @@
       "name": "Gamma",
       "kind": "choice",
       "writable": false,
-      "values": [],
+      "values": [
+        { "value": "0x00", "name": "Mode 1" },
+        { "value": "0x01", "name": "Mode 2" },
+        { "value": "0x02", "name": "Mode 3" }
+      ],
       "confidence": "observed",
       "sources": [ "GSM-5BF7" ],
-      "notes": "Discrete modes per FE(00 01 02), not a range. Names differ between LG models and are not yet confirmed here."
+      "notes": "Discrete modes per FE(00 01 02), not a range. The menu calls them Mode 1, Mode 2 and so on (#29); that 0x00 is Mode 1 is assumed from the order and not yet confirmed, so it stays read-only."
+    },
+    {
+      "code": "0xD6",
+      "key": "power-mode",
+      "name": "Power mode",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        { "value": "0x01", "name": "On" },
+        { "value": "0x04", "name": "Off (soft)" }
+      ],
+      "confidence": "observed",
+      "sources": [ "GSM-5BF7" ],
+      "notes": "Switched off with 0x04, this model flashes black and green with no backlight and does not wake until it is unplugged (#30). DispCtrl does not switch it off; Turn off displays blacks it out instead."
     }
   ]
 }
