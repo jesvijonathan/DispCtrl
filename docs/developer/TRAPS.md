@@ -350,7 +350,7 @@ Every one of these was a real bug. Do not reintroduce them.
   Locking, now only on the Quick panel page and off by default, sets the title
   bar to an empty element, so the title stops dragging.
 - **Everything but brightness starts folded** (`QuickPanelSettings.FoldsByDefault`:
-  every section but Brightness, and each display's own block). A separate `Expanded` list records
+  every section but Brightness and Quick toggles, and each display's own block). A separate `Expanded` list records
   the ones opened, so a section added later still starts folded. Section bodies
   sit 8 DIP in from their header; each feature's rows are built once
   (`FocusRows`, `OledRows`, `NightLightRows`) and used by both its section and
@@ -648,6 +648,17 @@ unrecallable.
 
 ## Release and installer
 
+- **Every program in the shared bundle needs its own `<name>.deps.json`.**
+  Without one, .NET's launcher checks the *current directory* for
+  `<name>.runtimeconfig.json`; started from its own folder, it finds it,
+  switches to the SDK's `dotnet <app>` mode and dies with "The application
+  'run' does not exist" (exit 0x8000809B, a .NET Runtime 1023 event). Setup,
+  the sign-in task and the app all start the engine from its folder, so 0.2.1's
+  engine never started, while the same command from any other folder worked.
+  `Copy-Content` skips the engine's and CLI's own deps.json on purpose (they
+  list untrimmed DLLs), so `Publish.ps1` writes the shared, trimmed one under
+  each name and then runs `dispctrl help` and `DispCtrl.Engine.exe stop` from
+  inside both bundles, refusing to package on a host error.
 - **A Store install has no `DispCtrl.Engine` scheduled task**; the package's
   startup task starts it. Restart it inside the package:
   `Invoke-CommandInDesktopPackage -PackageFamilyName JustVStudio.DispCtrl_5fm6x6q82qb7g -AppId App -Command '<WindowsApps path>\DispCtrl.Engine.exe' -Args 'run'`.

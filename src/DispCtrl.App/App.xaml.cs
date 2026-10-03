@@ -127,7 +127,10 @@ public partial class App : Application
         // page, which leaves keyboard focus and its tooltip on the menu.
         int at = Array.FindIndex(words, a => a.Equals("--page", StringComparison.OrdinalIgnoreCase));
         ShowMainWindow(at >= 0 && at + 1 < words.Length ? words[at + 1].ToLowerInvariant() : null);
-        _ = ViewModel.StartEngineByDefaultAsync();
+        // --no-engine: the window without starting an engine, for Publish.ps1's
+        // start-up probe. Once the bundle's engine could start, the probe left
+        // one running from the build folder on a scratch settings file.
+        if (!words.Contains("--no-engine", StringComparer.OrdinalIgnoreCase)) _ = ViewModel.StartEngineByDefaultAsync();
     }
 
     /// <summary>

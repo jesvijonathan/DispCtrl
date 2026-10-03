@@ -85,6 +85,34 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed.' }
     # The taskbar-glass helper, docs and examples, from the CLI's folder.
     Copy-Content $cli $desktop
+    # Every program in a shared folder needs a deps.json of its own. Without
+    # one, .NET's launcher looks for <name>.runtimeconfig.json in the current
+    # directory, and when it is there - the program started from its own
+    # folder, as the installer, the sign-in task and the app all start the
+    # engine - it switches to the SDK's "dotnet <app>" mode and fails with
+    # "The application 'run' does not exist" (0x8000809B). 0.2.1 shipped
+    # without them: its engine never started. The shared, trimmed deps.json
+    # lists all three programs' assemblies (each folder's main publish
+    # references the others), so one copy per name serves.
+    foreach ($bundle in @(@{ Folder = $cli; Shared = 'dispctrl.deps.json'; Names = @('DispCtrl.Engine') },
+                          @{ Folder = $desktop; Shared = 'DispCtrl.App.deps.json'; Names = @('DispCtrl.Engine', 'dispctrl') })) {
+        $shared = Join-Path $bundle.Folder $bundle.Shared
+        if (-not (Test-Path -LiteralPath $shared)) { throw "Publish produced no $($bundle.Shared) in $($bundle.Folder)." }
+        foreach ($name in $bundle.Names) { Copy-Item -LiteralPath $shared -Destination (Join-Path $bundle.Folder "$name.deps.json") -Force }
+    }
+    # And proved: each program run from inside its folder, which is where the
+    # failure lived. Runs on CI too; neither command needs a desktop.
+    foreach ($folder in @($cli, $desktop)) {
+        foreach ($check in @(@{ Exe = 'dispctrl.exe'; Args = @('help') }, @{ Exe = 'DispCtrl.Engine.exe'; Args = @('stop') })) {
+            $exe = Join-Path $folder $check.Exe
+            if (-not (Test-Path -LiteralPath $exe)) { continue }
+            $run = Start-Process -FilePath $exe -ArgumentList $check.Args -WorkingDirectory $folder -WindowStyle Hidden -PassThru
+            if (-not $run.WaitForExit(30000)) { $run.Kill(); throw "$($check.Exe) $($check.Args) did not finish in $folder." }
+            # 0x8000809B-0x800080A5 and their kin are the .NET host's own failures;
+            # stop without an engine running answers 1, help 0.
+            if ($run.ExitCode -lt 0) { throw ("{0} {1} could not start from inside {2} (host error 0x{3:X8})." -f $check.Exe, ($check.Args -join ' '), $folder, $run.ExitCode) }
+        }
+    }
     # A release that cannot start must not be packaged: launch it and watch.
     # Skipped on CI runners, which may have no interactive desktop.
     if (-not $env:CI) {
@@ -106,7 +134,9 @@ try {
         New-Item -ItemType Directory -Path $probeData -Force | Out-Null
         '{"version":1,"global":{"preloadQuickPanel":false}}' | Set-Content -LiteralPath (Join-Path $probeData 'settings.json')
         $env:DISPCTRL_DATA_DIR = $probeData
-        try { $probe = Start-Process -FilePath (Join-Path $desktop 'DispCtrl.App.exe') -PassThru }
+        # --no-engine: the probe is about the window; an engine it started would
+        # outlive it, running from this folder on the throwaway settings.
+        try { $probe = Start-Process -FilePath (Join-Path $desktop 'DispCtrl.App.exe') -ArgumentList '--no-engine' -PassThru }
         finally { Remove-Item Env:DISPCTRL_DATA_DIR -ErrorAction SilentlyContinue }
         Start-Sleep -Seconds 8
         if ($probe.HasExited) {
