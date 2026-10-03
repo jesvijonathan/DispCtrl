@@ -279,6 +279,21 @@ h2{font-size:clamp(32px,4.2vw,50px);line-height:1.08;margin:12px 0 16px;letter-s
 .panelshot figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:10px}
 .panelshot figcaption{color:var(--muted);font-size:14px}
 .panelshot .simple img{max-height:300px}
+/* With scripts, one panel at a time: both share one cell and cross-fade, so
+   the section is as tall as the full panel and no taller. */
+.js .panelshot{display:grid;justify-items:center}
+.js .panelshot figure{grid-area:1/1;align-self:end;transition:opacity .5s ease,transform .5s ease}
+.js .panelshot figure:not(.on){opacity:0;transform:translateY(10px);visibility:hidden;transition:opacity .5s ease,transform .5s ease,visibility 0s .5s}
+.js .panelshot .simple img{max-height:none;width:min(372px,100%)}
+.ptabs{display:none;grid-row:2;gap:6px;padding:4px;border-radius:999px;border:1px solid var(--line2);background:var(--soft)}
+.js .ptabs{display:inline-flex}.js .panelshot figcaption{display:none}
+.ptabs button{font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);background:none;border:0;border-radius:999px;padding:7px 14px;cursor:pointer}
+.ptabs button[aria-selected=true]{color:#120d1c;background:linear-gradient(135deg,#c4a6ff,var(--a2))}
+/* Two rows of feature cards, then the button for the rest. */
+.fgrid4 .card.later{display:none}
+.fmore{display:none;justify-content:center;margin-top:26px}
+.js .fmore{display:flex}
+@media (prefers-reduced-motion:reduce){.js .panelshot figure,.js .panelshot figure:not(.on){transition:none}}
 
 /* tour */
 .gallery{display:grid;grid-template-columns:220px 1fr;gap:26px;align-items:start}
@@ -771,14 +786,16 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <div class="tags"><span>Never auto-installs</span><span>No telemetry</span></div>
       </div>
     </div>
+    <div class="fmore"><button type="button" class="btn ghost" id="featMore" aria-expanded="false">Show all features</button></div>
   </div>
 </section>
 
 <section id="panel" style="padding-top:20px">
   <div class="wrap split">
     <div class="panelshot reveal">
-      <figure><img src="assets/screenshots/quick-panel.png" alt="The DispCtrl quick panel" width="720" height="1160" loading="lazy"><figcaption>The full panel</figcaption></figure>
-      <figure class="simple"><img src="assets/screenshots/quick-panel-simple.png" alt="The quick panel in Simple mode" width="720" height="544" loading="lazy"><figcaption>Simple mode, as a new install opens</figcaption></figure>
+      <figure class="on" id="pFull"><img src="assets/screenshots/quick-panel.png" alt="The DispCtrl quick panel" width="720" height="1160" loading="lazy"><figcaption>The full panel</figcaption></figure>
+      <figure class="simple" id="pSimple"><img src="assets/screenshots/quick-panel-simple.png" alt="The quick panel in Simple mode" width="720" height="544" loading="lazy"><figcaption>Simple mode, as a new install opens</figcaption></figure>
+      <div class="ptabs" role="tablist" aria-label="Quick panel views"><button type="button" role="tab" aria-selected="true" aria-controls="pFull">The full panel</button><button type="button" role="tab" aria-selected="false" aria-controls="pSimple">Simple mode</button></div>
     </div>
     <div class="reveal">
       <span class="eyebrow">Quick panel</span>
@@ -922,7 +939,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <button class="cmd" id="wingetCmd" type="button" aria-label="Copy: winget install 9PNQWKNRGVR0 -s msstore">winget install 9PNQWKNRGVR0 -s msstore<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button>
       </div>
     </div>
-    <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/DispCtrl#build-from-source">Build from source</a> with a single <code class="i">build.cmd</code>. Every release has its <a href="https://github.com/jesvijonathan/DispCtrl/releases">SHA-256 checksums</a> attached.</p>
+    <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/DispCtrl#build-from-source">Build from source</a> with a single <code class="i">build\build.cmd</code>. Every release has its <a href="https://github.com/jesvijonathan/DispCtrl/releases">SHA-256 checksums</a> attached.</p>
   </div>
 </section>
 
@@ -1204,6 +1221,40 @@ async function type() {
     if (!quick) await new Promise(r => setTimeout(r, k === 'p' ? 260 : 60));
   }
 }
+
+// The quick panel's two views take turns while on screen; a click on either
+// tab stops the turning, as the tour's gallery does.
+const pshot = document.querySelector('.panelshot'), ptabs = [...pshot.querySelectorAll('.ptabs button')];
+let pview = 0, pTimer = 0, pStopped = matchMedia('(prefers-reduced-motion: reduce)').matches, pSeen = false;
+function showPanel(i) {
+  pview = (i + ptabs.length) % ptabs.length;
+  ptabs.forEach((b, n) => { b.setAttribute('aria-selected', n === pview); $(b.getAttribute('aria-controls')).classList.toggle('on', n === pview); });
+}
+function turnPanel() {
+  clearTimeout(pTimer);
+  if (!pStopped && pSeen && !document.hidden) pTimer = setTimeout(() => { showPanel(pview + 1); turnPanel(); }, 4500);
+}
+ptabs.forEach((b, n) => b.addEventListener('click', () => { pStopped = true; turnPanel(); showPanel(n); }));
+new IntersectionObserver(es => es.forEach(e => { pSeen = e.isIntersecting; turnPanel(); }), { threshold: .4 }).observe(pshot);
+document.addEventListener('visibilitychange', turnPanel);
+
+// Two rows of feature cards, however many columns the width gives; the rest
+// behind a button.
+const fgrid = document.querySelector('.fgrid4'), fcards = [...fgrid.children], fmore = $('featMore');
+let fOpen = false;
+function foldFeatures() {
+  const columns = getComputedStyle(fgrid).gridTemplateColumns.split(' ').length;
+  fcards.forEach((c, n) => c.classList.toggle('later', !fOpen && n >= columns * 2));
+  fmore.parentElement.style.display = fcards.length <= columns * 2 ? 'none' : '';
+  fmore.textContent = fOpen ? 'Show fewer' : 'Show all ' + fcards.length + ' features';
+  fmore.setAttribute('aria-expanded', fOpen);
+}
+fmore.addEventListener('click', () => {
+  fOpen = !fOpen; foldFeatures();
+  if (!fOpen) fgrid.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+});
+addEventListener('resize', foldFeatures);
+foldFeatures();
 
 // Reveal on scroll
 const io = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) return;
