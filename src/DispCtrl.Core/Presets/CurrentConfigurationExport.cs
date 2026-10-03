@@ -8,7 +8,8 @@ namespace DispCtrl.Core.Presets;
 /// <remarks>
 /// The hardware snapshot records live layout, modes, monitor serials and VCP
 /// values. Settings carries every shared, taskbar, protection, shortcut and
-/// per-monitor value. Import and apply remain disabled while presets are beta.
+/// per-monitor value. Used only by the preview page of a build with presets
+/// switched off (<c>FeatureFlags.Presets</c>), where it is export only.
 /// </remarks>
 public sealed class CurrentConfigurationExport
 {

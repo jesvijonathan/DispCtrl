@@ -106,7 +106,7 @@ public static class CommandHelp
               tray set --sections '["tiles","displays"]'   And --tiles, --display-rows, --display-tiles, --custom-tiles
               tray show                             Open the quick panel
             """),
-        new("presets", "Presets and desk profiles (Beta)", "save the whole desk, apply it, launch with it, apply when a desk connects",
+        new("presets", "Presets and desk profiles", "save the whole desk, apply it, launch with it, apply when a desk connects",
             ["preset", "presets"], """
               preset list                           Every preset, its displays, and whether it holds a layout
               preset save NAME [--skip PARTS]       The desk now, windows included (keeps an existing preset's scope)

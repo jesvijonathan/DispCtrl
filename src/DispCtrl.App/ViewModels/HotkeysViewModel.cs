@@ -76,7 +76,7 @@ public sealed class HotkeyViewModel(Hotkey hotkey, Action persist, Func<IReadOnl
         ("Run something", HotkeyAction.RunFeature, "Run a custom feature"),
         ("Run something", HotkeyAction.RunCommand, "Run a dispctrl command"),
         ("Run something", HotkeyAction.OpenProgram, "Open a program, file or link"),
-        ("Run something", HotkeyAction.ApplyPreset, "Apply a preset (Beta)"),
+        ("Run something", HotkeyAction.ApplyPreset, "Apply a preset"),
     }.Where(item => DispCtrl.Core.FeatureFlags.Presets || item.Item2 != HotkeyAction.ApplyPreset).ToArray();
 
     private static readonly string[] AllCategories = AvailableActions.Select(a => a.Category).Distinct().ToArray();

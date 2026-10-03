@@ -57,7 +57,7 @@ tiles and rows are untouched and switching it off brings the full panel back
 exactly. The customisation page greys only what simple mode ignores.
 
 The same layout is also the full panel's first section, **Brightness**
-(`simpleBrightness`, shown and open by default since 0.2.0): all displays
+(`simpleBrightness`, shown and open by default since 0.2.1): all displays
 together with unison's switch in its header, then one slider per display.
 **Unison brightness** (`unison`) follows Focus, folded, for its Windows
 brightness switch; on a one-display desk it draws nothing while Brightness is

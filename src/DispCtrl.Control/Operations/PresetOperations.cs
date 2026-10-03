@@ -9,7 +9,7 @@ namespace DispCtrl.Control;
 
 public sealed partial class ControlService
 {
-    /// <summary>preset list|save|apply|delete|desk: presets and desk profiles (Beta).</summary>
+    /// <summary>preset list|save|apply|delete|desk: presets and desk profiles.</summary>
     /// <remarks>
     /// <c>preset launch</c> is not here: it waits for a program to exit, for as
     /// long as a game runs, which no request with a timeout can do. The terminal

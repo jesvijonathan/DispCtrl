@@ -447,7 +447,7 @@ public sealed class QuickPanelSettings
     /// panel opened as a wall of rows. Each display's own block, keyed
     /// <c>display:</c> and its token, starts folded too. Unison starts folded
     /// only below a shown Brightness section, which carries its slider and
-    /// switch: a panel arranged before 0.2.0 has Unison first and no Brightness,
+    /// switch: a panel arranged before 0.2.1 has Unison first and no Brightness,
     /// and folding it there hid the panel's main slider.
     /// </remarks>
     public static readonly string[] FoldedByDefault =
