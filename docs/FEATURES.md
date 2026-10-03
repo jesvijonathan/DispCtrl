@@ -242,12 +242,13 @@ taskbar, and closes when you click elsewhere unless it is set to stay open.
   dot), density, stay open and customise.
 - **Simple mode**: one slider for every display with the unison switch, then
   one per display.
-- **Sections**, each foldable, in your order. Only Unison and Brightness
-  start open, and each display's block starts folded; a section switched on
-  from the Quick panel page arrives open: Unison brightness, Brightness,
-  Quick toggles, Displays, Night light, Taskbar, Focus, OLED care, Presets (a
-  list of presets with **Apply**, and whether the displays still match),
-  Display mode, Windows.
+- **Sections**, each foldable, in your order. Only Brightness starts open,
+  and each display's block starts folded; a section switched on from the
+  Quick panel page arrives open. By default: Brightness (all displays with
+  unison's switch, then each display), Quick toggles, Displays, Night light,
+  Taskbar, Focus, Unison brightness (its level and the Windows brightness
+  switch), OLED care, Presets (a list of presets with **Apply**, and whether
+  the displays still match); Display mode and Windows can be added.
 - **Quick toggles** (an arrow, or a right-click, opens a tile's options):
   Night light, Dark mode, Focus, Keep awake, Stay active, Taskbar, OLED care,
   Project, Displays off, Detect, Unison, Identify, Cast, Room light, Way back,

@@ -49,10 +49,14 @@ internal static class UiSuite
         context.Report.Note(S, summon.ByTray ? "summoned through the tray icon (UI Automation Invoke)" : "tray icon not on the taskbar: summoned by the panel's signal");
         context.Add(Stats.Row(S, "open: click -> visible", "ms", [.. opens.Select(w => w.Visible)], 60));
         context.Add(Stats.Row(S, "open: click -> focused", "ms", [.. opens.Select(w => w.Focused)], 80));
-        context.Add(Stats.Row(S, "open: click -> slide settled", "ms", [.. opens.Select(w => w.Settled)], 400, "slide is 260 ms by design"));
+        context.Add(Stats.Row(S, "open: click -> slide settled", "ms", [.. opens.Select(w => w.Settled)], 400, "slide is 300 ms by design"));
         context.Add(Stats.Row(S, "open: longest frame gap in slide", "ms", [.. opens.Select(w => w.Stall)], 34, "> 2 frames is visible"));
-        context.Add(Stats.Row(S, "close: click -> hidden", "ms", [.. closes.Select(w => w.Settled)], 300, "slide is 180 ms by design"));
+        context.Add(Stats.Row(S, "close: click -> hidden", "ms", [.. closes.Select(w => w.Settled)], 300, "slide is 200 ms by design"));
         context.Add(Stats.Row(S, "close: longest frame gap in slide", "ms", [.. closes.Select(w => w.Stall)], 34));
+        // In physical pixels, so a high-DPI panel travels further: 150 is about
+        // 13% of a 200% laptop's full-height slide.
+        context.Add(Stats.Row(S, "open: largest step in slide", "px", [.. opens.Select(w => w.Step)], 150, "a jump, not a slide, above this"));
+        context.Add(Stats.Row(S, "close: largest step in slide", "px", [.. closes.Select(w => w.Step)], 150));
 
         // ------------------------------------------------ CPU and leaks per cycle
         // Per cycle, so one cycle still compiling code or caught by a background
@@ -299,13 +303,21 @@ internal static class UiSuite
     }
 }
 
-/// <summary>A window watched at ~1 ms: when it showed, took focus, stopped moving, and its longest stall.</summary>
-internal readonly record struct Watch(double Visible, double Focused, double Settled, double Stall)
+/// <summary>
+/// A window watched at ~1 ms: when it showed, took focus, stopped moving, its
+/// longest stall, and the furthest it moved between two frames.
+/// </summary>
+/// <remarks>
+/// <see cref="Step"/> is what showed the slide's choppiness: with every frame on
+/// time (a 13 ms longest stall) the opening still jumped 386 px in its first
+/// frame and crawled after, on a curve made for a far shorter travel.
+/// </remarks>
+internal readonly record struct Watch(double Visible, double Focused, double Settled, double Stall, double Step = 0)
 {
     public static Watch Opening(nint hwnd, long t0, int timeoutMs)
     {
         double visible = -1, focused = -1, lastMove = -1, stall = 0;
-        int top = int.MinValue;
+        int top = int.MinValue, moves = 0, step = 0;
         while (Stopwatch.GetElapsedTime(t0).TotalMilliseconds < timeoutMs)
         {
             double now = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
@@ -317,32 +329,35 @@ internal readonly record struct Watch(double Visible, double Focused, double Set
                 if (y != top)
                 {
                     if (top != int.MinValue && lastMove >= 0) stall = Math.Max(stall, now - lastMove);
+                    // The first change is the panel put at the slide's start, not a frame of it.
+                    if (top != int.MinValue && ++moves > 1) step = Math.Max(step, Math.Abs(y - top));
                     top = y; lastMove = now;
                 }
-                if (focused >= 0 && now - lastMove > 150) return new Watch(visible, focused, lastMove, stall);
+                if (focused >= 0 && now - lastMove > 150) return new Watch(visible, focused, lastMove, stall, step);
             }
             Thread.Sleep(1);
         }
-        return new Watch(visible, focused, timeoutMs, stall);
+        return new Watch(visible, focused, timeoutMs, stall, step);
     }
 
     public static Watch Closing(nint hwnd, long t0, int timeoutMs)
     {
         double lastMove = -1, stall = 0;
-        int top = int.MinValue;
+        int top = int.MinValue, step = 0;
         while (Stopwatch.GetElapsedTime(t0).TotalMilliseconds < timeoutMs)
         {
             double now = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
-            if (!Native.IsShown(hwnd)) return new Watch(0, 0, now, stall);
+            if (!Native.IsShown(hwnd)) return new Watch(0, 0, now, stall, step);
             int y = Native.RectOf(hwnd).Top;
             if (y != top)
             {
                 if (top != int.MinValue && lastMove >= 0) stall = Math.Max(stall, now - lastMove);
+                if (top != int.MinValue) step = Math.Max(step, Math.Abs(y - top));
                 top = y; lastMove = now;
             }
             Thread.Sleep(1);
         }
-        return new Watch(0, 0, timeoutMs, stall);
+        return new Watch(0, 0, timeoutMs, stall, step);
     }
 
     /// <summary>Time until the window's rectangle has changed from <paramref name="from"/> and then held for 150 ms.</summary>

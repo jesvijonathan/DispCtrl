@@ -304,6 +304,15 @@ Every one of these was a real bug. Do not reintroduce them.
   just below it in the topmost band so the taskbar clips it. DWM's own show
   transition is disabled. Closing does not fade: faded, an empty backdrop sank
   alone.
+- **Windows' flyout curves are wrong for a slide this long.** (0.1, 0.9, 0.2, 1)
+  over 260 ms moved the panel's first frame 386 px of its 1184 px travel on the
+  200% laptop and the closing curve's last frame 283 px: it jumped, then
+  crawled, though every frame was on time (`perfcheck ui` measured a 13 ms
+  longest gap and could not see it; the window's top sampled at 1 ms could).
+  Now (0.25, 0.55, 0.25, 1) over 300 ms in and (0.45, 0, 0.7, 0.6) over 200 ms
+  out, under about 115 px a frame at 90 Hz, timed by `RenderingEventArgs.RenderingTime`
+  from the first frame after uncloaking rather than a stopwatch read whenever
+  the callback ran.
 - **Tucking under the taskbar hides nothing behind a translucent one.** With
   glass or Windows' transparency the panel was seen sliding underneath, and
   could linger in the blur. `ClipAtEdge` sets a window region ending at the
@@ -341,7 +350,7 @@ Every one of these was a real bug. Do not reintroduce them.
   Locking, now only on the Quick panel page and off by default, sets the title
   bar to an empty element, so the title stops dragging.
 - **Everything but brightness starts folded** (`QuickPanelSettings.FoldsByDefault`:
-  every section but Unison and Brightness, and each display's own block). A separate `Expanded` list records
+  every section but Brightness, and each display's own block). A separate `Expanded` list records
   the ones opened, so a section added later still starts folded. Section bodies
   sit 8 DIP in from their header; each feature's rows are built once
   (`FocusRows`, `OledRows`, `NightLightRows`) and used by both its section and

@@ -32,7 +32,7 @@ event and `settings.json`.
 
 | Field | What it is |
 |---|---|
-| `sections` | The blocks, top to bottom: `unison`, `simpleBrightness`, `tiles`, `nightLight`, `displays`, `taskbar`, `focus`, `oledCare`, `presets`, `displayMode`, `windows` |
+| `sections` | The blocks, top to bottom: `simpleBrightness`, `tiles`, `displays`, `nightLight`, `taskbar`, `focus`, `unison`, `oledCare`, `presets`, `displayMode`, `windows` |
 | `tiles` | The quick toggles, in order |
 | `displayRows` | The rows under each display |
 | `displayTiles` | The small switches in each display's strip |
@@ -56,13 +56,17 @@ shown display. It is a mode rather than a preset of the lists, so the sections,
 tiles and rows are untouched and switching it off brings the full panel back
 exactly. The customisation page greys only what simple mode ignores.
 
-The same layout is also a section of the full panel, **Brightness**
-(`simpleBrightness`, hidden until switched on): somebody who wants the plain
-sliders but keeps the tiles, night light or taskbar can show it and hide
-Unison brightness and Displays. It is drawn by the same code as simple mode,
-under a foldable header, with automation names of its own
-(`QuickSimpleUnisonLevel`, `QuickSimpleBrightness <n>`) so a UIA search never
-lands on the unison section's slider instead.
+The same layout is also the full panel's first section, **Brightness**
+(`simpleBrightness`, shown and open by default since 0.2.0): all displays
+together with unison's switch in its header, then one slider per display.
+**Unison brightness** (`unison`) follows Focus, folded, for its Windows
+brightness switch; on a one-display desk it draws nothing while Brightness is
+shown, since Brightness already has that display's slider. Brightness is drawn
+by the same code as simple mode (at Compact and Comfortable, the panel's own
+slider rows), with automation names of its own (`QuickSimpleUnisonLevel`,
+`QuickSimpleBrightness <n>`) so a UIA search never lands on the unison
+section's slider instead. A saved panel keeps its own order; the new order
+reaches a new install, or a panel reset on the Quick panel page.
 
 ## Sections
 

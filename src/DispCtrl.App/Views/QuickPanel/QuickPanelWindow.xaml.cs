@@ -336,11 +336,15 @@ public sealed partial class QuickPanelWindow : Window
 
     // ================================================================ opening and closing
 
-    /// <summary>How long the panel takes to rise, as Windows' own flyouts do.</summary>
-    private const int SlideInMs = 260;
+    /// <summary>How long the panel takes to rise.</summary>
+    /// <remarks>
+    /// Longer than a Windows flyout's 260 ms because it travels further: its
+    /// whole height, not a few dozen pixels. See <see cref="EaseOut"/>.
+    /// </remarks>
+    private const int SlideInMs = 300;
 
     /// <summary>Closing is quicker than opening: somebody closing it is done with it.</summary>
-    private const int SlideOutMs = 180;
+    private const int SlideOutMs = 200;
 
 
     /// <summary>Up from a bottom taskbar, down from a top one.</summary>
@@ -423,7 +427,11 @@ public sealed partial class QuickPanelWindow : Window
         // empty backdrop sank on its own for the rest of the slide.
         if (show) FadeContent(ms);
 
-        var clock = System.Diagnostics.Stopwatch.StartNew();
+        // Timed by the frames themselves, from the first one drawn after the
+        // panel is uncovered. A stopwatch read whenever the callback happened to
+        // run gave uneven steps, and its first reading came after the uncloaked
+        // frame had already cost a few milliseconds, so the slide began with a jump.
+        TimeSpan? start = null;
         void Tick(object? sender, object e)
         {
             if (token != _animation || _closing)
@@ -433,7 +441,9 @@ public sealed partial class QuickPanelWindow : Window
                 return;
             }
 
-            double t = Math.Min(1, clock.Elapsed.TotalMilliseconds / ms);
+            TimeSpan now = ((RenderingEventArgs)e).RenderingTime;
+            start ??= now;
+            double t = Math.Min(1, (now - start.Value).TotalMilliseconds / ms);
             double eased = show ? EaseOut(t) : EaseIn(t);
             int offset = (int)Math.Round(travel * (show ? 1 - eased : eased));
             // Clipped on the side of the move that only ever hides more: rising,
@@ -453,10 +463,14 @@ public sealed partial class QuickPanelWindow : Window
         CompositionTarget.Rendering += Tick;
     }
 
-    // Windows' flyout curves: decelerate in (0.1, 0.9, 0.2, 1), accelerate out
-    // (0.7, 0, 1, 0.5). Evaluated here because the window, not a visual, moves.
-    private static double EaseOut(double t) => Bezier(t, 0.1, 0.9, 0.2, 1.0);
-    private static double EaseIn(double t) => Bezier(t, 0.7, 0.0, 1.0, 0.5);
+    // Evaluated here because the window, not a visual, moves. Windows' flyout
+    // curves, (0.1, 0.9, 0.2, 1) in and (0.7, 0, 1, 0.5) out, are made for a
+    // flyout that moves a few dozen pixels. Over the panel's whole height (1184
+    // px on a 200% laptop) the first frame of the rise moved 386 px and the last
+    // of the fall 283, which read as a jump and a stutter, not a slide. These
+    // keep every frame at 90 Hz under about 115 px and still settle softly.
+    private static double EaseOut(double t) => Bezier(t, 0.25, 0.55, 0.25, 1.0);
+    private static double EaseIn(double t) => Bezier(t, 0.45, 0.0, 0.7, 0.6);
 
     private static double Bezier(double x, double x1, double y1, double x2, double y2)
     {

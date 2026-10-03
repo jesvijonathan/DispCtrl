@@ -123,7 +123,8 @@ internal sealed partial class QuickPanelContent
     {
         if (!_vm.SeveralDisplays)
         {
-            AloneBrightness();
+            // Brightness above already has the one display's slider.
+            if (!_panel.IsShown(QuickPanelGroup.Sections, "simpleBrightness")) AloneBrightness();
             return;
         }
 

@@ -296,18 +296,21 @@ try
     finally { DispCtrl.Core.Devices.DeviceHistory.PathOverride = null; }
     // ---- quick panel folding and hotkey defaults ----
     var folding = new QuickPanelSettings();
-    Check(folding.IsCollapsed("oledCare") && folding.IsCollapsed("focus") && !folding.IsCollapsed("unison"),
+    Check(folding.IsCollapsed("oledCare") && folding.IsCollapsed("focus") && folding.IsCollapsed("unison") && !folding.IsCollapsed("simpleBrightness"),
         "detail sections start folded and everyday ones open");
-    folding.SetCollapsed("oledCare", false); folding.SetCollapsed("unison", true);
-    Check(!folding.IsCollapsed("oledCare") && folding.IsCollapsed("unison")
-        && folding.Expanded.SequenceEqual(["oledCare"]) && folding.Collapsed.SequenceEqual(["unison"]),
+    folding.SetCollapsed("oledCare", false); folding.SetCollapsed("simpleBrightness", true);
+    Check(!folding.IsCollapsed("oledCare") && folding.IsCollapsed("simpleBrightness")
+        && folding.Expanded.SequenceEqual(["oledCare"]) && folding.Collapsed.SequenceEqual(["simpleBrightness"]),
         "a fold is remembered only where it departs from the default");
+    var sectionOrder = QuickPanelCatalog.Defaults(QuickPanelGroup.Sections).Select(i => i.Id).ToList();
+    Check(sectionOrder[0] == "simpleBrightness" && sectionOrder.IndexOf("unison") == sectionOrder.IndexOf("focus") + 1
+        && QuickPanelCatalog.Defaults(QuickPanelGroup.Sections).Single(i => i.Id == "unison").Visible,
+        "a new panel opens on Brightness, with Unison shown after Focus");
     var olderSections = QuickPanelCatalog.Normalise(QuickPanelGroup.Sections,
         [new("unison", true), new("displays", false), new("tiles", true)]);
     Check(olderSections.Take(3).Select(i => i.Id).SequenceEqual(["unison", "displays", "tiles"])
-        && olderSections.Single(i => i.Id == "simpleBrightness") is { Visible: false }
-        && !QuickPanelCatalog.Defaults(QuickPanelGroup.Sections).Single(i => i.Id == "simpleBrightness").Visible,
-        "the Simple brightness section reaches an existing panel hidden, keeping its order");
+        && olderSections.Single(i => i.Id == "simpleBrightness") is { Visible: false },
+        "a section an existing panel never listed reaches it hidden, keeping its order");
     folding.SetCollapsed("oledCare", true);
     Check(folding.IsCollapsed("oledCare") && folding.Expanded.Count == 0, "folding a default-folded section again leaves nothing stored");
     var fresh = new DispCtrlSettings();

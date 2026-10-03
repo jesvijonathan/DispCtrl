@@ -154,10 +154,8 @@ public static class QuickPanelCatalog
 
     public static IReadOnlyList<Entry> Sections { get; } =
     [
-        new("unison", "Unison brightness", "\uE793",
-            "One slider that moves every display together. The symbol beside it switches unison on and off.", true),
         new("simpleBrightness", "Brightness", "\uE706",
-            "Simple mode's brightness inside the full panel: all displays together, then one slider per display. Use it in place of Unison brightness and Displays.", false),
+            "All displays together, then one slider per display. The switch beside it turns unison on and off.", true),
         new("tiles", "Quick toggles", "\uE8A9",
             "A grid of small switches and actions, like Windows' quick settings.", true),
         new("displays", "Displays", "\uE7F4",
@@ -168,6 +166,8 @@ public static class QuickPanelCatalog
             "Transparency, the taskbar's glass and opacity, and auto-hide, in a block you can fold away.", true),
         new("focus", "Focus", "\uE890",
             "Focus mode's switch, and how far it dims everything but the window in use.", true),
+        new("unison", "Unison brightness", "\uE793",
+            "Unison on its own: its switch and level, and whether Windows' brightness slider and keys move it.", true),
         new("oledCare", "OLED care", "\uE7EF",
             "OLED idle protection's switch, how dim it goes and how soon.", true),
         new("presets", "Presets", "\uE768",
@@ -443,12 +443,14 @@ public sealed class QuickPanelSettings
     /// into <see cref="Collapsed"/>, so a section added later still starts folded.
     /// </remarks>
     /// <remarks>
-    /// Everything but the two brightness sections, since 2026-10-03 (the
-    /// owner's call): a full panel opened as a wall of rows. Each display's own
-    /// block, keyed <c>display:</c> and its token, starts folded too.
+    /// Everything but Brightness, since 2026-10-03 (the owner's call): a full
+    /// panel opened as a wall of rows. Unison has its own section further down
+    /// for its Windows brightness switch; Brightness carries its slider and
+    /// switch at the top. Each display's own block, keyed <c>display:</c> and its
+    /// token, starts folded too.
     /// </remarks>
     public static readonly string[] FoldedByDefault =
-        ["tiles", "displays", "oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets", "windows"];
+        ["tiles", "displays", "unison", "oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets", "windows"];
 
     /// <summary>Whether a section or a display's block starts folded until somebody opens it.</summary>
     public static bool FoldsByDefault(string key) =>
