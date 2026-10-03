@@ -29,7 +29,7 @@ calls it. The Devices page already works that way - it sends the same
 | Per display: resolution, refresh, scale, orientation, HDR | `display set --monitor 2 --resolution 1920x1080 --refresh 120 --scale 100 --orientation 0 --hdr off` |
 | Per display: wallpaper, and how it fits | `display set --monitor 2 --wallpaper C:\path.jpg`, `windows set --wallpaper-fit fill` |
 | Per display: the monitor's own controls | `display controls --monitor 2`, `display control --monitor 2 --name input-source --value hdmi-1` |
-| Per display: software dimming, warmth, OLED, sleep | `settings set --monitor 2 --path softwareBrightness --value 80` (and `nightLightStrength`, `isOled`, `monitorSleepMinutes` ...) |
+| Per display: software dimming, warmth, OLED, sleep | `settings set --monitor 2 --path softwareBrightness --value 80` (and `nightLightStrength`, `isOled`, `monitorSleepMinutes`, `monitorSleepState` ...) |
 | Per display: hide its taskbar, reclaim the space | `taskbar set --monitor 2 --hide on --reclaim-space on` |
 | Per display: variable refresh, adaptive brightness, rotation | `windows set --variable-refresh on --adaptive-brightness off --auto-rotation on` |
 | Per display: reset | `display reset --monitor 2`, with the monitor's own defaults `--factory --confirm` |

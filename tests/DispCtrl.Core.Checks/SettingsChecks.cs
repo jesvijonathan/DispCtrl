@@ -27,6 +27,8 @@ internal static class SettingsChecks
         merged = SettingsStore.MergeEdits(Json("""{"l":[1,2]}"""), Json("""{"l":[1,2,3]}"""), Json("""{"l":[9]}"""));
         check(JsonNode.DeepEquals(merged, Json("""{"l":[1,2,3]}""")), "a list is replaced whole, never interleaved");
 
+        // #30: monitor sleep keeps sending off (4) unless a display is given another state.
+        check(new MonitorSettings().MonitorSleepState == 4, "monitor sleep sends off by default, as before");
         var panel = new QuickPanelSettings();
         check(panel.IsCollapsed("unison") && !panel.IsCollapsed("simpleBrightness") && !panel.IsCollapsed("tiles") && panel.IsCollapsed("displays")
                 && panel.IsCollapsed("display:DEL-A234-X") && panel.IsCollapsed("windows"),

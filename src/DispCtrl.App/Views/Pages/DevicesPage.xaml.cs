@@ -698,6 +698,11 @@ public sealed partial class DevicesPage : Page
         var writable = new CheckBox { Content = "I confirmed what these values do. Enable this control.", IsChecked = entry["writable"]?.GetValue<bool>() == true };
         var maximum = new NumberBox { Header = "Maximum (optional, for a range)", Minimum = 0, Maximum = 65535,
             Value = entry["maximum"]?.GetValue<int>() ?? entry["reportedMaximum"]?.GetValue<int>() ?? double.NaN };
+        // For a monitor that shows and reads a setting in bigger steps than it
+        // takes when written: Black Stabilizer 0-100 read, 0-20 written (#29).
+        var writeScale = new NumberBox { Header = "Written in smaller units (optional): divide by", Minimum = 2, Maximum = 100,
+            PlaceholderText = "e.g. 5 when it reads 0-100 but takes 0-20",
+            Value = entry["writeScale"]?.GetValue<int>() ?? double.NaN };
         var transport = new ComboBox { Header = "Input switching method", HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemsSource = new[] { "Standard DDC/CI", "LG alternate input (model-specific)" },
             SelectedIndex = entry["ddcWrite"] is null ? 0 : 1,
@@ -724,11 +729,12 @@ public sealed partial class DevicesPage : Page
         var form = new StackPanel { Spacing = 10, MinWidth = 420 };
         form.Children.Add(Muted($"Save for {model}, use from Displays, then Contribute. A shared brand mapping applies only where the monitor exposes that code."));
         form.Children.Add(Muted("Model mappings take priority over brand mappings; brand mappings take priority over all monitors."));
-        foreach (UIElement e in new UIElement[] { codeBox, name, kind, values, maximum, scope, transport, writable, notes, error }) form.Children.Add(e);
+        foreach (UIElement e in new UIElement[] { codeBox, name, kind, values, maximum, writeScale, scope, transport, writable, notes, error }) form.Children.Add(e);
         void UpdateKind()
         {
             values.Visibility = kind.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
             maximum.Visibility = kind.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            writeScale.Visibility = maximum.Visibility;
             writable.IsEnabled = kind.SelectedIndex != 3;
             if (!writable.IsEnabled) writable.IsChecked = false;
         }
@@ -788,6 +794,12 @@ public sealed partial class DevicesPage : Page
                 {
                     if (maximum.Value != Math.Truncate(maximum.Value)) throw new ArgumentException("Maximum must be a whole number.");
                     request["maximum"] = (int)maximum.Value;
+                }
+                request["writeScale"] = null;
+                if (chosen == "range" && !double.IsNaN(writeScale.Value))
+                {
+                    if (writeScale.Value != Math.Truncate(writeScale.Value)) throw new ArgumentException("The divisor must be a whole number.");
+                    request["writeScale"] = (int)writeScale.Value;
                 }
                 request["notes"] = notes.Text.Trim();
                 request["transport"] = transport.SelectedIndex == 1 ? "lg-input" : "standard";

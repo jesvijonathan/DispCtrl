@@ -107,6 +107,18 @@ Every one of these was a real bug. Do not reintroduce them.
 
 ## DDC/CI
 
+- **A listed power state is not a safe one.** Monitor sleep sent 0xD6 = 4 to any
+  monitor listing 0xD6, through the one write that skipped the checks. The LG
+  UltraWide GSM-5BF7 lists `D6(01 04)` and, sent 4, flashes black and green with
+  no backlight until unplugged (#30). Power writes now go through the checked
+  `Write(display, control, ...)`: the state must be listed and the device record
+  must not mark 0xD6 `writable: false`, which GSM-5BF7's now does. Each display
+  can pick standby, suspend or off from what it lists (`monitorSleepState`).
+- **Some ranges read in bigger units than they are written in.** GSM-5BF7's
+  Black Stabilizer reads 0-100 in steps of 5 and takes 0-20 (#29). A range's
+  `writeScale` divides the value at the single write point
+  (`MonitorCapabilities.Write`); `maximum` is in read units and wins over the
+  monitor's reported maximum for a scaled range.
 - **One channel per monitor; it will not serve two conversations.** Two callers
   do not queue — one is answered and the other fails, and the result looks
   exactly like a dead monitor. Everything goes through `DdcChannel.With`, whose

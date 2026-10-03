@@ -83,7 +83,9 @@ The desk as a whole, then one card per display.
     - **OLED burn-in protection** for this panel; **Run screen rest** for
       1-30 minutes; **Wake when the pointer returns**.
     - **Monitor sleep** after 1-240 idle minutes, through the monitor's own
-      power control (external monitors).
+      power control (external monitors): standby, suspend or off, from the
+      states that monitor lists. Not offered for a model whose record says it
+      cannot be woken again.
     - Variable refresh rate, colour profile (**Manage**), **Reclaim the work
       area** while its taskbar is hidden.
     - **Look for its controls**: **Probe (read-only)** asks a monitor that

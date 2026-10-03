@@ -213,6 +213,7 @@ Generated from the settings themselves; `DispCtrl.Control.Checks` fails when a s
 | `/monitors/{monitor}/oledRestMinutes` | none | number | Length of a screen rest run from this display |
 | `/monitors/{monitor}/monitorSleepEnabled` | none | on or off | Turn this external monitor off through MCCS power mode after inactivity. |
 | `/monitors/{monitor}/monitorSleepMinutes` | none | number | Idle minutes before monitor sleep |
+| `/monitors/{monitor}/monitorSleepState` | 4 | 2, 3, 4 or 5 | The power mode monitor sleep sends: 2 standby, 3 suspend, 4 off, 5 off (hard). Only a mode the monitor lists is sent. |
 | `/monitors/{monitor}/inUnison` | none | on or off | Whether unison brightness moves this display. |
 | `/monitors/{monitor}/probedCodes` | none | list | VCP codes, as hex, that a read-only probe found this monitor answering, used in place of a capabilities string it cannot give. Null when unused. |
 | `/monitors/{monitor}/focusDimming` | none | on or off | Whether focus dimming touches this display at all. |

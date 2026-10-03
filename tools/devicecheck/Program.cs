@@ -641,7 +641,7 @@ static int IntakeModel(string body, JsonNode payload, string root, Dictionary<st
 static string Essence(DefinedControl c) => JsonSerializer.Serialize(new DefinedControl
 {
     Code = c.CodeValue?.ToString("X2", System.Globalization.CultureInfo.InvariantCulture) ?? c.Code,
-    Key = c.Key, Name = c.Name, Kind = c.Kind, Writable = c.Writable, Maximum = c.Maximum, Values = c.Values, DdcWrite = c.DdcWrite,
+    Key = c.Key, Name = c.Name, Kind = c.Kind, Writable = c.Writable, Maximum = c.Maximum, WriteScale = c.WriteScale, Values = c.Values, DdcWrite = c.DdcWrite,
 }, DeviceJsonContext.Default.DefinedControl);
 
 // What a change does to reviewed data: a record, a report, or any mapping the

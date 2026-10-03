@@ -41,8 +41,10 @@ public static class DeviceControls
                 _ => VcpKind.Information,
             },
             Values = values,
+            // A scaled range's maximum is in the units it reads; its reply to
+            // "what is your maximum" may be in the units it is written in.
             Maximum = mapping.Maximum is int max
-                ? reported.Maximum >= 0 ? Math.Min(max, reported.Maximum) : max : reported.Maximum,
+                ? mapping.WriteScale is > 1 || reported.Maximum < 0 ? max : Math.Min(max, reported.Maximum) : reported.Maximum,
             MappedDefinition = mapping, MappingOrigin = origin, FullValue = values.Any(v => v.Value > 0xFF),
             MappedWritable = mapping.Writable,
             MappingSnapshot = JsonSerializer.Serialize(mapping, DeviceJsonContext.Default.DefinedControl),

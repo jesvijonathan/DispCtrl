@@ -267,8 +267,7 @@ internal sealed partial class PowerService : IDisposable
 
             if (!enabled || (asleep && recentInput))
             {
-                if (asleep && _displays.TryGetValue(token, out DisplayInfo? wakeDisplay)
-                    && MonitorCapabilities.Write(wakeDisplay, 0xD6, 0x01))
+                if (asleep && _displays.TryGetValue(token, out DisplayInfo? wakeDisplay) && Wake(wakeDisplay))
                     _sleeping.Remove(token);
                 continue;
             }
@@ -276,14 +275,19 @@ internal sealed partial class PowerService : IDisposable
             if (asleep || idleMs < Math.Clamp(monitor.MonitorSleepMinutes, 1, 240) * 60_000L) continue;
             if (_retryAfter.TryGetValue(token, out DateTimeOffset retry) && retry > now) continue;
 
-            if (MonitorCapabilities.Write(display!, 0xD6, 0x04)) _sleeping.Add(token);
-            else _retryAfter[token] = now.AddSeconds(30);
+            uint state = (uint)Math.Clamp(monitor.MonitorSleepState, 2, 5);
+            if (SendPowerMode(display!, state, out string? why)) { _sleeping.Add(token); continue; }
+            // Refused, not failed: a monitor that does not list the state, or
+            // whose record marks it unsafe, will not list it in 30 seconds either.
+            bool refused = why is not null && !why.StartsWith("write", StringComparison.Ordinal);
+            _retryAfter[token] = now.AddSeconds(refused ? 600 : 30);
+            Log.Write($"monitor sleep: {display!.Label} not put to sleep: {why}");
         }
 
         foreach (string token in _sleeping.ToArray())
         {
             if (_settings.Monitors.TryGetValue(token, out MonitorSettings? monitor) && monitor.MonitorSleepEnabled) continue;
-            if (_displays.TryGetValue(token, out DisplayInfo? display)) MonitorCapabilities.Write(display, 0xD6, 0x01);
+            if (_displays.TryGetValue(token, out DisplayInfo? display)) Wake(display);
             _sleeping.Remove(token);
         }
     }
@@ -291,9 +295,47 @@ internal sealed partial class PowerService : IDisposable
     private void WakeAll()
     {
         foreach (string token in _sleeping)
-            if (_displays.TryGetValue(token, out DisplayInfo? display)) MonitorCapabilities.Write(display, 0xD6, 0x01);
+            if (_displays.TryGetValue(token, out DisplayInfo? display)) Wake(display);
         _sleeping.Clear();
     }
+
+    /// <summary>
+    /// Sends a power mode through the same checks as every other write: the
+    /// monitor must list it, and its device record must not mark the power
+    /// control unsafe.
+    /// </summary>
+    /// <remarks>
+    /// This was the one write that skipped them: it sent 4 (off) to any monitor
+    /// listing 0xD6. An LG UltraWide (GSM-5BF7) lists 4 and cannot come back
+    /// from it - black and green flashes, no backlight, until unplugged (#30) -
+    /// so its record now marks the code unsafe, and a monitor whose off state
+    /// misbehaves can be given standby or suspend instead, where it lists them.
+    /// </remarks>
+    /// <param name="why">Why nothing was sent; "write ..." when the monitor did not take it.</param>
+    private static bool SendPowerMode(DisplayInfo display, uint mode, out string? why)
+    {
+        VcpControl? power;
+        try { power = MonitorCapabilities.Read(display).Controls.FirstOrDefault(c => c.Code == 0xD6); }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { why = "write: its capabilities could not be read (" + ex.Message + ")"; return false; }
+        if (power is null) { why = "it lists no power control (0xD6)"; return false; }
+        if (power.MappedDefinition is { Writable: false })
+        {
+            why = "its device record marks the power control unsafe" + (power.MappedDefinition.Notes is { Length: > 0 } notes ? ": " + notes : "");
+            return false;
+        }
+        if (!power.Values.Any(v => v.Value == mode)) { why = $"it does not list power mode {mode}"; return false; }
+        if (MonitorCapabilities.Write(display, power, mode, out why)) return true;
+        why = "write refused: " + (why ?? "the monitor did not accept it");
+        return false;
+    }
+
+    /// <summary>
+    /// Wakes a monitor monitor sleep turned off: through the checks first, then
+    /// the plain write it used before, because a monitor left dark is worse than
+    /// a refused check.
+    /// </summary>
+    private static bool Wake(DisplayInfo display) =>
+        SendPowerMode(display, 0x01, out _) || MonitorCapabilities.Write(display, 0xD6, 0x01);
 
     private void RefreshDisplays()
     {

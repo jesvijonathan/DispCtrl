@@ -64,6 +64,7 @@
             }
           },
           "maximum": { "type": ["integer", "null"], "minimum": 0, "maximum": 65535 },
+          "writeScale": { "type": ["integer", "null"], "minimum": 2, "maximum": 100, "description": "For a range that reads in larger units than it is written in: values are sent divided by this. maximum is in the units it reads." },
           "values": {
             "type": "array",
             "items": {

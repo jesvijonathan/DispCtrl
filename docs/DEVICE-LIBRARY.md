@@ -86,6 +86,20 @@ before local at each step.
 `information`. `confidence` is `observed` (seen to move with the monitor's
 menu), `verified` (written and seen to do what the name says) or `documented`
 (from the manufacturer). `sources` accumulate as more models confirm a code.
+
+A `range` may carry `maximum`, the highest value when the monitor's own reply
+is wrong, and `writeScale` for a setting that reads and shows in bigger steps
+than it takes when written: LG's Black Stabilizer reads 0 to 100 in steps of 5
+but takes 0 to 20, so it is `"maximum": 100, "writeScale": 5` (#29). The slider
+then moves in fives and each value is sent divided by five. Mapping it yourself:
+`devices map --monitor 2 --code 0xF9 --name "Black Stabilizer" --kind range
+--maximum 100 --write-scale 5 --writable`, or the same two boxes in the
+Devices page's mapping dialog.
+
+A control a monitor lists but cannot safely take stays in the library with
+`"writable": false` and a note saying why, so DispCtrl explains rather than
+offers it: the LG UltraWide GSM-5BF7 lists power mode 0x04 and cannot be woken
+from it (#30), so monitor sleep is not offered for that model.
 `devices/schema/definition.schema.json` is the JSON Schema for editors; the
 rules that count are `DeviceDefinitions.Validate`, which DispCtrl, the CLI and CI
 all run.

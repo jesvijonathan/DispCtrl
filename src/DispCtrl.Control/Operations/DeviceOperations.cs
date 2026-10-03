@@ -161,6 +161,7 @@ public sealed partial class ControlService
             entry["confidence"] = mapped.Definition.Confidence;
             entry["origin"] = mapped.Origin;
             entry["maximum"] = mapped.Definition.Maximum;
+            entry["writeScale"] = mapped.Definition.WriteScale;
             entry["notes"] = mapped.Definition.Notes;
             if (mapped.Definition.DdcWrite is { } write)
             {
@@ -234,7 +235,7 @@ public sealed partial class ControlService
     /// <summary>Names one code for a model, its manufacturer, or every monitor.</summary>
     private static JsonNode DevicesMap(JsonObject args)
     {
-        Only(args, "map", "monitor", "model", "code", "name", "key", "kind", "values", "maximum", "writable", "scope",
+        Only(args, "map", "monitor", "model", "code", "name", "key", "kind", "values", "maximum", "writeScale", "writable", "scope",
             "confidence", "notes", "dryRun", "sourceAddress", "writeCode", "transport");
         var (model, _) = ModelOf(args);
         byte code = DeviceDefinitions.ParseCode(Text(args, "code") ?? "")
@@ -262,6 +263,7 @@ public sealed partial class ControlService
             Kind = Text(args, "kind") ?? before?.Kind ?? DefinedKinds.Information,
             Writable = args.ContainsKey("writable") ? Flag(args, "writable") : before?.Writable ?? false,
             Maximum = args.ContainsKey("maximum") ? args["maximum"] is null ? null : Integer(args, "maximum", 0, 65535) : before?.Maximum,
+            WriteScale = args.ContainsKey("writeScale") ? args["writeScale"] is null ? null : Integer(args, "writeScale", 2, 100) : before?.WriteScale,
             Confidence = Text(args, "confidence") ?? before?.Confidence ?? DefinedConfidence.Observed,
             Notes = Text(args, "notes"),
             Sources = [model],
@@ -292,6 +294,7 @@ public sealed partial class ControlService
         {
             if (!args.ContainsKey("values")) control.Values = [];
             if (!args.ContainsKey("maximum")) control.Maximum = null;
+            if (!args.ContainsKey("writeScale")) control.WriteScale = null;
             if (control.Kind == DefinedKinds.Information && !args.ContainsKey("writable")) control.Writable = false;
         }
         if (control.Values.Count > 0 && Text(args, "kind") is null && (args.ContainsKey("values") || before is null)) control.Kind = DefinedKinds.Choice;

@@ -64,6 +64,7 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
         ? $"{_control.Hex} · mapped in the device library"
         : _control.WriteOnly ? "Choose an input; confirm the change on your monitor." : _control.Kind switch
     {
+        VcpKind.Continuous when Step > 1 => $"{_control.Hex} · the monitor's own setting, 0 to {_control.Maximum} in steps of {Step}",
         VcpKind.Continuous => $"{_control.Hex} · the monitor's own setting, {_control.Maximum} steps",
         VcpKind.Discrete => $"{_control.Hex} · the monitor's own setting",
         _ => _control.Hex,
@@ -86,12 +87,15 @@ public sealed class MonitorControlViewModel : INotifyPropertyChanged
 
     public double Maximum => _control.Maximum >= 0 ? _control.Maximum : 100;
 
+    /// <summary>The slider's step: a scaled range's (#29), otherwise one.</summary>
+    public double Step => _control.MappedDefinition?.WriteScale is int scale and > 1 ? scale : 1;
+
     public double Value
     {
         get => _control.Current < 0 ? 0 : _control.Current;
         set
         {
-            int v = (int)Math.Clamp(value, 0, Maximum);
+            int v = (int)(Math.Round(Math.Clamp(value, 0, Maximum) / Step, MidpointRounding.AwayFromZero) * Step);
             if (_control.Current == v) return;
 
             _control.Current = v;

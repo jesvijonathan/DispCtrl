@@ -2136,6 +2136,10 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         Raise(nameof(OledProtectionVisibility));
         Raise(nameof(MonitorPowerVisibility));
         Raise(nameof(MonitorPowerDescription));
+        Raise(nameof(SupportsMonitorPower));
+        Raise(nameof(MonitorSleepStates));
+        Raise(nameof(MonitorSleepStateIndex));
+        Raise(nameof(MonitorSleepStateVisibility));
 
         Raise(nameof(MonitorControlsVisibility));
         Raise(nameof(NoMonitorControlsVisibility));
@@ -2491,11 +2495,51 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
         set { if (_settings.OledWakeOnPointerReturn == value) return; _settings.OledWakeOnPointerReturn = value; _persist(); Raise(); }
     }
 
-    private bool SupportsMonitorPower => _allControls.Any(control => control.Code == 0xD6 && control.Settable);
-    public Visibility MonitorPowerVisibility => SupportsMonitorPower ? Visibility.Visible : Visibility.Collapsed;
-    public string MonitorPowerDescription => SupportsMonitorPower
-        ? "Turn this monitor off through its hardware power control after inactivity. Keyboard or mouse input wakes it."
-        : "This monitor does not report a hardware power control.";
+    private VcpControl? PowerControl => _allControls.FirstOrDefault(control => control.Code == 0xD6);
+    public bool SupportsMonitorPower => PowerControl is { Settable: true } && MonitorSleepStateValues.Count > 0;
+
+    /// <summary>Shown wherever the monitor lists a power control, so an unsafe one can say why it is off.</summary>
+    public Visibility MonitorPowerVisibility => PowerControl is null ? Visibility.Collapsed : Visibility.Visible;
+
+    public string MonitorPowerDescription => PowerControl switch
+    {
+        { MappedDefinition: { Writable: false } } =>
+            "DispCtrl does not switch this model off: its device record says it cannot be woken again afterwards. Turn off displays, on the Screen care page, blacks it out instead.",
+        { Settable: true } when MonitorSleepStateValues.Count > 0 =>
+            "Turn this monitor off through its hardware power control after inactivity. Keyboard or mouse input wakes it.",
+        _ => "This monitor lists a power control but no state DispCtrl can switch it to.",
+    };
+
+    /// <summary>The power states this monitor lists other than On, in the standard's order.</summary>
+    private List<VcpValue> MonitorSleepStateValues =>
+        PowerControl?.Values.Where(v => v.Value is >= 2 and <= 5).OrderBy(v => v.Value).ToList() ?? [];
+
+    public List<string> MonitorSleepStates => [.. MonitorSleepStateValues.Select(v => v.Name)];
+
+    /// <summary>A choice only where the monitor lists more than one state to sleep in.</summary>
+    public Visibility MonitorSleepStateVisibility => MonitorSleepStateValues.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Which listed state monitor sleep sends; the setting's 4 (off) when listed,
+    /// otherwise the first state the monitor lists.
+    /// </summary>
+    public int MonitorSleepStateIndex
+    {
+        get
+        {
+            List<VcpValue> states = MonitorSleepStateValues;
+            int at = states.FindIndex(v => v.Value == _settings.MonitorSleepState);
+            return at >= 0 ? at : states.Count > 0 ? 0 : -1;
+        }
+        set
+        {
+            List<VcpValue> states = MonitorSleepStateValues;
+            if (value < 0 || value >= states.Count || _settings.MonitorSleepState == states[value].Value) return;
+            _settings.MonitorSleepState = (int)states[value].Value;
+            _persist();
+            Raise();
+        }
+    }
     public bool MonitorSleepEnabled
     {
         get => _settings.MonitorSleepEnabled;

@@ -937,7 +937,9 @@ internal sealed partial class QuickPanelContent
             ? StripToggle(e, display, () => display.OledProtectionEnabled, v => display.OledProtectionEnabled = v,
                 nameof(DisplayViewModel.OledProtectionEnabled))
             : null,
-        "sleep" => !display.IsInternalPanel
+        // Only where the monitor can be put to sleep and woken again: not where
+        // it lists no power state, or its record marks power-off unsafe (#30).
+        "sleep" => !display.IsInternalPanel && display.SupportsMonitorPower
             ? StripToggle(e, display, () => display.MonitorSleepEnabled, v => display.MonitorSleepEnabled = v,
                 nameof(DisplayViewModel.MonitorSleepEnabled))
             : null,
@@ -984,6 +986,7 @@ internal sealed partial class QuickPanelContent
             (nameof(DisplayViewModel.AdaptiveVisibility), () => display.AdaptiveVisibility),
             (nameof(DisplayViewModel.RotationVisibility), () => display.RotationVisibility),
             (nameof(DisplayViewModel.IsOled), () => display.IsOled),
+            (nameof(DisplayViewModel.SupportsMonitorPower), () => display.SupportsMonitorPower),
         })
         {
             object was = read();

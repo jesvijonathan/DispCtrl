@@ -144,6 +144,7 @@ public static class CommandHelp
               devices probe --monitor ID [--codes unknown|all|0xE2] [--seconds 120]   Watch codes while you use the monitor's menu
               devices map --monitor ID --code 0xE2 --name "Preset mode" [--values "0x0B=ComfortView"]
                   [--kind range|choice|action|information] [--writable] [--scope model|brand|all]
+                  A range: [--maximum 100] [--write-scale 5] when it reads 0-100 but takes 0-20
                   LG alternate input: --transport lg-input --code 0x60 --source-address 0x50 --write-code 0xF4
               devices unmap --monitor ID --code 0xE2 [--scope ...]
               devices similar --monitor ID          Known models whose names would name this one's unknown codes

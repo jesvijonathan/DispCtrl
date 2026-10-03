@@ -923,7 +923,10 @@ public static class MonitorCapabilities
                 error = result.Error;
                 return result.Sent;
             }
-            return DdcChannel.With(display, handle => PInvoke.SetVCPFeature(handle, code, value) != 0, false);
+            // A scaled range is offered and validated in the units it reads (#29);
+            // only the wire takes the smaller ones.
+            uint wire = mapping?.WireValue(value) ?? value;
+            return DdcChannel.With(display, handle => PInvoke.SetVCPFeature(handle, code, wire) != 0, false);
         }
         finally { InvalidateValues(display); }
     }

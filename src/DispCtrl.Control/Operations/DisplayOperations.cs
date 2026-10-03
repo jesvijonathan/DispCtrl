@@ -443,9 +443,12 @@ public sealed partial class ControlService
         /// <summary>The values offered, as <see cref="DeviceDefinitions.OfferedValues"/> decided when the mapping was applied.</summary>
         public IReadOnlyList<(uint Value, string Name)> Values => Control.Values.Select(v => (v.Value, v.Name)).ToArray();
 
-        /// <summary>The mapping's maximum, never above what the monitor itself reports.</summary>
-        public int Maximum => Mapping?.Maximum is int mapped && Control.Maximum >= 0 ? Math.Min(mapped, Control.Maximum)
-            : Mapping?.Maximum ?? Control.Maximum;
+        /// <summary>
+        /// The mapping's maximum, never above what the monitor itself reports -
+        /// except for a scaled range, whose maximum is in the units it reads (#29).
+        /// </summary>
+        public int Maximum => Mapping?.Maximum is int mapped && Control.Maximum >= 0 && Mapping.WriteScale is not > 1
+            ? Math.Min(mapped, Control.Maximum) : Mapping?.Maximum ?? Control.Maximum;
 
         /// <summary>Null when the monitor did not answer the read: DDC/CI drops the odd reply.</summary>
         public int? Current => Control.Current < 0 ? null

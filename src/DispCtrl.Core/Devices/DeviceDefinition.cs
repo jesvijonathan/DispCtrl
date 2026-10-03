@@ -97,6 +97,17 @@ public sealed class DefinedControl
     /// <summary>For a range, the highest value, when the monitor's own reply is wrong.</summary>
     public int? Maximum { get; set; }
 
+    /// <summary>
+    /// For a range that reads in larger units than it is written in: a value
+    /// is sent divided by this, and the slider moves in steps of it.
+    /// </summary>
+    /// <remarks>
+    /// An LG UltraWide (GSM-5BF7) shows Black Stabilizer as 0 to 100 in steps
+    /// of 5 and reads it back that way, but takes 0 to 20 when written (#29).
+    /// <see cref="Maximum"/> is in the units the monitor reads and shows.
+    /// </remarks>
+    public int? WriteScale { get; set; }
+
     /// <summary>For a choice, what each value means.</summary>
     public List<DefinedValue> Values { get; set; } = [];
 
@@ -111,6 +122,10 @@ public sealed class DefinedControl
     /// <summary>The code as a number, or null when <see cref="Code"/> does not parse.</summary>
     [JsonIgnore]
     public byte? CodeValue => DeviceDefinitions.ParseCode(Code);
+
+    /// <summary>The value to send for <paramref name="value"/>, as read: divided by <see cref="WriteScale"/> for a scaled range.</summary>
+    public uint WireValue(uint value) => Kind == DefinedKinds.Range && WriteScale is int scale and > 1
+        ? (uint)Math.Round(value / (double)scale, MidpointRounding.AwayFromZero) : value;
 
     [JsonIgnore]
     public string EffectiveKey => string.IsNullOrWhiteSpace(Key) ? DeviceDefinitions.KeyFor(Name) : Key!;
@@ -244,6 +259,8 @@ public static partial class DeviceDefinitions
             if (c.Writable && code == 0x04) problems.Add($"{at}: factory reset requires the dedicated confirmation command");
             if (c.Writable && c.Kind == DefinedKinds.Choice && c.Values.Count == 0) problems.Add($"{at}: a writable choice must list its values");
             if (c.Maximum is < 0 or > 65535) problems.Add($"{at}: maximum must be 0 to 65535");
+        if (c.WriteScale is int scale && (scale is < 2 or > 100 || c.Kind != DefinedKinds.Range))
+            problems.Add($"{at}: writeScale is 2 to 100, and only for a range");
             if (c.DdcWrite is { } write)
             {
                 if (definition.Schema < 2) problems.Add($"{at}: alternate input writes require schema 2");

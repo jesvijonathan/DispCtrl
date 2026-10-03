@@ -574,7 +574,7 @@
                           <StackPanel Grid.Column="1" Orientation="Horizontal"
                                       Spacing="12" VerticalAlignment="Center">
                             <Slider Value="{x:Bind Value, Mode=TwoWay}"
-                                    Minimum="0" Maximum="{x:Bind Maximum}" StepFrequency="1"
+                                    Minimum="0" Maximum="{x:Bind Maximum}" StepFrequency="{x:Bind Step}"
                                     Width="200" VerticalAlignment="Center"
                                     Visibility="{x:Bind SliderVisibility}"
                                     AutomationProperties.Name="{x:Bind Code}"/>
@@ -700,6 +700,12 @@
                     <FontIcon Glyph="&#xE7E8;"/>
                   </tk:SettingsCard.HeaderIcon>
                   <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ComboBox ItemsSource="{x:Bind MonitorSleepStates, Mode=OneWay}"
+                              SelectedIndex="{x:Bind MonitorSleepStateIndex, Mode=TwoWay}"
+                              Visibility="{x:Bind MonitorSleepStateVisibility, Mode=OneWay}"
+                              IsEnabled="{x:Bind MonitorSleepEnabled, Mode=OneWay}"
+                              ToolTipService.ToolTip="The power state it is put in. Choose another if this monitor does not wake from one."
+                              AutomationProperties.Name="MonitorSleepState" MinWidth="120"/>
                     <NumberBox Value="{x:Bind MonitorSleepMinutes, Mode=TwoWay}"
                                Minimum="1" Maximum="240" SmallChange="1" Width="92"
                                SpinButtonPlacementMode="Compact"
@@ -708,6 +714,7 @@
                     <TextBlock Text="minutes idle" VerticalAlignment="Center"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                     <ToggleSwitch IsOn="{x:Bind MonitorSleepEnabled, Mode=TwoWay}"
+                                  IsEnabled="{x:Bind SupportsMonitorPower, Mode=OneWay}"
                                   AutomationProperties.Name="MonitorSleepEnabled"/>
                   </StackPanel>
                 </tk:SettingsCard>

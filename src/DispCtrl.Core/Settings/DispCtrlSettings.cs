@@ -860,6 +860,15 @@ public sealed class MonitorSettings
     public bool MonitorSleepEnabled { get; set; }
     public int MonitorSleepMinutes { get; set; } = 10;
 
+    /// <summary>The power mode monitor sleep sends (VCP 0xD6): 2 standby, 3 suspend, 4 off, 5 off (hard).</summary>
+    /// <remarks>
+    /// 4, the off state nearly every monitor lists, unless changed. Some monitors
+    /// list a state they cannot come back from: an LG UltraWide (GSM-5BF7) sent
+    /// 4 flashed black and green with no backlight until unplugged (#30). Only a
+    /// state the monitor lists is ever sent; the engine refuses any other.
+    /// </remarks>
+    public int MonitorSleepState { get; set; } = 4;
+
     /// <summary>Whether unison brightness moves this display.</summary>
     /// <remarks>
     /// Power Display's "exclude from linked brightness". Left out, a display
@@ -938,6 +947,7 @@ public sealed class MonitorSettings
         OledRestMinutes = fresh.OledRestMinutes;
         MonitorSleepEnabled = fresh.MonitorSleepEnabled;
         MonitorSleepMinutes = fresh.MonitorSleepMinutes;
+        MonitorSleepState = fresh.MonitorSleepState;
         FocusDimming = fresh.FocusDimming;
         FocusDimPercent = fresh.FocusDimPercent;
         OledCare = null;

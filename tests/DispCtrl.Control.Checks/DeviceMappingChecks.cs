@@ -57,6 +57,34 @@ internal static class DeviceMappingChecks
                 && controls.Single(c => c.Code == 0xE4) is { Settable: true, IsAction: true },
                 "mapped sliders respect the monitor's maximum and mapped buttons are available");
             check(!controls.Any(c => c.Code == 0xE5), "a general mapping cannot invent an unadvertised control");
+            // #29: an LG reads Black Stabilizer 0-100 in steps of 5 and takes 0-20 when written.
+            var scaled = new DefinedControl { Code = "0xE3", Name = "Black Stabilizer", Kind = "range", Maximum = 100, WriteScale = 5, Writable = true };
+            DeviceLibrary.Map("DEL-1234", scaled);
+            var scaledControl = DeviceControls.Apply(Display("DEL-1234"), raw).Controls.Single(c => c.Code == 0xE3);
+            check(scaledControl is { Settable: true, Maximum: 100 }
+                && DeviceControls.ValidateWrite(scaledControl, scaled, 100) is null && DeviceControls.ValidateWrite(scaledControl, scaled, 105) is not null
+                && scaled.WireValue(100) == 20 && scaled.WireValue(50) == 10 && scaled.WireValue(53) == 11 && scaled.WireValue(52) == 10,
+                "a scaled range is offered and checked in the units it reads, and sent divided by its scale");
+            check(new DefinedControl { Kind = "range", Maximum = 100 }.WireValue(50) == 50
+                && new DefinedControl { Kind = "choice", WriteScale = 5 }.WireValue(50) == 50,
+                "only a scaled range changes the value it sends");
+            var badScale = new DeviceDefinition { Target = "DEL-1234", Name = "Test", Controls = [
+                new() { Code = "0xE2", Name = "Mode", Kind = "choice", WriteScale = 5, Values = [new() { Value = "0x01", Name = "One" }] },
+                new() { Code = "0xE3", Name = "Level", Kind = "range", Maximum = 100, WriteScale = 1 }] };
+            check(DeviceDefinitions.Validate(badScale).Count(p => p.Contains("writeScale")) == 2,
+                "writeScale is refused on a choice and below 2");
+            // #30: a monitor whose record marks its power control unsafe is never offered it, nor written.
+            var power = MonitorCapabilities.Parse("(vcp(D6(01 04)))");
+            power.Controls.Single().Current = 1;
+            var unsafePower = new DefinedControl { Code = "0xD6", Name = "Power mode", Kind = "choice", Writable = false,
+                Values = [new() { Value = "0x01", Name = "On" }, new() { Value = "0x04", Name = "Off (soft)" }] };
+            check(power.Controls.Single().Settable, "an unmapped power control the monitor reads sensibly is settable");
+            DeviceLibrary.Map("DEL-1234", unsafePower);
+            var markedPower = DeviceControls.Apply(Display("DEL-1234"), power).Controls.Single();
+            check(!markedPower.Settable && DeviceControls.ValidateWrite(markedPower, unsafePower, 4) is not null,
+                "a power control the record marks unsafe is neither offered nor written");
+            DeviceLibrary.Unmap("DEL-1234", 0xD6);
+            DeviceLibrary.Map("DEL-1234", new() { Code = "0xE3", Name = "Adjustment", Kind = "range", Maximum = 100, Writable = true });
             var wide = Choice("Full word"); wide.Values = [new() { Value = "0x1234", Name = "Vendor mode" }];
             var wideControl = DeviceControls.Apply(new VcpControl(0xE2, "Unknown", VcpKind.Information, []) { Current = 0x1234 }, wide);
             check(wideControl.CurrentOption?.Value == 0x1234 && DeviceControls.ValidateWrite(wideControl, wide, 0x1234) is null,
@@ -131,6 +159,23 @@ internal static class DeviceMappingChecks
             saved = service.Execute(Request("devices.map", new() { ["model"] = "SAM-1234", ["code"] = "0xE2", ["name"] = "Brand name", ["scope"] = "brand" }));
             check(saved["ok"]!.GetValue<bool>() && DeviceLibrary.Local("SAM")!.Controls[0] is { Writable: true, Kind: "choice", Values.Count: 2 },
                 "editing a brand mapping preserves the existing brand's choices");
+            // #29, mapped by a person rather than shipped: a scale survives renaming, and goes with a change of kind.
+            saved = service.Execute(Request("devices.map", new()
+            {
+                ["model"] = "SAM-1234", ["code"] = "0xF9", ["name"] = "Black Stabilizer", ["kind"] = "range",
+                ["maximum"] = 100, ["writeScale"] = 5, ["writable"] = true,
+            }));
+            check(saved["ok"]!.GetValue<bool>() && DeviceLibrary.Local("SAM-1234")!.Controls.Single(c => c.Code == "0xF9") is { WriteScale: 5, Maximum: 100 },
+                "a person can map a range that is written in smaller units than it reads");
+            saved = service.Execute(Request("devices.map", new() { ["model"] = "SAM-1234", ["code"] = "0xF9", ["name"] = "Black level" }));
+            check(saved["ok"]!.GetValue<bool>() && DeviceLibrary.Local("SAM-1234")!.Controls.Single(c => c.Code == "0xF9").WriteScale == 5,
+                "renaming a scaled range keeps its scale");
+            saved = service.Execute(Request("devices.map", new() { ["model"] = "SAM-1234", ["code"] = "0xF9", ["name"] = "Black level", ["writeScale"] = 1 }));
+            check(!saved["ok"]!.GetValue<bool>(), "a scale below 2 is refused");
+            saved = service.Execute(Request("devices.map", new() { ["model"] = "SAM-1234", ["code"] = "0xF9", ["name"] = "Black level", ["kind"] = "information" }));
+            check(saved["ok"]!.GetValue<bool>() && DeviceLibrary.Local("SAM-1234")!.Controls.Single(c => c.Code == "0xF9").WriteScale is null,
+                "a change of kind drops the scale, as it drops the maximum");
+            DeviceLibrary.Unmap("SAM-1234", 0xF9);
             DeviceLibrary.Map("ACR-5678", new() { Code = "0xE6", Name = "Feature", Kind = "choice", Values = [new() { Value = "1", Name = "On" }] });
             saved = service.Execute(Request("devices.map", new() { ["model"] = "ACR-5678", ["code"] = "0xE6", ["name"] = "Feature", ["scope"] = "brand" }));
             check(saved["ok"]!.GetValue<bool>() && DeviceLibrary.Local("ACR")!.Controls.Any(c => c.Code == "0xE6" && c.Values.Count == 1),
