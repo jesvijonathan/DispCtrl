@@ -27,6 +27,9 @@ public sealed partial class StartupSettings : UserControl
             StartMenuToggle.IsEnabled = false;
             DesktopToggle.IsEnabled = false;
         }
+        // Everyone's Start menu entry belongs to Setup; turning it off here
+        // could only fail for want of administrator rights.
+        if (StartupIntegration.HasAllUsersStartMenuShortcut) StartMenuToggle.IsEnabled = false;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

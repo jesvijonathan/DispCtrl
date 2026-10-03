@@ -443,7 +443,7 @@ public sealed class QuickPanelSettings
     /// into <see cref="Collapsed"/>, so a section added later still starts folded.
     /// </remarks>
     /// <remarks>
-    /// Everything but Brightness, since 2026-10-03 (the owner's call): a full
+    /// Everything but Brightness and Quick toggles, since 2026-10-03 (the owner's call): a full
     /// panel opened as a wall of rows. Each display's own block, keyed
     /// <c>display:</c> and its token, starts folded too. Unison starts folded
     /// only below a shown Brightness section, which carries its slider and
@@ -451,7 +451,7 @@ public sealed class QuickPanelSettings
     /// and folding it there hid the panel's main slider.
     /// </remarks>
     public static readonly string[] FoldedByDefault =
-        ["tiles", "displays", "oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets", "windows"];
+        ["displays", "oledCare", "focus", "displayMode", "taskbar", "nightLight", "presets", "windows"];
 
     /// <summary>Whether a section or a display's block starts folded until somebody opens it.</summary>
     public bool FoldsByDefault(string key) =>

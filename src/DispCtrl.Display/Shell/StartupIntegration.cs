@@ -83,7 +83,22 @@ public static class StartupIntegration
     public static string StartupFolderPath =>
         Environment.GetFolderPath(Environment.SpecialFolder.Startup);
 
-    public static bool HasStartMenuShortcut => File.Exists(StartMenuShortcutPath);
+    /// <summary>The Start menu entry an install for all users puts in everyone's Start menu.</summary>
+    public static string AllUsersStartMenuShortcutPath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", AppShortcutName);
+
+    /// <summary>
+    /// Setup made the Start menu entry for everyone, and only Setup can take it
+    /// away: removing it needs administrator rights.
+    /// </summary>
+    /// <remarks>
+    /// The app looked only in this person's own Start menu, so after an install
+    /// for all users Settings said the Start menu shortcut was off while
+    /// DispCtrl sat in the Start menu.
+    /// </remarks>
+    public static bool HasAllUsersStartMenuShortcut => File.Exists(AllUsersStartMenuShortcutPath);
+
+    public static bool HasStartMenuShortcut => File.Exists(StartMenuShortcutPath) || HasAllUsersStartMenuShortcut;
     public static bool HasDesktopShortcut => File.Exists(DesktopShortcutPath);
     public static bool StartsEngineAtSignIn => EngineTaskRegistered || File.Exists(EngineStartupShortcutPath);
 
