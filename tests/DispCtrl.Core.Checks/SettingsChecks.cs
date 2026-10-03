@@ -39,6 +39,11 @@ internal static class SettingsChecks
                 && UnisonResume.SoftwareLevel(140) == 100 && !new MonitorSettings().SoftwareDimming,
             "unison dims a display with no control of its own in software, never below the readable floor; dimming in software is off by default");
 
+        check(DispCtrl.Core.Displays.GraphicsAdapter.InstanceFromPath(@"\\?\ROOT#DISPLAY#0000#{5b45201d-f2f2-4f3b-85bb-30ff1f953599}") == @"ROOT\DISPLAY\0000"
+                && DispCtrl.Core.Displays.GraphicsAdapter.InstanceFromPath(@"\\?\PCI#VEN_1002&DEV_1638#4&1&0&0041#{5b45201d-f2f2-4f3b-85bb-30ff1f953599}") == @"PCI\VEN_1002&DEV_1638\4&1&0&0041"
+                && !DispCtrl.Core.Displays.GraphicsAdapter.For("").Software,
+            "an adapter's device path gives its instance, and an unknown adapter is not called software");
+
         // The request for support: never on a first run, ended by a star or a
         // donation, asked once more after a close, and never after a second.
         var start = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);

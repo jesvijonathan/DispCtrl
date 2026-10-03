@@ -168,7 +168,21 @@ public sealed partial class ArrangeCanvas : UserControl
                     new Border { Background = new SolidColorBrush(Color.FromArgb(0x80, 0, 0, 0)) },
                     label } },
             };
-            ToolTipService.SetToolTip(border, display.Label);
+            // Said on the tile: a virtual display can claim any monitor's name,
+            // and the arrangement is where people decide where it sits.
+            if (display.IsVirtual && border.Child is Grid face)
+                face.Children.Add(new TextBlock
+                {
+                    Text = "Virtual",
+                    FontSize = 11,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Bottom,
+                    Margin = new Thickness(0, 0, 0, 6),
+                    Foreground = new SolidColorBrush(Color.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)),
+                });
+            ToolTipService.SetToolTip(border, display.IsVirtual
+                ? $"{display.Label}: a virtual display{(display.Adapter.Name.Length > 0 ? ", made by " + display.Adapter.Name : "")}"
+                : display.Label);
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(border, $"Display {_tiles.Count + 1}, {display.Label}");
             border.PointerPressed += OnPointerPressed;
             border.PointerMoved += OnPointerMoved;

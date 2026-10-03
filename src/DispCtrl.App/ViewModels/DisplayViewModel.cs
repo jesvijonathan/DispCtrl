@@ -263,7 +263,7 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// </remarks>
     public string Details =>
         $"Display {Number}  ·  {_display.Bounds.Width} × {_display.Bounds.Height}  ·  " +
-        $"{_display.RefreshHz} Hz  ·  {_display.Scale * 100:0}%  ·  {ConnectorLabel}";
+        $"{_display.RefreshHz} Hz  ·  {_display.Scale * 100:0}%  ·  {(_display.IsVirtual ? "Virtual" : ConnectorLabel)}";
 
     /// <summary>Short label for compact lines, e.g. the unison brightness readout.</summary>
     public string ShortName
@@ -839,7 +839,27 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// </remarks>
     public string SerialText => _display.Key.HasSerial ? _display.Key.Serial : "Not reported";
 
-    public string ConnectorText => ConnectorLabel;
+    public string ConnectorText => _display.IsVirtual
+        ? $"{ConnectorLabel}, as its driver reports it: a virtual display has no cable"
+        : ConnectorLabel;
+
+    /// <summary>What the display is, said plainly: the name and connector a driver reports are claims, the adapter is not.</summary>
+    public string KindText => _display.IsVirtual
+        ? "Virtual display, made in software: there is no panel or cable. Its name, size and timings are what its driver's EDID says."
+        : _display.IsInternal ? "Built-in panel" : "External monitor";
+
+    /// <summary>For a virtual display, the software that makes it.</summary>
+    public string MadeByText => _display.IsVirtual
+        ? (_display.Adapter.Name.Length > 0 ? _display.Adapter.Name : "A virtual display driver that does not name itself")
+        : "";
+
+    public string AdapterText => _display.Adapter.Name.Length > 0
+        ? $"{_display.Adapter.Name}  ({_display.Adapter.InstanceId})"
+        : _display.Adapter.InstanceId;
+
+    public string DriverText => _display.Adapter.Provider.Length > 0 || _display.Adapter.DriverVersion.Length > 0
+        ? $"{_display.Adapter.Provider} {_display.Adapter.DriverVersion}".Trim()
+        : "";
 
     /// <summary>The name Windows uses, e.g. \\.\DISPLAY1.</summary>
     /// <remarks>
@@ -1138,6 +1158,12 @@ public sealed class DisplayViewModel : INotifyPropertyChanged
     /// </remarks>
     public IReadOnlyList<InfoRow> Information =>
     [
+        InfoRow.Heading("What it is"),
+        InfoRow.Of("Kind", KindText),
+        InfoRow.Of("Made by", MadeByText),
+        InfoRow.Of("Graphics adapter", AdapterText),
+        InfoRow.Of("Driver", DriverText),
+
         InfoRow.Heading("The panel"),
         InfoRow.Of("Model", ProductName),
         InfoRow.Of("Manufacturer", ManufacturerText),

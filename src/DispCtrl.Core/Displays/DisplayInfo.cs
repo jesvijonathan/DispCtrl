@@ -53,6 +53,19 @@ public sealed record DisplayInfo
     /// <summary>Driver-reported connector instance, not the position in an MST chain.</summary>
     public uint ConnectorInstance { get; init; }
     public string AdapterId { get; init; } = "";
+
+    /// <summary>The graphics adapter's device interface path; see <see cref="Adapter"/>.</summary>
+    public string AdapterPath { get; init; } = "";
+
+    /// <summary>The graphics adapter this display hangs off: its name, driver, and whether it is software.</summary>
+    public GraphicsAdapter Adapter => GraphicsAdapter.For(AdapterPath);
+
+    /// <summary>
+    /// Made in software, with no cable or panel: a virtual display driver's
+    /// root-enumerated adapter, or an output Windows calls indirect-virtual.
+    /// </summary>
+    /// <remarks>Decided by the adapter, not the name or connector, which such a driver can claim freely.</remarks>
+    public bool IsVirtual => Connector == ConnectorKind.Virtual || Adapter.Software;
     public uint TargetId { get; init; }
 
     /// <summary>DisplayPort carried over a USB4, Thunderbolt or USB-C tunnel, as the driver reports it.</summary>

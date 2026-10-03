@@ -77,6 +77,7 @@ public static class DisplayRegistry
                 Connector = t.Connector,
                 ConnectorInstance = t.ConnectorInstance,
                 AdapterId = t.AdapterId,
+                AdapterPath = t.AdapterPath,
                 TargetId = t.TargetId,
                 Tunnelled = t.Tunnelled,
                 IsPrimary = primary,
@@ -257,7 +258,7 @@ public static class DisplayRegistry
 
     private readonly record struct CcdTarget(
         string GdiName, string DevicePath, string FriendlyName, ConnectorKind Connector,
-        uint ConnectorInstance, string AdapterId, uint TargetId, bool Tunnelled = false);
+        uint ConnectorInstance, string AdapterId, uint TargetId, bool Tunnelled = false, string AdapterPath = "");
 
     private static List<CcdTarget> QueryCcdTargets() =>
         QueryCcdTargets(activeOnly: true, allowDuplicateSources: false);
@@ -311,7 +312,8 @@ public static class DisplayRegistry
                 continue;
 
             targets.Add(new CcdTarget(gdi, devicePath, friendly, kind, connectorInstance,
-                $"{p.targetInfo.adapterId.HighPart:X8}:{p.targetInfo.adapterId.LowPart:X8}", p.targetInfo.id, tunnelled));
+                $"{p.targetInfo.adapterId.HighPart:X8}:{p.targetInfo.adapterId.LowPart:X8}", p.targetInfo.id, tunnelled,
+                AdapterPath(p.targetInfo.adapterId)));
         }
 
         return targets;
@@ -333,6 +335,22 @@ public static class DisplayRegistry
         return PInvoke.DisplayConfigGetDeviceInfo(&req.header) == (int)WIN32_ERROR.ERROR_SUCCESS
             ? req.viewGdiDeviceName.ToString()
             : string.Empty;
+    }
+
+    /// <summary>The adapter's device interface path, from which <see cref="GraphicsAdapter"/> reads what it is.</summary>
+    private static unsafe string AdapterPath(LUID adapter)
+    {
+        var req = new DISPLAYCONFIG_ADAPTER_NAME
+        {
+            header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
+            {
+                type = DISPLAYCONFIG_DEVICE_INFO_TYPE.DISPLAYCONFIG_DEVICE_INFO_GET_ADAPTER_NAME,
+                size = (uint)sizeof(DISPLAYCONFIG_ADAPTER_NAME),
+                adapterId = adapter,
+            },
+        };
+        return PInvoke.DisplayConfigGetDeviceInfo(&req.header) == (int)WIN32_ERROR.ERROR_SUCCESS
+            ? req.adapterDevicePath.ToString() : string.Empty;
     }
 
     private static unsafe bool TryGetTargetName(

@@ -46,7 +46,11 @@ public sealed partial class ControlService
             entry["connection"] = new JsonObject { ["connector"] = d.Connector.ToString(),
                 ["connectorInstance"] = d.ConnectorInstance, ["adapterId"] = d.AdapterId, ["targetId"] = d.TargetId,
                 ["sharingConnector"] = d.SharingConnector, ["chainPosition"] = null, ["tunnelled"] = d.Tunnelled ? true : null,
-                ["mstDescription"] = d.MstDescription, ["thunderboltDescription"] = d.ThunderboltDescription };
+                ["mstDescription"] = d.MstDescription, ["thunderboltDescription"] = d.ThunderboltDescription,
+                // The connector above is what the driver reports; the adapter is what the display really hangs off.
+                ["virtual"] = d.IsVirtual,
+                ["adapter"] = new JsonObject { ["name"] = d.Adapter.Name, ["instance"] = d.Adapter.InstanceId,
+                    ["provider"] = d.Adapter.Provider, ["driverVersion"] = d.Adapter.DriverVersion, ["software"] = d.Adapter.Software } };
             if (action == "modes")
             {
                 var modes = new JsonArray();

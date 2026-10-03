@@ -68,8 +68,17 @@ The desk as a whole, then one card per display.
   - **The monitor's own controls**: **Show controls**, then a slider or a
     choice for each control the monitor offers over DDC/CI; **Learn a
     setting** names an unnamed one by watching the monitor's menu.
+  - **Dim in software**: move the display's brightness by dimming the picture
+    instead of its backlight, for a monitor whose DDC/CI is off or
+    unreliable. A display with no control of its own (a virtual display, many
+    TVs) is dimmed in software anyway, and its slider is in the Brightness row.
+  - **Information**: what the display is - built-in panel, external monitor,
+    or virtual display and the software that makes it - its graphics adapter
+    and driver, then the panel, the connection and the picture. A virtual
+    display's name and connector are what its driver claims, and are said to
+    be; its tile in the arrangement is marked Virtual.
   - **Advanced options**
-    - Software brightness, adaptive brightness, rotate with the device.
+    - Adaptive brightness, rotate with the device.
     - **OLED panel**, and whether focus mode may dim this display.
     - **OLED burn-in protection** for this panel; **Run screen rest** for
       1-30 minutes; **Wake when the pointer returns**.

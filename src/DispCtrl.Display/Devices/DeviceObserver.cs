@@ -21,6 +21,9 @@ public static class DeviceObserver
     {
         foreach (DisplayInfo d in displays)
         {
+            // A virtual display's EDID is whatever its driver says, often a real
+            // monitor's: kept out of a library of real monitors.
+            if (d.IsVirtual) continue;
             try { DeviceHistory.Seen(d.Key.Model, d.Label, d.Connector.ToString(), d.IsInternal, d.PhysicalWidthMm, d.PhysicalHeightMm); }
             catch (Exception) { }
         }
@@ -29,6 +32,7 @@ public static class DeviceObserver
     /// <summary>Records the codes a monitor listed and the values they were read at.</summary>
     public static void Listed(DisplayInfo display, string capabilities, IEnumerable<VcpControl> controls)
     {
+        if (display.IsVirtual) return;
         SeenReading[] readings = controls.Where(c => c.MappedDefinition is null && !c.WriteOnly).Select(c => new SeenReading(
             c.Code, c.Name, c.Kind.ToString(),
             c.Values.Select(v => (int)v.Value).ToArray(),

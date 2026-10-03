@@ -59,6 +59,37 @@ settings folder), `DispCtrl.Core.Checks` (parsing, geometry, the settings merge)
 
 ---
 
+## A virtual second display
+
+For two-display work on a one-screen machine - unison, the arrangement,
+gathering windows, screenshots - `build.cmd virtual-display add` adds a
+virtual display; `status` shows it and `remove` takes the driver away again.
+Off unless asked for: nothing in build, test or release runs it.
+
+```powershell
+.\build.cmd virtual-display add                  # driver defaults: "Virtual 24in", 1920x1080
+.\tools\VirtualDisplay.ps1 add -Like DELA234 -Name "DELL U2424H" -Mode 1920x1080 -Refresh 120 -Side left
+.\build.cmd virtual-display status
+.\build.cmd virtual-display remove
+```
+
+- It is the open-source [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver)
+  (IddCx, signed by the SignPath Foundation), pinned to release 25.7.23 and
+  checked against its SHA-256 before anything installs. Adding and removing
+  ask for administrator rights once, through UAC.
+- `-Like` copies the size and timings from a monitor this PC has seen
+  (`HKLM\...\Enum\DISPLAY\<model>`), `-Name` sets the name it reports. Its
+  manufacturer and product stay the driver's (`MTT-1337`), so DispCtrl never
+  takes it for that monitor or gives it that monitor's settings.
+- DispCtrl says it is virtual wherever it describes it - the card's "What it
+  is" rows (made by, adapter, driver), the arrangement tile, `display get`'s
+  `virtual` and `adapter` - because the name and connector it reports are
+  whatever its driver says (this one claims HDMI). Virtual is decided by the
+  adapter: a root-enumerated one (`ROOT\DISPLAY\...`) has no hardware under it.
+- It has no brightness control, so it is the test for software dimming: its
+  brightness slider, unison and the quick panel all dim it in software.
+- It is kept out of the device library: its EDID describes no real monitor.
+
 ## Verifying on real hardware
 
 Screenshots and UI Automation, from **Windows PowerShell 5.1** (`powershell.exe`),

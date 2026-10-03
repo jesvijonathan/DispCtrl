@@ -13,11 +13,12 @@
     ./build/dev.ps1 run engine          # or: app, panel, cli <arguments>
     ./build/dev.ps1 release             # zips, installer, MSIX and notes in artifacts/
     ./build/dev.ps1 options -Configuration Debug -Channel stable -NoNative
+    ./build/dev.ps1 virtual-display add  # a virtual second display for testing (status, remove)
 #>
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('menu','doctor','setup','build','test','perf','run','publish','installer','package','release','clean','options')]
+    [ValidateSet('menu','doctor','setup','build','test','perf','run','publish','installer','package','release','clean','options','virtual-display')]
     [string]$Command = 'menu',
     [Parameter(Position = 1)][string]$Target,
     [ValidateSet('Debug','Release')][string]$Configuration,
@@ -589,4 +590,8 @@ switch ($Command) {
     'release'   { Invoke-Release }
     'clean'     { Invoke-Clean }
     'options'   { Invoke-Options }
+    # A virtual second display for testing on a one-screen machine: never part
+    # of build, test or release. tools/VirtualDisplay.ps1 takes the options
+    # (-Like, -Name, -Mode, -Refresh, -Side); docs/developer/VERIFYING.md.
+    'virtual-display' { & (Join-Path $PSScriptRoot '../tools/VirtualDisplay.ps1') $(if ($Target) { $Target } else { 'status' }) }
 }

@@ -188,7 +188,7 @@ public sealed partial class ControlService
         {
             result.Add((JsonNode)new JsonObject { ["number"] = ++number, ["token"] = d.Token, ["name"] = d.Label,
                 ["alias"] = settings.Monitors.GetValueOrDefault(d.Token)?.Alias ?? "", ["primary"] = d.IsPrimary,
-                ["internal"] = d.IsInternal, ["connector"] = d.Connector.ToString(),
+                ["internal"] = d.IsInternal, ["virtual"] = d.IsVirtual, ["connector"] = d.Connector.ToString(),
                 ["x"] = d.Bounds.Left, ["y"] = d.Bounds.Top, ["width"] = d.Bounds.Width, ["height"] = d.Bounds.Height,
                 ["refreshHz"] = d.RefreshHz, ["scalePercent"] = d.Scale * 100,
                 ["physicalWidthMm"] = d.PhysicalWidthMm, ["physicalHeightMm"] = d.PhysicalHeightMm });
