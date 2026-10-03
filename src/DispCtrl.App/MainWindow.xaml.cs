@@ -385,6 +385,14 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     public void ShowPage(string tag)
     {
+        // Settings is NavigationView's own item, outside the two lists.
+        if (tag == "settings")
+        {
+            // At start-up the item does not exist until the menu has loaded.
+            if (Nav.SettingsItem is NavigationViewItem settings) Nav.SelectedItem = settings;
+            else Nav.Loaded += (_, _) => { if (Nav.SettingsItem is NavigationViewItem item) Nav.SelectedItem = item; };
+            return;
+        }
         foreach (object item in Nav.MenuItems.Concat(Nav.FooterMenuItems))
         {
             if (item is NavigationViewItem entry && entry.Tag as string == tag)

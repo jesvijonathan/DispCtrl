@@ -47,9 +47,18 @@ using DispCtrl, not for people reading the diff.
 - The tray icon's right-click menu no longer offers Quick panel, which a left click already opens, or Close the app; Exit DispCtrl remains.
 
 ### Fixed
+- Identify's numbers no longer jump to the main display a moment after appearing: "Open new windows on the display in use" was moving them. The numbers also no longer take focus.
+- Closing the support banner without a star or a donation plays out a little, the dots typing themselves out, before it fades.
+- `build.sh test` passes on Linux, and CI now runs it there for every change.
 - Discard on the preset banner now clears it. The app compared the desk with its settings from before the preset was applied, and counted differences no apply can put right: a layout that needs an unplugged display, a wallpaper whose file has gone, and a display's name, which the app itself rewrites.
 - `dispctrl awake set --mode on` and `--mode off` work, as the help said they would.
 - A pinned DispCtrl on the taskbar no longer shows a solid square behind its icon. The icon file had one 256 px image, which Explorer shrank badly for pinned items; it now carries every size Windows asks for with real transparency. The Store package gains the target-size "unplated" tile images the taskbar looks for, and a resources.pri that merges the app's own resources with them.
+- A new quick panel opens with only the brightness sections unfolded; every other section and each display's own block start folded.
+- Parsec, spacedesk and other virtual displays, USB display adapters and Miracast are recognised and named as such (they showed as "Unknown").
+- With PowerToys FancyZones set to move new windows to their last zone, "Open new windows on the display in use" leaves new windows to it instead of both moving them.
+- Settings shows the memory the engine uses on its own (about 16 MB) rather than its working set, which counted the libraries every process shares; About shows the size on disk, DispCtrl itself against the runtimes it carries.
+- `DispCtrl.App.exe --page brightness` (or displays, care, windows, taskbar, presets, quickpanel, hotkeys, devices, misc, settings, help, about) opens the window on that page.
+- New screenshots, demo and hero image throughout the README and the website.
 - Downloads are far smaller: the portable zip is about 46 MB (was 74), the command-line zip 19 MB (was 46) and the Store package 47 MB (was 78). The app, the engine and the command line now share one trimmed copy of .NET. The background engine also uses less memory, about 48 MB instead of 73.
 - Importing a preset whose name is longer than a file name may be, when that name is taken, numbers it instead of failing as not a preset.
 - Presets: applying one no longer undoes changes made elsewhere while it applies; a monitor whose brightness range is not 0 to 100 can be saved in a preset; very long names and names like CON save; a desk profile no longer applies with no display attached, and is not missed when the displays change while another preset applies; an app rule written as a program's full path matches it.

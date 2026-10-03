@@ -121,7 +121,12 @@ public partial class App : Application
             if (QuickPanelSignal.ShowRunningWindow()) { Exit(); return; }
         }
 
-        ShowMainWindow();
+        // --page TAG opens on a page (displays, brightness, care, windows,
+        // taskbar, presets, quickpanel, hotkeys, devices, misc, help, about):
+        // for a shortcut, a script, and screenshots taken without selecting a
+        // page, which leaves keyboard focus and its tooltip on the menu.
+        int at = Array.FindIndex(words, a => a.Equals("--page", StringComparison.OrdinalIgnoreCase));
+        ShowMainWindow(at >= 0 && at + 1 < words.Length ? words[at + 1].ToLowerInvariant() : null);
         _ = ViewModel.StartEngineByDefaultAsync();
     }
 

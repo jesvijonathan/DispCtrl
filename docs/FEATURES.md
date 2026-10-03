@@ -36,6 +36,7 @@ stored value, including the few with no switch, is in the
   count, so an unplugged display or a wallpaper file that no longer exists
   never keeps it up.
 - Only one window runs; opening DispCtrl again brings it forward.
+- `DispCtrl.App.exe --page TAG` opens on a page: displays, brightness, care, windows, taskbar, presets, quickpanel, hotkeys, devices, misc, settings, help, about.
 - Now and then - from the fifth time the window opens, never on a first run -
   a one-line banner asks for a star on GitHub or a donation. Either ends it;
   closing it asks once more months later, then never.
