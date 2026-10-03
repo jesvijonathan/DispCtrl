@@ -160,7 +160,11 @@ More shortcuts are set up and switched off on the **Hotkeys** page.
 
 **The quick panel**: brightness first, everything else a fold away
 
-<img src="site/assets/screenshots/quick-panel.png" alt="The quick panel open above the taskbar, with unison brightness and folded sections" width="100%">
+<img src="site/assets/screenshots/quick-panel.png" alt="The quick panel open above the taskbar, with brightness and quick toggles" width="100%">
+
+**Simple mode**, as a new install opens: one slider for every display, and one for each
+
+<img src="site/assets/screenshots/quick-panel-simple.png" alt="The quick panel in Simple mode: one slider for all displays, then one per display" width="100%">
 
 </td>
 <td width="50%" valign="top">
