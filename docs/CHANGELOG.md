@@ -25,6 +25,8 @@ using DispCtrl, not for people reading the diff.
 - A Brightness section at the top of the quick panel, and a slider that dims in software for displays with no brightness control of their own.
 - Company laptop switches under Miscellaneous: sign-in, lock screen and dynamic lock.
 - A simpler way to name a monitor's own controls: change a setting with its buttons and DispCtrl finds it.
+- Monitor sleep can put a display in standby or suspend instead of off, choosing from the states that monitor lists.
+- A monitor control you map yourself can say it is written in smaller units than it reads, as LG's Black Stabilizer is.
 
 ### Improved
 - The quick panel opens and closes more smoothly, and starts with Brightness and Quick toggles open.
@@ -41,6 +43,8 @@ using DispCtrl, not for people reading the diff.
 - The window no longer vanishes when its monitor was unplugged.
 - Settings saved by the engine and the app at the same moment are no longer lost.
 - After an install for everyone, Settings shows the Start menu shortcut as on, as Setup made it.
+- Monitor sleep is no longer offered for the LG UltraWide (GSM-5BF7), which cannot be woken from it, and is only ever sent in a state the monitor lists ([#30](https://github.com/jesvijonathan/DispCtrl/issues/30)).
+- LG UltraWide (GSM-5BF7): Black Stabilizer goes 0 to 100 in steps of 5, as its menu does, and Gamma and three more picture modes have their menu names ([#29](https://github.com/jesvijonathan/DispCtrl/issues/29)).
 
 ## [0.1.5] - 2026-09-26
 
