@@ -8,7 +8,7 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-10-03
+## [0.2.1] - 2026-10-03
 
 ### Highlights
 - **Presets** (Beta): save the whole desk and put it back in one click, automatically when a dock's displays connect, or while an app is in front. Choose what each preset restores.
@@ -32,6 +32,7 @@ using DispCtrl, not for people reading the diff.
 - `dispctrl help` is organised by topic, and the old short commands still work.
 - Update checks are on by default: once a day, the version number only, never a download.
 - The portable download is now named `...-portable.zip`.
+- One `SHA256SUMS.txt` lists every download.
 
 ### Fixed
 - Identify's numbers stay on their own displays.
@@ -173,8 +174,8 @@ The first public release.
 - A per-user installer, portable and CLI zips, and an MSIX for the Microsoft
   Store.
 
-[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.5...v0.2.0
+[Unreleased]: https://github.com/jesvijonathan/DispCtrl/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.5...v0.2.1
 [0.1.5]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.2...v0.1.4
 [0.1.2]: https://github.com/jesvijonathan/DispCtrl/compare/v0.1.1...v0.1.2
