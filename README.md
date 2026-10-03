@@ -154,73 +154,64 @@ More shortcuts are set up and switched off on the **Hotkeys** page.
 <img src="site/assets/demo.gif" alt="A tour of DispCtrl: the quick panel, the Displays, Brightness and Screen care pages" width="880">
 </div>
 
+### The quick panel
+
+Click the tray icon: brightness first, everything else a fold away. A new install opens in Simple mode; the dot in the title bar switches to the full panel.
+
 <table>
 <tr>
-<td width="50%" valign="top">
-
-**The quick panel**: brightness first, everything else a fold away
-
-<img src="site/assets/screenshots/quick-panel.png" alt="The quick panel open above the taskbar, with brightness and quick toggles" width="100%">
-
-**Simple mode**, as a new install opens: one slider for every display, and one for each
-
-<img src="site/assets/screenshots/quick-panel-simple.png" alt="The quick panel in Simple mode: one slider for all displays, then one per display" width="100%">
-
+<td width="50%" align="center" valign="bottom">
+<img src="site/assets/screenshots/quick-panel.png" alt="The full quick panel: brightness, quick toggles and each display" width="300"><br>
+<sub><b>The full panel</b></sub>
 </td>
-<td width="50%" valign="top">
-
-**Displays**: the arrangement at real size, and each display's card
-
-<img src="site/assets/screenshots/displays.png" alt="The Displays page with the arrangement and a display's card open" width="100%">
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-**Brightness**: unison between each display's limits, the room's light, night light
-
-<img src="site/assets/screenshots/brightness.png" alt="The Brightness page with unison brightness and night light" width="100%">
-
-</td>
-<td width="50%" valign="top">
-
-**Screen care**: focus mode, OLED protection, keep awake and displays off
-
-<img src="site/assets/screenshots/screen-care.png" alt="The Screen care page with focus mode and OLED idle protection" width="100%">
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-**Presets**: a whole desk saved, and what has changed since
-
-<img src="site/assets/screenshots/presets.png" alt="The Presets page listing saved presets" width="100%">
-
-</td>
-<td width="50%" valign="top">
-
-**Hotkeys**: shortcuts, features built from steps, and triggers
-
-<img src="site/assets/screenshots/hotkeys.png" alt="The Hotkeys page with the default shortcuts" width="100%">
-
+<td width="50%" align="center" valign="bottom">
+<img src="site/assets/screenshots/quick-panel-simple.png" alt="The quick panel in Simple mode: one slider for all displays, then one per display" width="300"><br>
+<sub><b>Simple mode</b>, as a new install opens</sub>
 </td>
 </tr>
 </table>
 
+### The app
+
+<table>
+<tr>
+<td width="50%" valign="top"><b>Displays</b>: the arrangement at real size<br><br>
+<img src="site/assets/screenshots/displays.png" alt="The Displays page with the arrangement of two displays" width="100%"></td>
+<td width="50%" valign="top"><b>Brightness</b>: unison, room light, night light<br><br>
+<img src="site/assets/screenshots/brightness.png" alt="The Brightness page with unison brightness and night light" width="100%"></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><b>Screen care</b>: focus, OLED care, keep awake<br><br>
+<img src="site/assets/screenshots/screen-care.png" alt="The Screen care page with focus mode and OLED idle protection" width="100%"></td>
+<td width="50%" valign="top"><b>Presets</b>: a whole desk, saved<br><br>
+<img src="site/assets/screenshots/presets.png" alt="The Presets page listing saved presets" width="100%"></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><b>Hotkeys</b>: shortcuts, features, triggers<br><br>
+<img src="site/assets/screenshots/hotkeys.png" alt="The Hotkeys page with the default shortcuts" width="100%"></td>
+<td width="50%" valign="top"><b>Taskbar</b>: hiding, glass, reveal timing<br><br>
+<img src="site/assets/screenshots/taskbar.png" alt="The Taskbar page with glass, opacity and reveal behaviour" width="100%"></td>
+</tr>
+</table>
+
 <details>
-<summary><b>More screenshots</b>: taskbar, devices, the quick panel's own settings, Settings</summary>
+<summary><b>More screenshots</b>: devices, the quick panel's own settings, Settings</summary>
 
 <br>
 
-<img src="site/assets/screenshots/taskbar.png" alt="The Taskbar page with glass, opacity and reveal behaviour" width="880">
-
-<img src="site/assets/screenshots/devices.png" alt="The Devices page with a monitor's codes" width="880">
-
-<img src="site/assets/screenshots/quick-panel-settings.png" alt="The Quick panel page: what the panel shows and how" width="880">
-
-<img src="site/assets/screenshots/settings.png" alt="The Settings page: engine, updates and maintenance" width="880">
+<table>
+<tr>
+<td width="50%" valign="top"><b>Devices</b>: each monitor's controls<br><br>
+<img src="site/assets/screenshots/devices.png" alt="The Devices page with a monitor's details" width="100%"></td>
+<td width="50%" valign="top"><b>Quick panel</b>: what it shows and how<br><br>
+<img src="site/assets/screenshots/quick-panel-settings.png" alt="The Quick panel page: what the panel shows and how" width="100%"></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><b>Settings</b>: engine, updates, maintenance<br><br>
+<img src="site/assets/screenshots/settings.png" alt="The Settings page: engine, updates and maintenance" width="100%"></td>
+<td width="50%" valign="top"></td>
+</tr>
+</table>
 
 </details>
 
@@ -291,23 +282,11 @@ On Linux, macOS or WSL, `./build.sh setup`, `build` and `test` build everything 
 
 ## Support the project
 
-<div align="center">
+DispCtrl is free and open source, made in spare time. A donation pays for development and for monitors to test on.
 
-### Help build a better desk for everyone
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on_GitHub-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan) [![Donate with PayPal](https://img.shields.io/badge/Donate_with_PayPal-0070ba?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/jesvijon) [![Donate with UPI](https://img.shields.io/badge/Donate_with_UPI-168a5b?style=for-the-badge)](https://jesvijonathan.github.io/DispCtrl/#upi)
 
-DispCtrl is free and open source, built in spare time.<br>
-Your support funds development and more monitors to test on.
-
-[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on_GitHub-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/jesvijonathan)
-[![Donate with PayPal](https://img.shields.io/badge/Donate_with_PayPal-0070ba?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/jesvijon)
-[![Donate with UPI](https://img.shields.io/badge/Donate_with_UPI-168a5b?style=for-the-badge)](https://jesvijonathan.github.io/DispCtrl/#upi)
-
-[Visit the support page](https://jesvijonathan.github.io/DispCtrl/#support)
-
-**Every contribution helps.**<br>
-[Star the repository](https://github.com/jesvijonathan/DispCtrl) · [Share your monitor](#contributing) · [Report a bug](https://github.com/jesvijonathan/DispCtrl/issues)
-
-</div>
+Helping costs nothing, too: [star the repository](https://github.com/jesvijonathan/DispCtrl), [share your monitor](#contributing) or [report a bug](https://github.com/jesvijonathan/DispCtrl/issues). Every way to give, including a UPI QR code, is on the [support page](https://jesvijonathan.github.io/DispCtrl/#support).
 
 ## Licence
 
