@@ -939,7 +939,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <button class="cmd" id="wingetCmd" type="button" aria-label="Copy: winget install 9PNQWKNRGVR0 -s msstore">winget install 9PNQWKNRGVR0 -s msstore<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button>
       </div>
     </div>
-    <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/DispCtrl#build-from-source">Build from source</a> with a single <code class="i">build\build.cmd</code>. Every release has its <a href="https://github.com/jesvijonathan/DispCtrl/releases">SHA-256 checksums</a> attached.</p>
+    <p class="alt reveal">Prefer to build it yourself? <a href="https://github.com/jesvijonathan/DispCtrl#build-from-source">Build from source</a> with a single <code class="i">build.cmd</code>. Every release has its <a href="https://github.com/jesvijonathan/DispCtrl/releases">SHA-256 checksums</a> attached.</p>
   </div>
 </section>
 
@@ -1235,6 +1235,11 @@ function turnPanel() {
   if (!pStopped && pSeen && !document.hidden) pTimer = setTimeout(() => { showPanel(pview + 1); turnPanel(); }, 4500);
 }
 ptabs.forEach((b, n) => b.addEventListener('click', () => { pStopped = true; turnPanel(); showPanel(n); }));
+// Arrow keys move between the tabs, as a tab list's do.
+pshot.querySelector('.ptabs').addEventListener('keydown', e => {
+  const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+  if (!step) return; e.preventDefault(); pStopped = true; turnPanel(); showPanel(pview + step); ptabs[pview].focus();
+});
 new IntersectionObserver(es => es.forEach(e => { pSeen = e.isIntersecting; turnPanel(); }), { threshold: .4 }).observe(pshot);
 document.addEventListener('visibilitychange', turnPanel);
 
