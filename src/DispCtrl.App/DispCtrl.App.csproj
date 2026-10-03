@@ -56,6 +56,41 @@
     <ProjectReference Include="..\DispCtrl.Display\DispCtrl.Display.csproj" />
   </ItemGroup>
 
+  <!-- The release bundle: one trimmed runtime for the app, the engine and the
+       command line, which share a folder. Trimming each on its own would leave
+       three different copies of every framework DLL fighting over one file
+       name, so the app references the other two and the trimmer keeps what
+       all three use. Partial: only assemblies marked trimmable are cut;
+       DispCtrl.Display (WMI, P/Invoke) and the executables are kept whole.
+       Built-in COM stays on - WMI brightness is built-in COM, and the trimmer
+       would otherwise remove it from the runtime the engine shares.
+       Publish.ps1 sets DispCtrlBundle; a plain build is unchanged. -->
+  <PropertyGroup Condition="'$(DispCtrlBundle)' == 'true'">
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+    <!-- System.Management, the WinRT projection and built-in COM reflect over
+         what they use, so the trimmer warns about them; they are kept whole or
+         rooted, and the published bundle is run before it ships (Publish.ps1). -->
+    <!-- CsWinRT's generator writes the WinRT interop the app's own types need as
+         code the trimmer can see. Not enough on its own for a type derived from
+         a WinUI class: those also need Trimming.xml (TRAPS.md, Build). -->
+    <CsWinRTAotOptimizerEnabled>true</CsWinRTAotOptimizerEnabled>
+    <ILLinkTreatWarningsAsErrors>false</ILLinkTreatWarningsAsErrors>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(DispCtrlBundle)' == 'true'">
+    <ProjectReference Include="..\DispCtrl.Engine\DispCtrl.Engine.csproj" />
+    <ProjectReference Include="..\DispCtrl.Cli\DispCtrl.Cli.csproj" />
+    <!-- Marked trimmable, but WMI creates its COM classes by reflection: cut,
+         every brightness read on the built-in panel failed with "no
+         parameterless constructor" for WbemDefPath. Kept whole. -->
+    <TrimmerRootDescriptor Include="Trimming.xml" />
+    <TrimmerRootAssembly Include="System.Management" />
+    <TrimmerRootAssembly Include="System.CodeDom" />
+  </ItemGroup>
+
   <!-- The UPI QR on the About page. One file, shared with the website and the
        README, copied beside the executable rather than duplicated here. -->
   <ItemGroup>

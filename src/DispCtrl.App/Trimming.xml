@@ -1,0 +1,33 @@
+<!-- What the release bundle's trimmer must keep that it cannot see used
+     (DispCtrl.App.csproj, DispCtrlBundle). -->
+<linker>
+  <!-- ExpanderLayout derives from NonVirtualizingLayout. WinUI calls its
+       overrides through these interop types, which CsWinRT finds by reflection:
+       trimmed, setting an ItemsRepeater's layout failed with "Not implemented"
+       and the app closed as a display card opened. -->
+  <assembly fullname="Microsoft.WinUI">
+    <type fullname="Microsoft.UI.Xaml.Controls.Layout" preserve="all" />
+    <type fullname="Microsoft.UI.Xaml.Controls.ILayoutOverrides" preserve="all" />
+    <type fullname="Microsoft.UI.Xaml.Controls.NonVirtualizingLayout" preserve="all" />
+    <type fullname="Microsoft.UI.Xaml.Controls.INonVirtualizingLayout" preserve="all" />
+    <type fullname="Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutOverrides" preserve="all" />
+    <type fullname="Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutFactory" preserve="all" />
+    <type fullname="Microsoft.UI.Xaml.Controls.NonVirtualizingLayoutContext" preserve="all" />
+    <type fullname="Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutContext" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.Layout" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.ILayoutOverrides" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.ILayoutOverridesMethods" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.NonVirtualizingLayout" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.NonVirtualizingLayoutRcwFactoryAttribute" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.INonVirtualizingLayout" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutMethods" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutOverrides" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutOverridesMethods" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutFactory" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutFactoryMethods" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.NonVirtualizingLayoutContext" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.NonVirtualizingLayoutContextRcwFactoryAttribute" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutContext" preserve="all" />
+    <type fullname="ABI.Microsoft.UI.Xaml.Controls.INonVirtualizingLayoutContextMethods" preserve="all" />
+  </assembly>
+</linker>

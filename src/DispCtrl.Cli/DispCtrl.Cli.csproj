@@ -21,6 +21,23 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
+  <!-- The CLI zip's bundle: the command line and the engine on one trimmed
+       runtime, as DispCtrl.App.csproj does for the desktop folder (see there).
+       Publish.ps1 sets DispCtrlBundle. -->
+  <PropertyGroup Condition="'$(DispCtrlBundle)' == 'true'">
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+    <ILLinkTreatWarningsAsErrors>false</ILLinkTreatWarningsAsErrors>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(DispCtrlBundle)' == 'true'">
+    <ProjectReference Include="..\DispCtrl.Engine\DispCtrl.Engine.csproj" />
+    <TrimmerRootAssembly Include="System.Management" />
+    <TrimmerRootAssembly Include="System.CodeDom" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\DispCtrl.Control\DispCtrl.Control.csproj" />
     <ProjectReference Include="..\DispCtrl.Core\DispCtrl.Core.csproj" />

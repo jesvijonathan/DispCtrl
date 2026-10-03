@@ -54,6 +54,8 @@ row (`displays not restored after the slider test`, budget 0).
 
 | Finding | Before | After |
 |---|---|---|
+| The release trimmed as one bundle per folder (app, engine and CLI on one runtime; TRAPS.md, Build). | desktop 199 MB, portable zip 74 MB, CLI zip 46 MB, MSIX 78 MB; engine 73 MB working set | 111 MB, 46, 19, 47; engine 48 MB |
+| Re-applying a preset rewrote a wallpaper already shown (the desktop redraws: a flash) and brightness already within a point. Both skipped. | a redraw per display | none |
 | Load straight after a save re-read the file this process had just written; the first open of a renamed file is scanned (5.6 ms vs 0.14 ms). `SettingsStore` keeps its own last write. | load + save 8.15 ms | 2.42 ms |
 | `Process.SessionId` snapshots every process to read one number, in every process that names the pipe or a mutex. `Session.Id` asks Windows. | 7.9 ms | 0.28 ms |
 | `display.set --brightness` read the range twice: four DDC/CI transactions for one change (Dell, same value). | 250 ms | 216 ms |

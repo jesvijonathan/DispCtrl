@@ -15,10 +15,13 @@ beside the `cli` and `desktop` folders they were made from. Publish replaces
 that folder, and removes earlier builds unless given `-KeepOld`. Package stages
 its copy of the desktop folder in temp and deletes it when packed.
 
-Every package is self-contained .NET 10, ReadyToRun, x64 only. Managed rather
-than Native AOT: the WMI adapters have not been verified under AOT (see
-TRAPS.md, Build). Two things are left out on purpose, and are the reason a
-portable zip is ~74 MB rather than ~104:
+Every package is self-contained .NET 10, ReadyToRun, trimmed, x64 only.
+Managed rather than Native AOT: the WMI adapters have not been verified under
+AOT (see TRAPS.md, Build). The app, the engine and the CLI share one trimmed
+runtime per folder (`DispCtrlBundle`, TRAPS.md, Build): the desktop folder is
+~111 MB, the portable zip ~46 MB, the CLI zip ~19 MB and the MSIX ~47 MB
+(before trimming: 199 MB, 74, 46 and 78). Two things are also left out on
+purpose:
 
 - The Windows App SDK's machine learning (onnxruntime, DirectML), AI, Search
   and Widgets components, excluded in `DispCtrl.App.csproj`. Their versions

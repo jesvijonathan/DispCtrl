@@ -838,6 +838,37 @@ unrecallable.
   **`Microsoft.Windows.SDK.NET.dll` is not ReadyToRun** (56 MB -> 25 MB; the
   panel's cold start measured the same, ~540 ms). Together: the desktop folder
   281 -> 197 MB, its zip 104 -> 74 MB.
+- **The release is trimmed as one bundle per folder** (`DispCtrlBundle`, set
+  by `Publish.ps1`). The app, the engine and the CLI share a folder, so
+  trimming each on its own would leave three different copies of each
+  framework DLL under one name; instead the app references the engine and the
+  CLI (the CLI references the engine for its zip) and the trimmer keeps what
+  all of them use. Partial mode: only assemblies marked trimmable are cut.
+  Desktop folder 199 -> 111 MB, portable zip 74 -> 46, CLI zip 46 -> 19, MSIX
+  78 -> 47; the engine's working set 73 -> 48 MB.
+  - **WMI needs `System.Management` and `System.CodeDom` kept whole**
+    (`TrimmerRootAssembly`). They are marked trimmable, but WMI creates its COM
+    classes by reflection: cut, every brightness read on the built-in panel
+    failed with "no parameterless constructor" for `WbemDefPath`. Built-in COM
+    stays on (`BuiltInComInteropSupport`), or the trimmer removes it from the
+    runtime the engine shares.
+  - **A WinRT type the app derives from needs its interop types kept**
+    (`DispCtrl.App/Trimming.xml`). `ExpanderLayout` derives from
+    `NonVirtualizingLayout`; CsWinRT finds its override vtables by reflection,
+    and trimmed, setting an `ItemsRepeater`'s layout failed with "Not
+    implemented" - the app closed as a display card opened. Any new subclass
+    of a WinUI type goes in that file.
+  - **Only content is copied into a trimmed folder** (`Copy-Content`): the
+    untrimmed engine publish's framework DLLs would undo the trim (123 files,
+    26 MB), and its `deps.json` lists DLLs the folder does not have. Without a
+    deps.json the engine loads what is in the folder.
+  - The trimmer's warnings are reported, not fatal: they are about those
+    reflecting assemblies. The proof is running the result - every command,
+    the engine with logging, every page through UI Automation.
+- **The release's start-up probe runs on a throwaway settings folder.** On the
+  real one it wrote itself into `app.path`, the installed engine then started
+  its quick panel from `artifacts`, and the next release failed to delete the
+  locked folder.
 - `DispCtrlVersion` in `Directory.Build.props` is the default `Version`; a
   stable tag that disagrees with it fails `release.yml`. The Release form's
   version defaults to **next patch**, and the workflow bumps and commits it

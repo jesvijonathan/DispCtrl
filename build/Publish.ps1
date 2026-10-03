@@ -38,10 +38,28 @@ try {
     # The compiler server outlives the test build and can still hold an obj
     # file when the first publish starts: CS2012, 'being used by another process'.
     & dotnet build-server shutdown *> $null
-    foreach ($project in @('DispCtrl.Cli','DispCtrl.Engine')) {
-        & dotnet publish "src/$project/$project.csproj" -c Release -r win-x64 --self-contained true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -p:DispCtrlChannel=$Channel -o $cli
-        if ($LASTEXITCODE -ne 0) { throw "Publish failed: $project" }
+    # The engine on its own first, untrimmed and set aside: only its content
+    # (the taskbar-glass helper) is taken from it. Then the CLI zip's bundle:
+    # the command line referencing the engine, on one trimmed runtime.
+    $engineStage = Join-Path ([IO.Path]::GetTempPath()) ('dispctrl-engine-' + [guid]::NewGuid().ToString('N').Substring(0,8))
+    & dotnet publish src/DispCtrl.Engine/DispCtrl.Engine.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -p:DispCtrlChannel=$Channel -o $engineStage
+    if ($LASTEXITCODE -ne 0) { throw 'Publish failed: DispCtrl.Engine' }
+    & dotnet publish src/DispCtrl.Cli/DispCtrl.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=false -p:DispCtrlBundle=true -p:PublishReadyToRun=true -p:Version=$Version -p:DispCtrlChannel=$Channel -o $cli
+    if ($LASTEXITCODE -ne 0) { throw 'Publish failed: DispCtrl.Cli' }
+    # Content only, into a trimmed folder: an untrimmed framework DLL would
+    # undo the trim, and an untrimmed deps.json lists DLLs that are not there.
+    function Copy-Content([string]$from, [string]$to) {
+        Get-ChildItem -LiteralPath $from -Recurse -File | ForEach-Object {
+            $relative = $_.FullName.Substring($from.Length).TrimStart([char]92, [char]47)
+            $target = Join-Path $to $relative
+            if (Test-Path -LiteralPath $target) { return }
+            if (-not $relative.Contains([IO.Path]::DirectorySeparatorChar) -and ($_.Extension -eq '.dll' -or $_.Name -like '*.deps.json')) { return }
+            New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+            Copy-Item -LiteralPath $_.FullName -Destination $target
+        }
     }
+    Copy-Content $engineStage $cli
+    Remove-Item -LiteralPath $engineStage -Recurse -Force -ErrorAction SilentlyContinue
     # The app first, into an empty folder, and only then whatever the CLI and
     # engine add that the app does not already have. The other way round, the
     # app's publish skipped shared files the CLI's publish had just written
@@ -61,14 +79,12 @@ try {
     Get-Process DispCtrl.App -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) } |
         Stop-Process -Force -ErrorAction SilentlyContinue
-    & dotnet publish src/DispCtrl.App/DispCtrl.App.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishAot=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:Version=$Version -p:DispCtrlChannel=$Channel -o $desktop
+    # DispCtrlBundle: the app references the engine and the CLI, and the three
+    # share one trimmed runtime (DispCtrl.App.csproj). 199 MB became 110.
+    & dotnet publish src/DispCtrl.App/DispCtrl.App.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishAot=false -p:DispCtrlBundle=true -p:PublishReadyToRun=true -p:Version=$Version -p:DispCtrlChannel=$Channel -o $desktop
     if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed.' }
-    Get-ChildItem -LiteralPath $cli -Recurse -File | ForEach-Object {
-        $target = Join-Path $desktop $_.FullName.Substring($cli.Length).TrimStart([char]92, [char]47)
-        if (Test-Path -LiteralPath $target) { return }
-        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
-        Copy-Item -LiteralPath $_.FullName -Destination $target
-    }
+    # The taskbar-glass helper, docs and examples, from the CLI's folder.
+    Copy-Content $cli $desktop
     # A release that cannot start must not be packaged: launch it and watch.
     # Skipped on CI runners, which may have no interactive desktop.
     if (-not $env:CI) {
@@ -83,7 +99,15 @@ try {
             $others | Stop-Process -Force -ErrorAction SilentlyContinue
             $others | ForEach-Object { $_.WaitForExit(5000) | Out-Null }
         }
-        $probe = Start-Process -FilePath (Join-Path $desktop 'DispCtrl.App.exe') -PassThru
+        # Against a throwaway settings folder: on the real one the probe
+        # recorded itself in app.path, and the installed engine then started
+        # its quick panel from this artifacts folder, which locked the next run.
+        $probeData = Join-Path ([IO.Path]::GetTempPath()) ('dispctrl-probe-' + [guid]::NewGuid().ToString('N').Substring(0,8))
+        New-Item -ItemType Directory -Path $probeData -Force | Out-Null
+        '{"version":1,"global":{"preloadQuickPanel":false}}' | Set-Content -LiteralPath (Join-Path $probeData 'settings.json')
+        $env:DISPCTRL_DATA_DIR = $probeData
+        try { $probe = Start-Process -FilePath (Join-Path $desktop 'DispCtrl.App.exe') -PassThru }
+        finally { Remove-Item Env:DISPCTRL_DATA_DIR -ErrorAction SilentlyContinue }
         Start-Sleep -Seconds 8
         if ($probe.HasExited) {
             $still = @(Get-Process DispCtrl.App -ErrorAction SilentlyContinue)
@@ -93,6 +117,8 @@ try {
             throw "The published app exits at start (code $($probe.ExitCode)); see app-crash.log in %LOCALAPPDATA%\DispCtrl."
         }
         Stop-Process -Id $probe.Id -Force -ErrorAction SilentlyContinue
+        $probe.WaitForExit(5000) | Out-Null
+        Remove-Item -LiteralPath $probeData -Recurse -Force -ErrorAction SilentlyContinue
     }
     if ($Sign) {
         # DispCtrl's own binaries only. The runtime's are Microsoft-signed
