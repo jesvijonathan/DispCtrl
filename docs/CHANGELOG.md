@@ -10,74 +10,35 @@ using DispCtrl, not for people reading the diff.
 
 ## [0.2.0] - 2026-10-03
 
-### Added
-- Presets are switched on (still labelled Beta): save and apply the whole desk, apply automatically when a desk's displays connect, launch a program with a preset and get the desk back after, and per-app rules. They were built but left out of earlier releases.
-- Taskbar glass looks, as TranslucentTB offers them: blur, clear, opaque and acrylic, tinted with a colour of your own or Windows' accent colour, and the thin border along the taskbar's top shown or hidden. Off is Windows' normal taskbar. On the Taskbar page and `dispctrl taskbar set --look acrylic --accent on --border off`.
-- OLED care can pause while a video plays on a display - in a browser or a player, fullscreen or in a window - as Windows' media sessions report it; music playing alone still lets the displays rest. On by default, beside "Pause during fullscreen content".
-- Each display's night light warmth and focus dimming level can follow the common setting or be its own, with "Same as all displays" on the display's card and `common` on the command line (`dispctrl focus set --monitor 2 --dim-percent common`). Resetting a display puts all of its own values back.
-- Triggers: when something happens, run a custom feature - a display connected or disconnected, an app coming to the front or leaving it, being away and coming back, the computer locking or unlocking, unplugging or plugging in, waking, or a time of day. On the Hotkeys page and `dispctrl triggers`; the engine runs them, looking only as often as the triggers in use need.
-- Move the window in front to the next, previous or a chosen display, keeping its place and size in proportion across displays at different scales, and stretch it across every display: shortcuts (offered switched off on Ctrl+Alt+], [ and S) and `dispctrl placement move --to next` / `placement span`.
-- Company laptop switches, under Settings and `dispctrl machine`: sign in without Ctrl+Alt+Del, your own lock screen picture, skip the lock screen, no blur behind the sign-in box, lock after inactivity, dynamic lock, and no tips on the lock screen. Each reads back what Windows has, asks for administrator permission only when a machine-wide one is changed, says when an organisation manages the computer, and can be put back as it was.
-- OLED care's third stage: after the dim stages a display goes black as if off, with its backlight down too, and "Keep the computer active" off lets Windows sleep and lock on its own timers once nobody is there. Each display can follow the common timing or have its own (rest after, dim level, when it turns off), from the OLED care list or `dispctrl oled set --monitor 2 --idle-minutes 10`; `common` puts a value back.
-- A Brightness section for the full quick panel: all displays, then each one, with unison's switch in its header. A new panel opens on it; Unison brightness, with its Windows brightness switch, moves below Focus and starts folded beneath it. A panel arranged before keeps its own order, and its Unison section stays open while Brightness is not shown.
-- A guided mapper for all monitor brands: scans list new codes, watching saves observations for contributions, and mapped choices, sliders and buttons appear on Displays. Mapping values have individual name fields and model/brand/all scopes.
-- Shortcuts for the four arrangements Win+P offers - extend, duplicate, PC screen only, second screen only - on Ctrl+Alt+1 to 4. Offered switched off, because each one reconfigures the display stack and a mistyped digit is an expensive accident.
-- Shortcuts for the rest of what DispCtrl does: follow the room's light, software dimming, monitor volume and mute, HDR, variable refresh rate, make a display the main one, put windows back, and open new windows on the display in use.
-- Shortcuts that run something you wrote: a `dispctrl` command, or any program, file or link, the way a custom quick-panel tile does.
-- Experimental LG alternate input switching through NVIDIA, AMD and Intel GPU APIs, enabled only by a model-specific device mapping. Mapping contributions retain the transport metadata; hardware confirmation is still required.
+### Highlights
+- **Presets** (Beta): save the whole desk and put it back in one click, automatically when a dock's displays connect, or while an app is in front. Choose what each preset restores.
+- **Taskbar glass looks**: blur, clear, opaque or acrylic, in your own colour or Windows' accent, with or without the top border.
+- **Triggers**: run a feature when a display connects, an app comes to the front, the computer locks or wakes, at a time of day, and more.
+- **A clearer app**: Brightness, Screen care and Windows have pages of their own, and each card shows the common settings first.
+- **Smaller and lighter**: downloads are about 40% smaller, and the background engine uses about a third less memory.
 
-### Changed
-- The app is easier to find your way around. Brightness (unison, the light sensor, night light, dark mode), Screen care (focus mode, OLED protection, keep awake and turning the displays off) and Windows (pinning, gathering, putting back) have pages of their own instead of sharing the Displays page with every display. Each feature and each display shows the settings most people change first, with the rest under "Advanced options". Settings ends with an Advanced section, the quick panel's options are grouped, and the taskbar glass options show only while glass is on.
-- Naming a monitor's own controls is much simpler. The Devices page shows one monitor at a time and offers the quickest ways first: Learn a setting (change it with the monitor's buttons and DispCtrl finds the code), borrowing the names a sibling model already has in the library (`dispctrl devices similar`), or naming a code by hand. Its codes are filtered to the ones left to name and grouped into the standard and the manufacturer's own range. A laptop's built-in panel can be marked as OLED or not.
-- The Hotkeys page shows shortcuts, features, triggers and Windows' own keys on tabs of their own; choosing what a shortcut does is a group, then the action, and its display is chosen by name.
-- The quick panel keeps up with the features it switches: OLED care's section and tile include the third stage and pausing for video, the taskbar tile includes the glass looks, colour and border, and there are new tiles for following the room's light and for the way back (Ctrl+Alt+Backspace). The section that was "Simple brightness" is "Brightness", and the Quick panel page leads with what the panel shows.
-- The preset in use is shown in the title bar on every page, with a dot when the displays have moved from it; clicking it switches, applies, saves or starts a preset. When the displays differ from it, one line across the top of the window says so, with Save, Discard and the list of changes. The bar that sat above the engine status on the Displays page is gone.
-- The command line has one implementation: the first version's short commands (`brightness -10 --all`, `input "HDMI 1" --display 2`, `nightlight 60 --from 20:00 --to 07:00` and the rest) still work, and now answer like every other command. Presets are commands of their own, `dispctrl preset list|save|apply|diff|delete|desk|launch`.
-- Settings that were grouped or named misleadingly say what they hold: the quick panel's options are the icon, size, opening and position, and the mouse wheel; the taskbar glass's "corner rounding" is its blur, and its tint is the colour's strength in every look.
-- The download you unzip and run without installing is named `...-portable.zip` (it was `...-desktop.zip`).
-- `dispctrl help` is organised by topic - displays, controls, brightness, night light, screen care, windows, taskbar, presets, automation, devices, system, scripting - and `dispctrl help TOPIC`, `dispctrl help COMMAND` or `COMMAND --help` shows one. It now lists every command; several (`ddc reset`, `features get`, `triggers get`, `devices share`) were missing.
-- The quick panel's Presets section is a list of presets with an Apply button, and says whether the displays still match the one chosen.
-- The Presets page is a list: every preset on its own row, with what it holds, how many of its displays are attached and when it was saved, Apply on the row and the rest in its menu. The preset in use is marked, and its changes are shown under a heading that names it. New preset opens a small dialog instead of a form that sat on the page.
-- Features on the Hotkeys page are put together with a form: each step a row - set a monitor control, run a DispCtrl command, open a program, run a script, wait - chosen from a list, moved up and down, removed. Edit as text still writes them as lines, and Save lights only when something has changed.
-- The sign-in and lock screen switches moved from Settings to a new Miscellaneous page, with tools beside them: refresh the taskbar, put every display back, and Windows' display and colour settings.
-- The Taskbar page can refresh the taskbar: Windows Explorer restarts and DispCtrl applies hiding, glass and opacity again (`dispctrl maintenance restart-explorer`). The Look setting says what Acrylic is: the same blur, with the colours behind about 40% more vivid.
-- Checking for updates once a day is on by default; it was off until switched on. It sends the version number and nothing else, never downloads, and is one switch to turn off. A settings file from an earlier version keeps its choice.
-- With only one display attached, its card on the Displays page starts open. The quick panel's Quick toggles list starts open on the Quick panel page, and a quick panel section switched on there arrives unfolded.
-- A preset can leave parts of the desk alone. "What it restores", in New preset and on each preset's menu, ticks layout, brightness, night light, wallpaper, monitor controls, taskbar and windows; anything unticked is not touched when it applies and never shows as a change, and the preset's row says what it leaves alone (`dispctrl preset set NAME --skip brightness`). Brightness moved by the room's light no longer counts as a change, and the change notice can be switched off on the Presets page.
-- Now and then, from the fifth time the window is opened, a one-line banner asks for a star on GitHub or a donation. Either ends it; closed, it asks once more after ninety days, then never.
-- The documentation is reorganised: the README is a front page, with every feature page by page in `docs/FEATURES.md` and every stored setting, its default and what it does in `docs/SETTINGS.md`.
-- The tray icon's right-click menu no longer offers Quick panel, which a left click already opens, or Close the app; Exit DispCtrl remains.
+### New
+- OLED care can turn a resting display fully off as a third stage, and pauses while a video plays.
+- Night light warmth and focus dimming can be set per display.
+- Move the window in front to another display, or stretch it across all of them.
+- Shortcuts for the Win+P arrangements, for more features, and for your own commands and programs (all off until you switch them on).
+- A Brightness section at the top of the quick panel, and a slider that dims in software for displays with no brightness control of their own.
+- Company laptop switches under Miscellaneous: sign-in, lock screen and dynamic lock.
+- A simpler way to name a monitor's own controls: change a setting with its buttons and DispCtrl finds it.
+
+### Improved
+- The quick panel opens and closes more smoothly, and starts with only Brightness unfolded.
+- Virtual displays (Parsec, spacedesk), USB adapters and Miracast are recognised; FancyZones keeps placing its own windows.
+- `dispctrl help` is organised by topic, and the old short commands still work.
+- Update checks are on by default: once a day, the version number only, never a download.
+- The portable download is now named `...-portable.zip`.
 
 ### Fixed
-- Identify's numbers no longer jump to the main display a moment after appearing: "Open new windows on the display in use" was moving them. The numbers also no longer take focus.
-- Closing the support banner without a star or a donation plays out a little, the dots typing themselves out, before it fades.
-- `build.sh test` passes on Linux, and CI now runs it there for every change.
-- Discard on the preset banner now clears it. The app compared the desk with its settings from before the preset was applied, and counted differences no apply can put right: a layout that needs an unplugged display, a wallpaper whose file has gone, and a display's name, which the app itself rewrites.
-- `dispctrl awake set --mode on` and `--mode off` work, as the help said they would.
-- A pinned DispCtrl on the taskbar no longer shows a solid square behind its icon. The icon file had one 256 px image, which Explorer shrank badly for pinned items; it now carries every size Windows asks for with real transparency. The Store package gains the target-size "unplated" tile images the taskbar looks for, and a resources.pri that merges the app's own resources with them.
-- The quick panel's Presets section is quieter: no second "Preset" label above the picker, a line under it only when the displays have moved from the chosen preset (and what moved), and with no presets saved a link to the Presets page instead of saying presets are coming.
-- A new quick panel opens with only Brightness unfolded; every other section and each display's own block start folded.
-- Parsec, spacedesk and other virtual displays, USB display adapters and Miracast are recognised and named as such (they showed as "Unknown").
-- With PowerToys FancyZones set to move new windows to their last zone, "Open new windows on the display in use" leaves new windows to it instead of both moving them.
-- Settings shows the memory the engine uses on its own (about 16 MB) rather than its working set, which counted the libraries every process shares; About shows the size on disk, DispCtrl itself against the runtimes it carries.
-- `DispCtrl.App.exe --page brightness` (or displays, care, windows, taskbar, presets, quickpanel, hotkeys, devices, misc, settings, help, about) opens the window on that page.
-- Virtual displays are told apart from real ones by the graphics adapter behind them, not by the name and connector they claim: a display card's information starts with what it is (built-in, external, or virtual and the software that makes it), its graphics adapter and driver; its tile in the arrangement says Virtual; `dispctrl display get` reports `virtual` and `adapter`. Virtual displays are kept out of the device library.
-- `build.cmd virtual-display add|status|remove` (tools/VirtualDisplay.ps1) adds a virtual second display for testing on a one-screen machine, optionally with a real monitor's size, timings and name. Never part of build, test or release.
-- The quick panel's sections fade and slide a little as they open and fold. The compositor plays it, so it costs nothing while nothing moves; the Animations switch on the Quick panel page, and Windows' animation effects, turn it off.
-- The full panel's Brightness section follows the panel's density: at Compact and Comfortable it uses the same rows as the rest of the panel, a name above each slider; Spacious keeps the large sliders, and Simple mode is unchanged.
-- Displays with no brightness control of their own (virtual displays, many TVs) get a brightness slider that dims in software, follow unison, and show in the quick panel; "Dim in software" on a display's card does the same for a monitor whose DDC/CI is off or unreliable.
-- New screenshots, demo and hero image throughout the README and the website. The website shows the full and Simple quick panels in turn, and the first two rows of features with the rest a click away.
-- The quick panel rises and sinks evenly. It travels its whole height on curves made for flyouts that move a few dozen pixels, so its first frame jumped about 390 px and then crawled; every frame now moves under about 115 px, timed by the frames themselves.
-- One build entry point for every system: `build.cmd` at the repository root runs on Windows as before and, as `./build.cmd`, on Linux, macOS and WSL, where it hands over to `build/build.sh` (moved there from the root).
-- A settings save by another program within the same instant as DispCtrl's own, and of the same length, is no longer mistaken for DispCtrl's own and missed. The file's ID tells them apart where Windows offers it (Windows 11 24H2 and later).
-- Downloads are far smaller: the portable zip is about 46 MB (was 74), the command-line zip 19 MB (was 46) and the Store package 47 MB (was 78). The app, the engine and the command line now share one trimmed copy of .NET. The background engine also uses less memory, about 48 MB instead of 73.
-- Importing a preset whose name is longer than a file name may be, when that name is taken, numbers it instead of failing as not a preset.
-- Presets: applying one no longer undoes changes made elsewhere while it applies; a monitor whose brightness range is not 0 to 100 can be saved in a preset; very long names and names like CON save; a desk profile no longer applies with no display attached, and is not missed when the displays change while another preset applies; an app rule written as a program's full path matches it.
-- The engine wakes about half as often when idle: opening new windows on the display in use now listens only for real windows, and app rules are checked only when there are some.
-- The DispCtrl window, left on a monitor that was then unplugged, flickered into view and vanished when opened again or clicked on the taskbar. It now comes back onto a display that is attached.
-- A display's night light slider no longer turns into a setting of its own as the page draws it: a display following the common warmth kept following it only until its card was first opened.
-- Hotkey action fields now update when the action changes. Slow shortcut actions are serialized off the keyboard pump; volume, mute, contrast and input commands read only the requested control.
-- LG mappings require device schema 2 so older builds cannot interpret their wire values as standard DDC. Stale input controls reject writes after their transport mapping changes.
+- Identify's numbers stay on their own displays.
+- The pinned taskbar icon no longer shows a square behind it.
+- Several preset fixes: Discard clears the banner, apply no longer undoes changes made meanwhile, and long or reserved names save.
+- The window no longer vanishes when its monitor was unplugged.
+- Settings saved by the engine and the app at the same moment are no longer lost.
 
 ## [0.1.5] - 2026-09-26
 

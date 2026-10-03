@@ -53,9 +53,11 @@ if ($Version -match '-') {
 $notes.Add('')
 $notes.Add('| File | For |')
 $notes.Add('|---|---|')
-$notes.Add('| `DispCtrl-*-setup.exe` | Most people. Per-user, no admin rights, starts at sign-in. |')
-$notes.Add('| `DispCtrl-*-portable.zip` | Portable: unzip anywhere and run `DispCtrl.App.exe`. |')
+# In the order GitHub lists the files under the notes (by name), so each row
+# sits where its file does; the installer stays marked as the one to take.
 $notes.Add('| `DispCtrl-*-cli.zip` | `dispctrl.exe` and the engine, with no window. |')
+$notes.Add('| `DispCtrl-*-portable.zip` | Portable: unzip anywhere and run `DispCtrl.App.exe`. |')
+$notes.Add('| `DispCtrl-*-setup.exe` | **Most people.** Per-user, no admin rights, starts at sign-in. |')
 $notes.Add('| `DispCtrl-*.msix` | The Microsoft Store package. Installs directly only when it is signed. |')
 $notes.Add('')
 $notes.Add('Windows 11, x64. Self-contained, so no .NET install is needed. Settings in `%LOCALAPPDATA%\DispCtrl` carry over between versions and between the installer and the zips.')
