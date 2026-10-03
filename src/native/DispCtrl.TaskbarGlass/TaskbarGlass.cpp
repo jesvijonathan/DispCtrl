@@ -129,11 +129,13 @@ struct ThreadState {
                 check(bg.shape->get_Fill(current.put()), "Check Fill");
                 if (unchanged && bg.applied && current.get() == bg.applied.get()) continue;
                 // Explorer can replace Fill when its auto-hide/theme state changes.
-                // Preserve that new system brush for restoration, then reuse our
-                // existing compositor effect unless its configuration changed.
+                // Preserve that new system brush for restoration, and build a new
+                // effect rather than put the old one back, which belonged to the
+                // background as it was before Explorer changed it. Suspected, not
+                // reproduced: the taskbar was once found solid black under blur
+                // until the look was changed, which builds a new effect.
                 if (current.get() != bg.applied.get()) bg.original = std::move(current);
-                if (unchanged && bg.applied) check(bg.shape->put_Fill(bg.applied.get()), "Reapply Fill");
-                else apply(bg);
+                apply(bg);
             }
             applyStrokes();
             active = true; error = S_OK;
