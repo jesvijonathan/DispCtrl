@@ -648,7 +648,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <p>Turn on <b>Replace Windows brightness</b> and the Quick Settings slider and your laptop's brightness keys move every display, not just the one they were made for.</p>
         <div class="tags"><span>DDC/CI</span><span>Calibrated ranges</span><span>Brightness keys</span><span>Hot-plug aware</span></div>
       </div>
-      <img src="assets/screenshots/unison.png" alt="Unison brightness in DispCtrl" loading="lazy">
+      <img src="assets/screenshots/brightness.png" alt="Unison brightness and night light in DispCtrl" loading="lazy">
     </div>
 
     <!-- Each glyph is drawn twice: once in the chip, once oversized behind the text. -->
@@ -715,7 +715,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hotkeys"/></svg></div>
         <h3>Global hotkeys</h3>
         <p>Brightness, night light, focus, pinning and more, even with the window closed.</p>
-        <div class="tags"><span>Conflict warnings</span><span>26 actions</span></div>
+        <div class="tags"><span>Conflict warnings</span><span>50 actions</span></div>
       </div>
       <div class="card feat reveal" style="--tint:#6be0d6;--tint-l:#0f7c76">
         <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-setup"/></svg></div>
@@ -744,6 +744,20 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
         <h3>Safe with every monitor</h3>
         <p>Stops talking to a monitor whose capabilities read took Windows down, and asks a silent one, read-only, what it supports.</p>
         <div class="tags"><span>Crash guard</span><span>Read-only probe</span></div>
+      </div>
+      <div class="card feat reveal" style="--tint:#7ad7e5;--tint-l:#16707f">
+        <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-setup"/></svg></div>
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-setup"/></svg></div>
+        <h3>Presets</h3>
+        <p>Save the whole desk and put it back in one click, when an app comes to the front, or when a dock's displays connect. Choose what each one restores; brightness can stay yours.</p>
+        <div class="tags"><span>Desk profiles</span><span>App rules</span><span>Beta</span></div>
+      </div>
+      <div class="card feat reveal" style="--tint:#e5c07a;--tint-l:#7f5a16">
+        <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-taskbar"/></svg></div>
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-taskbar"/></svg></div>
+        <h3>Works with your setup</h3>
+        <p>Docks, daisy chains, USB display adapters, Miracast and virtual displays such as Parsec or spacedesk. Leaves Snap layouts alone, and new windows to FancyZones when it places them.</p>
+        <div class="tags"><span>Virtual displays</span><span>FancyZones</span></div>
       </div>
       <div class="card feat reveal" style="--tint:#d9a6ff;--tint-l:#8238c2">
         <div class="art" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-update"/></svg></div>
@@ -784,7 +798,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <div class="glist" role="tablist" id="glist"></div>
       <div class="gview"><img id="gimg" src="assets/screenshots/displays.png" alt="Displays" loading="lazy"><div class="gdots" id="gdots" aria-hidden="true"></div></div>
     </div>
-      <noscript><p class="sub" style="text-align:center;margin:16px auto 0">More screens: <a href="assets/screenshots/display-settings.png">each display</a>, <a href="assets/screenshots/taskbar.png">taskbar</a>, <a href="assets/screenshots/quick-panel-settings.png">quick panel</a>, <a href="assets/screenshots/hotkeys.png">hotkeys</a>, <a href="assets/screenshots/devices.png">devices</a>, <a href="assets/screenshots/settings.png">settings</a>.</p></noscript>
+      <noscript><p class="sub" style="text-align:center;margin:16px auto 0">More screens: <a href="assets/screenshots/brightness.png">brightness</a>, <a href="assets/screenshots/screen-care.png">screen care</a>, <a href="assets/screenshots/presets.png">presets</a>, <a href="assets/screenshots/taskbar.png">taskbar</a>, <a href="assets/screenshots/quick-panel-settings.png">quick panel</a>, <a href="assets/screenshots/hotkeys.png">hotkeys</a>, <a href="assets/screenshots/devices.png">devices</a>, <a href="assets/screenshots/settings.png">settings</a>.</p></noscript>
   </div>
 </section>
 
@@ -871,7 +885,7 @@ footer{margin-top:40px;border-top:1px solid var(--line);background:linear-gradie
       <span class="eyebrow">Download</span>
       <!-- The product mark redrawn as one glyph: the monitor, downloading. -->
       <h2><svg class="dlglyph" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="4" width="28" height="19.5" rx="3.2" fill="currentColor" opacity=".09" stroke="none"/><rect x="2" y="4" width="28" height="19.5" rx="3.2"/><path d="M16 23.5v3.3M10.2 26.8h11.6"/><path class="arrow" d="M16 9.2v7.6m0 0-3.3-3.3M16 16.8l3.3-3.3"/></svg>Get DispCtrl</h2>
-      <p class="sub">Windows 11 on x64. Installs per user; nothing needs administrator rights.</p>
+      <p class="sub">Windows 11 on x64, about 30 MB to download. Installs per user; nothing needs administrator rights, and nothing else needs installing.</p>
       <span class="ver" id="ver">Latest <b class="vername">v0.1.5</b><span id="verdate"></span> · <a class="vernotes" href="https://github.com/jesvijonathan/DispCtrl/releases/latest">What's new</a></span>
     </div>
     <div class="dl">
@@ -1102,10 +1116,12 @@ if (heroSay.length > 1 && !matchMedia('(prefers-reduced-motion: reduce)').matche
 // Tour
 const shots = [
   ['Displays', 'Arrangement by real size', 'displays.png'],
-  ['Each display', 'Modes, HDR, colour, controls', 'display-settings.png'],
+  ['Brightness', 'Unison, room light, night light', 'brightness.png'],
+  ['Screen care', 'Focus, OLED care, keep awake', 'screen-care.png'],
+  ['Presets', 'A whole desk, saved', 'presets.png'],
   ['Taskbar', 'Hiding, glass, timing', 'taskbar.png'],
   ['Quick panel', 'What the tray panel shows', 'quick-panel-settings.png'],
-  ['Hotkeys', 'Global shortcuts', 'hotkeys.png'],
+  ['Hotkeys', 'Shortcuts, features, triggers', 'hotkeys.png'],
   ['Devices', 'Monitors and their codes', 'devices.png'],
   ['Settings', 'Updates, repair, reset', 'settings.png']
 ];
