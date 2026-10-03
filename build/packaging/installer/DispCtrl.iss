@@ -131,12 +131,15 @@ begin
   Script :=
     'param([string]$Root, [switch]$RemoveTask)' + #13#10 +
     '$root = [IO.Path]::GetFullPath($Root).TrimEnd([char]92) + [char]92' + #13#10 +
-    'function Mine($name) { @(Get-Process $name -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) }) }' + #13#10 +
+    '# The path from CIM, not Get-Process: a 32-bit PowerShell reads no path for a' + #13#10 +
+    '# 64-bit process, matched nothing and stopped nothing, and setup then failed' + #13#10 +
+    '# on the files the running engine and window held.' + #13#10 +
+    'function Mine($name) { @(Get-CimInstance Win32_Process -Filter "Name = ''$name.exe''" -ErrorAction SilentlyContinue | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) }) }' + #13#10 +
     '$engines = Mine ''DispCtrl.Engine''' + #13#10 +
-    'foreach ($e in $engines) { Start-Process -FilePath $e.Path -ArgumentList ''stop'' -Wait -WindowStyle Hidden }' + #13#10 +
-    'foreach ($e in $engines) { $null = $e.WaitForExit(20000) }' + #13#10 +
-    'Mine ''DispCtrl.App'' | Stop-Process -Force -ErrorAction SilentlyContinue' + #13#10 +
-    'Mine ''dispctrl'' | Stop-Process -Force -ErrorAction SilentlyContinue' + #13#10 +
+    'foreach ($e in $engines) { Start-Process -FilePath $e.ExecutablePath -ArgumentList ''stop'' -Wait -WindowStyle Hidden }' + #13#10 +
+    'foreach ($e in $engines) { $p = Get-Process -Id $e.ProcessId -ErrorAction SilentlyContinue; if ($p) { $null = $p.WaitForExit(20000) } }' + #13#10 +
+    'Mine ''DispCtrl.App'' | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' + #13#10 +
+    'Mine ''dispctrl'' | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' + #13#10 +
     'if ($RemoveTask) {' + #13#10 +
     '  $xml = (schtasks.exe /Query /TN DispCtrl.Engine /XML 2>$null) -join [Environment]::NewLine' + #13#10 +
     '  if ($LASTEXITCODE -eq 0 -and ([xml]$xml).Task.Actions.Exec.Command.Trim([char]34).StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {' + #13#10 +
