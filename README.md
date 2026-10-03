@@ -113,10 +113,10 @@ A native Windows app, a quick panel in your tray, and a scriptable command line.
 
 ## Install
 
-- **Microsoft Store**, which keeps it updated: [get DispCtrl](https://apps.microsoft.com/detail/9PNQWKNRGVR0), or `winget install 9PNQWKNRGVR0 --source msstore`
-- **Installer**: `...-setup.exe` from the [latest release](https://github.com/jesvijonathan/DispCtrl/releases/latest). No administrator rights, starts at sign-in, keeps your settings when it updates.
-- **Portable**: `...-portable.zip`. Unzip anywhere and run `DispCtrl.App.exe`.
-- **Command line only**: `...-cli.zip`, for scripts.
+- [**Microsoft Store**](https://apps.microsoft.com/detail/9PNQWKNRGVR0) - updates itself. Or: `winget install 9PNQWKNRGVR0 --source msstore`
+- [**Installer**](https://github.com/jesvijonathan/DispCtrl/releases/latest) (`...-setup.exe`) - no administrator rights, starts at sign-in, keeps your settings.
+- [**Portable**](https://github.com/jesvijonathan/DispCtrl/releases/latest) (`...-portable.zip`) - unzip anywhere and run `DispCtrl.App.exe`.
+- [**Command line**](https://github.com/jesvijonathan/DispCtrl/releases/latest) (`...-cli.zip`) - for scripts, without the window.
 
 Windows 11, x64; nothing else to install. Settings live in `%LOCALAPPDATA%\DispCtrl`.
 
