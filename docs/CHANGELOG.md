@@ -27,7 +27,7 @@ using DispCtrl, not for people reading the diff.
 - A simpler way to name a monitor's own controls: change a setting with its buttons and DispCtrl finds it.
 
 ### Improved
-- The quick panel opens and closes more smoothly, and starts with only Brightness unfolded.
+- The quick panel opens and closes more smoothly, and starts with Brightness and Quick toggles open.
 - Virtual displays (Parsec, spacedesk), USB adapters and Miracast are recognised; FancyZones keeps placing its own windows.
 - `dispctrl help` is organised by topic, and the old short commands still work.
 - Update checks are on by default: once a day, the version number only, never a download.
@@ -40,6 +40,7 @@ using DispCtrl, not for people reading the diff.
 - Several preset fixes: Discard clears the banner, apply no longer undoes changes made meanwhile, and long or reserved names save.
 - The window no longer vanishes when its monitor was unplugged.
 - Settings saved by the engine and the app at the same moment are no longer lost.
+- After an install for everyone, Settings shows the Start menu shortcut as on, as Setup made it.
 
 ## [0.1.5] - 2026-09-26
 
