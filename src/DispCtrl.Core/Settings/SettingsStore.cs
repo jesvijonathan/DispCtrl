@@ -31,7 +31,7 @@ public static partial class SettingsStore
     private static readonly ConditionalWeakTable<DispCtrlSettings, Snapshot> Snapshots = new();
 
     /// <summary>The text this process last saved, and the identity of the file that save produced.</summary>
-    private sealed record OwnWrite(DateTime Written, DateTime Created, long Length, string Text);
+    private sealed record OwnWrite(FileStamp Stamp, string Text);
     private static volatile OwnWrite? _ownWrite;
     public static string Directory { get; } = Resolve();
 
@@ -314,17 +314,12 @@ public static partial class SettingsStore
     /// freshly renamed settings file costs ~5.6 ms against 0.14 ms for the next
     /// (the antivirus scans it; measured on the 9 KB file of a four-monitor desk,
     /// perfcheck core), and the app loads straight after its own saves. Metadata
-    /// does not open the file: unchanged write time, creation time (a rename-over
-    /// brings the temp file's) and length mean nobody else has saved since.
+    /// does not open the file: an unchanged <see cref="FileStamp"/> means nobody
+    /// else has saved since.
     /// </para>
     private static string ReadShared()
     {
-        if (_ownWrite is { } own)
-        {
-            var info = new FileInfo(Path_);
-            if (info.Exists && info.Length == own.Length && info.LastWriteTimeUtc == own.Written && info.CreationTimeUtc == own.Created)
-                return own.Text;
-        }
+        if (_ownWrite is { } own && own.Stamp != default && FileStamp.Of(Path_) == own.Stamp) return own.Text;
         for (int attempt = 0; ; attempt++)
         {
             try
@@ -369,8 +364,7 @@ public static partial class SettingsStore
                 File.WriteAllText(tmp, text);
                 _ownWrite = null;
                 ReplaceWithRetry(tmp);
-                var written = new FileInfo(Path_);
-                _ownWrite = new OwnWrite(written.LastWriteTimeUtc, written.CreationTimeUtc, written.Length, text);
+                _ownWrite = new OwnWrite(FileStamp.Of(Path_), text);
             }
             finally { if (File.Exists(tmp)) File.Delete(tmp); }
             Snapshots.Remove(settings);
