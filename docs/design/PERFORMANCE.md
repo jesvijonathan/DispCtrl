@@ -1,6 +1,6 @@
 # Display and preset performance
 
-> Measuring now lives in `tools/perfcheck` (`build\build.cmd perf`); the guide, the
+> Measuring now lives in `tools/perfcheck` (`build.cmd perf`); the guide, the
 > budgets and what it has found are in [the performance guide](../developer/PERFORMANCE.md).
 > This page keeps the reasoning behind the display and preset caches.
 

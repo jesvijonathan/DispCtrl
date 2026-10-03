@@ -5,6 +5,8 @@
 # Line endings the tools reading these files require.
 *.sh   text eol=lf
 *.cmd  text eol=crlf
+# Also a shell script (see its first line), which needs LF; cmd copes without labels.
+build.cmd text eol=lf
 *.bat  text eol=crlf
 *.ps1  text eol=crlf
 *.iss  text eol=crlf

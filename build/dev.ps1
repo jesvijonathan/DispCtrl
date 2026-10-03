@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     One entry point for working on DispCtrl: check the machine, set it up, build,
-    test, run and package. Run with no command for a menu (build\build.cmd does that
+    test, run and package. Run with no command for a menu (build.cmd does that
     on a double-click).
 
 .EXAMPLE

@@ -45,17 +45,17 @@ the outputs that are scrubbed for you.
    corrupted setting. Most bugs worth fixing here were caused by one of them.
 2. Set up and build. [docs/developer/DEVELOPING.md](../docs/developer/DEVELOPING.md) has the details:
    ```powershell
-   .\build\build.cmd setup -Install
-   .\build\build.cmd build
-   .\build\build.cmd test -Hardware
+   .\build.cmd setup -Install
+   .\build.cmd build
+   .\build.cmd test -Hardware
    ```
    `test` alone needs no display hardware. `-Hardware` adds `DispCtrl.Hardware.Checks`,
    which asserts the redaction rules against the monitors actually attached.
-   On Linux, `./build/build.sh build && ./build/build.sh test` covers everything but the
+   On Linux, `./build.cmd build && ./build.cmd test` covers everything but the
    window.
 3. **Leave the desk as you found it.** A test that changes brightness, night light
    or a monitor setting must put it back, including when it fails.
-4. Build through `build\build.cmd build`, which stops the engine gracefully and
+4. Build through `build.cmd build`, which stops the engine gracefully and
    restarts it. If you build by hand, stop it with `DispCtrl.Engine.exe stop`
    first, never by killing it: a killed engine leaves a hidden taskbar off-screen.
 5. Anything new should reach the command line first and the app second, through

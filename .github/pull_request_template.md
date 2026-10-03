@@ -4,11 +4,11 @@
 
 ## How it was verified
 
-<!-- Which checks ran, and on what hardware. "build\build.cmd test passes" plus what
+<!-- Which checks ran, and on what hardware. "build.cmd test passes" plus what
      you did on real displays. If you could not test on hardware, say so. -->
 
-- [ ] `build\build.cmd test` passes (or `./build/build.sh test` on Linux)
-- [ ] `build\build.cmd test -Hardware` passes (if settings, presets, redaction or device records changed)
+- [ ] `build.cmd test` passes (or `./build.cmd test` on Linux)
+- [ ] `build.cmd test -Hardware` passes (if settings, presets, redaction or device records changed)
 - [ ] Tested on real displays, and the desk was left as it was found
 - [ ] New behaviour is reachable from `dispctrl` as well as the app
 - [ ] `docs/CHANGELOG.md` has an entry under Unreleased (if a user would notice)

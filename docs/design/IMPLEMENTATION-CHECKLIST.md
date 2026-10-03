@@ -104,7 +104,7 @@ verification named beside them.
   folder, artifacts/<channel>-<version>, cleared first (it removed 1.9 GB of
   stale bundles here), MSIX staged in temp and deleted. dev.ps1 publish now
   stops and restarts the engine, which the tests' build otherwise collides with.
-- [x] Developer entry points: build\build.cmd / build/dev.ps1 (doctor, setup, build,
+- [x] Developer entry points: build.cmd / build/dev.ps1 (doctor, setup, build,
   test, run, publish, installer, package, release, clean, options, and a menu)
   and build/build.sh for Linux/WSL. On this desk: doctor and setup found every tool
   and fetched a portable Inno Setup; build stopped the engine, built with the

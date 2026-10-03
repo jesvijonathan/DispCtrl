@@ -266,13 +266,13 @@ No telemetry and no account. The one request DispCtrl makes by itself is a daily
 ```powershell
 git clone https://github.com/jesvijonathan/DispCtrl.git
 cd DispCtrl
-.\build\build.cmd setup -Install   # checks the machine; offers .NET 10 and MinGW through winget
-.\build\build.cmd build            # builds, stopping and restarting the engine for you
-.\build\build.cmd test             # the hardware-free checks
-.\build\build.cmd run app          # or: engine, panel, cli <arguments>
+.\build.cmd setup -Install   # checks the machine; offers .NET 10 and MinGW through winget
+.\build.cmd build            # builds, stopping and restarting the engine for you
+.\build.cmd test             # the hardware-free checks
+.\build.cmd run app          # or: engine, panel, cli <arguments>
 ```
 
-On Linux, macOS or WSL, `./build/build.sh setup`, `build` and `test` build everything except the window (WinUI needs Windows) and run the checks that need no Windows APIs; CI runs the same on Linux for every change. [Developing](docs/developer/DEVELOPING.md) has every option, and the [repository layout](docs/developer/ARCHITECTURE.md) where each part lives.
+On Linux, macOS or WSL, `./build.cmd setup`, `build` and `test` build everything except the window (WinUI needs Windows) and run the checks that need no Windows APIs; CI runs the same on Linux for every change. [Developing](docs/developer/DEVELOPING.md) has every option, and the [repository layout](docs/developer/ARCHITECTURE.md) where each part lives.
 
 ## Contributing
 

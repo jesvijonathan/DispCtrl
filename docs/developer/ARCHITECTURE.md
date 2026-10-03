@@ -39,7 +39,7 @@ src/
   native/             the taskbar-glass helper Explorer loads (C++, MinGW)
 tests/                check suites, one console program each (tests/README.md)
 tools/                devicecheck (device library and intake), perfcheck, scripts
-build/                build.cmd and build.sh, the entry points; dev.ps1 behind them, packaging, the installer
+build/                dev.ps1 behind build.cmd (at the root) and build.sh, packaging, the installer
 devices/              the reviewed device library, one folder per model
 docs/                 user documentation; developer/ for contributors; design/ notes
 ```

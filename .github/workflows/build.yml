@@ -72,8 +72,8 @@ jobs:
           dotnet-version: 10.0.x
       - name: Build and test with build/build.sh
         run: |
-          ./build/build.sh build
-          ./build/build.sh test
+          ./build.cmd build
+          ./build.cmd test
 
   windows:
     runs-on: windows-latest

@@ -26,7 +26,7 @@ internal static class EngineSuite
     {
         Options o = context.Options;
         using Process? engine = Find();
-        if (engine is null) { context.Report.Note(S, "no engine running; skipped (start it: build\build.cmd run engine)"); return; }
+        if (engine is null) { context.Report.Note(S, "no engine running; skipped (start it: build.cmd run engine)"); return; }
         context.Report.Note(S, $"pid {engine.Id}, {engine.MainModule?.FileName}");
 
         Resident(context, S, engine, "");

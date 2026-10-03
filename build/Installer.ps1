@@ -18,7 +18,7 @@ foreach ($exe in @('DispCtrl.App.exe','DispCtrl.Engine.exe','dispctrl.exe')) {
 }
 if (-not $Iscc) { $Iscc = $env:DISPCTRL_ISCC }
 if (-not $Iscc) {
-    # The portable copy `build\build.cmd setup` fetches, then installed ones.
+    # The portable copy `build.cmd setup` fetches, then installed ones.
     $candidates = @(Join-Path $repo '.tools\innosetup\tools\ISCC.exe') + @(foreach ($major in 7, 6) {
         (Join-Path ${env:ProgramFiles(x86)} "Inno Setup $major\ISCC.exe")
         (Join-Path $env:ProgramFiles "Inno Setup $major\ISCC.exe")
