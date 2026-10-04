@@ -9,6 +9,7 @@ parallelises or reorders them would break exactly those.
 | Suite | Needs | What it covers |
 |---|---|---|
 | `DispCtrl.Core.Checks` | nothing (runs on Linux too) | Parsing, geometry, the settings merge, presets, desk profiles, window placement, the taskbar parking plan |
+| `DispCtrl.Linux.Checks` | Linux, nothing else (no monitors, no X) | The Linux client: ddcutil and xrandr parsing against real output, warmth, the schedule, composed ramps, settings, exit codes, and a real engine on a scratch socket |
 | `DispCtrl.Control.Checks` | Windows, no monitors | The JSON command API and terminal against a scratch settings folder |
 | `DispCtrl.LgInput.Checks` | Windows, no monitors | LG alternate input switching; sends no hardware commands |
 | `DispCtrl.Hardware.Checks` | the monitors attached | EDID, capabilities, presets captured from the desk, and the redaction of device records end to end |
@@ -20,7 +21,7 @@ Run them from the repository root:
 ```
 build.cmd test              Core, Control, LgInput, and devicecheck
 build.cmd test -Hardware    the same, plus Hardware
-./build.cmd test             Core and devicecheck, on Linux, macOS or WSL
+./build.cmd test             Core and devicecheck, on Linux, macOS or WSL (+ Linux on Linux)
 ```
 
 or one at a time with `dotnet run --project tests/<Suite> -c Release`.

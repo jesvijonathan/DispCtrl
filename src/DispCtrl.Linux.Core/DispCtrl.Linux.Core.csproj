@@ -1,10 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Shared between dispctrl-linux (CLI) and the Avalonia GUI: XRandR/ddcutil/
-       backlight backends only, no UI. Split out once a second consumer needed
-       it, mirroring DispCtrl.Core/DispCtrl.Display's own split on the Windows
-       side. Overrides every Windows-only default the root Directory.Build.props
-       sets - see the comment in DispCtrl.Linux.csproj for why. -->
+  <!-- Everything the Linux command line, engine and window share: the hardware
+       (ddcutil, sysfs backlight, XRandR ramps), settings, the commands and the
+       engine's protocol. No UI. Overrides every Windows-only default the root
+       Directory.Build.props sets - see DispCtrl.Linux.csproj. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <TargetPlatformMinVersion />
@@ -20,8 +19,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- GammaRamp walks libXrandr's structures and passes an unmanaged error handler. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <Description>XRandR, ddcutil and backlight backends shared by dispctrl-linux and the GUI.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DispCtrl.Linux.Checks" />
+  </ItemGroup>
 
 </Project>

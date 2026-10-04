@@ -1,6 +1,12 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Avalonia.Controls;
-using DispCtrl.Linux;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using DispCtrl.Linux.Engine;
+using DispCtrl.Linux.Hardware;
+using DispCtrl.Linux.Ramps;
+using DispCtrl.Linux.Settings;
 using FluentAvalonia.UI.Controls;
 
 namespace DispCtrl.Linux.Gui;
@@ -8,82 +14,202 @@ namespace DispCtrl.Linux.Gui;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<MonitorRowViewModel> _rows = [];
+    private readonly CommandSender _sender = new();
+    private readonly DispatcherTimer _engineTimer;
+
+    // Set once the night light controls hold what settings say. Before that,
+    // every assignment raises the same events a person does, and was written
+    // back - the gate the Windows app needs on every two-way control.
+    private bool _nightLightReady;
+    private int _scanGeneration;
 
     public MainWindow()
     {
         InitializeComponent();
         Rows.ItemsSource = _rows;
-        Rescan();
+
+        NightLightSwitch.IsCheckedChanged += (_, _) => OnNightLightSwitched();
+        StrengthSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Slider.ValueProperty) OnStrengthChanged();
+        };
+        ScheduleSwitch.IsCheckedChanged += (_, _) => OnScheduleChanged();
+        FromPicker.SelectedTimeChanged += (_, _) => OnScheduleChanged();
+        ToPicker.SelectedTimeChanged += (_, _) => OnScheduleChanged();
+
+        LoadNightLight();
+        RefreshEngineLine();
+
+        // Only while the window is open: the engine can start or stop under it.
+        _engineTimer = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) => RefreshEngineLine());
+        _engineTimer.Start();
+        Closed += (_, _) => _engineTimer.Stop();
+
+        _ = RescanAsync();
     }
 
-    private void OnRescanClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Rescan();
+    private void OnRescanClick(object? sender, RoutedEventArgs e) => _ = RescanAsync();
 
-    /// <summary>Builds one row per real, writable target found on this
-    /// machine right now - no fixtures, matching the "verify against monitors
-    /// actually attached" rule inherited from the Windows side's
-    /// presetcheck.</summary>
-    private void Rescan()
+    private async void OnRestoreClick(object? sender, RoutedEventArgs e)
     {
+        RestoreButton.IsEnabled = false;
+        var reply = await CommandSender.RunAsync(["restore"]);
+        RestoreButton.IsEnabled = true;
+        LoadNightLight();
+        NightLightStatus.Text = reply.ExitCode == 0 ? "Restored: night light off, no dimming." : reply.Stderr.Trim();
+        _ = RescanAsync();
+    }
+
+    private void RefreshEngineLine()
+    {
+        _ = Task.Run(() => EngineClient.IsRunning()).ContinueWith(t =>
+        {
+            EngineLine.Text = t.Result
+                ? "The engine is running: the schedule and hot-plugged displays are looked after."
+                : "The engine is not running: changes apply now, but nothing follows the schedule. Start it with systemctl --user enable --now dispctrl-linux-engine.";
+        }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    private void LoadNightLight()
+    {
+        _nightLightReady = false;
+        var settings = SettingsStore.Load().NightLight;
+        NightLightSwitch.IsChecked = settings.Enabled;
+        StrengthSlider.Value = settings.Strength;
+        ScheduleSwitch.IsChecked = settings.Scheduled;
+        Schedule.TryParse(settings.From, out var from);
+        Schedule.TryParse(settings.To, out var to);
+        FromPicker.SelectedTime = from.ToTimeSpan();
+        ToPicker.SelectedTime = to.ToTimeSpan();
+        UpdateStrengthText();
+
+        bool x = GammaRamp.IsAvailable(out var reason);
+        NightLightSwitch.IsEnabled = x || settings.Enabled;
+        NightLightStatus.Text = x ? "" : $"Night light and dimming are unavailable: {reason}.";
+        _nightLightReady = true;
+    }
+
+    private void OnNightLightSwitched()
+    {
+        if (!_nightLightReady) return;
+        Send(NightLightSwitch.IsChecked == true ? ["nightlight", "on"] : ["nightlight", "off"]);
+    }
+
+    private void OnStrengthChanged()
+    {
+        UpdateStrengthText();
+        if (!_nightLightReady) return;
+        int strength = (int)Math.Round(StrengthSlider.Value);
+        // A strength is also "on", as on the command line; the switch follows.
+        if (NightLightSwitch.IsChecked != true)
+        {
+            _nightLightReady = false;
+            NightLightSwitch.IsChecked = true;
+            _nightLightReady = true;
+        }
+        Send(["nightlight", strength.ToString(CultureInfo.InvariantCulture)]);
+    }
+
+    private void OnScheduleChanged()
+    {
+        if (!_nightLightReady) return;
+        if (FromPicker.SelectedTime is not { } from || ToPicker.SelectedTime is not { } to) return;
+        // Compared at minute resolution: a picker holds whole minutes, and
+        // comparing seconds made the Windows app's TimePicker write back forever.
+        var f = TimeOnly.FromTimeSpan(from);
+        var t = TimeOnly.FromTimeSpan(to);
+        if (f.Hour == t.Hour && f.Minute == t.Minute)
+        {
+            NightLightStatus.Text = "The schedule cannot start and end at the same time.";
+            return;
+        }
+        Send(["nightlight", "--from", Schedule.Format(f), "--to", Schedule.Format(t),
+              "--schedule", ScheduleSwitch.IsChecked == true ? "on" : "off"]);
+    }
+
+    private void Send(string[] args)
+    {
+        NightLightStatus.Text = "";
+        _sender.Post("nightlight", args, error =>
+        {
+            NightLightStatus.Text = error ?? "";
+            if (error is not null) LoadNightLight();
+        });
+    }
+
+    private void UpdateStrengthText() =>
+        StrengthText.Text = string.Create(CultureInfo.InvariantCulture, $"{Warmth.KelvinFor((int)Math.Round(StrengthSlider.Value)):0} K");
+
+    /// <summary>Finds every writable target on this machine now. Off the UI
+    /// thread: ddcutil takes seconds to detect and a few hundred milliseconds
+    /// per read, and the window used to freeze for all of it.</summary>
+    private async Task RescanAsync()
+    {
+        int generation = ++_scanGeneration;
+        RescanButton.IsEnabled = false;
+        ScanStatus.Text = "Looking for displays…";
         _rows.Clear();
 
-        if (Ddcutil.IsAvailable)
+        var settings = SettingsStore.Load();
+        var ramps = await Task.Run(GammaRamp.Outputs);
+        if (generation != _scanGeneration) return;
+        foreach (var output in ramps)
         {
-            foreach (var monitor in Ddcutil.Detect())
-            {
-                const byte VcpBrightness = 0x10;
-                var current = Ddcutil.GetVcp(monitor.DisplayNum, VcpBrightness);
-                if (current is null) continue;
-
-                _rows.Add(new MonitorRowViewModel(
-                    title: $"{monitor.Model ?? $"Display {monitor.DisplayNum}"} (DDC/CI)",
-                    subtitle: $"{monitor.I2CBus}  serial {monitor.Serial}",
-                    maximum: current.Maximum ?? 100,
-                    initialValue: current.Current,
-                    apply: value => Ddcutil.SetVcp(monitor.DisplayNum, VcpBrightness, (int)value)
-                        ? null
-                        : "ddcutil setvcp refused",
-                    icon: FASymbol.Settings));
-            }
+            double dim = settings.Dim.TryGetValue(output.Name, out var d) ? d : 1;
+            _rows.Add(new MonitorRowViewModel(
+                title: $"{output.Name} - dimming",
+                subtitle: "Software: scales the output's gamma ramp. The monitor's own brightness is unchanged.",
+                minimum: RampTarget.LowestDim * 100, maximum: 100, initialValue: dim * 100, unit: "%",
+                _sender, key: $"dim:{output.Name}",
+                command: v => ["dim", (v / 100).ToString("0.##", CultureInfo.InvariantCulture), "--output", output.Name],
+                icon: FASymbol.View));
         }
 
-        foreach (var device in Backlight.Enumerate())
+        foreach (var device in await Task.Run(Backlight.Enumerate))
         {
+            if (generation != _scanGeneration) return;
             _rows.Add(new MonitorRowViewModel(
-                title: $"{device.Name} (backlight)",
-                subtitle: $"sysfs 0-{device.Max}, currently {device.Current}",
-                maximum: 100,
-                initialValue: device.Fraction * 100,
-                apply: value => Backlight.TrySet(device.Name, (int)Math.Round(device.Max * (value / 100.0)), out var error)
-                    ? null
-                    : error,
+                title: $"{device.Name} - brightness",
+                subtitle: "Built-in panel backlight",
+                minimum: 0, maximum: 100, initialValue: Math.Round(device.Fraction * 100), unit: "%",
+                _sender, key: $"backlight:{device.Name}",
+                command: v => ["brightness", ((int)v).ToString(CultureInfo.InvariantCulture), "--backlight", device.Name],
                 icon: FASymbol.WeatherSunnyHigh));
         }
 
-        if (XRandR.IsAvailable)
+        if (Ddcutil.IsAvailable)
         {
-            foreach (var output in XRandR.Query().Where(o => o.Connected))
+            ScanStatus.Text = "Asking DDC/CI monitors (a few seconds)…";
+            var monitors = await Task.Run(() => Ddcutil.Detect()
+                .Select(m => (Monitor: m, Level: Ddcutil.GetVcp(m.DisplayNum, Ddcutil.VcpBrightness)))
+                .ToList());
+            if (generation != _scanGeneration) return;
+            foreach (var (monitor, level) in monitors)
             {
+                if (level is null) continue;
                 _rows.Add(new MonitorRowViewModel(
-                    title: $"{output.Name} (software dimming via XRandR)",
-                    subtitle: $"{output.WidthPx}x{output.HeightPx}, gamma scalar - not a hardware level",
-                    maximum: 100,
-                    initialValue: 100,
-                    apply: value => XRandR.SetSoftwareBrightness(output.Name, value / 100.0)
-                        ? null
-                        : "xrandr refused",
-                    icon: FASymbol.View));
+                    title: $"{monitor.Model ?? $"Display {monitor.DisplayNum}"} - brightness",
+                    subtitle: $"DDC/CI, the monitor's own backlight ({monitor.I2CBus})",
+                    minimum: 0, maximum: level.Maximum ?? 100, initialValue: level.Current, unit: "",
+                    _sender, key: $"ddc:{monitor.DisplayNum}",
+                    command: v => ["brightness", ((int)v).ToString(CultureInfo.InvariantCulture), "--ddc", monitor.DisplayNum.ToString(CultureInfo.InvariantCulture)],
+                    icon: FASymbol.Settings));
             }
+            ScanStatus.Text = monitors.Count == 0
+                ? "No monitor answered over DDC/CI. A built-in panel never does; for an external one, see dispctrl-linux doctor."
+                : "";
+        }
+        else
+        {
+            ScanStatus.Text = "ddcutil is not installed, so external monitors' own brightness cannot be changed.";
         }
 
         if (_rows.Count == 0)
         {
             _rows.Add(new MonitorRowViewModel(
-                title: "No controllable target found",
-                subtitle: "Neither ddcutil, backlight nor xrandr produced anything - see dispctrl-linux doctor",
-                maximum: 1,
-                initialValue: 0,
-                apply: _ => null,
-                icon: FASymbol.Alert));
+                "Nothing to control", "No X display, backlight or DDC/CI monitor was found: run dispctrl-linux doctor.",
+                0, 0, 0, "", _sender, "none", _ => [], FASymbol.Alert));
         }
+        RescanButton.IsEnabled = true;
     }
 }

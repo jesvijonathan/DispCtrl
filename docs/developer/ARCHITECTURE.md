@@ -37,6 +37,13 @@ src/
     Views/Pages/ Views/Controls/ Views/QuickPanel/ Views/Dialogs/ ViewModels/ Services/
   DispCtrl.Cli        dispctrl.exe, console subsystem: the control terminal, nothing else
   native/             the taskbar-glass helper Explorer loads (C++, MinGW)
+  DispCtrl.Linux.Core the Linux client's shared part (net10.0, no Windows, no UI)
+    Hardware/         ddcutil, the backlight (sysfs or logind), XRandR and its ramps
+    Ramps/ Settings/  warmth, the schedule, the composed ramp; settings.json
+    Commands/         every dispctrl-linux command, for the CLI, engine and window
+    Engine/           the socket client and the runtime folder
+  DispCtrl.Linux      dispctrl-linux and its engine (docs/LINUX.md)
+  DispCtrl.Linux.Gui  the Avalonia window
 tests/                check suites, one console program each (tests/README.md)
 tools/                devicecheck (device library and intake), perfcheck, scripts, promo-video (the release video; never packaged)
 build/                dev.ps1 behind build.cmd (at the root) and build.sh, packaging, the installer

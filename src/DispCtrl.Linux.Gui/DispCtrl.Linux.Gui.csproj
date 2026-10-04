@@ -1,10 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <!-- A minimal Avalonia desktop app for the Linux client: one window,
-       one slider per real, writable brightness/dimming target found on this
-       machine (DDC/CI monitor, backlight device, or an XRandR output's
-       software dimming). Not a redesign of the WinUI app's pages - see
-       docs/LINUX.md for current scope and docs/design/LINUX-PORT.md for what
-       a feature-equivalent Linux UI still needs. -->
+  <!-- The Linux window (Avalonia): night light, and a slider per writable
+       target found on this machine - a DDC/CI monitor, a backlight, an
+       output's software dimming. It sends dispctrl-linux commands, through the
+       engine when one runs. Not yet a redesign of the WinUI app's pages; see
+       docs/LINUX.md and docs/design/LINUX-PORT.md. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -13,12 +12,12 @@
     <RootNamespace>DispCtrl.Linux.Gui</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
 
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,6 +30,10 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="FluentAvaloniaUI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
   <ItemGroup>

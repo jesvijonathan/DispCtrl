@@ -918,3 +918,41 @@ unrecallable.
   variables it needs.
 
 ---
+
+## Linux client
+
+- **`xrandr --gamma` is an exponent, not a multiplier.** White stays white,
+  so it cannot warm a screen: `1:0.9:0.8` read back as `1.0:1.1:1.3`. And
+  `--gamma` and `--brightness` sent in separate calls each re-derive the other
+  from the current ramp, so night light and dimming fought. `GammaRamp` writes
+  the ramp through libXrandr, scaled per channel as `NightLight.Scaled` does on
+  Windows, warmth and dimming in one write.
+- **Xlib's default error handler calls `exit()`.** A CRTC that vanished between
+  enumerating and writing would end the engine; `GammaRamp` installs a handler
+  that ignores the error.
+- **A Unix socket path holds 107 characters.** A longer `XDG_RUNTIME_DIR` threw
+  out of the engine before it logged anything; it now refuses with the path.
+- **`bind()` honours the umask** and left the socket group-writable (0775);
+  it is set to 0600 after binding. Never fall back to `/tmp`, where another
+  account can reach the socket or plant one first.
+- **systemd stops a service with SIGTERM**, which skipped the engine's
+  `finally` and stranded the socket and any warm ramp. `PosixSignalRegistration`
+  turns SIGTERM, SIGINT and SIGHUP into an orderly stop.
+- **Ramp ownership is kept on disk** (`$XDG_RUNTIME_DIR/dispctrl-linux.ramps`),
+  so an engine that was killed and restarted still puts back what its
+  predecessor warmed; the runtime folder and X's ramps both end at logout.
+- **The engine compares with the CRTC, not with what it last wrote**, so a mode
+  change or hot-plug that resets a ramp is repaired on the next pass (10 s). It
+  writes only outputs it owns or must warm or dim: with both off, another
+  tool's ramp (Redshift, a calibration loader) is left alone, not fought.
+- **The sysfs backlight is root's.** systemd-logind's `Session.SetBrightness`
+  lets the active session's user set it with no udev rule or group; the rule
+  remains for SSH and second seats.
+- **ddcutil prints prose unless asked for `--brief`**, and an eDP panel appears
+  as an `Invalid display` block that must end the monitor before it rather than
+  merge into it - both found against hardware, both in DispCtrl.Linux.Checks.
+- **libX11 reads `XAUTHORITY` from the C environment.**
+  `Environment.SetEnvironmentVariable` does not reach it; an engine borrowing a
+  client's display calls `setenv` too.
+- **Arguments go through `ProcessStartInfo.ArgumentList`.** Joined into one
+  string, an output named `"DP-1 --off"` was two xrandr arguments.

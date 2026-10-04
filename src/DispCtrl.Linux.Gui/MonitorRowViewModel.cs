@@ -1,56 +1,65 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using FluentAvalonia.UI.Controls;
 
 namespace DispCtrl.Linux.Gui;
 
-/// <summary>One row: a slider bound to a real write path (DDC/CI VCP 0x10,
-/// a backlight sysfs node, or an XRandR software-brightness scalar). Kept as
-/// one shape for all three, the same way DispCtrl's own quick panel treats
-/// "a slider that writes somewhere" uniformly regardless of backend - see
-/// .claude/CLAUDE.md, "Quick panel (the tray icon)".</summary>
+/// <summary>One row: a slider that sends one command, whether it ends at a
+/// DDC/CI monitor, a backlight or an output's ramp.</summary>
 public sealed class MonitorRowViewModel : INotifyPropertyChanged
 {
-    private readonly Func<double, string?> _apply;
+    private readonly CommandSender _sender;
+    private readonly string _key;
+    private readonly Func<double, string[]> _command;
     private double _value;
     private string _status = string.Empty;
 
     /// <summary>
-    /// A constructor, not an object initializer with a public settable Value:
-    /// the initial value comes from reading the hardware, and it must never be
-    /// written straight back to it. Assigning through the property setter did
-    /// exactly that on the first run - the Dell got a redundant "set brightness
-    /// to 70" on every launch, and the backlight row only *looked* harmless
-    /// because sysfs refused it for lack of permission, not because the write
-    /// itself was safe. This is the same trap `.claude/CLAUDE.md` documents
-    /// for WinUI's two-way sliders ("every such binding needs a `_xxxReady`
-    /// gate") - found here by running the app and reading its own status line,
-    /// not by inspection.
+    /// The starting value comes through the constructor, never the setter: it
+    /// is read from the hardware, and assigning it through the setter wrote it
+    /// straight back - the Dell got a redundant brightness write on every
+    /// launch. The same trap as WinUI's two-way sliders on Windows.
     /// </summary>
-    public MonitorRowViewModel(string title, string subtitle, double maximum, double initialValue, Func<double, string?> apply, FASymbol icon)
+    public MonitorRowViewModel(
+        string title, string subtitle, double minimum, double maximum, double initialValue, string unit,
+        CommandSender sender, string key, Func<double, string[]> command, FASymbol icon)
     {
         Title = title;
         Subtitle = subtitle;
+        Minimum = minimum;
         Maximum = maximum;
+        Unit = unit;
         Icon = icon;
-        _apply = apply;
+        _sender = sender;
+        _key = key;
+        _command = command;
         _value = initialValue;
     }
 
     public string Title { get; }
     public string Subtitle { get; }
+    public double Minimum { get; }
     public double Maximum { get; }
+    public string Unit { get; }
     public FASymbol Icon { get; }
+
+    /// <summary>False for a row that only explains why nothing is there.</summary>
+    public bool IsInteractive => Maximum > Minimum;
+
+    public string ValueText => string.Create(CultureInfo.InvariantCulture, $"{Math.Round(_value)}{Unit}");
 
     public double Value
     {
         get => _value;
         set
         {
-            if (_value == value) return;
+            if (Math.Round(_value) == Math.Round(value)) return;
             _value = value;
             OnPropertyChanged();
-            Status = _apply(value) is { } error ? $"refused: {error}" : "applied";
+            OnPropertyChanged(nameof(ValueText));
+            Status = "…";
+            _sender.Post(_key, _command(Math.Round(value)), error => Status = error is null ? "" : error);
         }
     }
 

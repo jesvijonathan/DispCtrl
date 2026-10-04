@@ -62,6 +62,9 @@ jobs:
     permissions:
       contents: write   # the tag and the release
       actions: write    # to start Distribute after publishing a stable release
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
     env:
       HAS_SIGNING_CERT: ${{ secrets.SIGNING_CERT_BASE64 != '' }}
       DISPCTRL_SIGN_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
@@ -260,3 +263,45 @@ jobs:
               $lines += "| $($f.Name) | $([math]::Round($f.Length / 1MB, 1)) MB | $for |" } }
           if ($env:PUBLISH -eq 'draft' -and $env:URL) { $lines += '', "Review the draft and press **Publish release** to ship it." }
           $lines -join "`n" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+  linux:
+    # The Linux packages (.deb and the tarball with install.sh), attached to
+    # the release the job above created. After it, from the tag it made, so
+    # both are built from the same commit and carry the same version. A
+    # release published immediately is briefly without them.
+    needs: release
+    if: (inputs.packages || 'everything') == 'everything'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write   # to upload to the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Check and package
+        env:
+          DISPCTRL_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          ./build.cmd linux-build
+          dotnet run --project tests/DispCtrl.Linux.Checks -c Release --no-build
+          ./build.cmd linux-package
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          dir="artifacts/linux-$VERSION"
+          gh release upload "$TAG" "$dir"/*.deb "$dir"/*.tar.gz "$dir"/*SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+          {
+            echo "## Linux packages for $TAG"
+            echo
+            echo "| File | Size |"
+            echo "|---|---|"
+            for f in "$dir"/*.deb "$dir"/*.tar.gz; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -2,9 +2,9 @@
 
 This lays out what has to change for DispCtrl to run on Linux, in what order,
 and what does not survive the move at all. The client shipped in
-`src/DispCtrl.Linux*` (see `docs/LINUX.md`) covers steps 1-3 below; everything
-past that is still only this plan. Written against the architecture in
-`.claude/CLAUDE.md` / `.github/copilot-instructions.md` — read that first.
+`src/DispCtrl.Linux*` (see `docs/LINUX.md`) covers steps 1-4 and the
+.deb and tarball of 6; the rest is still only this plan. Written against the architecture in
+`docs/developer/ARCHITECTURE.md` - read that first.
 
 ## Why this is a port, not a build flag
 
@@ -109,7 +109,7 @@ would need a from-scratch design for Linux's tray protocols
 ### The engine and IPC
 
 A resident process is the right model on Linux too, but as a **systemd user
-service** (`packaging/linux/systemd/dispctrl-linux-engine.service`) rather
+service** (`build/packaging/linux/systemd/dispctrl-linux-engine.service`) rather
 than a scheduled task, giving equivalent "start at login, restart on
 failure" semantics for free. The named-pipe command broker becomes a **Unix
 domain socket** in `$XDG_RUNTIME_DIR` — implemented as `dispctrl-linux
@@ -137,47 +137,45 @@ Once there is a Linux build at all, packaging it is the easy part:
 
 ## Status
 
-`src/DispCtrl.Linux*` covers steps 1-4 of the order below: DDC/CI wrapping
-`ddcutil`, mode/gamma over XRandR, internal-panel brightness over
-`/sys/class/backlight`, an Avalonia shell wired to those same backends, and
-a resident Unix-socket command broker with a systemd `--user` unit. It
-shares no code with `DispCtrl.Core`/`DispCtrl.Display` — both still target
-`net10.0-windows10.0.26100.0`. Steps 1-2 are fully verified against real
-hardware (a Dell P2723DE over DDC/CI, an AMD internal eDP panel with none),
-including a full brightness round-trip through `ddcutil` and two real parsing
-bugs found and fixed by testing against actual `ddcutil` output rather than
-its documented format alone. The Avalonia shell (step 3) is verified against
-the same hardware via screenshot, and had its own real bug found and fixed
-the same way (an unwanted echo-write of brightness back to hardware on
-startup, the same class of bug `.claude/CLAUDE.md` warns about for WinUI's
-two-way bindings). The engine (step 4) is verified end-to-end: installed as
-a real systemd `--user` service, queried live over its socket against real
-hardware, and confirmed to auto-restart after a `kill -9`. A `snapcraft.yaml`
-config sketch exists for step 6 but has not been built or uploaded. See
-`docs/LINUX.md` for the full scope, requirements and verification report.
-Everything past step 4 (taskbar/hotkeys, Wayland backends, an actual Snap
-Store submission) is still only this plan.
+Shipping, early (see [`docs/LINUX.md`](../LINUX.md) for the user guide and
+what was verified on hardware). Steps 1-4 below are done, plus the parts of 6
+that do not need a store:
+
+- DDC/CI through the `ddcutil` command; the backlight through sysfs or, for an
+  account that may not write it, systemd-logind's `Session.SetBrightness`.
+- Gamma ramps through libXrandr directly (`GammaRamp`), because `xrandr
+  --gamma` is an exponent and cannot warm a screen. Warmth and dimming compose
+  in one write, as on Windows. Pure Wayland sessions are refused, not faked.
+- One command set (`DispCtrl.Linux.Core/Commands`) behind the command line,
+  the engine's socket and the window; clients go through the engine when it
+  runs and work alone when it does not, as `dispctrl.exe` does.
+- The engine: a systemd user service bound to the graphical session, with the
+  night light schedule, ramp repair after resets, release at stop, and a
+  0600 socket. It does not share a wire format with the Windows engine's pipe;
+  unifying them is future work.
+- Packages: a `.deb` and a self-contained tarball with a per-user
+  `install.sh`, built by `./build.cmd linux-package` and attached to each
+  release by the Linux job in `release.yml`. The snap is a corrected sketch,
+  not yet built.
+
+It still shares no code with `DispCtrl.Core`, which targets Windows. Splitting
+Core's platform-neutral parts (settings schema, presets, arrangement geometry,
+the warmth maths now copied into `Warmth`) into a `net10.0` library is the
+step that lets presets and the arrangement reach Linux without a second copy.
 
 ## Recommended order
 
-1. ~~Spike DDC/CI over `libddcutil` against the same two monitors this project
-   already has ground truth for~~ — done, via the `ddcutil` CLI rather than
-   `libddcutil` directly (see `docs/LINUX.md`); binding the library instead of
-   shelling out remains future work.
-2. ~~XRandR mode/position/primary + gamma ramps~~ — done; `dispctrl-linux`
-   gives a working CLI on X11, mirroring how this project's own CLI shipped
-   before the panel did.
-3. ~~Avalonia shell wrapping the same backends~~ — done (`DispCtrl.Linux.Gui`);
-   not yet a redesign of the WinUI app's pages, one window with a slider per
-   writable brightness/dimming target.
-4. ~~Engine as a systemd user service, Unix socket broker~~ — done
-   (`dispctrl-linux engine`, `packaging/linux/systemd/`); the broker reuses
-   the CLI's own command dispatch, but nothing in this repository speaks to
-   it as a client yet, and it does no reconciliation or scheduling of its own.
-5. Taskbar/pin/gather/hotkeys, X11 first, explicitly marked unsupported under
-   Wayland until a per-DE path is written.
-6. Snap packaging and Store submission — a `snapcraft.yaml` sketch exists
-   (`packaging/linux/snap/`) but is unbuilt; its biggest open problem is that
-   no stock Snap interface grants `/dev/i2c-*` write access for DDC/CI.
-
-Steps 1–4 are done and hardware-verified; steps 5–6 are still ahead.
+1. ~~DDC/CI~~ - done, through the `ddcutil` command; binding `libddcutil`
+   instead would save a process per call.
+2. ~~XRandR layout and gamma ramps~~ - done; ramps through libXrandr.
+3. ~~An Avalonia window~~ - done: night light and a slider per target. Not yet
+   a redesign of the WinUI app's pages.
+4. ~~The engine as a systemd user service with a Unix-socket broker~~ - done,
+   with the schedule and ramp reconciliation.
+5. Split DispCtrl.Core's platform-neutral parts into a `net10.0` library, then
+   presets and the arrangement.
+6. Packaging: ~~.deb and tarball~~ done; the snap needs a decision on DDC/CI
+   under confinement (classic, or without DDC/CI) before it can be built.
+7. Hotkeys (X11 `XGrabKey`, the portal's GlobalShortcuts on Wayland), a tray
+   icon (StatusNotifierItem), and Wayland ramps per compositor
+   (`wlr-gamma-control`, Mutter and KWin's D-Bus).

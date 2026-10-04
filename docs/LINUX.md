@@ -1,169 +1,160 @@
 # DispCtrl for Linux
 
-An early, X11-only Linux client: per-monitor brightness (DDC/CI monitors and
-the internal panel's backlight) and gamma/colour-temperature control, as a
-command line (`dispctrl-linux`) and a minimal desktop app
-(`dispctrl-linux-gui`). It shares no code with the Windows app or engine —
-see [`docs/design/LINUX-PORT.md`](design/LINUX-PORT.md) for why, and for the
-much larger scope (taskbar-equivalent behaviour, hotkeys, night light,
-presets, Wayland, Snap packaging) still ahead of it.
+Each display's brightness, software dimming and a night light with a
+schedule, from a command line (`dispctrl-linux`) and a window
+(`dispctrl-linux-gui`), kept by a small engine that runs with your session.
 
-**What works today**: reading and setting external-monitor brightness over
-DDC/CI, reading and setting the internal panel's brightness over
-`/sys/class/backlight`, and reading display layout plus setting gamma ramps
-and a software-dimming scalar over XRandR — on an X11 session (including
-XWayland) only. The same commands are also reachable through a resident
-process (`dispctrl-linux engine`) over a Unix domain socket, with a systemd
-`--user` unit to run it — see "Engine" below.
+It is early, and smaller than DispCtrl for Windows: no taskbar, hotkeys,
+presets, OLED care or quick panel yet. Night light and dimming need an X11
+session (see [Wayland](#wayland)). What follows is everything it does today.
 
-**What does not exist yet**: taskbar hiding, global hotkeys, night light
-scheduling, presets, per-app rules, OLED care, the device library, a
-Wayland-native backend, and an actual Snap Store submission (a config sketch
-exists; it has not been built or uploaded). Nothing here claims otherwise —
-see "Every user-facing claim must be true of the hardware" in
-`.claude/CLAUDE.md` / `.github/copilot-instructions.md`, which this follows
-too.
+| | How | Needs |
+|---|---|---|
+| An external monitor's own brightness | DDC/CI, through ddcutil | `ddcutil`, and a monitor with DDC/CI switched on in its menu |
+| A laptop panel's brightness | the kernel backlight, through systemd-logind | nothing: the active session may set it |
+| Software dimming, per display | the output's gamma ramp | an X11 session |
+| Night light, with a schedule | the output's gamma ramp, 6500 K to 1900 K | an X11 session; the engine for the schedule |
 
-## Build and run
+## Install
+
+**Debian, Ubuntu and derivatives** - download `dispctrl-linux_<version>_amd64.deb`
+from the [releases](https://github.com/jesvijonathan/DispCtrl/releases):
 
 ```bash
-dotnet build src/DispCtrl.Linux/DispCtrl.Linux.csproj -c Release
-dotnet build src/DispCtrl.Linux.Gui/DispCtrl.Linux.Gui.csproj -c Release
-
-dotnet run --project src/DispCtrl.Linux/DispCtrl.Linux.csproj -- doctor
-dotnet run --project src/DispCtrl.Linux/DispCtrl.Linux.csproj -- displays
-dotnet run --project src/DispCtrl.Linux.Gui/DispCtrl.Linux.Gui.csproj
+sudo apt install ./dispctrl-linux_*_amd64.deb
+systemctl --user start dispctrl-linux-engine    # now; it starts by itself at every login after
 ```
 
-Or through `build.sh`:
+**Anything else (x86-64)** - the tarball installs for your account only,
+without root:
 
 ```bash
-./build.sh linux-build
-./build.sh linux-run cli displays
-./build.sh linux-run gui
+tar xzf dispctrl-linux-*-linux-x64.tar.gz
+cd dispctrl-linux-*-linux-x64
+./install.sh                 # to ~/.local, and starts the engine
+./install.sh --uninstall     # removes it; settings stay
 ```
 
-## Requirements
+Both are self-contained: no .NET needed. Then check what it can reach:
 
-- An X11 session (Xorg, or a Wayland compositor's XWayland with the outputs
-  actually present to XRandR — a pure Wayland session has none). `doctor`
-  reports `XDG_SESSION_TYPE` and warns if it is not `x11`.
-- `xrandr` (`x11-xserver-utils` on Debian/Ubuntu) for display layout and
-  gamma.
-- `ddcutil` (and `i2c-dev` loaded — most distributions load it automatically
-  when `/dev/i2c-*` nodes exist) for external monitors' DDC/CI brightness. A
-  monitor with no DDC/CI channel — every laptop's own panel — will never
-  appear there; that is correct, not a bug (`ddcutil detect` reports it as
-  `Invalid display`, same as on the Windows side's built-in panels).
-
-## Backlight write permission
-
-Writing `/sys/class/backlight/*/brightness` needs root, or a udev rule
-granting the desktop session's user write access. Without one,
-`dispctrl-linux brightness ... --backlight ...` and the GUI's matching
-slider correctly refuse (exit code 1) rather than fail silently. A rule that
-grants it, for a session in the `video` group:
-
-```
-# /etc/udev/rules.d/90-backlight.rules
-SUBSYSTEM=="backlight", RUN+="/bin/chgrp video $sys$devpath/brightness", RUN+="/bin/chmod g+w $sys$devpath/brightness"
+```bash
+dispctrl-linux doctor
 ```
 
-## Commands
+For external monitors, install `ddcutil` (`sudo apt install ddcutil`); its
+package lets the logged-in user use the I2C buses. Laptop panels have no DDC/CI
+channel - that is correct, not a fault; their backlight is used instead.
+
+## Use
+
+Open **DispCtrl** from the applications menu, or:
 
 ```
-doctor                                    check for xrandr, ddcutil, backlight, i2c
-displays                                   list XRandR outputs, ddcutil monitors, backlight devices
-brightness <0-100> --backlight <name>     write /sys/class/backlight/<name>/brightness
-brightness <0-100> --ddc <display-num>     write VCP 0x10 (brightness) via ddcutil
-brightness <0.0-1.0> --xrandr <output>     software dimming via xrandr --brightness (a gamma scalar, not hardware)
-gamma <r> <g> <b> --xrandr <output>        set a gamma ramp scalar per channel, e.g. 1.0 0.9 0.8
+dispctrl-linux displays                      outputs, DDC/CI monitors, backlights, with current levels
+dispctrl-linux brightness 60 --ddc 1         a DDC/CI monitor (the number from displays)
+dispctrl-linux brightness 40 --backlight amdgpu_bl2
+dispctrl-linux dim 0.7 --output DP-1         software dimming, 0.1 to 1
+dispctrl-linux dim off --all
+dispctrl-linux nightlight 60                 strength 0-100, and on
+dispctrl-linux nightlight --from 20:00 --to 07:00
+dispctrl-linux nightlight off
+dispctrl-linux restore                       night light off, no dimming, every ramp back to normal
+dispctrl-linux status                        what is on, and what every ramp holds
 ```
 
-Exit codes follow `dispctrl.exe`'s convention: 0 done, 1 refused, 2 asked
-wrongly.
+`dispctrl-linux help` lists everything. Exit codes are those of `dispctrl.exe`
+on Windows: 0 done, 1 refused, 2 asked wrongly.
 
-## Engine
+**If a screen is too dark or too orange**, `dispctrl-linux restore` puts
+everything back, as does the window's **Restore** button. Dimming never goes
+below 10%, so the controls stay readable.
 
-`dispctrl-linux engine` runs the same commands as the CLI, but resident: it
-listens on a Unix domain socket (`$XDG_RUNTIME_DIR/dispctrl-linux.sock`,
-falling back to `/tmp` if that variable is unset) for newline-delimited JSON
-requests and replies with newline-delimited JSON:
+## The engine
+
+`dispctrl-linux-engine` is a systemd user service. It follows the night light
+schedule (it wakes at the boundaries rather than polling), puts a ramp back
+when a mode change or a monitor plugged in resets it (within ten seconds), and
+when it stops - at logout, or `systemctl --user stop dispctrl-linux-engine` -
+it puts every ramp it warmed or dimmed back to normal.
+
+The command line and the window send their commands to it when it runs, so
+there is one writer of the ramps and one queue in front of each DDC/CI
+monitor; without it they do the work themselves, and everything except the
+schedule still works.
 
 ```
-$ echo '{"args":["displays"]}' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/dispctrl-linux.sock
-{"exitCode":0,"stdout":"-- XRandR outputs --\n...","stderr":""}
+systemctl --user status dispctrl-linux-engine
+journalctl --user -u dispctrl-linux-engine     what it changed, and why
+dispctrl-linux engine status
 ```
 
-It is the "Unix socket broker" from
-[`docs/design/LINUX-PORT.md`](design/LINUX-PORT.md)'s "Engine and IPC"
-section: a real, working broker for the commands the CLI already has, run
-through the exact same code so there is one implementation, not two -
-verified above via a raw Python socket client against real hardware
-(`displays`, a malformed request, an unknown command and a missing target
-all returned the correct exit code and JSON shape). It is **not** yet the
-rest of `DispCtrl.Engine`'s job: no state reconciliation, no scheduling, no
-presets, and nothing in this repository talks to it as a client yet (the CLI
-and GUI both still call the same backends directly, in-process).
+It listens on `$XDG_RUNTIME_DIR/dispctrl-linux.sock`, readable by your account
+only. A request is one line of JSON, `{"args":["nightlight","on"]}`, and the
+reply is `{"exitCode":0,"stdout":"...","stderr":""}`.
 
-[`packaging/linux/systemd/dispctrl-linux-engine.service`](../packaging/linux/systemd/dispctrl-linux-engine.service)
-is a systemd `--user` unit for it, giving "start at login, restart on
-failure" for free. Verified end-to-end on this machine: installed with
-`systemctl --user enable --now`, queried live over the socket, and
-confirmed to auto-restart (new PID within about a second) after `kill -9`
-on the running process.
+Settings live in `~/.config/dispctrl-linux/settings.json`, written whole and
+renamed into place; the engine sees a change at once. A hand edit is fine:
+values out of range are pulled back, and a file that is not JSON is set aside
+as `settings.json.bad`.
 
-## Snap packaging
+## Things that get in the way
 
-[`packaging/linux/snap/snapcraft.yaml`](../packaging/linux/snap/snapcraft.yaml)
-is a config sketch for Snap Store packaging - **not built or uploaded**;
-`snapcraft` was not run this session. It documents the real blocker before
-a strict-confinement build could work: no stock Snap interface grants
-`/dev/i2c-*` write access (`hardware-observe` is read-only), so DDC/CI
-brightness needs either a new/custom interface, `raw-usb`, or a
-classic/devmode build in the meantime. See the file's own comments for the
-rest of what it does not yet solve (Wayland, wiring the systemd unit up as
-a snap daemon).
+- **GNOME's own night light** writes the same ramps; whichever writes last
+  wins. Switch one off (`doctor` says when GNOME's is on).
+- **Redshift, gammastep or a calibration loader** - the same. DispCtrl leaves
+  a ramp alone while its own night light and dimming are off.
+- **DDC/CI switched off in the monitor's menu**, or a dock or KVM that does not
+  pass it through: the monitor will not appear under DDC/CI in `displays`.
+- **Backlight over SSH or on a second seat**: logind only lets the active local
+  session set it. There, install `/usr/lib/udev/rules.d/90-dispctrl-backlight.rules`
+  (the .deb does; `./install.sh --backlight-rule` for the tarball) and join the
+  video group: `sudo usermod -aG video $USER`.
 
-## Verified on real hardware (2026-09-27)
+## Wayland
 
-Ubuntu 24.04, X11 session, AMD internal panel (`eDP`, no DDC/CI) plus one
-external monitor over DisplayPort — a Dell P2723DE (`DP-1-0` in XRandR,
-`Display 1` in ddcutil, `/dev/i2c-5`).
+Wayland compositors keep gamma ramps to themselves, and there is no protocol
+every one of them offers, so on a pure Wayland session night light and dimming
+are unavailable and say so. Brightness - DDC/CI and the backlight - works
+everywhere. Log in to an X11 session ("Ubuntu on Xorg", "Plasma (X11)") for
+the rest. Per-compositor support is planned
+([docs/design/LINUX-PORT.md](design/LINUX-PORT.md)).
 
-- `displays`: XRandR output parsing and ddcutil detection both match raw
-  tool output exactly.
-- `brightness <0-100> --ddc 1`: full round-trip against the real Dell —
-  read 70, wrote 55, confirmed 55 both on the panel and via `ddcutil`,
-  restored to 70, reconfirmed.
-- The GUI: renders the same data (a slider per DDC/CI monitor, per backlight
-  device, per XRandR output), refuses the same way the CLI does on a
-  permission error, and does **not** write a slider's own starting value back
-  to the hardware on launch (see "Two bugs found by testing", below).
-- Every error path (bad args, missing targets, nonexistent display,
-  permission-denied backlight write) refused with the correct exit code.
+## Building from source
 
-### Two bugs found by testing against hardware, not fixtures or assumptions
+```bash
+./build.cmd setup              # the .NET 10 SDK into .tools/, if missing
+./build.cmd linux-build        # the command line, the window and the checks
+./build.cmd linux-run cli doctor
+./build.cmd linux-run gui
+./build.cmd test               # includes DispCtrl.Linux.Checks on Linux
+./build.cmd linux-package      # the .deb and the tarball, in artifacts/linux-<version>/
+```
 
-- **`ddcutil getvcp`'s default output is prose, not its `--brief` form.**
-  Without `--brief`, ddcutil prints
-  `VCP code 0x10 (Brightness ): current value = 70, max value = 100`, which
-  the parser never matched — every read would have silently returned
-  nothing. Fixed by always passing `--brief`.
-- **`ddcutil detect --brief` emits an `Invalid display` block for a bus with
-  no working DDC/CI** (this desk's internal eDP panel: it has an EDID, but
-  `DDC communication failed`). The parser only treated `Display N` as a new
-  block boundary, so the eDP block's fields overwrote the preceding real
-  monitor's model, serial and I2C bus in place. Fixed by treating
-  `Invalid display` as a boundary that discards rather than merges.
-- **The GUI's slider wrote the hardware's own reported value straight back
-  to it on every launch** — the same trap `.claude/CLAUDE.md` documents for
-  WinUI's two-way sliders ("every such binding needs a `_xxxReady` gate").
-  `MonitorRowViewModel` now takes its initial value through a constructor
-  parameter that bypasses the property setter, so only a real user-driven
-  change calls the write path.
+`src/DispCtrl.Linux.Core` holds the hardware (ddcutil, the backlight, XRandR
+ramps through libXrandr), settings, every command and the engine's protocol;
+`src/DispCtrl.Linux` is the command line and the engine; `src/DispCtrl.Linux.Gui`
+the Avalonia window; `build/packaging/linux` the packages, the systemd unit and
+the udev rule. `tests/DispCtrl.Linux.Checks` needs no monitors and no X server:
+it points X at a display that cannot answer, so it never changes a ramp. The
+release workflow builds and attaches the Linux packages after the Windows ones.
+The traps already paid for are in [TRAPS.md](developer/TRAPS.md#linux-client).
 
-Both parsing bugs are exactly what `presetcheck`'s "verify against monitors
-actually attached, not fixtures" rule exists to catch on the Windows side,
-and the slider bug is exactly what its WinUI traps section warns about for
-two-way bindings — the same discipline paid off here immediately.
+## Verified on
+
+Ubuntu 24.04, an X11 GNOME session, an AMD laptop panel (`eDP`, backlight
+`amdgpu_bl2`, no DDC/CI) and a Dell P2723DE over DisplayPort (`DP-1-0`,
+DDC/CI on `/dev/i2c-5`), on 2026-10-04:
+
+- DDC/CI brightness written and read back on the Dell, and restored.
+- The laptop backlight set through logind by an account in neither the video
+  nor the i2c group, and restored.
+- Night light at strength 60 read back from the CRTC as 1.000 / 0.784 / 0.614;
+  dimming at 80% on top as 0.800 / 0.627 / 0.491 - composed, not fighting.
+- The engine: a schedule window opened and closed on the minute; a ramp reset
+  by `xrandr` repaired on the next pass; SIGTERM put both ramps back and removed
+  the socket; a second engine refused to start; the socket was 0600.
+- The window, driven through the accessibility tree: switching night light on,
+  a strength sweep, dimming and Restore each reached the hardware and the
+  settings; opening it wrote nothing.
+- The .deb's binaries and the tarball's `install.sh` / `--uninstall` against a
+  scratch home. The .deb has not been installed system-wide on this machine.
