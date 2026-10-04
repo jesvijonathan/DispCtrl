@@ -1,0 +1,30 @@
+# The DispCtrl engine for Linux, as a systemd user service: started with the
+# graphical session, restarted if it fails, stopped (ramps put back) at logout.
+# The packages install it to /usr/lib/systemd/user and install.sh to
+# ~/.config/systemd/user; either way:
+#
+#   systemctl --user enable --now dispctrl-linux-engine
+#
+# Tied to graphical-session.target rather than default.target: started before
+# the session it had no $DISPLAY, and a ramp needs one. GNOME, KDE and most
+# display managers import DISPLAY and XAUTHORITY into the user manager when
+# the session starts; where one does not, the first dispctrl-linux command
+# lends the engine its own.
+
+[Unit]
+Description=DispCtrl engine (night light schedule, gamma ramps, command broker)
+Documentation=https://github.com/jesvijonathan/DispCtrl/blob/master/docs/LINUX.md
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# install.sh rewrites this path for a per-user install.
+ExecStart=/usr/lib/dispctrl-linux/dispctrl-linux engine
+Restart=on-failure
+RestartSec=2
+# SIGTERM puts the ramps back and removes the socket; give it the time to.
+TimeoutStopSec=10
+
+[Install]
+WantedBy=graphical-session.target

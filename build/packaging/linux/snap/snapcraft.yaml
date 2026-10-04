@@ -1,0 +1,69 @@
+# Snap packaging for DispCtrl on Linux - NOT YET BUILT. The .deb and the
+# tarball (build/packaging/linux/package.sh) are what ships; this is the
+# starting point for the Snap Store, kept consistent with them.
+#
+# What still stands in the way of a strict snap:
+#   - DDC/CI: ddcutil needs read/write on /dev/i2c-*. The `i2c` interface is
+#     slot-provided by gadget snaps (Ubuntu Core), not on a desktop, so no
+#     stock interface grants it here. Options: ask the Store for classic
+#     confinement, or ship without DDC/CI (night light, dimming and the
+#     backlight through logind still work).
+#   - The engine must run per user, inside the graphical session, to reach X:
+#     a user daemon (daemon-scope: user, snapd 2.61 and later), never a
+#     system one, which has no $DISPLAY and would run as root.
+#   - Backlight: logind's SetBrightness over D-Bus needs the `login-session-control`
+#     plug, which is reviewed by the Store.
+name: dispctrl-linux
+title: DispCtrl
+summary: Per-monitor brightness, dimming and night light
+description: |
+  Sets each display's brightness - external monitors over DDC/CI and a
+  laptop's own panel through its backlight - and warms or dims any display
+  through its gamma ramp, with a night light schedule kept by a small user
+  service. Night light and dimming need an X11 session.
+  https://github.com/jesvijonathan/DispCtrl/blob/master/docs/LINUX.md
+base: core24
+confinement: strict
+grade: devel
+version: git
+icon: src/DispCtrl.Linux.Gui/Assets/dispctrl.png
+
+apps:
+  dispctrl-linux:
+    command: lib/dispctrl-linux
+    plugs: [x11, hardware-observe, i2c, login-session-control]
+  dispctrl-linux-gui:
+    command: lib/dispctrl-linux-gui
+    desktop: share/applications/dispctrl-linux.desktop
+    plugs: [x11, desktop, desktop-legacy, hardware-observe, i2c, login-session-control]
+  engine:
+    command: lib/dispctrl-linux engine
+    daemon: simple
+    daemon-scope: user
+    restart-condition: on-failure
+    plugs: [x11, hardware-observe, i2c, login-session-control]
+
+parts:
+  dispctrl-linux:
+    plugin: nil
+    source: .
+    build-snaps: [dotnet-sdk-100]
+    override-build: |
+      # Both into one folder, sharing one runtime, as package.sh does.
+      dotnet publish src/DispCtrl.Linux/DispCtrl.Linux.csproj -c Release -r linux-x64 --self-contained true -p:PublishReadyToRun=true -o "$CRAFT_PART_INSTALL/lib"
+      dotnet publish src/DispCtrl.Linux.Gui/DispCtrl.Linux.Gui.csproj -c Release -r linux-x64 --self-contained true -o "$CRAFT_PART_INSTALL/lib"
+      rm -f "$CRAFT_PART_INSTALL"/lib/*.pdb
+      install -D -m 0644 build/packaging/linux/desktop/dispctrl-linux.desktop "$CRAFT_PART_INSTALL/share/applications/dispctrl-linux.desktop"
+    stage-packages:
+      - ddcutil
+      - x11-xserver-utils
+      - libx11-6
+      - libxrandr2
+      - libxi6
+      - libxfixes3
+      - libxcomposite1
+      - libcairo2
+      - libpangocairo-1.0-0
+      - libfontconfig1
+      - libice6
+      - libsm6

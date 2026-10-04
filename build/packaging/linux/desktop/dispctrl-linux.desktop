@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=DispCtrl
+GenericName=Display control
+Comment=Brightness, dimming and night light for every display
+Exec=dispctrl-linux-gui
+Icon=dispctrl-linux
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=brightness;night light;monitor;DDC;gamma;dimming;backlight;

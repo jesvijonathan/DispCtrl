@@ -1,0 +1,6 @@
+# Lets members of the video group write a built-in panel's backlight directly.
+# Optional: dispctrl-linux falls back to systemd-logind's SetBrightness, which
+# allows the active local session's user without this rule. It is needed only
+# where logind is absent or the session is not the active one (SSH, a second
+# seat).
+ACTION=="add", SUBSYSTEM=="backlight", RUN+="/bin/chgrp video /sys/class/backlight/%k/brightness", RUN+="/bin/chmod g+w /sys/class/backlight/%k/brightness"

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The Linux command line: DDC/CI (ddcutil), backlight (sysfs) and display
+       layout/gamma (XRandR). Deliberately does not reference DispCtrl.Core or
+       DispCtrl.Display, which target net10.0-windows10.0.26100.0 and carry
+       CsWin32/WMI bindings that mean nothing here; see docs/LINUX.md and
+       docs/design/LINUX-PORT.md for the rest of the port this is part of.
+       Overrides every Windows-only default the root Directory.Build.props
+       sets, since MSBuild property groups evaluate in document order and this
+       file is imported after it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <TargetPlatformMinVersion />
+    <AssemblyName>dispctrl-linux</AssemblyName>
+    <RootNamespace>DispCtrl.Linux</RootNamespace>
+
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <!-- Not per-monitor-aware WinUI interop, so no app.manifest equivalent needed. -->
+
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <Description>Linux DDC/CI, backlight and XRandR display control.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DispCtrl.Linux.Core\DispCtrl.Linux.Core.csproj" />
+  </ItemGroup>
+
+</Project>

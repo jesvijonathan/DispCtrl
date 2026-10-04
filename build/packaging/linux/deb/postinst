@@ -1,0 +1,18 @@
+#!/bin/sh
+# Enables the engine for every user's next login, as the Windows installer
+# offers its sign-in task. A user already logged in starts it with:
+#   systemctl --user start dispctrl-linux-engine
+set -e
+if [ "$1" = "configure" ]; then
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl --global enable dispctrl-linux-engine.service >/dev/null 2>&1 || true
+    fi
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload >/dev/null 2>&1 || true
+        udevadm trigger --subsystem-match=backlight >/dev/null 2>&1 || true
+    fi
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database -q /usr/share/applications || true
+    fi
+fi
+exit 0
