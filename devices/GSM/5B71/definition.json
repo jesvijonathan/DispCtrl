@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "target": "GSM-5B71",
+  "name": "LG ULTRAGEAR",
+  "extends": [],
+  "controls": [
+    {
+      "code": "0xF7",
+      "name": "Response Time",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x00",
+          "name": "Off"
+        },
+        {
+          "value": "0x01",
+          "name": "Faster"
+        },
+        {
+          "value": "0x02",
+          "name": "Fast"
+        },
+        {
+          "value": "0x03",
+          "name": "Normal"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5B71"
+      ],
+      "notes": "Modify response time of video output depending on the movement of the content, When there is a lot of motion, set to Faster."
+    },
+    {
+      "code": "0xFA",
+      "name": "1ms Motion Blur Reduction",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x01",
+          "name": "Enabled"
+        },
+        {
+          "value": "0x02",
+          "name": "Disabled"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5B71"
+      ],
+      "notes": "enables / disables 1ms Motion blur reduction feature"
+    },
+    {
+      "code": "0xFE",
+      "name": "Gamma",
+      "kind": "choice",
+      "writable": false,
+      "values": [
+        {
+          "value": "0x02",
+          "name": "Mode 1"
+        },
+        {
+          "value": "0x03",
+          "name": "Mode 2"
+        },
+        {
+          "value": "0x04",
+          "name": "Mode 3"
+        },
+        {
+          "value": "0x16",
+          "name": "Mode 4"
+        }
+      ],
+      "confidence": "observed",
+      "sources": [
+        "GSM-5B71"
+      ],
+      "notes": "Changes the Gamma presets"
+    }
+  ]
+}
