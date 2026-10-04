@@ -58,16 +58,23 @@ public sealed class MonitorRowViewModel : INotifyPropertyChanged
             _value = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(ValueText));
-            Status = "…";
-            _sender.Post(_key, _command(Math.Round(value)), error => Status = error is null ? "" : error);
+            _sender.Post(_key, _command(Math.Round(value)), error => Status = error ?? "");
         }
     }
 
+    /// <summary>Why the last change was refused; empty when it took.</summary>
     public string Status
     {
         get => _status;
-        private set { _status = value; OnPropertyChanged(); }
+        private set
+        {
+            _status = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasStatus));
+        }
     }
+
+    public bool HasStatus => _status.Length > 0;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

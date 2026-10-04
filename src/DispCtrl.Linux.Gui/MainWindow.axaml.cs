@@ -37,6 +37,10 @@ public partial class MainWindow : Window
         FromPicker.SelectedTimeChanged += (_, _) => OnScheduleChanged();
         ToPicker.SelectedTimeChanged += (_, _) => OnScheduleChanged();
 
+        // Below these widths the controls go under their text, then the header
+        // buttons drop their labels. Measured on the content, not the screen.
+        SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
+
         LoadNightLight();
         RefreshEngineLine();
 
@@ -48,6 +52,17 @@ public partial class MainWindow : Window
         _ = RescanAsync();
     }
 
+    private const double NarrowWidth = 640;
+    private const double CompactHeaderWidth = 460;
+
+    private void ApplyWidth(double width)
+    {
+        Root.Classes.Set("narrow", width < NarrowWidth);
+        bool labels = width >= CompactHeaderWidth;
+        RestoreLabel.IsVisible = labels;
+        RescanLabel.IsVisible = labels;
+    }
+
     private void OnRescanClick(object? sender, RoutedEventArgs e) => _ = RescanAsync();
 
     private async void OnRestoreClick(object? sender, RoutedEventArgs e)
@@ -56,7 +71,7 @@ public partial class MainWindow : Window
         var reply = await CommandSender.RunAsync(["restore"]);
         RestoreButton.IsEnabled = true;
         LoadNightLight();
-        NightLightStatus.Text = reply.ExitCode == 0 ? "Restored: night light off, no dimming." : reply.Stderr.Trim();
+        SetNightLightStatus(reply.ExitCode == 0 ? null : reply.Stderr.Trim());
         _ = RescanAsync();
     }
 
@@ -64,9 +79,11 @@ public partial class MainWindow : Window
     {
         _ = Task.Run(() => EngineClient.IsRunning()).ContinueWith(t =>
         {
-            EngineLine.Text = t.Result
-                ? "The engine is running: the schedule and hot-plugged displays are looked after."
-                : "The engine is not running: changes apply now, but nothing follows the schedule. Start it with systemctl --user enable --now dispctrl-linux-engine.";
+            bool running = t.Result;
+            EngineLine.Text = running ? "Engine running" : "Engine not running";
+            EngineDot.Fill = (Avalonia.Media.IBrush?)this.FindResource(
+                running ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush");
+            EngineHint.IsVisible = !running;
         }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
@@ -82,10 +99,11 @@ public partial class MainWindow : Window
         FromPicker.SelectedTime = from.ToTimeSpan();
         ToPicker.SelectedTime = to.ToTimeSpan();
         UpdateStrengthText();
+        ScheduleTimes.IsEnabled = settings.Scheduled;
 
         bool x = GammaRamp.IsAvailable(out var reason);
         NightLightSwitch.IsEnabled = x || settings.Enabled;
-        NightLightStatus.Text = x ? "" : $"Night light and dimming are unavailable: {reason}.";
+        SetNightLightStatus(x ? null : $"Unavailable: {reason}.");
         _nightLightReady = true;
     }
 
@@ -112,6 +130,7 @@ public partial class MainWindow : Window
 
     private void OnScheduleChanged()
     {
+        ScheduleTimes.IsEnabled = ScheduleSwitch.IsChecked == true;
         if (!_nightLightReady) return;
         if (FromPicker.SelectedTime is not { } from || ToPicker.SelectedTime is not { } to) return;
         // Compared at minute resolution: a picker holds whole minutes, and
@@ -120,7 +139,7 @@ public partial class MainWindow : Window
         var t = TimeOnly.FromTimeSpan(to);
         if (f.Hour == t.Hour && f.Minute == t.Minute)
         {
-            NightLightStatus.Text = "The schedule cannot start and end at the same time.";
+            SetNightLightStatus("The schedule cannot start and end at the same time.");
             return;
         }
         Send(["nightlight", "--from", Schedule.Format(f), "--to", Schedule.Format(t),
@@ -129,12 +148,24 @@ public partial class MainWindow : Window
 
     private void Send(string[] args)
     {
-        NightLightStatus.Text = "";
+        SetNightLightStatus(null);
         _sender.Post("nightlight", args, error =>
         {
-            NightLightStatus.Text = error ?? "";
             if (error is not null) LoadNightLight();
+            SetNightLightStatus(error);
         });
+    }
+
+    private void SetNightLightStatus(string? text)
+    {
+        NightLightStatus.Text = text ?? "";
+        NightLightStatus.IsVisible = !string.IsNullOrEmpty(text);
+    }
+
+    private void SetScanStatus(string? text)
+    {
+        ScanStatus.Text = text ?? "";
+        ScanStatus.IsVisible = !string.IsNullOrEmpty(text);
     }
 
     private void UpdateStrengthText() =>
@@ -147,7 +178,7 @@ public partial class MainWindow : Window
     {
         int generation = ++_scanGeneration;
         RescanButton.IsEnabled = false;
-        ScanStatus.Text = "Looking for displays…";
+        SetScanStatus("Looking for displays…");
         _rows.Clear();
 
         var settings = SettingsStore.Load();
@@ -157,20 +188,20 @@ public partial class MainWindow : Window
         {
             double dim = settings.Dim.TryGetValue(output.Name, out var d) ? d : 1;
             _rows.Add(new MonitorRowViewModel(
-                title: $"{output.Name} - dimming",
-                subtitle: "Software: scales the output's gamma ramp. The monitor's own brightness is unchanged.",
+                title: $"Dimming - {output.Name}",
+                subtitle: "Software, through the gamma ramp; the monitor's own brightness is unchanged",
                 minimum: RampTarget.LowestDim * 100, maximum: 100, initialValue: dim * 100, unit: "%",
                 _sender, key: $"dim:{output.Name}",
                 command: v => ["dim", (v / 100).ToString("0.##", CultureInfo.InvariantCulture), "--output", output.Name],
-                icon: FASymbol.View));
+                icon: FASymbol.WeatherSunnyLow));
         }
 
         foreach (var device in await Task.Run(Backlight.Enumerate))
         {
             if (generation != _scanGeneration) return;
             _rows.Add(new MonitorRowViewModel(
-                title: $"{device.Name} - brightness",
-                subtitle: "Built-in panel backlight",
+                title: "Built-in display",
+                subtitle: $"Backlight brightness ({device.Name})",
                 minimum: 0, maximum: 100, initialValue: Math.Round(device.Fraction * 100), unit: "%",
                 _sender, key: $"backlight:{device.Name}",
                 command: v => ["brightness", ((int)v).ToString(CultureInfo.InvariantCulture), "--backlight", device.Name],
@@ -179,7 +210,7 @@ public partial class MainWindow : Window
 
         if (Ddcutil.IsAvailable)
         {
-            ScanStatus.Text = "Asking DDC/CI monitors (a few seconds)…";
+            SetScanStatus("Asking DDC/CI monitors (a few seconds)…");
             var monitors = await Task.Run(() => Ddcutil.Detect()
                 .Select(m => (Monitor: m, Level: Ddcutil.GetVcp(m.DisplayNum, Ddcutil.VcpBrightness)))
                 .ToList());
@@ -188,20 +219,21 @@ public partial class MainWindow : Window
             {
                 if (level is null) continue;
                 _rows.Add(new MonitorRowViewModel(
-                    title: $"{monitor.Model ?? $"Display {monitor.DisplayNum}"} - brightness",
-                    subtitle: $"DDC/CI, the monitor's own backlight ({monitor.I2CBus})",
-                    minimum: 0, maximum: level.Maximum ?? 100, initialValue: level.Current, unit: "",
+                    title: monitor.Model ?? $"Display {monitor.DisplayNum}",
+                    subtitle: "Brightness, set in the monitor itself over DDC/CI",
+                    minimum: 0, maximum: level.Maximum ?? 100, initialValue: level.Current,
+                    unit: (level.Maximum ?? 100) == 100 ? "%" : "",
                     _sender, key: $"ddc:{monitor.DisplayNum}",
                     command: v => ["brightness", ((int)v).ToString(CultureInfo.InvariantCulture), "--ddc", monitor.DisplayNum.ToString(CultureInfo.InvariantCulture)],
-                    icon: FASymbol.Settings));
+                    icon: FASymbol.WeatherSunnyHigh));
             }
-            ScanStatus.Text = monitors.Count == 0
+            SetScanStatus(monitors.Count == 0
                 ? "No monitor answered over DDC/CI. A built-in panel never does; for an external one, see dispctrl-linux doctor."
-                : "";
+                : null);
         }
         else
         {
-            ScanStatus.Text = "ddcutil is not installed, so external monitors' own brightness cannot be changed.";
+            SetScanStatus("ddcutil is not installed, so external monitors' own brightness cannot be changed.");
         }
 
         if (_rows.Count == 0)

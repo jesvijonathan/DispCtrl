@@ -4,105 +4,228 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:DispCtrl.Linux.Gui"
         xmlns:ui="using:FluentAvalonia.UI.Controls"
-        mc:Ignorable="d" d:DesignWidth="680" d:DesignHeight="640"
-        Width="680" Height="640" MinWidth="520" MinHeight="420"
+        mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="760"
+        Width="720" Height="760" MinWidth="380" MinHeight="420"
         x:Class="DispCtrl.Linux.Gui.MainWindow"
         Title="DispCtrl"
         Icon="avares://dispctrl-linux-gui/Assets/dispctrl.png"
         Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
-    <DockPanel Margin="24,20,24,16">
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
-            <StackPanel Grid.Column="0" Spacing="2">
-                <TextBlock Text="DispCtrl" FontSize="26" FontWeight="SemiBold" />
-                <TextBlock Name="EngineLine" Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                <Button Name="RestoreButton" Click="OnRestoreClick" AutomationProperties.Name="Restore"
-                        ToolTip.Tip="Night light off, no dimming, every ramp back to normal">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <ui:FASymbolIcon Symbol="Undo" FontSize="16" />
-                        <TextBlock Text="Restore" />
-                    </StackPanel>
-                </Button>
-                <Button Name="RescanButton" Click="OnRescanClick" AutomationProperties.Name="Rescan"
-                        ToolTip.Tip="Look for displays again: a few seconds of DDC/CI traffic per monitor">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <ui:FASymbolIcon Symbol="Refresh" FontSize="16" />
-                        <TextBlock Text="Rescan" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-        </Grid>
 
-        <ScrollViewer>
-            <StackPanel Spacing="4">
-                <TextBlock Text="Night light" FontWeight="SemiBold" Margin="0,4,0,4" />
-                <ui:FASettingsExpanderItem Name="NightLightCard" Content="Night light"
-                                           Description="Warms every display through its gamma ramp">
-                    <ui:FASettingsExpanderItem.IconSource>
-                        <ui:FASymbolIconSource Symbol="WeatherMoon" />
-                    </ui:FASettingsExpanderItem.IconSource>
-                    <ui:FASettingsExpanderItem.Footer>
-                        <ToggleSwitch Name="NightLightSwitch" OnContent="On" OffContent="Off"
-                                      AutomationProperties.Name="Night light" />
-                    </ui:FASettingsExpanderItem.Footer>
-                </ui:FASettingsExpanderItem>
-                <ui:FASettingsExpanderItem Content="Strength" Name="StrengthCard">
-                    <ui:FASettingsExpanderItem.Footer>
-                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <Slider Name="StrengthSlider" Width="200" Minimum="0" Maximum="100"
-                                    AutomationProperties.Name="Night light strength" />
-                            <TextBlock Name="StrengthText" Width="64" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ui:FASettingsExpanderItem.Footer>
-                </ui:FASettingsExpanderItem>
-                <ui:FASettingsExpanderItem Content="Schedule"
-                                           Description="On: warm only between these times. The engine follows it.">
-                    <ui:FASettingsExpanderItem.Footer>
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <TimePicker Name="FromPicker" ClockIdentifier="24HourClock" MinuteIncrement="5"
-                                        AutomationProperties.Name="Night light from" />
-                            <TextBlock Text="to" VerticalAlignment="Center" />
-                            <TimePicker Name="ToPicker" ClockIdentifier="24HourClock" MinuteIncrement="5"
-                                        AutomationProperties.Name="Night light to" />
-                            <ToggleSwitch Name="ScheduleSwitch" OnContent="" OffContent=""
-                                          AutomationProperties.Name="Follow the schedule" />
-                        </StackPanel>
-                    </ui:FASettingsExpanderItem.Footer>
-                </ui:FASettingsExpanderItem>
-                <TextBlock Name="NightLightStatus" FontSize="12" Opacity="0.7" TextWrapping="Wrap" Margin="4,0,0,0" />
+    <!-- Cards are laid out here rather than with FASettingsExpanderItem: its
+         footer takes the width it wants and squeezes the text, which crushed
+         the schedule's description into a one-letter column. Each card is a
+         three-column grid (icon, text, control); below NarrowWidth the root
+         gets the "narrow" class and the control moves under the text. -->
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,14" />
+        </Style>
+        <Style Selector="ui|FASymbolIcon.cardicon">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.caption">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <Style Selector="TextBlock.status">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="2,20,0,8" />
+        </Style>
 
-                <TextBlock Text="Displays" FontWeight="SemiBold" Margin="0,16,0,4" />
-                <TextBlock Name="ScanStatus" FontSize="12" Opacity="0.7" Margin="4,0,0,4" />
-                <ItemsControl Name="Rows">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Spacing="4" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vm:MonitorRowViewModel">
-                            <ui:FASettingsExpanderItem Content="{Binding Title}" Description="{Binding Subtitle}">
-                                <ui:FASettingsExpanderItem.IconSource>
-                                    <ui:FASymbolIconSource Symbol="{Binding Icon}" />
-                                </ui:FASettingsExpanderItem.IconSource>
-                                <ui:FASettingsExpanderItem.Footer>
-                                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center"
-                                                IsVisible="{Binding IsInteractive}">
-                                        <TextBlock Text="{Binding Status}" MaxWidth="180" FontSize="11" Opacity="0.7"
-                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                                   ToolTip.Tip="{Binding Status}" />
-                                        <Slider Width="180" Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
-                                                Value="{Binding Value, Mode=TwoWay}"
-                                                AutomationProperties.Name="{Binding Title}" />
-                                        <TextBlock Text="{Binding ValueText}" Width="44" VerticalAlignment="Center" />
+        <!-- The control column: beside the text when wide, under it when narrow. -->
+        <Style Selector="Grid.cardgrid > :is(Control).control">
+            <Setter Property="Grid.Row" Value="0" />
+            <Setter Property="Grid.Column" Value="2" />
+            <Setter Property="Margin" Value="16,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <Style Selector="Panel.narrow Grid.cardgrid > :is(Control).control">
+            <Setter Property="Grid.Row" Value="1" />
+            <Setter Property="Grid.Column" Value="1" />
+            <Setter Property="Grid.ColumnSpan" Value="2" />
+            <Setter Property="Margin" Value="0,12,0,0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <!-- A switch is compact, so it stays beside its text at every width. -->
+        <Style Selector="Grid.cardgrid > ToggleSwitch.toggle">
+            <Setter Property="Grid.Column" Value="2" />
+            <Setter Property="Margin" Value="16,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="MinWidth" Value="0" />
+        </Style>
+        <!-- A slider with its value: a fixed, comfortable width when wide, all
+             of the card when narrow. -->
+        <Style Selector="Grid.slider">
+            <Setter Property="Width" Value="260" />
+        </Style>
+        <Style Selector="Panel.narrow Grid.slider">
+            <Setter Property="Width" Value="NaN" />
+        </Style>
+        <Style Selector="Grid.slider > TextBlock">
+            <Setter Property="Grid.Column" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontFeatures" Value="+tnum" />
+        </Style>
+        <Style Selector="TimePicker">
+            <Setter Property="MinWidth" Value="0" />
+        </Style>
+    </Window.Styles>
+
+    <Panel Name="Root">
+        <DockPanel>
+            <!-- Header -->
+            <Border DockPanel.Dock="Top" Padding="24,20,24,4">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" MaxWidth="880">
+                    <TextBlock Text="DispCtrl" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Name="RestoreButton" Click="OnRestoreClick" AutomationProperties.Name="Restore"
+                                ToolTip.Tip="Night light off, no dimming, every ramp back to normal">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ui:FASymbolIcon Symbol="Undo" FontSize="16" />
+                                <TextBlock Name="RestoreLabel" Text="Restore" />
+                            </StackPanel>
+                        </Button>
+                        <Button Name="RescanButton" Click="OnRescanClick" AutomationProperties.Name="Rescan"
+                                ToolTip.Tip="Look for displays again: a few seconds of DDC/CI traffic per monitor">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ui:FASymbolIcon Symbol="Refresh" FontSize="16" />
+                                <TextBlock Name="RescanLabel" Text="Rescan" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                        <Ellipse Name="EngineDot" Width="8" Height="8" VerticalAlignment="Center" />
+                        <TextBlock Name="EngineLine" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <!-- Right padding keeps the scroll bar off the controls; MaxWidth keeps
+                     a wide window readable, centred. -->
+                <StackPanel Margin="24,0,24,24" MaxWidth="880">
+
+                    <Border Name="EngineHint" Classes="card" Margin="0,12,0,0" IsVisible="False">
+                        <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                            <ui:FASymbolIcon Classes="cardicon" Symbol="Important" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Classes="title" Text="The engine is not running" />
+                                <TextBlock Classes="caption"
+                                           Text="Changes apply now, but nothing follows the night light schedule or repairs a display after it is plugged in. Start it, and at every login after, with:" />
+                                <SelectableTextBlock Text="systemctl --user enable --now dispctrl-linux-engine"
+                                                     FontFamily="monospace" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Classes="section" Text="Night light" />
+                    <StackPanel Spacing="4">
+                        <Border Classes="card">
+                            <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                <ui:FASymbolIcon Classes="cardicon" Symbol="WeatherMoon" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Classes="title" Text="Night light" />
+                                    <TextBlock Classes="caption" Text="Warms every display through its gamma ramp" />
+                                    <TextBlock Name="NightLightStatus" Classes="status" IsVisible="False" />
+                                </StackPanel>
+                                <ToggleSwitch Name="NightLightSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                              MinWidth="0" AutomationProperties.Name="Night light" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="card">
+                            <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                <ui:FASymbolIcon Classes="cardicon" Symbol="DarkTheme" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Classes="title" Text="Strength" />
+                                    <TextBlock Classes="caption" Text="From 6500 K, neutral, to 1900 K" />
+                                </StackPanel>
+                                <Grid Classes="slider control" ColumnDefinitions="*,56">
+                                    <Slider Name="StrengthSlider" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                                            AutomationProperties.Name="Night light strength" />
+                                    <TextBlock Name="StrengthText" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                        <Border Classes="card">
+                            <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                <ui:FASymbolIcon Classes="cardicon" Symbol="Clock" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Classes="title" Text="Schedule" />
+                                    <TextBlock Classes="caption" Text="Warm only between these times. Off: warm whenever night light is on." />
+                                </StackPanel>
+                                <ToggleSwitch Name="ScheduleSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                              MinWidth="0" AutomationProperties.Name="Follow the schedule" />
+                                <WrapPanel Name="ScheduleTimes" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                                           Orientation="Horizontal" Margin="0,12,0,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,16,4">
+                                        <TextBlock Text="From" Width="36" VerticalAlignment="Center" />
+                                        <TimePicker Name="FromPicker" ClockIdentifier="24HourClock" MinuteIncrement="5"
+                                                    Width="150" AutomationProperties.Name="Night light from" />
                                     </StackPanel>
-                                </ui:FASettingsExpanderItem.Footer>
-                            </ui:FASettingsExpanderItem>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </ScrollViewer>
-    </DockPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
+                                        <TextBlock Text="To" Width="36" VerticalAlignment="Center" />
+                                        <TimePicker Name="ToPicker" ClockIdentifier="24HourClock" MinuteIncrement="5"
+                                                    Width="150" AutomationProperties.Name="Night light to" />
+                                    </StackPanel>
+                                </WrapPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock Classes="section" Text="Displays" />
+                    <TextBlock Name="ScanStatus" Classes="caption" Margin="2,0,0,8" />
+                    <ItemsControl Name="Rows">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:MonitorRowViewModel">
+                                <Border Classes="card">
+                                    <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                        <ui:FASymbolIcon Classes="cardicon" Symbol="{Binding Icon}" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Classes="title" Text="{Binding Title}" />
+                                            <TextBlock Classes="caption" Text="{Binding Subtitle}" />
+                                            <TextBlock Classes="status" Text="{Binding Status}"
+                                                       IsVisible="{Binding HasStatus}" />
+                                        </StackPanel>
+                                        <Grid Classes="slider control" ColumnDefinitions="*,56" IsVisible="{Binding IsInteractive}">
+                                            <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                                    Value="{Binding Value, Mode=TwoWay}" VerticalAlignment="Center"
+                                                    AutomationProperties.Name="{Binding Title}" />
+                                            <TextBlock Text="{Binding ValueText}" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </Panel>
 </Window>
