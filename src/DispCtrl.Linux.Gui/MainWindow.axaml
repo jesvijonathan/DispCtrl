@@ -1,0 +1,60 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:DispCtrl.Linux.Gui"
+        xmlns:ui="using:FluentAvalonia.UI.Controls"
+        mc:Ignorable="d" d:DesignWidth="620" d:DesignHeight="520"
+        Width="620" Height="520" MinWidth="480" MinHeight="360"
+        x:Class="DispCtrl.Linux.Gui.MainWindow"
+        Title="DispCtrl for Linux"
+        TransparencyLevelHint="Mica,AcrylicBlur,Blur,None"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+    <!-- FASettingsExpanderItem per row, the same building block the Windows
+         app's own pages use (a header/description pair, an icon, and a
+         trailing control) rather than the plain ItemsControl+Border rows
+         this used before FluentAvalonia was wired in - see
+         .claude/CLAUDE.md's SettingsExpander notes for why a real settings
+         card, not a hand-rolled one, is worth reusing. -->
+    <DockPanel Margin="24">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+            <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="DispCtrl for Linux" FontSize="28" FontWeight="SemiBold" />
+                <TextBlock Text="Brightness and gamma across DDC/CI monitors, the backlight and XRandR outputs."
+                           TextWrapping="Wrap" Opacity="0.7" FontSize="13" />
+            </StackPanel>
+            <Button Grid.Column="1" Click="OnRescanClick" VerticalAlignment="Top"
+                    ToolTip.Tip="Rescan displays">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ui:FASymbolIcon Symbol="Refresh" FontSize="16" />
+                    <TextBlock Text="Rescan" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <ScrollViewer>
+            <ItemsControl Name="Rows">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:MonitorRowViewModel">
+                        <ui:FASettingsExpanderItem Content="{Binding Title}" Description="{Binding Subtitle}">
+                            <ui:FASettingsExpanderItem.IconSource>
+                                <ui:FASymbolIconSource Symbol="{Binding Icon}" />
+                            </ui:FASettingsExpanderItem.IconSource>
+                            <ui:FASettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                    <Slider Width="200" Minimum="0" Maximum="{Binding Maximum}" Value="{Binding Value, Mode=TwoWay}" />
+                                    <TextBlock Text="{Binding Status}" Width="72" FontSize="11" Opacity="0.6" />
+                                </StackPanel>
+                            </ui:FASettingsExpanderItem.Footer>
+                        </ui:FASettingsExpanderItem>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

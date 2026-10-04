@@ -1,0 +1,18 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:styling="using:FluentAvalonia.Styling"
+             x:Class="DispCtrl.Linux.Gui.App"
+             RequestedThemeVariant="Default">
+             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.Styles>
+        <!-- FluentAvaloniaTheme in place of Avalonia's own FluentTheme: it is
+             what actually gives WinUI-style controls (SettingsExpanderItem,
+             NavigationView, the Segoe-Fluent icon set) their real look, rather
+             than dispctrl-linux-gui rendering as a plain default Avalonia app.
+             PreferSystemTheme/PreferUserAccentColor follow the desktop's own
+             dark/light mode and accent colour, the same as the Windows app
+             following the shell rather than hard-coding a palette. -->
+        <styling:FluentAvaloniaTheme PreferSystemTheme="True" PreferUserAccentColor="True" />
+    </Application.Styles>
+</Application>

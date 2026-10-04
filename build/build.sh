@@ -7,6 +7,9 @@
 #                          package commands for anything else
 #   ./build.cmd build       Core, Display, Control, CLI, engine and the checks
 #   ./build.cmd test        DispCtrl.Core.Checks and devicecheck
+#   ./build.cmd linux-build the Linux client (dispctrl-linux and its window),
+#                          native linux-x64, and its checks - see docs/LINUX.md
+#   ./build.cmd linux-run cli|gui [args...]   run one after building it
 #   ./build.cmd clean       bin/ and obj/ folders
 #
 # Options: -c Debug|Release (default Release), --native (build the taskbar-glass
@@ -23,6 +26,13 @@ tools="$repo/.tools"
 command="${1:-help}"; [[ $# -gt 0 ]] && shift
 configuration=Release
 native=false
+linux_run_target=""
+linux_run_args=()
+if [[ "$command" == linux-run ]]; then
+  linux_run_target="${1:-}"; [[ $# -gt 0 ]] && shift
+  linux_run_args=("$@")
+  set --
+fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -c|--configuration) configuration="$2"; shift 2 ;;
@@ -105,12 +115,32 @@ clean() {
   echo "Clean."
 }
 
+linux_build() {
+  dotnet_env
+  for p in src/DispCtrl.Linux.Core src/DispCtrl.Linux src/DispCtrl.Linux.Gui; do
+    echo "== $p"
+    dotnet build "$repo/$p" -c "$configuration" -v q --nologo
+  done
+  echo; echo "Built the Linux client. Run with: ./build.cmd linux-run cli|gui [args...]"
+}
+
+linux_run() {
+  dotnet_env
+  case "$linux_run_target" in
+    cli) dotnet run --project "$repo/src/DispCtrl.Linux" -c "$configuration" -- "${linux_run_args[@]}" ;;
+    gui) dotnet run --project "$repo/src/DispCtrl.Linux.Gui" -c "$configuration" -- "${linux_run_args[@]}" ;;
+    *) echo "Usage: ./build.cmd linux-run cli|gui [args...]" >&2; exit 2 ;;
+  esac
+}
+
 case "$command" in
   doctor) doctor ;;
   setup) setup ;;
   build) build ;;
   test) test_ ;;
+  linux-build) linux_build ;;
+  linux-run) linux_run ;;
   clean) clean ;;
-  help|-h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
-  *) echo "Unknown command: $command (doctor, setup, build, test, clean)" >&2; exit 2 ;;
+  help|-h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) echo "Unknown command: $command (doctor, setup, build, test, linux-build, linux-run, clean)" >&2; exit 2 ;;
 esac

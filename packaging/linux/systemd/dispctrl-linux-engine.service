@@ -1,0 +1,32 @@
+# A systemd --user unit for `dispctrl-linux engine` (see docs/LINUX.md
+# "Engine"): a Unix-socket JSON command broker at
+# $XDG_RUNTIME_DIR/dispctrl-linux.sock, giving the same "start at login,
+# restart on failure" semantics DispCtrl.Engine gets from Windows' scheduled
+# task - see docs/design/LINUX-PORT.md "The engine and IPC".
+#
+# Install (adjust the ExecStart path to wherever `dotnet publish` or
+# `./build.sh linux-build` put the binary):
+#   mkdir -p ~/.config/systemd/user
+#   cp packaging/linux/systemd/dispctrl-linux-engine.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now dispctrl-linux-engine.service
+#
+# Talk to it once it is running:
+#   echo '{"args":["displays"]}' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/dispctrl-linux.sock
+#
+# What this does NOT do yet: no state reconciliation, no scheduling, no
+# presets, no clients besides raw JSON-over-socket. It is the broker, not
+# the rest of DispCtrl.Engine's job.
+
+[Unit]
+Description=DispCtrl for Linux - brightness/gamma command broker
+Documentation=https://github.com/jesvijonathan/DispCtrl/blob/main/docs/LINUX.md
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/dispctrl-linux/dispctrl-linux engine
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,68 @@
+# Snap packaging for the Linux client (docs/LINUX.md), following the sketch
+# in docs/design/LINUX-PORT.md "Snap packaging". Config only: this has not
+# been built with `snapcraft` or uploaded to the Store from this session -
+# see docs/LINUX.md for what has actually been run and verified so far.
+#
+# Known gaps this file does not solve yet:
+#   - ddcutil needs read/write access to /dev/i2c-*, which strict confinement
+#     does not grant through any stock interface; `hardware-observe` alone is
+#     read-only. A custom interface (or requesting `i2c`/`raw-usb` from the
+#     Snap Store team) is needed before a strict build can actually talk to
+#     DDC/CI monitors - classic or devmode would work meanwhile but forgoes
+#     the Store's automatic review track.
+#   - xrandr needs an X11 session; this snap is not Wayland-native (matches
+#     the client's current X11-only scope).
+#   - dispctrl-linux-engine.service (packaging/linux/systemd) is not wired up
+#     as a snap daemon here yet - the "Unix socket broker" runs manually via
+#     `dispctrl-linux engine` for now.
+name: dispctrl-linux
+summary: Per-monitor brightness and gamma control for DDC/CI, backlight and XRandR
+description: |
+  An early, X11-only Linux client for DispCtrl: brightness for external
+  monitors over DDC/CI and internal panels over the kernel backlight
+  interface, plus XRandR-based gamma/colour-temperature control. See
+  https://github.com/jesvijonathan/DispCtrl/blob/main/docs/LINUX.md for
+  exactly what does and does not work yet - this is not the Windows app's
+  taskbar, hotkeys, presets or night-light scheduling ported over, only the
+  brightness/gamma layer underneath them.
+base: core24
+confinement: strict
+grade: stable
+version: git
+
+apps:
+  dispctrl-linux:
+    command: bin/dispctrl-linux
+    plugs: [hardware-observe, i2c, x11]
+  dispctrl-linux-gui:
+    command: bin/dispctrl-linux-gui
+    plugs: [hardware-observe, i2c, x11, desktop, desktop-legacy, wayland]
+    extensions: [gnome]
+  dispctrl-linux-engine:
+    command: bin/dispctrl-linux engine
+    daemon: simple
+    plugs: [hardware-observe, i2c, x11]
+    restart-condition: on-failure
+
+plugs:
+  # Stock hardware-observe is read-only and does not cover /dev/i2c-* writes;
+  # `i2c` here is a placeholder for whatever plug ends up granting DDC/CI
+  # write access (see "Known gaps" above) - not yet a real, connectable Snap
+  # interface.
+  i2c:
+    interface: i2c
+    devices: ["/dev/i2c-*"]
+
+parts:
+  dispctrl-linux:
+    plugin: dotnet
+    source: .
+    dotnet-build-configuration: Release
+    override-build: |
+      dotnet publish src/DispCtrl.Linux/DispCtrl.Linux.csproj -c Release -r linux-x64 --self-contained true -o "$SNAPCRAFT_PART_INSTALL/bin"
+      dotnet publish src/DispCtrl.Linux.Gui/DispCtrl.Linux.Gui.csproj -c Release -r linux-x64 --self-contained true -o "$SNAPCRAFT_PART_INSTALL/gui-bin"
+      mv "$SNAPCRAFT_PART_INSTALL/gui-bin/dispctrl-linux-gui" "$SNAPCRAFT_PART_INSTALL/bin/dispctrl-linux-gui"
+      cp "$SNAPCRAFT_PART_INSTALL"/gui-bin/*.dll "$SNAPCRAFT_PART_INSTALL/bin/" 2>/dev/null || true
+    stage-packages:
+      - x11-xserver-utils # xrandr
+      - ddcutil

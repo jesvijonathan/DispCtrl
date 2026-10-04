@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared between dispctrl-linux (CLI) and the Avalonia GUI: XRandR/ddcutil/
+       backlight backends only, no UI. Split out once a second consumer needed
+       it, mirroring DispCtrl.Core/DispCtrl.Display's own split on the Windows
+       side. Overrides every Windows-only default the root Directory.Build.props
+       sets - see the comment in DispCtrl.Linux.csproj for why. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TargetPlatformMinVersion />
+    <AssemblyName>DispCtrl.Linux.Core</AssemblyName>
+    <RootNamespace>DispCtrl.Linux</RootNamespace>
+
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <Description>XRandR, ddcutil and backlight backends shared by dispctrl-linux and the GUI.</Description>
+  </PropertyGroup>
+
+</Project>

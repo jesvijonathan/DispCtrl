@@ -10,6 +10,7 @@
 | [Command coverage](CLI-COVERAGE.md) | Every control in the app, page by page, and the command behind it |
 | [Presets and desk profiles](PRESETS.md) | Capturing a whole desk and applying it, by hand or when its displays connect |
 | [Custom controls and features](CUSTOM-CONTROLS.md) | Mapped monitor controls, named features, quick panel tiles |
+| [Linux client](LINUX.md) | The early Linux client: DDC/CI, backlight and gamma on X11, its engine and its limits |
 | [LG input switching](LG-INPUT-SWITCHING.md) | The alternate DDC/CI input path LG monitors need |
 | [Device library](DEVICE-LIBRARY.md) | Monitor definitions, naming undocumented codes, sharing a record |
 | [Examples](examples) | Scripts for display events, layouts and requests |
