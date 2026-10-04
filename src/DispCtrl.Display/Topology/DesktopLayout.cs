@@ -1,3 +1,4 @@
+using DispCtrl.Core.Displays;
 using Windows.Win32;
 using Windows.Win32.Devices.Display;
 using Windows.Win32.Foundation;
@@ -62,4 +63,29 @@ public static class DesktopLayout
 
         return result == WIN32_ERROR.ERROR_SUCCESS;
     }
+
+    /// <summary>What the desktop is doing now, in Win+P's terms, or null for a mix of duplicated and extended.</summary>
+    /// <param name="onlyDisplayIsInternal">
+    /// Asked only when one display is on and Windows has no record of which
+    /// choice put it there: then a built-in panel means "PC screen only".
+    /// </param>
+    /// <remarks>
+    /// Duplicate and Extend are read from the paths themselves, which is
+    /// right however the desk was arranged. With one display on, Windows'
+    /// own record decides between the two single-screen choices; see
+    /// <see cref="DisplayRegistry.Recorded"/>.
+    /// </remarks>
+    public static DesktopArrangement? Current(Func<bool> onlyDisplayIsInternal) =>
+        DisplayRegistry.Topology() switch
+        {
+            DisplayRegistry.DisplayTopology.Extended => DesktopArrangement.Extend,
+            DisplayRegistry.DisplayTopology.Duplicated => DesktopArrangement.Duplicate,
+            DisplayRegistry.DisplayTopology.Single => DisplayRegistry.Recorded() switch
+            {
+                DisplayRegistry.RecordedChoice.Internal => DesktopArrangement.InternalOnly,
+                DisplayRegistry.RecordedChoice.External => DesktopArrangement.ExternalOnly,
+                _ => onlyDisplayIsInternal() ? DesktopArrangement.InternalOnly : DesktopArrangement.ExternalOnly,
+            },
+            _ => null,
+        };
 }

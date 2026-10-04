@@ -8,6 +8,12 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+### Fixed
+- In Duplicate, the app said only one display was connected and offered no way back to Extend or one screen.
+- With two external monitors, "PC screen only" lit "Second screen only" on the Displays page and in the quick panel. The lit choice is now the one Windows' own Project flyout shows, and presets record it the same way.
+- The quick panel's display mode buttons follow a switch between Duplicate and one screen straight away, instead of after the panel is reopened.
+- The Hotkeys page opens at once instead of after a second or two.
+
 ## [0.2.1] - 2026-10-03
 
 ### Highlights

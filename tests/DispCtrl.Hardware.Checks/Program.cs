@@ -415,6 +415,30 @@ Console.WriteLine("EDID, decoded from the panels actually attached");
     }
 }
 
+Console.WriteLine();
+Console.WriteLine("Win+P's mode, read from the desk as it is (nothing is switched)");
+{
+    int desktops = DisplayRegistry.Enumerate().Count, monitors = DisplayRegistry.ActiveMonitorCount();
+    DisplayRegistry.DisplayTopology topology = DisplayRegistry.Topology();
+    DisplayRegistry.RecordedChoice recorded = DisplayRegistry.Recorded();
+    DispCtrl.Display.Topology.DesktopArrangement? mode = DispCtrl.Display.Topology.DesktopLayout.Current(() => false);
+    Console.WriteLine($"  {desktops} desktop(s), {monitors} monitor(s) on, {topology}; Windows' record {recorded}; mode {mode}");
+    // Duplicated monitors are one desktop and must still count as two, or the
+    // app offers no way out of Duplicate.
+    Check("every monitor on is counted, once", monitors >= desktops && monitors >= 1);
+    if (topology == DisplayRegistry.DisplayTopology.Extended)
+    {
+        Check("extended: one desktop per monitor", monitors == desktops);
+        Check("extended reads as Extend", mode == DispCtrl.Display.Topology.DesktopArrangement.Extend);
+    }
+    if (topology == DisplayRegistry.DisplayTopology.Duplicated)
+        Check("duplicated reads as Duplicate, with more monitors than desktops",
+            mode == DispCtrl.Display.Topology.DesktopArrangement.Duplicate && monitors > desktops);
+    if (topology == DisplayRegistry.DisplayTopology.Single)
+        Check("one screen reads as one of the single-screen choices",
+            mode is DispCtrl.Display.Topology.DesktopArrangement.InternalOnly or DispCtrl.Display.Topology.DesktopArrangement.ExternalOnly);
+}
+
 // ---------------------------------------------------------------- redaction --
 // The part that has to be right. Everything below asks the same question: can
 // anything that identifies this machine or this person reach a public issue?

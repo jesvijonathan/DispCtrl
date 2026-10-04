@@ -61,6 +61,7 @@ internal sealed partial class QuickPanelContent
     {
         Detach();
         _host.Children.Clear();
+        _modeButtons.Clear();
 
         _panel = panel;
         _m = MetricsFor(panel.Density);
@@ -408,6 +409,21 @@ internal sealed partial class QuickPanelContent
         DesktopArrangementButtons();
     }
 
+    /// <summary>The display mode buttons on the panel now, for <see cref="RelightModes"/>.</summary>
+    private readonly List<(ToggleButton Button, DesktopArrangement Mode)> _modeButtons = [];
+
+    /// <summary>Lights the button of the mode the desktop is in now; for each opening and after a switch.</summary>
+    public void RelightModes()
+    {
+        if (_modeButtons.Count == 0) return;
+        DesktopArrangement? now = CurrentMode();
+        foreach (var (button, mode) in _modeButtons)
+        {
+            button.IsChecked = now == mode;
+            button.IsEnabled = _vm.ArrangementsApply || now == mode;
+        }
+    }
+
     private void DesktopArrangementButtons()
     {
         var now = CurrentMode();
@@ -433,9 +449,10 @@ internal sealed partial class QuickPanelContent
             {
                 // Lit by what Windows says afterwards, not by the click: a mode
                 // it refuses must not look chosen.
-                b.IsChecked = now == mode;
+                b.IsChecked = !b.IsChecked;
                 ApplyMode(mode);
             };
+            _modeButtons.Add((b, mode));
             buttons.Add(Labelled(b, m.Text));
         }
 

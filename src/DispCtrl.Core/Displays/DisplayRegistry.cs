@@ -222,6 +222,71 @@ public static class DisplayRegistry
         return anyShared ? DisplayTopology.Duplicated : DisplayTopology.Extended;
     }
 
+    /// <summary>Which of Win+P's four choices Windows has on record for the displays connected now.</summary>
+    public enum RecordedChoice
+    {
+        Unknown,
+        Internal,
+        Clone,
+        Extend,
+        External,
+    }
+
+    /// <summary>
+    /// The topology Windows' display database holds for this set of monitors,
+    /// which is what its own Project flyout lights.
+    /// </summary>
+    /// <remarks>
+    /// Only this tells "PC screen only" from "Second screen only" on a desk of
+    /// two external monitors: either leaves one external display on, and
+    /// guessing from whether that display was built in lit "Second screen
+    /// only" for both (reported on Reddit, two monitors on a desktop). Unknown
+    /// when the query fails or names no topology.
+    /// </remarks>
+    public static unsafe RecordedChoice Recorded()
+    {
+        uint pathCount, modeCount;
+        if (PInvoke.GetDisplayConfigBufferSizes(QUERY_DISPLAY_CONFIG_FLAGS.QDC_DATABASE_CURRENT, &pathCount, &modeCount) != WIN32_ERROR.ERROR_SUCCESS)
+            return RecordedChoice.Unknown;
+
+        var paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
+        var modes = new DISPLAYCONFIG_MODE_INFO[modeCount];
+        DISPLAYCONFIG_TOPOLOGY_ID topology = 0;
+        fixed (DISPLAYCONFIG_PATH_INFO* pPaths = paths)
+        fixed (DISPLAYCONFIG_MODE_INFO* pModes = modes)
+        {
+            if (PInvoke.QueryDisplayConfig(QUERY_DISPLAY_CONFIG_FLAGS.QDC_DATABASE_CURRENT,
+                    &pathCount, pPaths, &modeCount, pModes, &topology) != WIN32_ERROR.ERROR_SUCCESS)
+                return RecordedChoice.Unknown;
+        }
+
+        return topology switch
+        {
+            DISPLAYCONFIG_TOPOLOGY_ID.DISPLAYCONFIG_TOPOLOGY_INTERNAL => RecordedChoice.Internal,
+            DISPLAYCONFIG_TOPOLOGY_ID.DISPLAYCONFIG_TOPOLOGY_CLONE => RecordedChoice.Clone,
+            DISPLAYCONFIG_TOPOLOGY_ID.DISPLAYCONFIG_TOPOLOGY_EXTEND => RecordedChoice.Extend,
+            DISPLAYCONFIG_TOPOLOGY_ID.DISPLAYCONFIG_TOPOLOGY_EXTERNAL => RecordedChoice.External,
+            _ => RecordedChoice.Unknown,
+        };
+    }
+
+    /// <summary>
+    /// Monitors showing the desktop, each counted once, duplicated or not.
+    /// </summary>
+    /// <remarks>
+    /// Duplicated monitors share one desktop, so every list of desktops - and
+    /// the app's display list - counts them as one. Counting desktops, the app
+    /// said "only one display is connected" in Duplicate and offered no way
+    /// back to Extend.
+    /// </remarks>
+    public static int ActiveMonitorCount()
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (CcdTarget t in QueryCcdTargets(activeOnly: true, allowDuplicateSources: true))
+            seen.Add(t.DevicePath);
+        return seen.Count;
+    }
+
     /// <summary>
     /// Displays that are physically connected but not part of the desktop.
     /// </summary>

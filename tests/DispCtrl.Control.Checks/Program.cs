@@ -872,6 +872,27 @@ o\such\picture.jpg" }))["exitCode"]!.GetValue<int>() == 2
     await featureEditor.DeleteFeatureAsync(unsavedFeature);
     Check(!featureEditor.Features.Contains(unsavedFeature) && SettingsStore.Load().Features.Count == 1,
         "deleting an unsaved feature only removes the draft");
+
+    // The Hotkeys page adds its first cards at once and the rest after its first frame.
+    var cardSettings = new DispCtrlSettings();
+    for (int n = 1; n <= 20; n++) cardSettings.Hotkeys.Add(new Hotkey { Action = HotkeyAction.UnisonUp, Step = n });
+    var cards = new DispCtrl.App.ViewModels.HotkeysViewModel(() => cardSettings, () => { });
+    var waiting = new Queue<Action>();
+    cards.Clear();
+    cards.Reload(waiting.Enqueue);
+    int firstPass = cards.Items.Count;
+    while (waiting.Count > 0) waiting.Dequeue()();
+    Check(firstPass is > 0 and < 20 && cards.Items.Select(i => i.Hotkey.Step).SequenceEqual(Enumerable.Range(1, 20)),
+        "the hotkey cards are added a screenful first, then the rest, in their saved order");
+    cards.Reload(waiting.Enqueue);
+    var addedCard = cards.Add();
+    while (waiting.Count > 0) waiting.Dequeue()();
+    Check(cards.Items.Count == 21 && cards.Items[^1] == addedCard && cards.Items.Take(20).Select(i => i.Hotkey.Step).SequenceEqual(Enumerable.Range(1, 20)),
+        "a shortcut added while cards are still coming lands last, not in among them");
+    cards.Reload(waiting.Enqueue);
+    cards.Reload(waiting.Enqueue);
+    while (waiting.Count > 0) waiting.Dequeue()();
+    Check(cards.Items.Count == 21, "a reload before the last one finished does not add its cards twice");
     Check(CustomFeature.SplitSteps("# leave this disabled; dispctrl focus set --enabled on\nwait 0").Count == 2
         && new CustomFeature { Steps = CustomFeature.SplitSteps("# comment; wait 1\nwait 0") }.Parse().Count == 1,
         "semicolons inside a comment cannot enable commented-out commands");

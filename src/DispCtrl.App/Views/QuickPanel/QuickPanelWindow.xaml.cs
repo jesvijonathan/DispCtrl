@@ -244,7 +244,7 @@ public sealed partial class QuickPanelWindow : Window
         // off-to-on colour transition as it loads: every lit tile flashed grey
         // for the first 150 ms of the animation.
         if (_stale) { _stale = false; Rebuild(place: true); }
-        else Place(App.ViewModel.QuickPanel);
+        else { _content.RelightModes(); Place(App.ViewModel.QuickPanel); }
 
         int token = ++_animation;
         _leaving = false;

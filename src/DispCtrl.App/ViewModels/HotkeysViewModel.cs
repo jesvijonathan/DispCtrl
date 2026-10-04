@@ -692,15 +692,72 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
     public string FeatureGrammar => CustomFeature.Grammar;
     public static string Grammar => CustomFeature.Grammar;
 
-    public void Reload()
+    /// <summary>Builds the cards again from the settings.</summary>
+    /// <param name="later">
+    /// Runs its action after the page has drawn (the page's dispatcher, at low
+    /// priority): the first cards are added now and the rest a few at a time
+    /// through this, so the page shows before every card is built.
+    /// </param>
+    /// <remarks>
+    /// A card is a settings expander with keycaps, a switch and its editor,
+    /// about 25 ms each: 24 shortcuts held the page's first frame for 0.6 s.
+    /// A screenful is about eight.
+    /// </remarks>
+    public void Reload(Action<Action>? later = null)
     {
         Items.Clear();
-        foreach (Hotkey h in _settings().Hotkeys)
-            if (DispCtrl.Core.FeatureFlags.Presets || h.Action != HotkeyAction.ApplyPreset)
-                Items.Add(Wrap(h));
+        var wanted = new Queue<Hotkey>(_settings().Hotkeys
+            .Where(h => DispCtrl.Core.FeatureFlags.Presets || h.Action != HotkeyAction.ApplyPreset));
+        _pending = null;
+        for (int n = later is null ? wanted.Count : FirstCards; n > 0 && wanted.Count > 0; n--)
+            Items.Add(Wrap(wanted.Dequeue()));
         ReloadFeatures();
 
         RefreshStates();
+        if (later is not null && wanted.Count > 0)
+        {
+            _pending = wanted;
+            AddLater(later, wanted);
+        }
+    }
+
+    private const int FirstCards = 8, CardsPerPass = 2;
+
+    /// <summary>Cards still to add after the page's first frame; null once all are in.</summary>
+    private Queue<Hotkey>? _pending;
+
+    private void AddLater(Action<Action> later, Queue<Hotkey> rest) =>
+        later(() =>
+        {
+            // A later Reload started its own queue.
+            if (_pending != rest) return;
+            for (int n = CardsPerPass; n > 0 && rest.Count > 0; n--) Items.Add(Wrap(rest.Dequeue()));
+            if (rest.Count > 0) { AddLater(later, rest); return; }
+            _pending = null;
+            // Shared keys are found across the whole list.
+            RefreshStates();
+        });
+
+    /// <summary>Adds what is still waiting, before a change that needs the list whole and in order.</summary>
+    private void FinishPending()
+    {
+        if (_pending is not { } rest) return;
+        _pending = null;
+        while (rest.Count > 0) Items.Add(Wrap(rest.Dequeue()));
+    }
+
+    /// <summary>Empties the lists for a page about to bind to them; its <see cref="Reload"/> fills them.</summary>
+    /// <remarks>
+    /// This view model outlives the page. A new page bound to the lists left
+    /// from the last visit built every card, and Reload then built them all
+    /// again: two passes of about 0.6 s each for 24 shortcuts, which was most
+    /// of the second it took the page to open.
+    /// </remarks>
+    public void Clear()
+    {
+        _pending = null;
+        Items.Clear();
+        Features.Clear();
     }
 
     public void ReloadFeatures()
@@ -785,6 +842,7 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
         _settings().Hotkeys.Add(hotkey);
         _persist();
 
+        FinishPending();
         HotkeyViewModel item = Wrap(hotkey);
         item.IsExpanded = true;
         Items.Add(item);
@@ -890,6 +948,7 @@ public sealed class HotkeysViewModel : INotifyPropertyChanged
         _settings().Hotkeys.Remove(item.Hotkey);
         _persist();
 
+        FinishPending();
         Items.Remove(item);
         RefreshStates();
     }

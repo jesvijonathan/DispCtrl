@@ -30,6 +30,8 @@ public sealed partial class HotkeysPage : Page
 
     public HotkeysPage()
     {
+        // Before the bindings: OnLoaded fills the lists once.
+        ViewModel.Clear();
         InitializeComponent();
 
         // Handled events included: a bare arrow key is swallowed by focus
@@ -42,7 +44,7 @@ public sealed partial class HotkeysPage : Page
     {
         HotkeyViewModel.SafetyNetOffRequested -= OnSafetyNetOff;
         HotkeyViewModel.SafetyNetOffRequested += OnSafetyNetOff;
-        ViewModel.Reload();
+        ViewModel.Reload(next => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => next()));
         ViewModel.SetEngineRunning(App.ViewModel.EngineRunning);
         _ = FillTriggersAsync();
 

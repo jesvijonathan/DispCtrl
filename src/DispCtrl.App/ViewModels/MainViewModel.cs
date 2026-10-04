@@ -367,7 +367,8 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         };
 
         List<string> inactive = DisplayRegistry.InactiveDisplays();
-        _connected = Displays.Count + inactive.Count;
+        // Not Displays.Count: duplicated monitors are one entry there.
+        _connected = Math.Max(Displays.Count, DisplayRegistry.ActiveMonitorCount()) + inactive.Count;
         _inactiveText = inactive.Count == 0
             ? string.Empty
             : inactive.Count == 1
@@ -1699,11 +1700,11 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     {
         _arrangementReady = false;
 
-        _selectedArrangement = DisplayRegistry.Topology() switch
+        _selectedArrangement = DesktopLayout.Current(() => Displays.Count == 1 && Displays[0].IsInternalPanel) switch
         {
-            DisplayRegistry.DisplayTopology.Duplicated => Arrangements[1],
-            DisplayRegistry.DisplayTopology.Single =>
-                Displays.Count == 1 && Displays[0].IsInternalPanel ? Arrangements[2] : Arrangements[3],
+            DesktopArrangement.Duplicate => Arrangements[1],
+            DesktopArrangement.InternalOnly => Arrangements[2],
+            DesktopArrangement.ExternalOnly => Arrangements[3],
             _ => Arrangements[0],
         };
 

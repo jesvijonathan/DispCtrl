@@ -214,6 +214,14 @@ Every one of these was a real bug. Do not reintroduce them.
   aiming at — on this desk a laptop pixel is under half the width of a Dell one.
   The surface asks `PhysicalLayout.Hang` where each slot would draw, which is
   why that method is public.
+- **A view model that outlives its page builds the page twice.** The Hotkeys
+  page binds to `App.ViewModel.Hotkeys`, which keeps its cards between visits:
+  a new page built every card from the last visit, then `Reload` built them
+  all again, about 0.6 s a pass for 24 shortcuts. The page now empties the
+  list before `InitializeComponent` and adds a screenful at once, the rest at
+  low priority after the first frame (first frame 1.4 s to 0.3 s, measured
+  with timing marks in the app). A UI Automation query waits for the
+  dispatcher to go idle, so it times the last card, not the first frame.
 - `IDesktopWallpaper` is a **local** COM server: `CLSCTX_ALL`, not
   `CLSCTX_INPROC_SERVER`.
 - The **primary taskbar cannot be moved** — `SetWindowPos` returns true and
@@ -224,6 +232,16 @@ Every one of these was a real bug. Do not reintroduce them.
   the topology ran, so it validated modes for displays about to vanish and
   rejected the ones about to appear. `SetDisplayConfig` also returns before the
   new monitors enumerate: `Settle` waits for two identical fingerprints.
+- **Duplicated monitors are one desktop.** `Enumerate`, `CheapSignature` and
+  the app's display list all see one entry in Duplicate, so counting them said
+  "only one display is connected" there; `ActiveMonitorCount` counts targets.
+  The same list cannot tell "PC screen only" from "Second screen only" on two
+  external monitors: `QueryDisplayConfig(QDC_DATABASE_CURRENT)` returns the
+  topology Windows has on record, which is what its Project flyout lights, and
+  `DesktopLayout.Current` asks it whenever one display is on. Going between
+  Duplicate and one screen often leaves the desktop the same size and place,
+  so nothing reads as a display change: the quick panel relights its mode
+  buttons itself.
 - **Windows reports no MST topology.** Sinks behind one hub or chain are
   separate targets on the same adapter connector instance; that is what
   `SharingConnector` counts. `DISPLAYPORT_USB_TUNNEL` is the only Thunderbolt

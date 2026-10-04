@@ -639,15 +639,7 @@ internal sealed partial class QuickPanelContent
     {
         try
         {
-            return DisplayRegistry.Topology() switch
-            {
-                DisplayRegistry.DisplayTopology.Extended => DesktopArrangement.Extend,
-                DisplayRegistry.DisplayTopology.Duplicated => DesktopArrangement.Duplicate,
-                DisplayRegistry.DisplayTopology.Single => _vm.Displays.Count == 1 && _vm.Displays[0].IsInternalPanel
-                    ? DesktopArrangement.InternalOnly
-                    : DesktopArrangement.ExternalOnly,
-                _ => null,
-            };
+            return DesktopLayout.Current(() => _vm.Displays.Count == 1 && _vm.Displays[0].IsInternalPanel);
         }
         catch (Exception)
         {
@@ -665,8 +657,11 @@ internal sealed partial class QuickPanelContent
 
         _report($"Display mode: {Modes.First(m => m.Mode == mode).Text}.");
 
-        // The layout takes a moment to settle; the panel follows it then.
-        _ = Task.Delay(1500).ContinueWith(_ => _vm.RefreshIfDisplaysChanged(),
+        // The layout takes a moment to settle; the panel follows it then. The
+        // buttons are lit again either way: between Duplicate and one screen
+        // the desktop often keeps its size and place, nothing reads as
+        // changed, and the old mode stayed lit until the panel was reopened.
+        _ = Task.Delay(1500).ContinueWith(_ => { _vm.RefreshIfDisplaysChanged(); RelightModes(); },
             TaskScheduler.FromCurrentSynchronizationContext());
     }
 

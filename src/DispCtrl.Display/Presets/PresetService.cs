@@ -239,25 +239,12 @@ public static class PresetService
     /// The topology as a <see cref="DesktopArrangement"/> name.
     /// </summary>
     /// <remarks>
-    /// Derived from what is on screen rather than asked of Windows, because
-    /// there is no API that answers "which of the four Win+P choices is
-    /// current" — the topology flags are write-only.
+    /// Counting displays called Duplicate a single screen: duplicated monitors
+    /// share one desktop and are one entry in the list. A mix of duplicated and
+    /// extended is kept as Extend, as before.
     /// </remarks>
-    private static string CurrentTopology(IReadOnlyList<DisplayInfo> displays)
-    {
-        if (displays.Count > 1)
-        {
-            return DisplayRegistry.Topology() == DisplayRegistry.DisplayTopology.Duplicated
-                ? nameof(DesktopArrangement.Duplicate)
-                : nameof(DesktopArrangement.Extend);
-        }
-
-        // One display: which one it is decides which single-display choice this
-        // was, and an internal-only desk is by far the common case of the two.
-        return displays.Count == 1 && !displays[0].IsInternal
-            ? nameof(DesktopArrangement.ExternalOnly)
-            : nameof(DesktopArrangement.InternalOnly);
-    }
+    private static string CurrentTopology(IReadOnlyList<DisplayInfo> displays) =>
+        (DesktopLayout.Current(() => displays.Count == 1 && displays[0].IsInternal) ?? DesktopArrangement.Extend).ToString();
 
     /// <summary>
     /// Writes a preset onto the desk and into settings.
