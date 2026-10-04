@@ -78,6 +78,9 @@
         <Style Selector="Grid.slider">
             <Setter Property="Width" Value="260" />
         </Style>
+        <Style Selector="Panel.narrow Grid.cardgrid > TextBox.control">
+            <Setter Property="Width" Value="NaN" />
+        </Style>
         <Style Selector="Panel.narrow Grid.slider">
             <Setter Property="Width" Value="NaN" />
         </Style>
@@ -190,6 +193,69 @@
                                                     Width="150" AutomationProperties.Name="Night light to" />
                                     </StackPanel>
                                 </WrapPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock Classes="section" Text="Windows" />
+                    <StackPanel Spacing="4">
+                        <Border Classes="card">
+                            <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                <ui:FASymbolIcon Classes="cardicon" Symbol="SetTile" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Classes="title" Text="Snap layouts" />
+                                    <TextBlock Classes="caption" Text="Drag a window to the top centre of a display, or press the shortcut, and choose where it goes." />
+                                    <TextBlock Name="SnapStatusText" Classes="status" IsVisible="False" />
+                                </StackPanel>
+                                <ToggleSwitch Name="SnapSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                              AutomationProperties.Name="Snap layouts" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="card">
+                            <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                <ui:FASymbolIcon Classes="cardicon" Symbol="FullScreenMaximize" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Classes="title" Text="Drag to the top" />
+                                    <TextBlock Classes="caption" Text="The layouts open when a dragged window reaches the bar at the top centre." />
+                                </StackPanel>
+                                <ToggleSwitch Name="SnapDragSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                              AutomationProperties.Name="Drag to the top" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="card">
+                            <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                <ui:FASymbolIcon Classes="cardicon" Symbol="NewWindow" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Classes="title" Text="Snap Assist" />
+                                    <TextBlock Classes="caption" Text="After a window snaps, choose windows for the spaces left." />
+                                </StackPanel>
+                                <ToggleSwitch Name="SnapAssistSwitch" Classes="toggle" OnContent="On" OffContent="Off"
+                                              AutomationProperties.Name="Snap Assist" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="card">
+                            <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                <ui:FASymbolIcon Classes="cardicon" Symbol="Keyboard" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Classes="title" Text="Shortcut" />
+                                    <TextBlock Classes="caption" Text="Opens the layouts for the window in front. On GNOME it is listed under Settings, Keyboard, Custom Shortcuts." />
+                                    <TextBlock Name="SnapShortcutStatus" Classes="status" IsVisible="False" />
+                                </StackPanel>
+                                <TextBox Name="SnapShortcutBox" Classes="control" Width="160" PlaceholderText="None"
+                                         AutomationProperties.Name="Snap shortcut" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="card">
+                            <Grid Classes="cardgrid" ColumnDefinitions="40,*,Auto" RowDefinitions="Auto,Auto">
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Classes="title" Text="Space between windows" />
+                                    <TextBlock Classes="caption" Text="Between snapped windows, and between them and the screen's edges." />
+                                </StackPanel>
+                                <Grid Classes="slider control" ColumnDefinitions="*,56">
+                                    <Slider Name="SnapGapSlider" Minimum="0" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center" AutomationProperties.Name="Space between windows" />
+                                    <TextBlock Name="SnapGapText" />
+                                </Grid>
                             </Grid>
                         </Border>
                     </StackPanel>

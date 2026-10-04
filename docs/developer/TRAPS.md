@@ -956,3 +956,23 @@ unrecallable.
   client's display calls `setenv` too.
 - **Arguments go through `ProcessStartInfo.ArgumentList`.** Joined into one
   string, an output named `"DP-1 --off"` was two xrandr arguments.
+- **GNOME Shell owns the Super key** (`overlay-key`). An X key grab of Super+Z
+  succeeds and is never delivered; Ctrl+Alt+Z grabbed the same way worked. On
+  GNOME the snap shortcut is a GNOME custom shortcut running
+  `dispctrl-linux snap pick`, kept under DispCtrl's own path and removed when
+  the engine stops. GNOME runs it without the engine's environment, so a build
+  that needs `DOTNET_ROOT` gets it written into the command.
+- **`XIRawEvent.detail` is at offset 56** (after deviceid and sourceid). Read
+  at 64 - `flags` - every click looked like button 8 and no drag was ever
+  seen. `Xlib.RawDetailOffset`, checked in DispCtrl.Linux.Checks.
+- **A window's visible frame is not its X geometry.** A decorated window sits
+  inside a frame `_NET_FRAME_EXTENTS` wide; a GTK window is larger than it
+  looks by `_GTK_FRAME_EXTENTS` of shadow. Snapping by X geometry left gaps
+  beside GTK windows and overlaps beside decorated ones; `Desktop.Place`
+  works in visible frames, through `_NET_MOVERESIZE_WINDOW` with static
+  gravity, never `XMoveResizeWindow` on a client.
+- **A drag is two samples with the same size and different positions.**
+  Dragging a maximized window restores it (a size change) and then moves it;
+  resizing from a left or top edge changes position and size together.
+- **Subscribe to raw motion only while button 1 is down.** Every pointer
+  movement on the desk would otherwise wake the engine.

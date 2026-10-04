@@ -5,6 +5,8 @@ using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Hardware;
 using DispCtrl.Linux.Ramps;
 using DispCtrl.Linux.Settings;
+using DispCtrl.Linux.Snap;
+using DispCtrl.Linux.X11;
 
 // Never the real desk: an X display that cannot answer, and scratch settings
 // and runtime folders. The runtime folder sits in /tmp because a socket path
@@ -28,6 +30,7 @@ void Check(bool condition, string name)
 try
 {
     Parsing();
+    SnapGeometryChecks();
     WarmthAndSchedule();
     Targets();
     SettingsFile();
@@ -226,6 +229,80 @@ void Commands()
     Check(Run("nightlight").Out.Contains("21:30 to 06:15", StringComparison.Ordinal), "commands: nightlight reports its schedule");
     Check(Run("version").Out.StartsWith("dispctrl-linux ", StringComparison.Ordinal), "commands: version");
     File.Delete(SettingsStore.FilePath);
+}
+
+void SnapGeometryChecks()
+{
+    // The laptop on this desk: 1870x1048 work area beside a dock.
+    var area = new Rect(383, 1472, 1870, 1048);
+    bool meet = true, inside = true;
+    foreach (var layout in SnapLayouts.All)
+    {
+        var rects = layout.Zones.Select(z => z.On(area)).ToList();
+        long total = rects.Sum(r => r.Area);
+        meet &= total == area.Area;
+        inside &= rects.All(r => r.Intersect(area) == r);
+    }
+    Check(meet && inside, "snap: every layout's zones tile the work area exactly, no gap or overlap");
+
+    var halves = SnapLayouts.Halves.Zones.Select(z => z.On(area, 8)).ToList();
+    Check(halves[0].X - area.X == 8 && halves[1].X - halves[0].Right == 8 && area.Right - halves[1].Right == 8
+        && halves[0].Y - area.Y == 8 && area.Bottom - halves[0].Bottom == 8,
+        "snap: a gap is the same between windows as at the edges");
+
+    Check(!SnapLayouts.For(area).Contains(SnapLayouts.Thirds) && SnapLayouts.For(new Rect(0, 0, 2560, 1440)).Contains(SnapLayouts.Thirds),
+        "snap: thirds only where each third has room for a window");
+    Check(SnapLayouts.For(new Rect(0, 0, 3440, 1440)).Contains(SnapLayouts.Centre) && SnapLayouts.For(new Rect(0, 0, 1080, 1920))[0] == SnapLayouts.Stacked,
+        "snap: an ultrawide gets a centre column, a portrait monitor stacks");
+
+    var monitor = new MonitorInfo("eDP", false, new Rect(383, 1440, 1920, 1080), area);
+    var panel = SnapPanel.For(monitor);
+    Check(panel.Bounds.CenterX - area.CenterX is >= -1 and <= 1 && panel.Bounds.Y == area.Y + SnapPanel.TopOffset,
+        "snap: the panel sits at the top centre of the work area");
+    bool hits = panel.AllZones().All(z => panel.HitTest(panel.ZoneInTile(z).CenterX, panel.ZoneInTile(z).CenterY) == z);
+    Check(hits, "snap: the centre of every zone in the panel hits that zone");
+    Check(panel.HitTest(panel.Bounds.X - 40, panel.Bounds.Bottom + 40) is null, "snap: away from the panel nothing is hit");
+    bool apart = panel.AllZones().All(a => panel.AllZones().All(b => a == b || panel.ZoneInTile(a).Intersect(panel.ZoneInTile(b)).IsEmpty));
+    Check(apart, "snap: no two zones in the panel overlap");
+    Check(panel.HandleHotspot.Contains(panel.Handle.CenterX, panel.Handle.CenterY) && panel.KeepOpen.Contains(panel.Bounds.CenterX, panel.Bounds.CenterY),
+        "snap: the bar opens the panel, and the panel keeps itself open");
+    var first = new ZoneRef(0, 0);
+    Check(panel.Step(first, -1) == panel.AllZones().Last() && panel.Step(panel.Step(first, 1), -1) == first,
+        "snap: the arrow keys step through every zone and wrap");
+    Check(panel.Target(new ZoneRef(0, 1), 0) == SnapLayouts.Halves.Zones[1].On(area), "snap: a zone's target is that zone of the work area");
+
+    var free = SnapLayouts.Halves.Zones[1].On(new Rect(0, 0, 2560, 1440));
+    var cards = AssistGrid.Cards(free, 4);
+    Check(cards.Count == 4 && cards.Select(c => c.Y).Distinct().Count() == 2 && cards.Select(c => c.X).Distinct().Count() == 2,
+        "assist: four windows in a tall half are a 2 by 2 grid, not one column");
+    Check(Enumerable.Range(1, 12).All(n => AssistGrid.Cards(free, n).All(c => c.Intersect(free) == c)),
+        "assist: cards always fit inside the free zone");
+    Check(AssistGrid.Cards(new Rect(0, 0, 40, 40), 3).Count == 0, "assist: a zone too small for cards gets none, not negative sizes");
+
+    var super = Shortcut.Parse("Super+Z");
+    Check(super is { Keysym: "z" } && super.Modifiers == Xlib.Mod4Mask && GnomeShortcuts.Accelerator(super) == "<Super>z",
+        "shortcut: Super+Z, and GNOME's <Super>z");
+    var pageDown = Shortcut.Parse("Ctrl+Alt+Page Down");
+    Check(pageDown is { Keysym: "Next" } && GnomeShortcuts.Accelerator(pageDown) == "<Control><Alt>Next", "shortcut: named keys");
+    Check(Shortcut.Parse("Z") is null && Shortcut.Parse("Super+") is null && Shortcut.Parse("Hyper+Z") is null && Shortcut.Parse("Ctrl+F13") is not null,
+        "shortcut: a bare key, a missing key and an unknown modifier are refused");
+    Check(super!.Matches(Xlib.Mod4Mask | Xlib.Mod2Mask | Xlib.LockMask) && !super.Matches(Xlib.Mod4Mask | Xlib.ShiftMask),
+        "shortcut: Num Lock and Caps Lock do not matter, Shift does");
+
+    // A decorated window (server-side) and a GTK one (client-side shadows):
+    // placing either must leave its visible frame exactly on the target.
+    var target = new Rect(100, 200, 900, 600);
+    var decorated = Desktop.ClientFor(target, (2, 2, 37, 2));
+    var gtk = Desktop.ClientFor(target, (-26, -26, -23, -29));
+    Check(decorated == new Rect(102, 237, 896, 561) && gtk == new Rect(74, 177, 952, 652),
+        "windows: the client rectangle for a target, either kind of decoration");
+    Check(Desktop.WorkAreaFor(new Rect(0, 0, 2560, 1440), [new Rect(0, 0, 2560, 1440), new Rect(383, 1472, 1870, 1048)]) == new Rect(0, 0, 2560, 1440)
+        && Desktop.WorkAreaFor(new Rect(383, 1440, 1920, 1080), [new Rect(0, 0, 2560, 1440), new Rect(383, 1472, 1870, 1048)]) == new Rect(383, 1472, 1870, 1048),
+        "windows: each monitor gets its own work area from GNOME's list");
+    Check(Xlib.RawDetailOffset == 56, "xinput: the button is read from XIRawEvent.detail, not flags");
+    Check(DispCtrl.Linux.Graphics.DesktopTheme.AccentFrom(null, "Yaru-purple-dark") == DispCtrl.Linux.Graphics.Rgba.Hex("#9141ac")
+        && DispCtrl.Linux.Graphics.DesktopTheme.AccentFrom(null, "Yaru-dark") == DispCtrl.Linux.Graphics.Rgba.Hex("#e95420"),
+        "theme: Ubuntu's accent comes from the Yaru variant");
 }
 
 void Client()

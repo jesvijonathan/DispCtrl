@@ -59,6 +59,11 @@ parts:
       - x11-xserver-utils
       - libx11-6
       - libxrandr2
+      - libxi6
+      - libxfixes3
+      - libxcomposite1
+      - libcairo2
+      - libpangocairo-1.0-0
       - libfontconfig1
       - libice6
       - libsm6

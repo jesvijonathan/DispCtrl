@@ -13,6 +13,8 @@ public sealed class LinuxSettings
     /// <summary>Software dimming per XRandR output, 0.1 to 1. Absent means 1.</summary>
     public Dictionary<string, double> Dim { get; set; } = new(StringComparer.Ordinal);
 
+    public SnapSettings Snap { get; set; } = new();
+
     /// <summary>Properties a newer build wrote: kept and saved back untouched.</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Unknown { get; set; }
@@ -23,6 +25,8 @@ public sealed class LinuxSettings
     {
         NightLight ??= new NightLightSettings();
         NightLight.Normalise();
+        Snap ??= new SnapSettings();
+        Snap.Normalise();
         Dim ??= new Dictionary<string, double>(StringComparer.Ordinal);
         foreach (var key in Dim.Keys.ToList())
         {
@@ -69,5 +73,35 @@ public sealed class NightLightSettings
         Schedule.TryParse(From, out var from);
         Schedule.TryParse(To, out var to);
         return Schedule.IsActive(now, from, to);
+    }
+}
+
+/// <summary>Snap layouts and Snap Assist (Linux only, X11).</summary>
+public sealed class SnapSettings
+{
+    /// <summary>The engine watches for drags and holds the shortcut.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Dragging a window to the top centre of a display drops the
+    /// layouts down, as on Windows 11.</summary>
+    public bool DragToTop { get; set; } = true;
+
+    /// <summary>The shortcut that opens the layouts for the window in front, in
+    /// the form Super+Z, Ctrl+Alt+S. Empty: none.</summary>
+    public string Shortcut { get; set; } = "Super+Z";
+
+    /// <summary>After a window snaps, offer the other windows for the zones left.</summary>
+    public bool Assist { get; set; } = true;
+
+    /// <summary>Pixels between snapped windows and around them, 0 to 32.</summary>
+    public int Gap { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
+    public void Normalise()
+    {
+        Gap = Math.Clamp(Gap, 0, 32);
+        Shortcut = (Shortcut ?? "").Trim();
     }
 }

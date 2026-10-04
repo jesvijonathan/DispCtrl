@@ -7,6 +7,7 @@ using DispCtrl.Linux.Engine;
 using DispCtrl.Linux.Hardware;
 using DispCtrl.Linux.Ramps;
 using DispCtrl.Linux.Settings;
+using DispCtrl.Linux.Snap;
 
 namespace DispCtrl.Linux;
 
@@ -23,13 +24,16 @@ namespace DispCtrl.Linux;
 /// not interleave. Output goes to per-request writers, never through
 /// <see cref="Console"/>, which is process-wide.
 /// </remarks>
-internal sealed class EngineHost
+internal sealed class EngineHost : IEngineHooks
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly SemaphoreSlim _wake = new(0, int.MaxValue);
     private readonly CancellationTokenSource _stop = new();
     private readonly HashSet<string> _owned = Runtime.LoadOwnedRamps();
     private DateTime _lastPass;
+    private readonly Lock _snapGate = new();
+    private SnapService? _snap;
+    private string? _snapSettings;
 
     public static int Run()
     {
@@ -84,6 +88,7 @@ internal sealed class EngineHost
             _stop.Cancel();
             try { reconcile.Wait(5000); } catch (AggregateException) { }
             _gate.Wait(5000);
+            lock (_snapGate) { _snap?.Dispose(); _snap = null; }
             RampApplier.Release(_owned);
             _owned.Clear();
             Runtime.SaveOwnedRamps(_owned);
@@ -143,7 +148,7 @@ internal sealed class EngineHost
         _gate.Wait();
         try
         {
-            var context = new CommandContext(output, error, InEngine: true, ApplyRampsLocked);
+            var context = new CommandContext(output, error, InEngine: true, ApplyRampsLocked) { Engine = this };
             int code = CommandRunner.Run(args, context);
             return new EngineReply(code, output.ToString(), error.ToString());
         }
@@ -206,6 +211,7 @@ internal sealed class EngineHost
             {
                 settings = SettingsStore.Load();
                 ApplyRampsLocked();
+                UpdateSnap(settings.Snap);
             }
             catch (Exception ex)
             {
@@ -224,6 +230,67 @@ internal sealed class EngineHost
             try { _wake.Wait(wait, _stop.Token); }
             catch (OperationCanceledException) { break; }
             while (_wake.CurrentCount > 0) _wake.Wait(0);
+        }
+    }
+
+    /// <summary>Starts, reloads or stops the snap thread to match settings. It
+    /// starts only once an X display answers - an engine started before the
+    /// session exported one gets it from the first client - and restarts if
+    /// its thread ended (the X server went away and came back).</summary>
+    private void UpdateSnap(SnapSettings settings)
+    {
+        lock (_snapGate)
+        {
+            string key = JsonSerializer.Serialize(settings);
+            bool wanted = settings.Enabled && !GammaRamp.OnWayland;
+            if (!wanted)
+            {
+                if (_snap is not null) { _snap.Dispose(); _snap = null; Log("snap: off"); }
+                _snapSettings = key;
+                return;
+            }
+            if (_snap is { Running: true })
+            {
+                if (key != _snapSettings) { _snap.Reload(settings); _snapSettings = key; }
+                return;
+            }
+            if (_snap is not null && _snap.Running is false && key == _snapSettings && _snapStartedAt.AddSeconds(30) > DateTime.Now)
+                return; // just started, or failed a moment ago: do not spin
+            using (var probe = X11.XConnection.Open())
+            {
+                if (probe is null) return;
+            }
+            _snap?.Dispose();
+            _snap = new SnapService(settings, Log);
+            _snap.Start();
+            _snapSettings = key;
+            _snapStartedAt = DateTime.Now;
+        }
+    }
+
+    private DateTime _snapStartedAt;
+
+    public bool SnapPick(out string? why)
+    {
+        lock (_snapGate)
+        {
+            if (_snap is not { Running: true })
+            {
+                why = SettingsStore.Load().Snap.Enabled ? "snap layouts are not running (no X display yet?)" : "snap layouts are off: dispctrl-linux snap on";
+                return false;
+            }
+            _snap.Pick();
+            why = null;
+            return true;
+        }
+    }
+
+    public string SnapStatus()
+    {
+        lock (_snapGate)
+        {
+            if (_snap is not { Running: true }) return "running, but snap layouts are not active";
+            return _snap.ShortcutProblem is { } problem ? $"active; shortcut not held: {problem}" : "active";
         }
     }
 

@@ -14,6 +14,7 @@ session (see [Wayland](#wayland)). What follows is everything it does today.
 | A laptop panel's brightness | the kernel backlight, through systemd-logind | nothing: the active session may set it |
 | Software dimming, per display | the output's gamma ramp | an X11 session |
 | Night light, with a schedule | the output's gamma ramp, 6500 K to 1900 K | an X11 session; the engine for the schedule |
+| Snap layouts and Snap Assist | moving windows through the window manager | an X11 session and the engine |
 
 ## Install
 
@@ -68,6 +69,44 @@ on Windows: 0 done, 1 refused, 2 asked wrongly.
 **If a screen is too dark or too orange**, `dispctrl-linux restore` puts
 everything back, as does the window's **Restore** button. Dimming never goes
 below 10%, so the controls stay readable.
+
+## Snap layouts and Snap Assist
+
+As on Windows 11, and only on Linux: DispCtrl for Windows leaves this to
+Windows.
+
+- **Drag a window to the top centre of a display.** A bar appears there;
+  carry the window onto it and the layouts open - halves, two thirds and one
+  third, thirds where there is room, a half and two quarters, quarters, and a
+  centre column on an ultrawide or rows on a portrait monitor. Drop it on a
+  zone and it fills that space.
+- **Or press Super+Z** for the window in front, then click a zone, or use the
+  arrow keys and Enter. Esc closes it.
+- **Snap Assist**: after a window snaps, the spaces left in that layout offer
+  your other windows, with live pictures of them. Click one to put it there;
+  Esc, or a click elsewhere, leaves the space empty.
+
+```
+dispctrl-linux snap                    the settings, and whether the engine holds the shortcut
+dispctrl-linux snap on | off
+dispctrl-linux snap shortcut Ctrl+Alt+S
+dispctrl-linux snap drag off           only the shortcut
+dispctrl-linux snap assist off         snap without the window picker
+dispctrl-linux snap gap 8              pixels between snapped windows
+dispctrl-linux snap halves 1           put the window in front in a zone (layouts: snap layouts)
+dispctrl-linux windows                 the open windows, with the ids --window takes
+```
+
+The window's **Windows** section has the same settings. On GNOME the shortcut
+is one of GNOME's own custom shortcuts (Settings, Keyboard, Custom Shortcuts),
+because GNOME Shell keeps the Super key for itself; DispCtrl adds that entry
+while snap layouts are on and the engine runs, and removes it otherwise.
+Ubuntu's Tiling Assistant can stay on: its snapping happens at the very edges
+of the screen, and DispCtrl's bar sits just below the top edge.
+
+Snapping needs the engine, an X11 session and a compositor (GNOME, KDE,
+Cinnamon and most others have one). On Wayland only the compositor may move
+windows, and the section says so.
 
 ## The engine
 
@@ -158,3 +197,11 @@ DDC/CI on `/dev/i2c-5`), on 2026-10-04:
   settings; opening it wrote nothing.
 - The .deb's binaries and the tarball's `install.sh` / `--uninstall` against a
   scratch home. The .deb has not been installed system-wide on this machine.
+- Snap layouts, on throwaway test windows only: a window dragged by synthetic
+  pointer input onto the bar, then onto "halves, zone 2", landed at exactly
+  935 x 1048 at +1318+1472; Super+Z, through the GNOME custom shortcut, opened
+  the layouts and Right, Return snapped the window; Snap Assist then put the
+  chosen window in the other half. Windows decorated by the window manager and
+  GTK windows with client-side shadows both landed pixel-exact. Assist's cards
+  show each window's live picture, cropped to what is visible. GNOME's custom
+  shortcut list was back exactly as before once the engine stopped.

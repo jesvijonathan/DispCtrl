@@ -14,6 +14,10 @@ namespace DispCtrl.Linux.Commands;
 /// writer; a local run applies once and leaves it there.</param>
 public sealed record CommandContext(TextWriter Out, TextWriter Err, bool InEngine, Func<IReadOnlyList<RampChange>> ApplyRamps)
 {
+    /// <summary>What only the running engine can do (it holds the snap thread);
+    /// null outside it.</summary>
+    public IEngineHooks? Engine { get; init; }
+
     public static CommandContext Local(TextWriter output, TextWriter error) =>
         new(output, error, InEngine: false, ApplyLocally);
 
@@ -28,9 +32,19 @@ public sealed record CommandContext(TextWriter Out, TextWriter Err, bool InEngin
     }
 }
 
+/// <summary>The engine's own state, for commands that need it.</summary>
+public interface IEngineHooks
+{
+    /// <summary>Opens the snap layouts for the window in front.</summary>
+    bool SnapPick(out string? why);
+
+    /// <summary>Whether snapping is live, and what is in its way.</summary>
+    string SnapStatus();
+}
+
 /// <summary>Every <c>dispctrl-linux</c> command. Exit codes follow
 /// <c>dispctrl.exe</c>: 0 done, 1 refused, 2 asked wrongly.</summary>
-public static class CommandRunner
+public static partial class CommandRunner
 {
     public const int Done = 0, Refused = 1, AskedWrongly = 2;
 
@@ -54,6 +68,8 @@ public static class CommandRunner
                 "dim" => Dim(args[1..], context),
                 "nightlight" or "night-light" => NightLight(args[1..], context),
                 "restore" => Restore(context),
+                "windows" => WindowsCommand(args[1..], context),
+                "snap" => SnapCommand(args[1..], context),
                 "version" or "--version" => Write(context.Out, $"dispctrl-linux {Version}"),
                 "help" or "--help" or "-h" => Usage(context),
                 _ => Wrong(context, $"unknown command '{args[0]}' (dispctrl-linux help lists them)"),
@@ -90,6 +106,16 @@ public static class CommandRunner
           nightlight --schedule off                warm whenever it is on
 
           restore                                  night light off, no dimming, every ramp back to normal
+
+          windows                                  the open windows, front first, with their ids
+          snap                                     Snap layouts and Snap Assist: state and settings
+          snap on | off                            switch them (drag to the top, the shortcut, Assist)
+          snap shortcut <keys> | none              the shortcut, e.g. Super+Z or Ctrl+Alt+S
+          snap drag on|off   snap assist on|off    each part on its own
+          snap gap <0-32>                          pixels between snapped windows
+          snap pick                                open the layouts for the window in front (needs the engine)
+          snap <layout> <zone> [--window <id>]     place a window (the active one by default) in a zone
+          snap layouts                             the layouts each display offers
           engine [run] | status | stop             the resident engine (docs/LINUX.md)
           version
 
@@ -145,6 +171,11 @@ public static class CommandRunner
                 Line(w || logind, "backlight", $"{b.Name} {(w ? "writable" : logind ? "through systemd-logind (active local session)" : "read-only for this account")}",
                     "Install the backlight udev rule and join the video group (docs/LINUX.md, \"Backlight\").");
             }
+        }
+
+        if (TilingAssistantOn())
+        {
+            c.Out.WriteLine($"[ok]  {"tiling",-16} Ubuntu's Tiling Assistant is on too: its edge snapping keeps working beside DispCtrl's layouts, which open at the top centre, below the edge it uses");
         }
 
         if (GnomeNightLightOn())
@@ -452,6 +483,13 @@ public static class CommandRunner
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    private static bool TilingAssistantOn()
+    {
+        if (!Shell.TryWhich("gsettings")) return false;
+        var result = Shell.Run("gsettings", ["get", "org.gnome.shell", "enabled-extensions"], 3000);
+        return result.Ok && result.Stdout.Contains("tiling-assistant@ubuntu.com", StringComparison.Ordinal);
     }
 
     private static bool GnomeNightLightOn()

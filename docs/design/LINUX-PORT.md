@@ -176,6 +176,9 @@ step that lets presets and the arrangement reach Linux without a second copy.
    presets and the arrangement.
 6. Packaging: ~~.deb and tarball~~ done; the snap needs a decision on DDC/CI
    under confinement (classic, or without DDC/CI) before it can be built.
-7. Hotkeys (X11 `XGrabKey`, the portal's GlobalShortcuts on Wayland), a tray
+7. ~~Snap layouts and Snap Assist (Linux only)~~ - done on X11: XInput2 raw
+   events for drags, EWMH to place windows, cairo overlays, Composite for
+   Assist's pictures, the shortcut through GNOME's custom shortcuts.
+8. Hotkeys (X11 `XGrabKey`, the portal's GlobalShortcuts on Wayland), a tray
    icon (StatusNotifierItem), and Wayland ramps per compositor
    (`wlr-gamma-control`, Mutter and KWin's D-Bus).

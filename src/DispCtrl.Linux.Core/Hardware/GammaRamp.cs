@@ -33,7 +33,6 @@ public static unsafe class GammaRamp
     private const ushort RRConnected = 0;
 
     private static readonly Lock Gate = new();
-    private static bool _handlerInstalled;
 
     /// <summary>The X display name a call opens: <c>null</c> means <c>$DISPLAY</c>.
     /// The engine sets it from a client when it was started without one.</summary>
@@ -191,18 +190,12 @@ public static unsafe class GammaRamp
 
     private static nint Open()
     {
-        if (!_handlerInstalled)
-        {
-            // Xlib's default handler prints and calls exit(): a CRTC that went
-            // away between enumerating and writing would end the engine.
-            XSetErrorHandler(&OnXError);
-            _handlerInstalled = true;
-        }
+        // Xlib's default handler prints and calls exit(): a CRTC that went away
+        // between enumerating and writing would end the engine. One handler for
+        // the process - the last one installed wins - shared with the window tools.
+        X11.Xlib.InstallErrorHandler();
         return XOpenDisplay(DisplayName);
     }
-
-    [UnmanagedCallersOnly]
-    private static int OnXError(nint display, nint error) => 0;
 
     // Layouts from Xrandr.h, LP64.
     [StructLayout(LayoutKind.Sequential)]
@@ -258,9 +251,6 @@ public static unsafe class GammaRamp
 
     [DllImport(LibX11)]
     private static extern int XSync(nint display, int discard);
-
-    [DllImport(LibX11)]
-    private static extern nint XSetErrorHandler(delegate* unmanaged<nint, nint, int> handler);
 
     [DllImport(LibXrandr)]
     private static extern XRRScreenResources* XRRGetScreenResourcesCurrent(nint display, ulong window);
