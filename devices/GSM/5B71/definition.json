@@ -6,82 +6,49 @@
   "controls": [
     {
       "code": "0xF7",
-      "name": "Response Time",
+      "key": "response-time",
+      "name": "Response time",
       "kind": "choice",
-      "writable": false,
+      "writable": true,
       "values": [
-        {
-          "value": "0x00",
-          "name": "Off"
-        },
-        {
-          "value": "0x01",
-          "name": "Faster"
-        },
-        {
-          "value": "0x02",
-          "name": "Fast"
-        },
-        {
-          "value": "0x03",
-          "name": "Normal"
-        }
+        { "value": "0x00", "name": "Off" },
+        { "value": "0x01", "name": "Faster" },
+        { "value": "0x02", "name": "Fast" },
+        { "value": "0x03", "name": "Normal" }
       ],
       "confidence": "observed",
-      "sources": [
-        "GSM-5B71"
-      ],
-      "notes": "Modify response time of video output depending on the movement of the content, When there is a lot of motion, set to Faster."
+      "sources": [ "GSM-5B71" ],
+      "notes": "Faster suits content with a lot of motion. Listed as F7(00 01 02 03) and read back at each of those values (#33); the same values and names as the other LG models in the library."
     },
     {
       "code": "0xFA",
+      "key": "motion-blur-reduction",
       "name": "1ms Motion Blur Reduction",
       "kind": "choice",
-      "writable": false,
+      "writable": true,
       "values": [
-        {
-          "value": "0x01",
-          "name": "Enabled"
-        },
-        {
-          "value": "0x02",
-          "name": "Disabled"
-        }
+        { "value": "0x01", "name": "On" },
+        { "value": "0x02", "name": "Off" }
       ],
       "confidence": "observed",
-      "sources": [
-        "GSM-5B71"
-      ],
-      "notes": "enables / disables 1ms Motion blur reduction feature"
+      "sources": [ "GSM-5B71" ],
+      "notes": "Read back at 0x01 and 0x02 as the menu changed (#33). The capabilities string lists FA(00 01); what 0x00 does is not known."
     },
     {
       "code": "0xFE",
+      "key": "gamma",
       "name": "Gamma",
       "kind": "choice",
       "writable": false,
       "values": [
-        {
-          "value": "0x02",
-          "name": "Mode 1"
-        },
-        {
-          "value": "0x03",
-          "name": "Mode 2"
-        },
-        {
-          "value": "0x04",
-          "name": "Mode 3"
-        },
-        {
-          "value": "0x16",
-          "name": "Mode 4"
-        }
+        { "value": "0x02", "name": "Mode 1" },
+        { "value": "0x03", "name": "Mode 2" },
+        { "value": "0x04", "name": "Mode 3" },
+        { "value": "0x10", "name": "Mode 4" }
       ],
       "confidence": "observed",
-      "sources": [
-        "GSM-5B71"
-      ],
-      "notes": "Changes the Gamma presets"
+      "sources": [ "GSM-5B71" ],
+      "notes": "Read back at 2, 3, 4 and 16 as the menu's gamma changed (#33); the share named the last 0x16, but 16 is 0x10. Read-only: the LG UltraWide GSM-5BF7 reads the same four values here and ignores writes, its gamma being written through 0x72 (#31)."
     }
   ]
 }
