@@ -48,7 +48,7 @@
       ],
       "confidence": "observed",
       "sources": [ "GSM-5B71" ],
-      "notes": "Read back at 2, 3, 4 and 16 as the menu's gamma changed (#33); the share named the last 0x16, but 16 is 0x10. Read-only: the LG UltraWide GSM-5BF7 reads the same four values here and ignores writes, its gamma being written through 0x72 (#31)."
+      "notes": "Read back at 2, 3, 4 and 16 as the menu's gamma changed (#33); the share named the last 0x16, but 16 is 0x10. Read-only: the LG UltraWide GSM-5BF7 reads the same four values here and ignores writes, its gamma answers on 0x72 instead (#31)."
     }
   ]
 }

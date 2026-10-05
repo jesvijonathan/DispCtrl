@@ -5,6 +5,22 @@
   "extends": [],
   "controls": [
     {
+      "code": "0x14",
+      "key": "colour-temperature",
+      "name": "Colour temperature",
+      "kind": "choice",
+      "writable": true,
+      "values": [
+        { "value": "0x03", "name": "Warm" },
+        { "value": "0x05", "name": "Medium" },
+        { "value": "0x09", "name": "Cool" },
+        { "value": "0x0B", "name": "Custom" }
+      ],
+      "confidence": "observed",
+      "sources": [ "GSM-5BF7" ],
+      "notes": "The menu's Color Temp, from the owner of this model (#31). Its capabilities list 14(05 08 0B), which names only Medium and Custom; what the listed 0x08 does is not yet known. Custom takes the red, green and blue gains."
+    },
+    {
       "code": "0x15",
       "key": "picture-mode",
       "name": "Picture mode",
@@ -159,19 +175,20 @@
       "notes": "From older LG models with the same FD(00 01); not yet confirmed on this one."
     },
     {
-      "code": "0xFE",
+      "code": "0x72",
       "key": "gamma",
       "name": "Gamma",
       "kind": "choice",
       "writable": false,
       "values": [
-        { "value": "0x00", "name": "Mode 1" },
-        { "value": "0x01", "name": "Mode 2" },
-        { "value": "0x02", "name": "Mode 3" }
+        { "value": "0x6400", "name": "Mode 1" },
+        { "value": "0x7800", "name": "Mode 2" },
+        { "value": "0x8C00", "name": "Mode 3" },
+        { "value": "0xA000", "name": "Mode 4" }
       ],
       "confidence": "observed",
       "sources": [ "GSM-5BF7" ],
-      "notes": "Discrete modes per FE(00 01 02), not a range. The menu calls them Mode 1, Mode 2 and so on (#29); that 0x00 is Mode 1 is assumed from the order and not yet confirmed, so it stays read-only."
+      "notes": "Found by probing and seen by the owner to change the menu's Gamma when written with another tool (#31). Not in this model's capabilities string, so DispCtrl does not write it. FE, which reads 2, 3, 4 and 16 as gamma changes, ignores writes."
     },
     {
       "code": "0xD6",
@@ -185,7 +202,7 @@
       ],
       "confidence": "observed",
       "sources": [ "GSM-5BF7" ],
-      "notes": "Switched off with 0x04, this model flashes black and green with no backlight and does not wake until it is unplugged (#30). DispCtrl does not switch it off; Turn off displays blacks it out instead."
+      "notes": "Switched off with 0x04, this model flashes black and green with no backlight and does not wake until it is unplugged (#30). DispCtrl does not switch it off; Turn off displays blacks it out instead. The owner reports that 0x05 (off, hard) switches it off and on again cleanly from ControlMyMonitor (#30); it is not listed, so it is not offered until that is confirmed."
     }
   ]
 }

@@ -8,7 +8,12 @@ using DispCtrl, not for people reading the diff.
 
 ## [Unreleased]
 
+### New
+- LG UltraGear (GSM-5B71): response time and 1ms Motion Blur Reduction can be set from DispCtrl ([#33](https://github.com/jesvijonathan/DispCtrl/issues/33)).
+- LG UltraWide (GSM-5BF7): colour temperature can be set as Warm, Medium, Cool or Custom, as the monitor's menu names them ([#31](https://github.com/jesvijonathan/DispCtrl/issues/31)).
+
 ### Fixed
+- LG UltraWide (GSM-5BF7): DispCtrl no longer calls FE "Gamma"; the monitor ignores writes to it ([#31](https://github.com/jesvijonathan/DispCtrl/issues/31)).
 - In Duplicate, the app said only one display was connected and offered no way back to Extend or one screen.
 - With two external monitors, "PC screen only" lit "Second screen only" on the Displays page and in the quick panel. The lit choice is now the one Windows' own Project flyout shows, and presets record it the same way.
 - The quick panel's display mode buttons follow a switch between Duplicate and one screen straight away, instead of after the panel is reopened.
